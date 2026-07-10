@@ -1,0 +1,25 @@
+# typos configuration
+# https://github.com/crate-ci/typos
+
+[files]
+extend-exclude = [
+    "target/",
+    "Cargo.lock",
+    ".git/",
+    "*.svg",
+    "*.png",
+    "*.jpg",
+    "index.html",
+    "*.cast",
+    "web/dist",
+]
+
+[default]
+locale = "en"
+
+[default.extend-words]
+# Project-specific words to avoid false positives.
+# Example: helo = "helo"
+iif = "iif"
+oif = "oif"
+ratatui = "ratatui"

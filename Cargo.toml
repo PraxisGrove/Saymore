@@ -1,0 +1,59 @@
+[workspace]
+members = [
+    "crates/app",
+    "crates/cli",
+    "crates/domain",
+    "crates/infra",
+    "crates/xtask",
+]
+resolver = "2"
+
+[workspace.package]
+authors = ["unic <yuniqueunic@gmail.com>"]
+edition = "2024"
+license = "MIT OR Apache-2.0"
+version = "0.1.0"
+
+[workspace.dependencies]
+anyhow = "1"
+assert_cmd = "2"
+predicates = "3"
+rstest = "0.26"
+template-app = { path = "crates/app", version = "0.1.0" }
+template-domain = { path = "crates/domain", version = "0.1.0" }
+template-infra = { path = "crates/infra", version = "0.1.0" }
+
+[workspace.lints]
+rust = {}
+
+[workspace.lints.clippy]
+expect_used = "deny"
+panic = "deny"
+panic_in_result_fn = "deny"
+todo = "deny"
+unimplemented = "deny"
+manual_ok_or = "deny"
+needless_collect = "deny"
+redundant_clone = "deny"
+uninlined_format_args = "deny"
+unwrap_used = "deny"
+
+[profile.dev]
+debug = "limited"
+
+[profile.release]
+codegen-units = 4
+debug = "line-tables-only"
+lto = "thin"
+strip = false
+
+# only works with cargo-release
+[workspace.metadata.release]
+pre-release-replacements = [
+    # Update inline-table dependency snippets like:
+    # template = { version = "0.2", features = ["custom"] }
+    { file = "README.md", search = "template\\s*=\\s*\\{\\s*version\\s*=\\s*\"[0-9]+\\.[0-9]+(\\.[0-9]+)?(-[0-9A-Za-z.-]+)?\"", replace = "template = { version = \"{{version}}\"" },
+    # Update plain dependency snippets like:
+    # template = "0.2"
+    { file = "README.md", search = "template\\s*=\\s*\"[0-9]+\\.[0-9]+(\\.[0-9]+)?(-[0-9A-Za-z.-]+)?\"", replace = "template = \"{{version}}\"", min = 0 },
+]
