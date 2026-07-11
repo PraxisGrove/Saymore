@@ -2,6 +2,18 @@
 
 Project guidance for humans and coding agents.
 
+- `adr/0001-asr-providers-declare-language-capabilities.md`: ASR language
+  capabilities are declared per Provider rather than as one global product list.
+- `adr/0002-dual-license-mit-or-apache-2.0.md`: the client and core libraries
+  use the existing Rust ecosystem-friendly dual license.
+- `product/open-source-voice-input-wayfinder.md`: voice recognition product
+  direction, MVP scope, architecture, validation slices, and unresolved decisions.
+- `research/typeless-input-behavior.md`: first-party research on Typeless desktop
+  dictation timing, insertion, processing, permissions, and known unknowns.
+- `research/multilingual-support-typeless-shandianshuo.md`: first-party comparison
+  of Typeless and Shandianshuo multilingual behavior and model architecture.
+- `research/personal-dictionary-learning-typeless-shandianshuo.md`: first-party
+  comparison of automatic vocabulary claims and manual dictionary workflows.
 - `architecture.md`: crate boundaries and dependency direction.
 - `development.md`: required Cargo, nextest, deny, and size gates.
 - `technology-stack.md`: recommended Rust crates and framework choices.
