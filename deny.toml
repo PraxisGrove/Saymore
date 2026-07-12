@@ -1,8 +1,10 @@
 [graph]
 all-features = true
+targets = ["aarch64-apple-darwin"]
 
 [advisories]
 db-urls = ["https://github.com/RustSec/advisory-db"]
+unmaintained = "workspace"
 yanked = "deny"
 
 [bans]
@@ -14,5 +16,13 @@ version = 2
 confidence-threshold = 0.8
 allow = [
     "Apache-2.0",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "CDLA-Permissive-2.0",
+    "ISC",
+    "LicenseRef-Slint-Royalty-free-2.0",
     "MIT",
+    "MPL-2.0",
+    "Unicode-3.0",
+    "Zlib",
 ]

@@ -1,140 +1,133 @@
-# Technology Stack
+# Saymore Technology Stack
 
-The template targets mature Rust projects. Add runtime dependencies only when
-the project needs them, but keep the verification toolchain strong by default.
+Saymore is a native desktop product with a Rust-first codebase. The production
+desktop application must not depend on JavaScript, TypeScript, React, Vite,
+Node.js, a browser runtime, or a WebView.
 
-## Default Policy
+Slint uses declarative `.slint` UI files in addition to `.rs` files. In this
+project, "all-Rust desktop stack" means that application logic, platform
+integration, networking, storage, audio, and packaging automation are Rust,
+while UI structure is expressed with Slint's compiled declarative language.
 
-- Required path: Rust, Cargo, `cargo-nextest`, `cargo-deny`, and crates in this
-  workspace.
-- Optional convenience tools: `just`, `prek`, and release helpers.
-- Project tasks belong in `crates/xtask`, not ad hoc scripts in another
-  language.
+The decision and migration consequences are recorded in
+`adr/0003-use-slint-for-the-desktop-ui.md`.
 
-## Recommended Crates
+## Committed Stack
 
-| Area | Recommendation |
-|---|---|
-| CLI | `clap` |
-| Serialization | `serde`, `serde_json`, `toml` |
-| Library errors | `thiserror` |
-| Binary/xtask errors | `anyhow` |
-| Observability | `tracing`, `tracing-subscriber` |
-| Async runtime | `tokio` |
-| HTTP client | `reqwest` |
-| HTTP server | `axum` |
-| gRPC | `tonic` |
-| SQL | `sqlx` |
-| ORM | Prefer no ORM; use `sea-orm` only when the project needs an entity model. |
-| Parameterized tests | `rstest` |
-| Property tests | `proptest` |
-| Snapshot tests | `insta` |
-| Trait mocks | `mockall` |
-| HTTP mocks | `wiremock` |
-| Benchmarks | `criterion` |
-| TUI | `ratatui`, `crossterm` |
+| Area | Choice | Responsibility |
+|---|---|---|
+| Language | Current stable Rust (1.97.0 locally), Edition 2024 | All application and platform logic |
+| Desktop UI | `slint` | Settings, onboarding, history, status overlay, and result overlay |
+| Async runtime | `tokio` | Network requests, model downloads, and cancellable background work |
+| UI/background bridge | Typed Rust messages | Keep the Slint event loop responsive and isolate long-running work |
+| Audio capture | `cpal` | Cross-platform input-device discovery and PCM capture |
+| HTTP client | `reqwest` with Rustls | Cloud ASR, LLM providers, model manifests, and updates |
+| Serialization | `serde`, `serde_json`, `toml` | Configuration and provider protocols |
+| Local database | SQLite through `rusqlite` | Settings, history, dictionary, and model metadata |
+| Provider configuration | Versioned JSON restricted to the current user | Provider activation, model, and user-supplied API keys |
+| Secrets | OS credential-store adapters behind `SecretStore` | Account/session credentials and the local history data key |
+| Errors | `thiserror`; `anyhow` at binary and xtask boundaries | Explicit library errors and entrypoint context |
+| Observability | `tracing`, `tracing-subscriber` | Local diagnostics without user-content logging |
+| Tests | Cargo test, `cargo-nextest`, `rstest` | Unit, integration, and provider contract tests |
+| Dependency policy | `cargo-deny` | License, advisory, source, and duplicate checks |
+| Packaging automation | Rust in `xtask` plus platform signing tools | `.app`/DMG on macOS and installer artifacts on Windows |
 
-## Default Application Stacks
+Versions are pinned through `Cargo.lock` when each dependency is introduced.
+Dependencies are added only when the vertical slice that uses them starts; this
+table is a decision, not permission to add every crate immediately.
 
-Use these defaults when evolving this template into a concrete product. Do not
-add all of them to the base workspace.
+On macOS, provider configuration lives at
+`~/Library/Application Support/Saymore/config.json`. Its directory and file
+permissions are restricted to the current user (`0700` and `0600`). This is a
+deliberate local-file configuration mode compatible with user-managed provider
+keys; the application must never log those values. Credentials issued by a
+Saymore account and the local history encryption key remain in Keychain.
 
-| Application type | Default stack |
-|---|---|
-| Server-only service | `tokio`, `axum`, `tower`, `tower-http`, `serde`, `thiserror`, `anyhow`, `tracing`, `tracing-subscriber`, `opentelemetry`, `opentelemetry-otlp`, `sqlx`, PostgreSQL |
-| Server plus full-stack frontend | Server-only stack plus `leptos` for the Rust full-stack web boundary |
-| Desktop-only app | `tauri` as the desktop shell, Rust command handlers, local adapters in `infra`, and optional SQLite through `sqlx` |
-| Server plus desktop client | Server-only stack plus a `tauri` desktop client; share API contracts through a dedicated crate |
-| CLI/TUI app | `clap`, `anyhow`, `thiserror`, `tracing`, optional `ratatui` and `crossterm` for terminal UI |
+The MVP has no hosted Saymore backend. If accounts, billing, or sync later make
+one necessary, it must also use Rust with Tokio and Axum and communicate with
+the desktop app through an explicit versioned API.
 
-## Server Stack
+## Desktop UI Boundary
 
-Choose this for APIs, workers with HTTP control planes, and backend services.
+Slint owns rendering, window composition, component state, and user events. It
+does not own speech recognition, persistence, permissions, shortcuts, text
+delivery, or provider calls.
 
-- Runtime: `tokio`.
-- HTTP: `axum` with `tower`/`tower-http` middleware.
-- Data: PostgreSQL with `sqlx`.
-- Observability: `tracing`, `tracing-subscriber`, OpenTelemetry traces through
-  OTLP.
-- Errors: `thiserror` in library crates, `anyhow` at binary and `xtask`
-  boundaries.
-- Configuration: environment variables parsed at startup into typed config.
-- Migrations: `sqlx migrate`.
+The desktop binary wires Slint callbacks to `app` use cases and converts
+application state into small UI view models. `domain` and `app` must not depend
+on Slint types. Platform adapters and framework-specific handles stay in the
+desktop entrypoint or `infra`.
 
-Keep `domain` free of `tokio`, HTTP, SQL, filesystem, and process concerns.
-Put request handlers, runtime wiring, and shutdown behavior at the binary
-boundary.
+Slint is a custom-rendered cross-platform UI toolkit. It produces native
+desktop binaries, but it does not make every control an AppKit or WinUI widget.
+Platform-specific behavior must therefore be validated on both operating
+systems instead of inferred from the macOS appearance.
 
-## Full-Stack Web Stack
+## Platform Integration
 
-Choose this when the frontend should also be Rust.
+macOS adapters use the relevant Accessibility, Core Graphics, AppKit, Keychain,
+audio, and code-signing APIs. Windows adapters use the `windows` crate for UI
+Automation, input, credentials, startup behavior, and installer integration.
+Cross-platform wrappers are acceptable only when they preserve the behavior
+Saymore needs; global shortcuts and text delivery remain explicit platform
+adapters.
 
-- Web framework: `leptos`.
-- Server integration: mount Leptos on the `axum` server boundary.
-- Shared types: keep request/response DTOs in a dedicated crate only when they
-  are used by both client and server.
-- Styling: add the CSS/tooling stack only when the UI work starts.
+## Packaging
 
-Do not introduce a separate JavaScript full-stack framework by default. If a
-project intentionally chooses React/Next.js, document that as a project-specific
-override.
+Cargo remains the source of truth for builds. `xtask` coordinates resource
+generation, bundle assembly, hashes, update manifests, and release checks.
+Apple and Microsoft platform tools still perform code signing, notarization,
+and installer creation where the operating system requires them.
 
-## Desktop Stack
+The target artifacts are:
 
-Choose this for installed desktop apps.
+- macOS: a signed `.app` bundle distributed inside a DMG.
+- Windows: a signed application and one user-facing installer format selected
+  during the Windows vertical slice.
 
-- Desktop shell: `tauri`.
-- UI: use Tauri's web frontend boundary; choose the frontend framework per
-  product UI needs.
-- Rust side: expose small commands that call into `app` use cases.
-- Local persistence: SQLite through `sqlx` when persistence is needed.
-- Packaging: keep platform signing, notarization, and installer work in
-  project-specific docs once the app has a release target.
+There is no Tauri CLI or Node.js packaging step in the target stack.
 
-Avoid putting desktop framework types in `domain` or `app`. Keep them in the
-desktop entrypoint crate.
+## Required Quality Gates
 
-## Server Plus Desktop Stack
+The repository gate remains:
 
-Choose this when the product has both hosted services and an installed client.
+```bash
+cargo fmt --all --check
+cargo check --workspace --all-targets
+cargo nextest run --workspace --all-targets
+cargo test --workspace --doc
+cargo clippy --workspace --all-targets -- -D warnings
+cargo deny check
+cargo build --workspace --all-targets --release
+cargo run -p xtask -- size
+```
 
-- Server: use the server-only stack.
-- Desktop: use the desktop stack.
-- Contract: define API DTOs and client behavior explicitly; do not let the
-  desktop app depend on server internals.
-- Authentication and update channels are project-specific and must be
-  documented when selected.
+`cargo check` must compile the `.slint` sources through the desktop crate's
+build script, so UI compiler errors fail the standard Cargo gate.
 
-## CLI/TUI Stack
+## Explicitly Rejected For The Product
 
-Choose this for command-line tools, developer tools, automation CLIs, and
-terminal user interfaces.
+- Tauri as the desktop shell.
+- React, TypeScript, Vite, HTML, and CSS for production UI.
+- Electron or another bundled browser runtime.
+- A second UI implementation per operating system.
+- Slint types leaking into `domain` or `app`.
+- Blocking audio, network, model, or database work on the UI event loop.
 
-- Argument parsing: `clap`.
-- Errors: `anyhow` at the binary boundary, `thiserror` in reusable library
-  crates.
-- Output: write human-readable output by default; add `serde_json` output only
-  when scripts or integrations need stable machine-readable output.
-- Logging: `tracing` with an env filter for diagnostics; keep normal command
-  output separate from logs.
-- TUI: `ratatui` with `crossterm` when the app needs an interactive terminal
-  interface.
-- Testing: use `assert_cmd` and `predicates` for CLI behavior; keep TUI state
-  transitions testable without a terminal.
+## Migration Status
 
-Keep parsing and process exit behavior in `cli`. Move reusable command logic
-into `app` so it can be tested without spawning the binary.
+The desktop UI migration completed on 2026-07-12:
 
-## Web Framework Guidance
+- `apps/desktop` is one Rust crate with compiled Slint UI.
+- Accessibility and microphone permission polling, Right Command press/release
+  capture, and in-memory mono 16 kHz signed 16-bit PCM conversion are wired
+  through explicit `app` ports and macOS `infra` adapters.
+- React, TypeScript, Vite, Node.js, pnpm, Tauri, and WebView source and build
+  configuration have been removed.
+- macOS `.app` creation and local signing are driven by Rust `xtask`.
 
-Prefer `axum` for new HTTP services. It fits the Tokio/Tower ecosystem, keeps
-handlers explicit, and composes well with middleware.
-
-Use `actix-web` when the team specifically wants Actix's model or has a strong
-performance/operational reason.
-
-Use `rocket` when a project values a more batteries-included web framework and
-the tradeoff is intentional.
-
-Do not add a web framework to the base template. Add it only to a project or a
-separate template variant that actually serves HTTP.
+The first cloud ASR vertical slice now streams 16 kHz PCM to Volcengine over a
+background WebSocket session, keeps provider partial results in memory, and
+delivers one normalized final transcript through the existing macOS text
+delivery adapter. Windows adapters remain the next platform boundary against
+the same app use cases and Slint UI.

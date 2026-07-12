@@ -13,3 +13,4 @@ workspace = true
 
 [dependencies]
 template-domain = { workspace = true }
+thiserror = { workspace = true }

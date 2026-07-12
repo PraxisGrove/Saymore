@@ -1,5 +1,6 @@
 [workspace]
 members = [
+    "apps/desktop",
     "crates/app",
     "crates/cli",
     "crates/domain",
@@ -17,11 +18,24 @@ version = "0.1.0"
 [workspace.dependencies]
 anyhow = "1"
 assert_cmd = "2"
+cpal = "0.18.1"
+flate2 = "1.1.9"
+futures-util = "0.3.32"
 predicates = "3"
+raw-window-handle = "0.6"
+rustls = { version = "0.23.41", default-features = false, features = ["ring", "std"] }
 rstest = "0.26"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+slint = { version = "1.17.1", default-features = false, features = ["accessibility", "backend-winit", "compat-1-2", "image-default-formats", "raw-window-handle-06", "renderer-femtovg", "std"] }
+slint-build = "1.17.1"
 template-app = { path = "crates/app", version = "0.1.0" }
 template-domain = { path = "crates/domain", version = "0.1.0" }
 template-infra = { path = "crates/infra", version = "0.1.0" }
+thiserror = "2"
+tokio = { version = "1.52.3", features = ["macros", "rt-multi-thread", "sync", "time"] }
+tokio-tungstenite = { version = "0.30.0", features = ["rustls-tls-webpki-roots"] }
+uuid = { version = "1.23.5", features = ["v4"] }
 
 [workspace.lints]
 rust = {}

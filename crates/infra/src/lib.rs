@@ -2,6 +2,52 @@
 
 use template_app::RecipientProvider;
 
+#[cfg(target_os = "macos")]
+mod macos_audio_recorder;
+
+#[cfg(target_os = "macos")]
+mod macos_feedback_sound;
+
+#[cfg(target_os = "macos")]
+mod macos_overlay_window;
+
+#[cfg(target_os = "macos")]
+mod macos_settings_store;
+
+#[cfg(target_os = "macos")]
+mod macos_microphone_permission;
+
+#[cfg(target_os = "macos")]
+mod macos_shortcut_monitor;
+
+#[cfg(target_os = "macos")]
+mod macos_text_delivery;
+
+mod volcengine_asr;
+
+#[cfg(target_os = "macos")]
+pub use macos_audio_recorder::MacOsAudioRecorder;
+
+#[cfg(target_os = "macos")]
+pub use macos_feedback_sound::MacOsFeedbackSoundPlayer;
+
+#[cfg(target_os = "macos")]
+pub use macos_overlay_window::{MacOsOverlayWindowError, configure_overlay_window};
+
+#[cfg(target_os = "macos")]
+pub use macos_settings_store::JsonSettingsStore;
+
+#[cfg(target_os = "macos")]
+pub use macos_microphone_permission::MacOsMicrophonePermission;
+
+#[cfg(target_os = "macos")]
+pub use macos_shortcut_monitor::{DictationShortcutAction, MacOsShortcutMonitor};
+
+#[cfg(target_os = "macos")]
+pub use macos_text_delivery::MacOsTextDeliverer;
+
+pub use volcengine_asr::VolcengineSpeechRecognizer;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EnvRecipient {
     recipient: String,

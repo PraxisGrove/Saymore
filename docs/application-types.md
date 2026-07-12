@@ -1,18 +1,19 @@
 # Application Types
 
-This repository is a single Rust workspace template. It does not keep separate
-generated profile directories.
+This repository is a single Rust workspace. Saymore has committed to the
+desktop-only direction with Slint; the other directions remain reference
+guidance rather than active product stacks.
 
-When starting a real project, choose one application type and evolve the
-workspace in that direction.
+Only dependencies required by Saymore's selected direction belong in the
+workspace.
 
 ## Supported Directions
 
 | Type | Use when | Default stack |
 |---|---|---|
 | Server plus full-stack frontend | The product needs an HTTP API and browser UI written primarily in Rust. | `tokio`, `axum`, `leptos`, `tracing`, OpenTelemetry, `sqlx`, PostgreSQL. |
-| Server plus desktop client | The product needs a backend and an installed desktop app. | Server stack plus `tauri`; share contracts through a dedicated crate. |
-| Desktop-only app | The product is local-first or does not need a hosted backend. | `tauri`, Rust command handlers, local `infra` adapters, optional SQLite with `sqlx`. |
+| Server plus desktop client | The product needs a backend and an installed desktop app. | Server stack plus `slint`; share contracts through a dedicated crate. |
+| Desktop-only app | The product is local-first or does not need a hosted backend. | `slint`, Rust application wiring, local `infra` adapters, and SQLite with `rusqlite` when needed. |
 | Server-only service | The product is an API, worker, or backend service. | `tokio`, `axum`, `tower`, `tracing`, OpenTelemetry, `sqlx`, PostgreSQL. |
 | CLI/TUI app | The product is a command-line tool, developer tool, or terminal UI. | `clap`, `anyhow`, `thiserror`, `tracing`, optional `ratatui` and `crossterm`. |
 

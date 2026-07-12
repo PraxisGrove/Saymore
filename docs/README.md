@@ -6,6 +6,8 @@ Project guidance for humans and coding agents.
   capabilities are declared per Provider rather than as one global product list.
 - `adr/0002-dual-license-mit-or-apache-2.0.md`: the client and core libraries
   use the existing Rust ecosystem-friendly dual license.
+- `adr/0003-use-slint-for-the-desktop-ui.md`: the production desktop app uses
+  Slint and Rust instead of Tauri and a Web frontend.
 - `product/open-source-voice-input-wayfinder.md`: voice recognition product
   direction, MVP scope, architecture, validation slices, and unresolved decisions.
 - `research/typeless-input-behavior.md`: first-party research on Typeless desktop

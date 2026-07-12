@@ -1,0 +1,441 @@
+import { Button } from "std-widgets.slint";
+
+component StatusPill inherits Rectangle {
+    in property <string> label;
+    in property <bool> granted;
+    width: 68px;
+    height: 26px;
+    border-radius: 6px;
+    background: root.granted ? #eaf7f1 : #f4f4f5;
+
+    HorizontalLayout {
+        padding-left: 10px;
+        padding-right: 10px;
+        spacing: 6px;
+        alignment: center;
+        cross-axis-alignment: center;
+
+        Rectangle {
+            width: 6px;
+            height: 6px;
+            border-radius: 3px;
+            background: root.granted ? #17966a : #a1a1aa;
+        }
+
+        Text {
+            text: root.label;
+            color: root.granted ? #147a58 : #52525b;
+            font-size: 11px;
+            font-weight: 600;
+            vertical-alignment: center;
+        }
+    }
+}
+
+export component AppWindow inherits Window {
+    title: "Saymore";
+    preferred-width: 560px;
+    preferred-height: 520px;
+    min-width: 560px;
+    min-height: 520px;
+    max-width: 560px;
+    max-height: 520px;
+    background: #f7f8fa;
+
+    in property <bool> authorized: false;
+    in property <string> authorization-status: "检测中";
+    in property <bool> microphone-authorized: false;
+    in property <string> microphone-status: "检测中";
+    in property <bool> recording-active: false;
+    in property <bool> recording-failed: false;
+    in property <bool> recording-complete: false;
+    in property <float> recording-level: 0;
+    in property <string> recording-status: "等待录音";
+    in property <string> recording-detail: "单击右 Command 开始";
+    in-out property <string> asr-api-key: "";
+    in property <bool> asr-configured: false;
+    in property <bool> asr-config-error: false;
+    in property <string> asr-config-status: "未配置";
+    callback request-authorization();
+    callback request-microphone-authorization();
+    callback save-asr-config(string);
+    callback delete-asr-config();
+
+    VerticalLayout {
+        padding-left: 32px;
+        padding-right: 32px;
+        padding-top: 24px;
+        padding-bottom: 24px;
+        spacing: 0px;
+
+        HorizontalLayout {
+            height: 62px;
+            spacing: 14px;
+            alignment: start;
+
+            Rectangle {
+                width: 48px;
+                height: 48px;
+                clip: true;
+                border-radius: 11px;
+                background: #09090b;
+
+                Image {
+                    width: 48px;
+                    height: 48px;
+                    source: @image-url("../icons/saymore-icon.svg");
+                    image-fit: contain;
+                }
+            }
+
+            VerticalLayout {
+                height: 48px;
+                spacing: 1px;
+                alignment: center;
+
+                Text {
+                    text: "Saymore";
+                    color: #18181b;
+                    font-size: 22px;
+                    font-weight: 700;
+                }
+
+                Text {
+                    text: "随时开口，文字即达";
+                    color: #71717a;
+                    font-size: 12px;
+                }
+            }
+        }
+
+        Rectangle { height: 1px; background: #e1e4e8; }
+
+        VerticalLayout {
+            height: 130px;
+            padding-top: 14px;
+            padding-bottom: 14px;
+            spacing: 10px;
+
+            HorizontalLayout {
+                height: 32px;
+                alignment: space-between;
+
+                VerticalLayout {
+                    spacing: 1px;
+
+                    Text { text: "语音服务"; color: #18181b; font-size: 14px; font-weight: 650; }
+                    Text { text: "火山引擎 · API Key 仅保存在本机"; color: #71717a; font-size: 11px; }
+                }
+
+                StatusPill {
+                    label: root.asr-config-status;
+                    granted: root.asr-configured && !root.asr-config-error;
+                }
+            }
+
+            HorizontalLayout {
+                height: 38px;
+                spacing: 8px;
+                alignment: start;
+
+                api-field := Rectangle {
+                    width: 324px;
+                    height: 38px;
+                    clip: true;
+                    border-width: 1px;
+                    border-color: api-input.has-focus ? #4f7cff : #d7dbe0;
+                    border-radius: 7px;
+                    background: #ffffff;
+
+                    if root.asr-api-key.is-empty: Text {
+                        x: 12px;
+                        width: 288px;
+                        text: "输入火山引擎 API Key";
+                        color: #a1a1aa;
+                        font-size: 12px;
+                        vertical-alignment: center;
+                    }
+
+                    api-input := TextInput {
+                        x: 12px;
+                        width: max(288px, self.preferred-width);
+                        text <=> root.asr-api-key;
+                        input-type: InputType.password;
+                        accessible-label: "火山引擎 API Key";
+                        accessible-value: root.asr-api-key.is-empty ? "" : "已填写";
+                        color: #18181b;
+                        font-size: 12px;
+                        vertical-alignment: center;
+                        accepted => { root.save-asr-config(self.text); }
+                        cursor-position-changed(cursor-position) => {
+                            if cursor-position.x + self.x > api-field.width - 18px {
+                                self.x = api-field.width - cursor-position.x - 18px;
+                            } else if cursor-position.x + self.x < 12px {
+                                self.x = 12px - cursor-position.x;
+                            }
+                        }
+                    }
+                }
+
+                Rectangle {
+                    width: 92px;
+                    height: 38px;
+                    border-radius: 7px;
+                    background: root.asr-api-key.is-empty ? #dfe3e8 : #315fdd;
+
+                    Text { text: "保存配置"; color: root.asr-api-key.is-empty ? #8b919a : #ffffff; font-size: 12px; font-weight: 600; horizontal-alignment: center; vertical-alignment: center; }
+                    TouchArea { enabled: !root.asr-api-key.is-empty; clicked => { root.save-asr-config(api-input.text); } }
+                }
+
+                Rectangle {
+                    width: 72px;
+                    height: 38px;
+                    border-width: 1px;
+                    border-color: #d7dbe0;
+                    border-radius: 7px;
+                    background: #ffffff;
+
+                    Text { text: "删除"; color: root.asr-configured ? #c23b3f : #a1a1aa; font-size: 12px; horizontal-alignment: center; vertical-alignment: center; }
+                    TouchArea { enabled: root.asr-configured; clicked => { root.delete-asr-config(); } }
+                }
+            }
+        }
+
+        Rectangle { height: 1px; background: #e1e4e8; }
+
+        VerticalLayout {
+            height: 105px;
+            padding-top: 13px;
+            padding-bottom: 13px;
+            spacing: 9px;
+
+            Text { text: "系统权限"; color: #18181b; font-size: 13px; font-weight: 650; }
+
+            HorizontalLayout {
+                height: 48px;
+                spacing: 18px;
+
+                HorizontalLayout {
+                    width: 239px;
+                    alignment: space-between;
+
+                    VerticalLayout {
+                        spacing: 1px;
+                        Text { text: "麦克风"; color: #27272a; font-size: 13px; font-weight: 600; }
+                        Text { text: "采集输入音频"; color: #8b919a; font-size: 11px; }
+                    }
+
+                    StatusPill { label: root.microphone-status; granted: root.microphone-authorized; }
+                    Button { visible: !root.microphone-authorized; text: "授权"; clicked => { root.request-microphone-authorization(); } }
+                }
+
+                Rectangle { width: 1px; background: #e1e4e8; }
+
+                HorizontalLayout {
+                    width: 238px;
+                    alignment: space-between;
+
+                    VerticalLayout {
+                        spacing: 1px;
+                        Text { text: "辅助功能"; color: #27272a; font-size: 13px; font-weight: 600; }
+                        Text { text: "投递识别文字"; color: #8b919a; font-size: 11px; }
+                    }
+
+                    StatusPill { label: root.authorization-status; granted: root.authorized; }
+                    Button { visible: !root.authorized; text: "授权"; clicked => { root.request-authorization(); } }
+                }
+            }
+        }
+
+        Rectangle { height: 1px; background: #e1e4e8; }
+
+        HorizontalLayout {
+            height: 119px;
+            padding-top: 15px;
+            spacing: 18px;
+
+            VerticalLayout {
+                width: 239px;
+                height: 82px;
+                spacing: 8px;
+
+                Text { text: "录音快捷键"; color: #18181b; font-size: 13px; font-weight: 650; }
+
+                HorizontalLayout {
+                    height: 40px;
+                    alignment: space-between;
+
+                    Text { text: "单击开始，再次单击结束"; color: #71717a; font-size: 11px; vertical-alignment: center; }
+
+                    Rectangle {
+                        width: 58px;
+                        height: 30px;
+                        border-width: 1px;
+                        border-color: #d7dbe0;
+                        border-radius: 6px;
+                        background: #ffffff;
+                        Text { text: "右 ⌘"; color: #27272a; font-size: 12px; font-weight: 600; horizontal-alignment: center; vertical-alignment: center; }
+                    }
+                }
+            }
+
+            Rectangle { width: 1px; height: 82px; background: #e1e4e8; }
+
+            VerticalLayout {
+                width: 238px;
+                height: 82px;
+                spacing: 8px;
+
+                HorizontalLayout {
+                    height: 18px;
+                    alignment: space-between;
+                    Text { text: "当前状态"; color: #18181b; font-size: 13px; font-weight: 650; }
+                    Text { text: root.recording-status; color: root.recording-failed ? #c23b3f : root.recording-active ? #315fdd : #52525b; font-size: 11px; }
+                }
+
+                Text { text: root.recording-detail; color: root.recording-failed ? #c23b3f : #71717a; font-size: 11px; overflow: elide; }
+
+                Rectangle {
+                    height: 7px;
+                    border-radius: 4px;
+                    background: #e1e4e8;
+
+                    Rectangle {
+                        width: root.recording-active ? max(5px, parent.width * root.recording-level) : 5px;
+                        height: parent.height;
+                        border-radius: 4px;
+                        background: root.recording-active ? #315fdd : root.recording-complete ? #17966a : #a1a1aa;
+                        animate width { duration: 80ms; easing: ease-out; }
+                    }
+                }
+            }
+        }
+    }
+}
+
+export component RecordingOverlay inherits Window {
+    title: "Saymore Recording";
+    preferred-width: 150px;
+    preferred-height: 62px;
+    min-width: 150px;
+    min-height: 62px;
+    max-width: 150px;
+    max-height: 62px;
+    no-frame: true;
+    always-on-top: true;
+    background: transparent;
+
+    in property <bool> show-device: false;
+    in property <string> device-name: "";
+    in property <float> recording-level: 0;
+    // 0 = recording, 1 = processing, 2 = cancelled
+    in property <int> mode: 0;
+    callback cancel();
+    callback finish();
+    callback undo-cancel();
+
+    if root.show-device: Rectangle {
+        x: 5px;
+        y: 0px;
+        width: 140px;
+        height: 23px;
+        border-radius: 7px;
+        background: #1c1c1e;
+        border-width: 1px;
+        border-color: #343438;
+
+        Text {
+            x: 10px;
+            width: 120px;
+            text: "使用中 " + root.device-name;
+            color: #e4e4e7;
+            font-size: 10px;
+            font-weight: 600;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+            overflow: elide;
+        }
+    }
+
+    Rectangle {
+        x: 15px;
+        y: 27px;
+        width: 120px;
+        height: 32px;
+        border-radius: 16px;
+        background: #111113;
+        border-width: 1px;
+        border-color: #3f3f46;
+
+        if root.mode == 0: Rectangle {
+            Rectangle {
+                x: 3px;
+                y: 3px;
+                width: 26px;
+                height: 26px;
+                border-radius: 13px;
+                background: #343438;
+
+                Text { text: "×"; color: #d4d4d8; font-size: 18px; horizontal-alignment: center; vertical-alignment: center; }
+                TouchArea { clicked => { root.cancel(); } }
+            }
+
+            wave := Rectangle {
+                x: 34px;
+                y: 5px;
+                width: 52px;
+                height: 22px;
+                background: transparent;
+
+                bar-a := Rectangle { x: 0px; width: 3px; height: max(3px, root.recording-level * 9px); y: (parent.height - bar-a.height) / 2; border-radius: 2px; background: #ffffff; animate height { duration: 70ms; easing: ease-out; } }
+                bar-b := Rectangle { x: 7px; width: 3px; height: max(5px, root.recording-level * 16px); y: (parent.height - bar-b.height) / 2; border-radius: 2px; background: #ffffff; animate height { duration: 70ms; easing: ease-out; } }
+                bar-c := Rectangle { x: 14px; width: 3px; height: max(7px, root.recording-level * 21px); y: (parent.height - bar-c.height) / 2; border-radius: 2px; background: #ffffff; animate height { duration: 70ms; easing: ease-out; } }
+                bar-d := Rectangle { x: 21px; width: 3px; height: max(4px, root.recording-level * 13px); y: (parent.height - bar-d.height) / 2; border-radius: 2px; background: #ffffff; animate height { duration: 70ms; easing: ease-out; } }
+                bar-e := Rectangle { x: 28px; width: 3px; height: max(6px, root.recording-level * 19px); y: (parent.height - bar-e.height) / 2; border-radius: 2px; background: #ffffff; animate height { duration: 70ms; easing: ease-out; } }
+                bar-f := Rectangle { x: 35px; width: 3px; height: max(3px, root.recording-level * 10px); y: (parent.height - bar-f.height) / 2; border-radius: 2px; background: #ffffff; animate height { duration: 70ms; easing: ease-out; } }
+                bar-g := Rectangle { x: 42px; width: 3px; height: max(5px, root.recording-level * 17px); y: (parent.height - bar-g.height) / 2; border-radius: 2px; background: #ffffff; animate height { duration: 70ms; easing: ease-out; } }
+                bar-h := Rectangle { x: 49px; width: 3px; height: max(4px, root.recording-level * 12px); y: (parent.height - bar-h.height) / 2; border-radius: 2px; background: #ffffff; animate height { duration: 70ms; easing: ease-out; } }
+            }
+
+            Rectangle {
+                x: 91px;
+                y: 3px;
+                width: 26px;
+                height: 26px;
+                border-radius: 13px;
+                background: #f4f4f5;
+
+                Text { text: "✓"; color: #18181b; font-size: 17px; horizontal-alignment: center; vertical-alignment: center; }
+                TouchArea { clicked => { root.finish(); } }
+            }
+        }
+
+        if root.mode == 1: Rectangle {
+            Text {
+                text: "正在转写…";
+                color: #f4f4f5;
+                font-size: 11px;
+                font-weight: 600;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+        }
+
+        if root.mode == 2: Rectangle {
+            Text { x: 9px; width: 48px; text: "已取消"; color: #f4f4f5; font-size: 10px; font-weight: 600; vertical-alignment: center; }
+
+            Rectangle {
+                x: 63px;
+                y: 4px;
+                width: 52px;
+                height: 24px;
+                border-radius: 12px;
+                background: #2a2a2e;
+
+                Text { text: "撤销"; color: #ffffff; font-size: 10px; horizontal-alignment: center; vertical-alignment: center; }
+
+                TouchArea { clicked => { root.undo-cancel(); } }
+            }
+        }
+    }
+}

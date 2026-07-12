@@ -13,3 +13,24 @@ workspace = true
 
 [dependencies]
 template-app = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+flate2 = { workspace = true }
+futures-util = { workspace = true }
+rustls = { workspace = true }
+tokio = { workspace = true }
+tokio-tungstenite = { workspace = true }
+uuid = { workspace = true }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+accessibility-sys = "0.2"
+block2 = "0.6"
+core-foundation = "0.10"
+core-foundation-sys = "0.8"
+core-graphics = "0.25"
+cpal = { workspace = true }
+objc2 = "0.6"
+objc2-app-kit = { version = "0.3", features = ["NSEvent", "NSPasteboard", "NSPasteboardItem", "NSScreen", "NSSound", "NSView", "NSWindow"] }
+objc2-av-foundation = { version = "0.3", features = ["AVCaptureDevice", "AVMediaFormat", "block2"] }
+objc2-foundation = { version = "0.3", features = ["NSArray", "NSData", "NSString"] }

@@ -1,8 +1,7 @@
 # Architecture
 
-This template uses a small workspace to keep responsibilities visible from the
-start. The default crates are intentionally simple and should be renamed or
-expanded to match the project domain.
+Saymore uses a small workspace to keep responsibilities visible. Crates should
+be renamed or expanded only when a product boundary needs it.
 
 ## Crates
 
@@ -12,6 +11,8 @@ crates/
   app/
   infra/
   cli/
+apps/
+  desktop/
 ```
 
 `domain` owns business types, value objects, invariants, and pure rules. It
@@ -29,6 +30,11 @@ database, HTTP, environment, or process adapters. It may depend on `app` and
 `cli` owns command-line entrypoints, argument parsing, dependency wiring, and
 process-level behavior. Keep business decisions out of the binary crate.
 
+`apps/desktop` owns the Slint entrypoint, compiled `.slint` components, UI view
+models, callback wiring, and process lifecycle for the macOS and Windows app.
+It may depend on `app` and `infra`; `domain`, `app`, and reusable infrastructure
+must not depend on Slint.
+
 ## Dependency Direction
 
 The intended dependency direction is:
@@ -36,6 +42,8 @@ The intended dependency direction is:
 ```text
 cli -> app -> domain
 cli -> infra -> app
+desktop -> app -> domain
+desktop -> infra -> app
 ```
 
 Avoid reverse dependencies. If `domain` needs something from `infra`, define a

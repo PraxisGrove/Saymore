@@ -1,12 +1,14 @@
-# Rust Template
+# Saymore
 
-A Rust workspace template optimized for human and AI-assisted development:
-clear crate boundaries, mature Rust quality gates, small public APIs, and
-explicit contributor instructions.
+Saymore is a local-first, provider-agnostic voice input application for macOS
+and Windows. It records speech from a global trigger, recognizes it, optionally
+normalizes and refines the transcript, and delivers final text to the current
+input position.
 
-This is not an AI application framework. It is a general Rust template designed
-to keep projects easy for humans and coding agents to understand, modify,
-verify, and review.
+The production desktop stack is Rust with Slint. See `docs/technology-stack.md` and
+`docs/adr/0003-use-slint-for-the-desktop-ui.md` for the accepted decision.
+
+[![Made with Slint](https://raw.githubusercontent.com/slint-ui/slint/master/logo/MadeWithSlint-logo-whitebg.png)](https://slint.dev/)
 
 ## Structure
 
@@ -17,6 +19,8 @@ crates/
   infra/   # concrete implementations for app ports
   cli/     # binary entrypoint and dependency wiring
   xtask/   # Rust-only project maintenance tasks
+apps/
+  desktop/ # Slint desktop entrypoint and UI
 ```
 
 The intended dependency direction is:
@@ -48,19 +52,11 @@ Extra tools such as `just`, `prek`, or release helpers are optional. They can
 improve local workflow, but CI and handoff verification should use the required
 gate below.
 
-## Template Scope
+## Product Scope
 
-This repository is the template. It does not maintain a separate `template/`
-copy of itself.
-
-The current base is a dependency-light Rust workspace. When a project needs a
-specific application shape, evolve this workspace directly toward one of the
-documented application types:
-
-- server plus full-stack frontend
-- server plus desktop client
-- desktop-only app
-- server-only service
+The MVP is a desktop-only application with no hosted Saymore backend. Product
+scope, platform order, provider boundaries, and vertical slices live in
+`docs/product/open-source-voice-input-wayfinder.md`.
 
 ## Development
 
@@ -122,7 +118,7 @@ engineering guidance lives under `docs/`:
 - `docs/review.md`
 - `docs/application-types.md`
 
-These files are part of the template contract. Keep them current when changing
+These files are part of the project contract. Keep them current when changing
 crate layout, required gates, or review policy.
 
 Production code should fail early with explicit errors and validated types, not

@@ -4,6 +4,9 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
+#[cfg(target_os = "macos")]
+mod macos_bundle;
+
 const DEFAULT_WARN_FILE_LINES: usize = 600;
 const DEFAULT_MAX_FILE_LINES: usize = 800;
 const DEFAULT_WARN_FN_LINES: usize = 80;
@@ -27,6 +30,8 @@ fn run(args: Vec<String>) -> Result<(), Box<dyn Error>> {
     };
 
     match command {
+        #[cfg(target_os = "macos")]
+        "bundle-macos" => macos_bundle::run(),
         "size" => run_size_gate(SizeConfig::from_args(&args[1..])?),
         "update-readme-version" => update_readme_version(&args[1..]),
         "help" | "-h" | "--help" => {
@@ -39,6 +44,8 @@ fn run(args: Vec<String>) -> Result<(), Box<dyn Error>> {
 
 fn print_help() {
     println!("xtask commands:");
+    #[cfg(target_os = "macos")]
+    println!("  bundle-macos");
     println!(
         "  size [--root <dir>] [--glob <glob>] [--warn-file-lines <n>] [--max-file-lines <n>] [--warn-fn-lines <n>] [--max-fn-lines <n>]"
     );
@@ -59,7 +66,7 @@ impl Default for SizeConfig {
     fn default() -> Self {
         Self {
             root: PathBuf::from("."),
-            globs: vec!["crates/**/*.rs".to_owned()],
+            globs: vec!["crates/**/*.rs".to_owned(), "apps/**/*.rs".to_owned()],
             warn_file_lines: DEFAULT_WARN_FILE_LINES,
             max_file_lines: DEFAULT_MAX_FILE_LINES,
             warn_fn_lines: DEFAULT_WARN_FN_LINES,
@@ -245,6 +252,7 @@ fn collect_files(
 fn matches_glob(pattern: &str, relpath: &str) -> bool {
     match pattern {
         "crates/**/*.rs" => relpath.starts_with("crates/") && relpath.ends_with(".rs"),
+        "apps/**/*.rs" => relpath.starts_with("apps/") && relpath.ends_with(".rs"),
         "**/*.rs" => relpath.ends_with(".rs"),
         exact => relpath == exact,
     }

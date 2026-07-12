@@ -21,6 +21,21 @@ cargo run -p xtask -- size
 
 Use `cargo fmt --all` when you want to apply formatting.
 
+## Desktop Toolchain
+
+The target desktop app is compiled through Cargo and Slint. Node.js, pnpm,
+React, TypeScript, Vite, and Tauri are not part of the production toolchain.
+
+The desktop crate's Rust build script must compile its `.slint` files so the
+standard `cargo check` and `cargo build` commands validate both UI declarations
+and Rust code.
+
+Create the local ad-hoc signed macOS application bundle with:
+
+```bash
+cargo run -p xtask -- bundle-macos
+```
+
 ## Optional Shortcuts
 
 If `just` is installed, the `justfile` provides shortcuts for the same commands:
