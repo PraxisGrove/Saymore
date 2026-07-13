@@ -1,12 +1,12 @@
 import { EmptyState, PageHeading } from "../components.slint";
 
 export component HistoryPage inherits Rectangle {
-    background: #f8f9fb;
+    background: #fafbfc;
 
     VerticalLayout {
         padding-left: 32px;
         padding-right: 32px;
-        padding-top: 26px;
+        padding-top: 48px;
         padding-bottom: 28px;
         spacing: 18px;
 
@@ -14,10 +14,12 @@ export component HistoryPage inherits Rectangle {
 
         Rectangle {
             height: 82px;
-            border-width: 1px;
-            border-color: #e0e3e7;
-            border-radius: 7px;
+            border-width: 0px;
+            border-radius: 8px;
             background: #ffffff;
+            drop-shadow-blur: 12px;
+            drop-shadow-offset-y: 2px;
+            drop-shadow-color: #1f29370d;
 
             HorizontalLayout {
                 padding-left: 20px;

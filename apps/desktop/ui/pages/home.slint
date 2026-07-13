@@ -1,4 +1,48 @@
-import { EmptyState, PageHeading, StatusPill } from "../components.slint";
+import { PageHeading, StatusPill } from "../components.slint";
+
+component UsageStat inherits Rectangle {
+    in property <string> label;
+    in property <string> value;
+    in property <string> unit;
+    border-radius: 8px;
+    background: #ffffff;
+    drop-shadow-blur: 12px;
+    drop-shadow-offset-y: 2px;
+    drop-shadow-color: #1f29370d;
+
+    VerticalLayout {
+        padding: 18px;
+        spacing: 8px;
+
+        Text {
+            text: root.label;
+            color: #707781;
+            font-size: 12px;
+            font-weight: 550;
+        }
+
+        HorizontalLayout {
+            spacing: 7px;
+            cross-axis-alignment: end;
+
+            Text {
+                text: root.value;
+                color: #202327;
+                font-size: 24px;
+                font-weight: 700;
+            }
+
+            Text {
+                text: root.unit;
+                color: #858b94;
+                font-size: 11px;
+                vertical-alignment: bottom;
+            }
+
+            Rectangle { horizontal-stretch: 1; background: transparent; }
+        }
+    }
+}
 
 export component HomePage inherits Rectangle {
     in property <bool> authorized;
@@ -26,12 +70,12 @@ export component HomePage inherits Rectangle {
         : !root.asr-configured || root.asr-config-error ? "前往设置完成语音模型配置"
         : !root.authorized ? "辅助功能未授权，口述结果将显示在结果浮层"
         : "单击右 Command 开始口述";
-    background: #f8f9fb;
+    background: #fafbfc;
 
     VerticalLayout {
         padding-left: 32px;
         padding-right: 32px;
-        padding-top: 26px;
+        padding-top: 48px;
         padding-bottom: 28px;
         spacing: 18px;
 
@@ -53,10 +97,12 @@ export component HomePage inherits Rectangle {
 
         Rectangle {
             height: 94px;
-            border-width: 1px;
-            border-color: root.recording-failed ? #f0b6b8 : root.recording-active ? #a9c2fb : root.idle-attention ? #efd39b : #b7e6d1;
-            border-radius: 7px;
+            border-width: 0px;
+            border-radius: 8px;
             background: root.recording-failed ? #fff2f2 : root.recording-active ? #edf3ff : root.idle-attention ? #fff8e7 : #edfaf4;
+            drop-shadow-blur: 12px;
+            drop-shadow-offset-y: 2px;
+            drop-shadow-color: #1f29370d;
 
             HorizontalLayout {
                 padding-left: 22px;
@@ -116,10 +162,12 @@ export component HomePage inherits Rectangle {
             spacing: 14px;
 
             Rectangle {
-                border-width: 1px;
-                border-color: #e0e3e7;
-                border-radius: 7px;
+                border-width: 0px;
+                border-radius: 8px;
                 background: #ffffff;
+                drop-shadow-blur: 12px;
+                drop-shadow-offset-y: 2px;
+                drop-shadow-color: #1f29370d;
                 accessible-role: button;
                 accessible-label: "打开语音与模型设置";
                 accessible-action-default => { root.open-model-settings(); }
@@ -143,10 +191,12 @@ export component HomePage inherits Rectangle {
             }
 
             Rectangle {
-                border-width: 1px;
-                border-color: #e0e3e7;
-                border-radius: 7px;
+                border-width: 0px;
+                border-radius: 8px;
                 background: #ffffff;
+                drop-shadow-blur: 12px;
+                drop-shadow-offset-y: 2px;
+                drop-shadow-color: #1f29370d;
                 accessible-role: button;
                 accessible-label: "打开投递与权限设置";
                 accessible-action-default => { root.open-delivery-settings(); }
@@ -176,12 +226,17 @@ export component HomePage inherits Rectangle {
             }
         }
 
-        Text { height: 20px; text: "最近口述"; color: #35383d; font-size: 14px; font-weight: 650; vertical-alignment: center; }
+        Text { height: 20px; text: "使用统计"; color: #35383d; font-size: 14px; font-weight: 650; vertical-alignment: center; }
 
-        EmptyState {
-            vertical-stretch: 1;
-            title: "还没有可显示的历史记录";
-            detail: "历史存储将在本地加密能力接入后启用；当前不会把口述内容以明文写入磁盘。";
+        HorizontalLayout {
+            height: 112px;
+            spacing: 14px;
+
+            UsageStat { label: "累计口述"; value: "—"; unit: "分钟"; }
+            UsageStat { label: "累计字数"; value: "—"; unit: "字"; }
+            UsageStat { label: "平均速度"; value: "—"; unit: "字/分"; }
         }
+
+        Rectangle { vertical-stretch: 1; background: transparent; }
     }
 }

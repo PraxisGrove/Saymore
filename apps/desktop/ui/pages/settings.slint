@@ -27,9 +27,8 @@ component PermissionRow inherits Rectangle {
     in property <bool> action-visible;
     callback action();
     height: 72px;
-    border-width: 1px;
-    border-color: #e0e3e7;
-    border-radius: 7px;
+    border-width: 0px;
+    border-radius: 8px;
     background: #ffffff;
 
     HorizontalLayout {
@@ -58,12 +57,12 @@ export component SettingsPage inherits Rectangle {
     callback save-asr-config(string);
     callback delete-asr-config();
     in-out property <SettingsSection> current-section: SettingsSection.general;
-    background: #f8f9fb;
+    background: #fafbfc;
 
     VerticalLayout {
         padding-left: 32px;
         padding-right: 32px;
-        padding-top: 26px;
+        padding-top: 48px;
         padding-bottom: 28px;
         spacing: 18px;
 
@@ -74,9 +73,8 @@ export component SettingsPage inherits Rectangle {
 
             Rectangle {
                 width: 166px;
-                border-width: 1px;
-                border-color: #e0e3e7;
-                border-radius: 7px;
+                border-width: 0px;
+                border-radius: 8px;
                 background: #f3f4f6;
 
                 VerticalLayout {
@@ -93,10 +91,12 @@ export component SettingsPage inherits Rectangle {
             }
 
             Rectangle {
-                border-width: 1px;
-                border-color: #e0e3e7;
-                border-radius: 7px;
+                border-width: 0px;
+                border-radius: 8px;
                 background: #ffffff;
+                drop-shadow-blur: 12px;
+                drop-shadow-offset-y: 2px;
+                drop-shadow-color: #1f29370d;
 
                 if root.current-section == SettingsSection.general: VerticalLayout {
                     padding: 22px;
@@ -129,7 +129,7 @@ export component SettingsPage inherits Rectangle {
                         clip: true;
                         border-width: 1px;
                         border-color: api-input.has-focus ? #4f7cff : #d7dbe0;
-                        border-radius: 7px;
+                        border-radius: 8px;
                         background: #ffffff;
 
                         if root.asr-api-key.is-empty: Text { x: 13px; text: "输入火山引擎 API Key"; color: #a1a1aa; font-size: 12px; vertical-alignment: center; }

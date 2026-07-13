@@ -6,6 +6,7 @@
       <stop offset="1" stop-color="#bfc0c4"/>
     </linearGradient>
   </defs>
+  <rect width="1024" height="1024" rx="241" fill="#111113"/>
   <g transform="translate(512 512) scale(0.83) translate(-512 -512)" fill="none" stroke="url(#logo-tone)" stroke-linecap="round" stroke-linejoin="round">
     <path d="M 727 191 H 441 C 328 191 237 282 237 394 C 237 450 255 493 277 517" stroke-width="122"/>
     <path d="M 299 831 H 587 C 699 831 786 744 786 632 C 786 574 768 531 741 500" stroke-width="122"/>

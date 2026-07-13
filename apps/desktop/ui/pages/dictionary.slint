@@ -1,12 +1,12 @@
 import { EmptyState, PageHeading } from "../components.slint";
 
 export component DictionaryPage inherits Rectangle {
-    background: #f8f9fb;
+    background: #fafbfc;
 
     VerticalLayout {
         padding-left: 32px;
         padding-right: 32px;
-        padding-top: 26px;
+        padding-top: 48px;
         padding-bottom: 28px;
         spacing: 18px;
 
@@ -32,17 +32,19 @@ export component DictionaryPage inherits Rectangle {
 
             Rectangle {
                 horizontal-stretch: 1;
-                border-width: 1px;
-                border-color: #d9dde2;
-                border-radius: 6px;
+                border-width: 0px;
+                border-radius: 8px;
                 background: #ffffff;
+                drop-shadow-blur: 8px;
+                drop-shadow-offset-y: 1px;
+                drop-shadow-color: #1f29370a;
                 Text { x: 14px; text: "搜索词条"; color: #a0a5ad; font-size: 12px; vertical-alignment: center; }
             }
 
             Rectangle {
                 width: 238px;
-                border-radius: 6px;
-                background: #eef0f2;
+                border-radius: 8px;
+                background: #f0f1f3;
                 Text { text: "全部    词汇候选    手动添加"; color: #666d77; font-size: 12px; horizontal-alignment: center; vertical-alignment: center; }
             }
         }

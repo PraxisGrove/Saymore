@@ -45,6 +45,8 @@ use ui::{AppWindow, RecordingOverlay};
 #[cfg(target_os = "macos")]
 mod asr_runtime;
 #[cfg(target_os = "macos")]
+mod main_window;
+#[cfg(target_os = "macos")]
 mod recording_metrics;
 #[cfg(target_os = "macos")]
 mod settings_ui;
@@ -136,7 +138,10 @@ fn run() -> Result<(), Box<dyn Error>> {
         cancelled,
         asr,
     );
-    ui.run()?;
+    ui.show()?;
+    main_window::schedule_titlebar_integration(&ui);
+    slint::run_event_loop()?;
+    ui.hide()?;
     drop(authorization_poll);
     Ok(())
 }

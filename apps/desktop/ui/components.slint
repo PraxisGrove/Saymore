@@ -81,10 +81,12 @@ export component PageHeading inherits Text {
 export component EmptyState inherits Rectangle {
     in property <string> title;
     in property <string> detail;
-    border-width: 1px;
-    border-color: #e0e3e7;
-    border-radius: 7px;
+    border-width: 0px;
+    border-radius: 8px;
     background: #ffffff;
+    drop-shadow-blur: 12px;
+    drop-shadow-offset-y: 2px;
+    drop-shadow-color: #1f29370d;
 
     VerticalLayout {
         padding: 28px;

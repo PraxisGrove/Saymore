@@ -9,6 +9,9 @@ mod macos_audio_recorder;
 mod macos_feedback_sound;
 
 #[cfg(target_os = "macos")]
+mod macos_main_window;
+
+#[cfg(target_os = "macos")]
 mod macos_overlay_window;
 
 #[cfg(target_os = "macos")]
@@ -30,6 +33,9 @@ pub use macos_audio_recorder::MacOsAudioRecorder;
 
 #[cfg(target_os = "macos")]
 pub use macos_feedback_sound::MacOsFeedbackSoundPlayer;
+
+#[cfg(target_os = "macos")]
+pub use macos_main_window::{MacOsMainWindowError, configure_main_window};
 
 #[cfg(target_os = "macos")]
 pub use macos_overlay_window::{MacOsOverlayWindowError, configure_overlay_window};

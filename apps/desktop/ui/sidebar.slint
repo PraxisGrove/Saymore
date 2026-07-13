@@ -7,31 +7,23 @@ export component AppSidebar inherits Rectangle {
     border-width: 0px;
 
     VerticalLayout {
-        padding-left: 14px;
-        padding-right: 14px;
-        padding-top: 22px;
+        padding-left: 10px;
+        padding-right: 10px;
+        padding-top: 46px;
         padding-bottom: 18px;
         spacing: 6px;
 
         HorizontalLayout {
             height: 54px;
-            padding-left: 8px;
             spacing: 10px;
             cross-axis-alignment: center;
 
-            Rectangle {
+            Image {
                 width: 34px;
                 height: 34px;
-                clip: true;
-                border-radius: 8px;
-                background: #111113;
-
-                Image {
-                    width: 34px;
-                    height: 34px;
-                    source: @image-url("../icons/saymore-icon.svg");
-                    image-fit: contain;
-                }
+                source: @image-url("../icons/saymore-icon.svg");
+                image-fit: contain;
+                image-rendering: smooth;
             }
 
             Text {
