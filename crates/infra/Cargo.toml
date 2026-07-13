@@ -28,6 +28,7 @@ uuid = { workspace = true }
 [dev-dependencies]
 httpmock = { workspace = true }
 sherpa-onnx = { workspace = true }
+tokio-util = { workspace = true }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 accessibility-sys = "0.2"

@@ -5,11 +5,11 @@ use thiserror::Error;
 use tokio::{sync::Mutex, time::Instant};
 use tokio_util::sync::CancellationToken;
 
+use crate::refinement_policy::{REFINEMENT_INSTRUCTIONS, accepts_refinement};
+
 const REFINEMENT_TIMEOUT: Duration = Duration::from_secs(8);
 const FAILURE_PAUSE: Duration = Duration::from_secs(5 * 60);
 const FAILURE_THRESHOLD: u8 = 3;
-const BASE_REFINEMENT_INSTRUCTIONS: &str =
-    "Refine the transcript conservatively and return only the refined plain text.";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LlmRefinementRequest {
@@ -74,6 +74,7 @@ pub enum RefinementFallbackReason {
     Protocol,
     Timeout,
     TemporarilyUnavailable,
+    OutputRejected,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
@@ -158,7 +159,7 @@ impl FinalTextProcessor {
         }
         let fallback_text = text.clone();
         let provider_request = LlmRefinementRequest {
-            instructions: BASE_REFINEMENT_INSTRUCTIONS.to_owned(),
+            instructions: REFINEMENT_INSTRUCTIONS.to_owned(),
             transcript: text,
             language: request.language,
             relevant_terms: request.relevant_terms,
@@ -170,17 +171,36 @@ impl FinalTextProcessor {
                 provider.refine(provider_request),
             ) => result,
         };
+        self.complete_provider_attempt(refined, fallback_text, &cancellation)
+            .await
+    }
+
+    async fn complete_provider_attempt(
+        &self,
+        refined: Result<Result<String, LlmProviderError>, tokio::time::error::Elapsed>,
+        fallback_text: String,
+        cancellation: &CancellationToken,
+    ) -> Result<ProcessedText, FinalTextProcessingError> {
         match refined {
-            Ok(Ok(text)) => {
-                reject_cancelled(&cancellation)?;
+            Ok(Ok(text)) if accepts_refinement(&fallback_text, &text) => {
+                reject_cancelled(cancellation)?;
                 self.circuit.lock().await.record_success();
                 Ok(ProcessedText {
-                    text,
+                    text: text.trim().to_owned(),
                     refinement: RefinementStatus::Completed,
                 })
             }
+            Ok(Ok(_)) => {
+                reject_cancelled(cancellation)?;
+                Ok(ProcessedText {
+                    text: fallback_text,
+                    refinement: RefinementStatus::FellBack(
+                        RefinementFallbackReason::OutputRejected,
+                    ),
+                })
+            }
             Ok(Err(error)) => {
-                reject_cancelled(&cancellation)?;
+                reject_cancelled(cancellation)?;
                 let reason = fallback_reason(&error);
                 self.circuit
                     .lock()
@@ -192,7 +212,7 @@ impl FinalTextProcessor {
                 })
             }
             Err(_) => {
-                reject_cancelled(&cancellation)?;
+                reject_cancelled(cancellation)?;
                 self.circuit.lock().await.record_timeout(Instant::now());
                 Ok(ProcessedText {
                     text: fallback_text,

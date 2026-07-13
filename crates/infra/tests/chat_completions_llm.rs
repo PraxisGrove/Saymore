@@ -1,4 +1,6 @@
 use std::collections::BTreeMap;
+#[cfg(target_os = "macos")]
+use std::sync::Arc;
 
 use httpmock::{Method::POST, MockServer};
 #[cfg(target_os = "macos")]
@@ -6,6 +8,8 @@ use template_app::SettingsStore;
 use template_app::{
     ChatCompletionsLlmSettings, LlmProvider, LlmProviderError, LlmRefinementRequest,
 };
+#[cfg(target_os = "macos")]
+use template_app::{FinalTextProcessor, FinalTextRequest, RefinementMode, RefinementStatus};
 use template_infra::ChatCompletionsLlmProvider;
 #[cfg(target_os = "macos")]
 use template_infra::JsonSettingsStore;
@@ -20,14 +24,13 @@ async fn sends_an_openai_compatible_chat_completion_request()
                 .path("/v1/chat/completions")
                 .header("authorization", "Bearer test-key")
                 .header("x-tenant", "tenant-a")
-                .json_body(serde_json::json!({
-                    "model": "vendor-model",
-                    "messages": [
-                        {"role": "system", "content": "Refine conservatively."},
-                        {"role": "user", "content": "{\"transcript\":\"raw text\",\"language\":\"zh-CN\",\"relevant_terms\":[{\"canonical\":\"Typeless\",\"recognized_as\":[\"table\"]}]}"}
-                    ],
-                    "stream": false
-                }));
+                .body_includes("Refine conservatively.")
+                .body_includes(r#""model":"vendor-model""#)
+                .body_includes(r#""role":"system""#)
+                .body_includes(r#""role":"user""#)
+                .body_includes(r#""stream":false"#)
+                .body_includes("raw text")
+                .body_includes("Typeless");
             then.status(200).json_body(serde_json::json!({
                 "choices": [{
                     "message": {"content": "Refined text."}
@@ -119,5 +122,64 @@ async fn connects_using_current_user_llm_configuration() -> Result<(), Box<dyn s
     let provider = ChatCompletionsLlmProvider::new(settings.llm.chat_completions)?;
 
     provider.test_connection().await?;
+    Ok(())
+}
+
+#[cfg(target_os = "macos")]
+#[tokio::test]
+#[ignore = "sends synthetic golden cases to the live LLM in the current user's config file"]
+async fn live_configuration_matches_refinement_golden_cases()
+-> Result<(), Box<dyn std::error::Error>> {
+    #[derive(serde::Deserialize)]
+    struct GoldenCase {
+        id: String,
+        transcript: String,
+        expected: String,
+        #[serde(default)]
+        language: Option<String>,
+        #[serde(default)]
+        relevant_terms: Vec<GoldenTerm>,
+    }
+
+    #[derive(serde::Deserialize)]
+    struct GoldenTerm {
+        canonical: String,
+        recognized_as: Vec<String>,
+    }
+
+    let cases: Vec<GoldenCase> =
+        serde_json::from_str(include_str!("fixtures/llm_refinement_cases.json"))?;
+    let case_filter = std::env::var("SAYMORE_LLM_CASE").ok();
+    let store = JsonSettingsStore::for_current_user()?;
+    let settings = store.load()?;
+    let provider = ChatCompletionsLlmProvider::new(settings.llm.chat_completions)?;
+    let processor = FinalTextProcessor::configured(Arc::new(provider));
+    let mut matched = false;
+
+    for case in cases
+        .into_iter()
+        .filter(|case| case_filter.as_ref().is_none_or(|filter| filter == &case.id))
+    {
+        matched = true;
+        let mut request = FinalTextRequest::new(case.transcript, RefinementMode::Enabled);
+        request.language = case.language;
+        request.relevant_terms = case
+            .relevant_terms
+            .into_iter()
+            .map(|term| template_app::RefinementTerm {
+                canonical: term.canonical,
+                recognized_as: term.recognized_as,
+            })
+            .collect();
+        let result = processor
+            .process(request, tokio_util::sync::CancellationToken::new())
+            .await?;
+        if result.text != case.expected || result.refinement != RefinementStatus::Completed {
+            return Err(format!("live refinement case '{}' did not match", case.id).into());
+        }
+    }
+    if !matched {
+        return Err("SAYMORE_LLM_CASE did not match a golden case".into());
+    }
     Ok(())
 }

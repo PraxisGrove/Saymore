@@ -1,0 +1,91 @@
+[
+  {
+    "id": "stutter-and-accidental-repetition",
+    "transcript": "我我我觉得这个这个功能很好。",
+    "expected": "我觉得这个功能很好。",
+    "language": "zh-CN"
+  },
+  {
+    "id": "emphatic-repetition",
+    "transcript": "这个真的真的很重要。",
+    "expected": "这个真的真的很重要。"
+  },
+  {
+    "id": "semantically-empty-fillers",
+    "transcript": "嗯，明天下午开会，呃。",
+    "expected": "明天下午开会。"
+  },
+  {
+    "id": "meaningful-colloquial-words",
+    "transcript": "然后这个按钮就是用来保存的。",
+    "expected": "然后这个按钮就是用来保存的。"
+  },
+  {
+    "id": "explicit-self-correction",
+    "transcript": "会议安排在周三，不对，周四下午三点。",
+    "expected": "会议安排在周四下午三点。"
+  },
+  {
+    "id": "question-is-not-answered",
+    "transcript": "你觉得这个方案能不能实现",
+    "expected": "你觉得这个方案能不能实现？"
+  },
+  {
+    "id": "conservative-casual-wording",
+    "transcript": "这个事情就是他们那边还没给，然后我们这边现在就弄不了。",
+    "expected": "这个事情他们那边还没给，我们这边现在就弄不了。"
+  },
+  {
+    "id": "explicit-numbered-steps",
+    "transcript": "要做两步，第一打开设置，第二选择模型。",
+    "expected": "要做两步：\n1. 打开设置\n2. 选择模型。"
+  },
+  {
+    "id": "semantic-paragraphs",
+    "transcript": "先说项目进度目前已经完成开发接下来讨论风险服务器容量还没有验证",
+    "expected": "先说项目进度，目前已经完成开发。\n\n接下来讨论风险，服务器容量还没有验证。",
+    "language": "zh-CN"
+  },
+  {
+    "id": "spoken-email-structure",
+    "transcript": "王老师您好换一段附件是项目报告换一段谢谢小李",
+    "expected": "王老师，您好：\n\n附件是项目报告。\n\n谢谢！\n小李",
+    "language": "zh-CN"
+  },
+  {
+    "id": "formatting-newline-command",
+    "transcript": "第一行换行第二行换一段第三段",
+    "expected": "第一行\n第二行\n\n第三段",
+    "language": "zh-CN"
+  },
+  {
+    "id": "ordinary-line-wrap-language",
+    "transcript": "这个编辑器的自动换行有问题。",
+    "expected": "这个编辑器的自动换行有问题。",
+    "language": "zh-CN"
+  },
+  {
+    "id": "confirmed-relevant-term",
+    "transcript": "我现在用的是 table 这个语音输入软件。",
+    "expected": "我现在用的是 Typeless 这个语音输入软件。",
+    "language": "zh-CN",
+    "relevant_terms": [
+      {
+        "canonical": "Typeless",
+        "recognized_as": ["table"]
+      }
+    ]
+  },
+  {
+    "id": "mixed-chinese-and-english",
+    "transcript": "这个 API 的 response time 大概是 200 milliseconds。",
+    "expected": "这个 API 的 response time 大概是 200 milliseconds。",
+    "language": "zh-CN"
+  },
+  {
+    "id": "protected-technical-content",
+    "transcript": "请访问 https://example.com/v1，版本是 v1.2.3，运行 cargo test --workspace。",
+    "expected": "请访问 https://example.com/v1，版本是 v1.2.3，运行 cargo test --workspace。",
+    "language": "zh-CN"
+  }
+]
