@@ -27,6 +27,7 @@ rustls = { version = "0.23.41", default-features = false, features = ["ring", "s
 rstest = "0.26"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+sherpa-onnx = "1.13.4"
 slint = { version = "1.17.1", default-features = false, features = ["accessibility", "backend-winit", "compat-1-2", "image-default-formats", "raw-window-handle-06", "renderer-femtovg", "std"] }
 slint-build = "1.17.1"
 template-app = { path = "crates/app", version = "0.1.0" }
