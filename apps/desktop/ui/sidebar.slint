@@ -1,0 +1,65 @@
+import { AppPage, NavItem } from "components.slint";
+
+export component AppSidebar inherits Rectangle {
+    in-out property <AppPage> current-page: AppPage.home;
+    width: 184px;
+    background: #f2f3f5;
+    border-width: 0px;
+
+    VerticalLayout {
+        padding-left: 14px;
+        padding-right: 14px;
+        padding-top: 22px;
+        padding-bottom: 18px;
+        spacing: 6px;
+
+        HorizontalLayout {
+            height: 54px;
+            padding-left: 8px;
+            spacing: 10px;
+            cross-axis-alignment: center;
+
+            Rectangle {
+                width: 34px;
+                height: 34px;
+                clip: true;
+                border-radius: 8px;
+                background: #111113;
+
+                Image {
+                    width: 34px;
+                    height: 34px;
+                    source: @image-url("../icons/saymore-icon.svg");
+                    image-fit: contain;
+                }
+            }
+
+            Text {
+                text: "Saymore";
+                color: #18181b;
+                font-size: 17px;
+                font-weight: 700;
+                vertical-alignment: center;
+            }
+        }
+
+        Rectangle { height: 10px; background: transparent; }
+
+        NavItem { label: "首页"; selected: root.current-page == AppPage.home; activated => { root.current-page = AppPage.home; } }
+        NavItem { label: "历史记录"; selected: root.current-page == AppPage.history; activated => { root.current-page = AppPage.history; } }
+        NavItem { label: "词典"; selected: root.current-page == AppPage.dictionary; activated => { root.current-page = AppPage.dictionary; } }
+
+        Rectangle { vertical-stretch: 1; background: transparent; }
+
+        NavItem { label: "设置"; selected: root.current-page == AppPage.settings; activated => { root.current-page = AppPage.settings; } }
+
+        Text {
+            height: 24px;
+            text: "v0.1.0";
+            color: #a0a5ad;
+            font-size: 10px;
+            horizontal-alignment: center;
+            vertical-alignment: bottom;
+        }
+    }
+}

@@ -1,0 +1,56 @@
+import { EmptyState, PageHeading } from "../components.slint";
+
+export component DictionaryPage inherits Rectangle {
+    background: #f8f9fb;
+
+    VerticalLayout {
+        padding-left: 32px;
+        padding-right: 32px;
+        padding-top: 26px;
+        padding-bottom: 28px;
+        spacing: 18px;
+
+        HorizontalLayout {
+            height: 38px;
+            alignment: space-between;
+            cross-axis-alignment: center;
+
+            PageHeading { label: "词典"; }
+
+            Rectangle {
+                width: 92px;
+                height: 36px;
+                border-radius: 6px;
+                background: #dfe3e8;
+                Text { text: "+ 新词"; color: #9298a1; font-size: 12px; font-weight: 600; horizontal-alignment: center; vertical-alignment: center; }
+            }
+        }
+
+        HorizontalLayout {
+            height: 40px;
+            spacing: 12px;
+
+            Rectangle {
+                horizontal-stretch: 1;
+                border-width: 1px;
+                border-color: #d9dde2;
+                border-radius: 6px;
+                background: #ffffff;
+                Text { x: 14px; text: "搜索词条"; color: #a0a5ad; font-size: 12px; vertical-alignment: center; }
+            }
+
+            Rectangle {
+                width: 238px;
+                border-radius: 6px;
+                background: #eef0f2;
+                Text { text: "全部    词汇候选    手动添加"; color: #666d77; font-size: 12px; horizontal-alignment: center; vertical-alignment: center; }
+            }
+        }
+
+        EmptyState {
+            vertical-stretch: 1;
+            title: "词典还是空的";
+            detail: "词典存储接入后，可在这里维护标准写法、常见错误写法、语言标签和待确认候选。";
+        }
+    }
+}

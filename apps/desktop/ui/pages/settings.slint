@@ -1,0 +1,208 @@
+import { Button } from "std-widgets.slint";
+import { NavItem, PageHeading, SettingsSection, StatusPill } from "../components.slint";
+
+component SettingsRow inherits Rectangle {
+    in property <string> title;
+    in property <string> detail;
+    height: 58px;
+    background: transparent;
+
+    HorizontalLayout {
+        padding-left: 2px;
+        padding-right: 2px;
+        alignment: space-between;
+        cross-axis-alignment: center;
+        Text { text: root.title; color: #3b3f45; font-size: 13px; font-weight: 550; }
+        Text { text: root.detail; color: #7b828c; font-size: 12px; }
+    }
+
+    Rectangle { y: parent.height - 1px; height: 1px; background: #eceef1; }
+}
+
+component PermissionRow inherits Rectangle {
+    in property <string> title;
+    in property <string> status;
+    in property <bool> granted;
+    in property <string> action-label;
+    in property <bool> action-visible;
+    callback action();
+    height: 72px;
+    border-width: 1px;
+    border-color: #e0e3e7;
+    border-radius: 7px;
+    background: #ffffff;
+
+    HorizontalLayout {
+        padding-left: 16px;
+        padding-right: 14px;
+        spacing: 12px;
+        cross-axis-alignment: center;
+        Text { text: root.title; color: #35393f; font-size: 13px; font-weight: 650; }
+        Rectangle { horizontal-stretch: 1; background: transparent; }
+        StatusPill { label: root.status; granted: root.granted; }
+        Button { visible: root.action-visible; text: root.action-label; clicked => { root.action(); } }
+    }
+}
+
+export component SettingsPage inherits Rectangle {
+    in property <bool> authorized;
+    in property <string> authorization-status;
+    in property <bool> microphone-authorized;
+    in property <string> microphone-status;
+    in-out property <string> asr-api-key;
+    in property <bool> asr-configured;
+    in property <bool> asr-config-error;
+    in property <string> asr-config-status;
+    callback request-authorization();
+    callback request-microphone-authorization();
+    callback save-asr-config(string);
+    callback delete-asr-config();
+    in-out property <SettingsSection> current-section: SettingsSection.general;
+    background: #f8f9fb;
+
+    VerticalLayout {
+        padding-left: 32px;
+        padding-right: 32px;
+        padding-top: 26px;
+        padding-bottom: 28px;
+        spacing: 18px;
+
+        PageHeading { height: 38px; label: "设置"; }
+
+        HorizontalLayout {
+            spacing: 18px;
+
+            Rectangle {
+                width: 166px;
+                border-width: 1px;
+                border-color: #e0e3e7;
+                border-radius: 7px;
+                background: #f3f4f6;
+
+                VerticalLayout {
+                    padding: 10px;
+                    spacing: 4px;
+                    NavItem { label: "通用"; selected: root.current-section == SettingsSection.general; activated => { root.current-section = SettingsSection.general; } }
+                    NavItem { label: "语音与模型"; selected: root.current-section == SettingsSection.voice-models; activated => { root.current-section = SettingsSection.voice-models; } }
+                    NavItem { label: "快捷键与音频"; selected: root.current-section == SettingsSection.shortcuts-audio; activated => { root.current-section = SettingsSection.shortcuts-audio; } }
+                    NavItem { label: "投递与权限"; selected: root.current-section == SettingsSection.delivery-permissions; activated => { root.current-section = SettingsSection.delivery-permissions; } }
+                    NavItem { label: "隐私与历史"; selected: root.current-section == SettingsSection.privacy-history; activated => { root.current-section = SettingsSection.privacy-history; } }
+                    NavItem { label: "关于与更新"; selected: root.current-section == SettingsSection.about-updates; activated => { root.current-section = SettingsSection.about-updates; } }
+                    Rectangle { vertical-stretch: 1; background: transparent; }
+                }
+            }
+
+            Rectangle {
+                border-width: 1px;
+                border-color: #e0e3e7;
+                border-radius: 7px;
+                background: #ffffff;
+
+                if root.current-section == SettingsSection.general: VerticalLayout {
+                    padding: 22px;
+                    spacing: 0px;
+                    Text { height: 38px; text: "通用"; color: #25282d; font-size: 18px; font-weight: 650; }
+                    SettingsRow { title: "登录时启动"; detail: "尚未开放"; }
+                    SettingsRow { title: "在 Dock 中显示"; detail: "当前显示"; }
+                    SettingsRow { title: "界面语言"; detail: "简体中文"; }
+                    SettingsRow { title: "主题"; detail: "跟随系统"; }
+                    SettingsRow { title: "自动检查更新"; detail: "尚未开放"; }
+                    Rectangle { vertical-stretch: 1; background: transparent; }
+                }
+
+                if root.current-section == SettingsSection.voice-models: VerticalLayout {
+                    padding: 22px;
+                    spacing: 14px;
+
+                    HorizontalLayout {
+                        height: 34px;
+                        alignment: space-between;
+                        cross-axis-alignment: center;
+                        Text { text: "语音与模型"; color: #25282d; font-size: 18px; font-weight: 650; }
+                        StatusPill { label: root.asr-config-status; granted: root.asr-configured && !root.asr-config-error; }
+                    }
+
+                    Text { height: 20px; text: "火山引擎 · API Key 仅保存在本机"; color: #747b85; font-size: 12px; }
+
+                    api-field := Rectangle {
+                        height: 42px;
+                        clip: true;
+                        border-width: 1px;
+                        border-color: api-input.has-focus ? #4f7cff : #d7dbe0;
+                        border-radius: 7px;
+                        background: #ffffff;
+
+                        if root.asr-api-key.is-empty: Text { x: 13px; text: "输入火山引擎 API Key"; color: #a1a1aa; font-size: 12px; vertical-alignment: center; }
+
+                        api-input := TextInput {
+                            x: 13px;
+                            width: max(parent.width - 26px, self.preferred-width);
+                            text <=> root.asr-api-key;
+                            input-type: InputType.password;
+                            accessible-label: "火山引擎 API Key";
+                            accessible-value: root.asr-api-key.is-empty ? "" : "已填写";
+                            color: #18181b;
+                            font-size: 12px;
+                            vertical-alignment: center;
+                            accepted => { root.save-asr-config(self.text); }
+                        }
+                    }
+
+                    HorizontalLayout {
+                        height: 40px;
+                        spacing: 10px;
+                        alignment: start;
+                        Button { text: "保存配置"; enabled: !root.asr-api-key.is-empty; clicked => { root.save-asr-config(api-input.text); } }
+                        Button { text: "删除"; enabled: root.asr-configured; clicked => { root.delete-asr-config(); } }
+                    }
+
+                    Rectangle { height: 1px; background: #e5e7eb; }
+                    Text { height: 30px; text: "当前模型"; color: #30343a; font-size: 14px; font-weight: 650; vertical-alignment: center; }
+                    SettingsRow { title: "语音识别"; detail: "豆包流式语音识别模型 2.0"; }
+                    SettingsRow { title: "规则标准化"; detail: "基础标点与数字格式"; }
+                    Rectangle { vertical-stretch: 1; background: transparent; }
+                }
+
+                if root.current-section == SettingsSection.shortcuts-audio: VerticalLayout {
+                    padding: 22px;
+                    spacing: 0px;
+                    Text { height: 38px; text: "快捷键与音频"; color: #25282d; font-size: 18px; font-weight: 650; }
+                    SettingsRow { title: "主触发器"; detail: "右 Command"; }
+                    SettingsRow { title: "交互声音"; detail: "开启"; }
+                    SettingsRow { title: "语音输入时静音其他活动音频"; detail: "尚未开放"; }
+                    Rectangle { vertical-stretch: 1; background: transparent; }
+                }
+
+                if root.current-section == SettingsSection.delivery-permissions: VerticalLayout {
+                    padding: 22px;
+                    spacing: 12px;
+                    Text { height: 38px; text: "投递与权限"; color: #25282d; font-size: 18px; font-weight: 650; }
+                    PermissionRow { title: "麦克风"; status: root.microphone-status; granted: root.microphone-authorized; action-label: "授权"; action-visible: !root.microphone-authorized; action => { root.request-microphone-authorization(); } }
+                    PermissionRow { title: "辅助功能"; status: root.authorization-status; granted: root.authorized; action-label: "授权"; action-visible: !root.authorized; action => { root.request-authorization(); } }
+                    Rectangle { vertical-stretch: 1; background: transparent; }
+                }
+
+                if root.current-section == SettingsSection.privacy-history: VerticalLayout {
+                    padding: 22px;
+                    spacing: 0px;
+                    Text { height: 38px; text: "隐私与历史"; color: #25282d; font-size: 18px; font-weight: 650; }
+                    SettingsRow { title: "本地历史"; detail: "等待加密存储接入"; }
+                    SettingsRow { title: "默认保留期限"; detail: "7 天"; }
+                    SettingsRow { title: "匿名使用统计"; detail: "关闭"; }
+                    SettingsRow { title: "崩溃报告"; detail: "关闭"; }
+                    Rectangle { vertical-stretch: 1; background: transparent; }
+                }
+
+                if root.current-section == SettingsSection.about-updates: VerticalLayout {
+                    padding: 22px;
+                    spacing: 0px;
+                    Text { height: 38px; text: "关于与更新"; color: #25282d; font-size: 18px; font-weight: 650; }
+                    SettingsRow { title: "Saymore"; detail: "0.1.0"; }
+                    SettingsRow { title: "许可证"; detail: "MIT OR Apache-2.0"; }
+                    SettingsRow { title: "界面技术"; detail: "Made with Slint"; }
+                    Rectangle { vertical-stretch: 1; background: transparent; }
+                }
+            }
+        }
+    }
+}

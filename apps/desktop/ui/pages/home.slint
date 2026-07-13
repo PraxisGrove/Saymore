@@ -1,0 +1,187 @@
+import { EmptyState, PageHeading, StatusPill } from "../components.slint";
+
+export component HomePage inherits Rectangle {
+    in property <bool> authorized;
+    in property <string> authorization-status;
+    in property <bool> microphone-authorized;
+    in property <string> microphone-status;
+    in property <bool> asr-configured;
+    in property <bool> asr-config-error;
+    in property <string> asr-config-status;
+    in property <bool> recording-active;
+    in property <bool> recording-failed;
+    in property <bool> recording-complete;
+    in property <float> recording-level;
+    in property <string> recording-status;
+    in property <string> recording-detail;
+    callback open-model-settings();
+    callback open-delivery-settings();
+    private property <bool> can-record: root.microphone-authorized && root.asr-configured && !root.asr-config-error;
+    private property <bool> idle-attention: !root.can-record || !root.authorized;
+    private property <string> idle-status: !root.microphone-authorized ? "需要麦克风权限"
+        : !root.asr-configured || root.asr-config-error ? "需要配置语音服务"
+        : !root.authorized ? "仅结果浮层模式"
+        : "已就绪";
+    private property <string> idle-detail: !root.microphone-authorized ? "前往设置授予麦克风权限"
+        : !root.asr-configured || root.asr-config-error ? "前往设置完成语音模型配置"
+        : !root.authorized ? "辅助功能未授权，口述结果将显示在结果浮层"
+        : "单击右 Command 开始口述";
+    background: #f8f9fb;
+
+    VerticalLayout {
+        padding-left: 32px;
+        padding-right: 32px;
+        padding-top: 26px;
+        padding-bottom: 28px;
+        spacing: 18px;
+
+        HorizontalLayout {
+            height: 38px;
+            alignment: space-between;
+            cross-axis-alignment: center;
+
+            PageHeading { label: "首页"; }
+
+            Text {
+                text: "右 Command";
+                color: #4b515b;
+                font-size: 12px;
+                font-weight: 600;
+                vertical-alignment: center;
+            }
+        }
+
+        Rectangle {
+            height: 94px;
+            border-width: 1px;
+            border-color: root.recording-failed ? #f0b6b8 : root.recording-active ? #a9c2fb : root.idle-attention ? #efd39b : #b7e6d1;
+            border-radius: 7px;
+            background: root.recording-failed ? #fff2f2 : root.recording-active ? #edf3ff : root.idle-attention ? #fff8e7 : #edfaf4;
+
+            HorizontalLayout {
+                padding-left: 22px;
+                padding-right: 18px;
+                spacing: 16px;
+                cross-axis-alignment: center;
+
+                Rectangle {
+                    width: 11px;
+                    height: 11px;
+                    border-radius: 6px;
+                    background: root.recording-failed ? #c23b3f : root.recording-active ? #315fdd : root.idle-attention ? #d48a12 : #15966b;
+                }
+
+                VerticalLayout {
+                    spacing: 4px;
+                    alignment: center;
+
+                    Text {
+                        text: root.recording-active || root.recording-failed || root.recording-complete ? root.recording-status : root.idle-status;
+                        color: #202327;
+                        font-size: 17px;
+                        font-weight: 650;
+                    }
+
+                    Text {
+                        text: root.recording-active || root.recording-failed || root.recording-complete ? root.recording-detail : root.idle-detail;
+                        color: #69717b;
+                        font-size: 12px;
+                        overflow: elide;
+                    }
+                }
+
+                Rectangle { horizontal-stretch: 1; background: transparent; }
+
+                Rectangle {
+                    width: 150px;
+                    height: 7px;
+                    border-radius: 4px;
+                    background: #dce1e7;
+
+                    Rectangle {
+                        width: root.recording-active ? max(5px, parent.width * root.recording-level) : 5px;
+                        height: parent.height;
+                        border-radius: 4px;
+                        background: root.recording-active ? #315fdd : root.recording-complete ? #15966b : #9da3ad;
+                        animate width { duration: 80ms; easing: ease-out; }
+                    }
+                }
+            }
+        }
+
+        Text { height: 20px; text: "运行状态"; color: #35383d; font-size: 14px; font-weight: 650; vertical-alignment: center; }
+
+        HorizontalLayout {
+            height: 136px;
+            spacing: 14px;
+
+            Rectangle {
+                border-width: 1px;
+                border-color: #e0e3e7;
+                border-radius: 7px;
+                background: #ffffff;
+                accessible-role: button;
+                accessible-label: "打开语音与模型设置";
+                accessible-action-default => { root.open-model-settings(); }
+
+                VerticalLayout {
+                    padding: 18px;
+                    spacing: 10px;
+
+                    HorizontalLayout {
+                        height: 30px;
+                        alignment: space-between;
+                        cross-axis-alignment: center;
+                        Text { text: "语音与模型"; color: #292c31; font-size: 14px; font-weight: 650; }
+                        StatusPill { label: root.asr-config-status; granted: root.asr-configured && !root.asr-config-error; }
+                    }
+                    Text { text: "火山引擎语音识别"; color: #6e7580; font-size: 12px; }
+                    Text { text: root.asr-configured ? "API Key 已保存在本机配置" : "需要先完成语音服务配置"; color: #8a9099; font-size: 11px; }
+                }
+
+                TouchArea { clicked => { root.open-model-settings(); } }
+            }
+
+            Rectangle {
+                border-width: 1px;
+                border-color: #e0e3e7;
+                border-radius: 7px;
+                background: #ffffff;
+                accessible-role: button;
+                accessible-label: "打开投递与权限设置";
+                accessible-action-default => { root.open-delivery-settings(); }
+
+                VerticalLayout {
+                    padding: 18px;
+                    spacing: 9px;
+
+                    Text { height: 24px; text: "系统与投递"; color: #292c31; font-size: 14px; font-weight: 650; vertical-alignment: center; }
+                    HorizontalLayout {
+                        height: 28px;
+                        alignment: space-between;
+                        cross-axis-alignment: center;
+                        Text { text: "麦克风"; color: #6e7580; font-size: 12px; }
+                        StatusPill { label: root.microphone-status; granted: root.microphone-authorized; }
+                    }
+                    HorizontalLayout {
+                        height: 28px;
+                        alignment: space-between;
+                        cross-axis-alignment: center;
+                        Text { text: "辅助功能"; color: #6e7580; font-size: 12px; }
+                        StatusPill { label: root.authorization-status; granted: root.authorized; }
+                    }
+                }
+
+                TouchArea { clicked => { root.open-delivery-settings(); } }
+            }
+        }
+
+        Text { height: 20px; text: "最近口述"; color: #35383d; font-size: 14px; font-weight: 650; vertical-alignment: center; }
+
+        EmptyState {
+            vertical-stretch: 1;
+            title: "还没有可显示的历史记录";
+            detail: "历史存储将在本地加密能力接入后启用；当前不会把口述内容以明文写入磁盘。";
+        }
+    }
+}

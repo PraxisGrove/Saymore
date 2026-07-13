@@ -1,0 +1,47 @@
+import { EmptyState, PageHeading } from "../components.slint";
+
+export component HistoryPage inherits Rectangle {
+    background: #f8f9fb;
+
+    VerticalLayout {
+        padding-left: 32px;
+        padding-right: 32px;
+        padding-top: 26px;
+        padding-bottom: 28px;
+        spacing: 18px;
+
+        PageHeading { height: 38px; label: "历史记录"; }
+
+        Rectangle {
+            height: 82px;
+            border-width: 1px;
+            border-color: #e0e3e7;
+            border-radius: 7px;
+            background: #ffffff;
+
+            HorizontalLayout {
+                padding-left: 20px;
+                padding-right: 18px;
+                spacing: 18px;
+                cross-axis-alignment: center;
+
+                VerticalLayout {
+                    spacing: 5px;
+                    alignment: center;
+                    Text { text: "本地历史（尚未启用）"; color: #292c31; font-size: 14px; font-weight: 650; }
+                    Text { text: "加密存储接入前，Saymore 不会保存口述内容"; color: #747b85; font-size: 12px; }
+                }
+
+                Rectangle { horizontal-stretch: 1; background: transparent; }
+
+                Text { text: "未启用"; color: #8a9099; font-size: 12px; vertical-alignment: center; }
+            }
+        }
+
+        EmptyState {
+            vertical-stretch: 1;
+            title: "暂无历史记录";
+            detail: "完成加密历史存储后，这里将支持查看、复制、删除单条记录和清空全部。";
+        }
+    }
+}

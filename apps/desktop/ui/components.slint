@@ -1,0 +1,110 @@
+export enum AppPage {
+    home,
+    history,
+    dictionary,
+    settings,
+}
+
+export enum SettingsSection {
+    general,
+    voice-models,
+    shortcuts-audio,
+    delivery-permissions,
+    privacy-history,
+    about-updates,
+}
+
+export component StatusPill inherits Rectangle {
+    in property <string> label;
+    in property <bool> granted;
+    width: 136px;
+    height: 28px;
+    border-radius: 6px;
+    background: root.granted ? #e7f8f0 : #f1f2f4;
+
+    HorizontalLayout {
+        padding-left: 10px;
+        padding-right: 10px;
+        spacing: 7px;
+        alignment: center;
+        cross-axis-alignment: center;
+
+        Rectangle {
+            width: 7px;
+            height: 7px;
+            border-radius: 4px;
+            background: root.granted ? #0f9f6e : #98a0aa;
+        }
+
+        Text {
+            text: root.label;
+            color: root.granted ? #087a55 : #515862;
+            font-size: 12px;
+            font-weight: 600;
+            vertical-alignment: center;
+        }
+    }
+}
+
+export component NavItem inherits Rectangle {
+    in property <string> label;
+    in property <bool> selected;
+    callback activated();
+    height: 42px;
+    border-radius: 6px;
+    background: root.selected ? #e4e7eb : transparent;
+    accessible-role: button;
+    accessible-label: root.label;
+    accessible-action-default => { root.activated(); }
+
+    Text {
+        x: 18px;
+        text: root.label;
+        color: root.selected ? #18181b : #626873;
+        font-size: 14px;
+        font-weight: root.selected ? 650 : 500;
+        vertical-alignment: center;
+    }
+
+    TouchArea { clicked => { root.activated(); } }
+}
+
+export component PageHeading inherits Text {
+    in property <string> label;
+    text: root.label;
+    color: #18181b;
+    font-size: 25px;
+    font-weight: 700;
+    vertical-alignment: center;
+}
+
+export component EmptyState inherits Rectangle {
+    in property <string> title;
+    in property <string> detail;
+    border-width: 1px;
+    border-color: #e0e3e7;
+    border-radius: 7px;
+    background: #ffffff;
+
+    VerticalLayout {
+        padding: 28px;
+        spacing: 8px;
+        alignment: center;
+
+        Text {
+            text: root.title;
+            color: #2b2e33;
+            font-size: 15px;
+            font-weight: 650;
+            horizontal-alignment: center;
+        }
+
+        Text {
+            text: root.detail;
+            color: #7c838d;
+            font-size: 12px;
+            horizontal-alignment: center;
+            wrap: word-wrap;
+        }
+    }
+}
