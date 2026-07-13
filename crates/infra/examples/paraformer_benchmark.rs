@@ -28,6 +28,31 @@ fn main() -> Result<(), Box<dyn Error>> {
     let load_seconds = load_started.elapsed().as_secs_f64();
     println!("Model loaded in {load_seconds:.2}s");
 
+    let evaluation = evaluate(&recognizer, &samples);
+    let successful = samples.len().saturating_sub(evaluation.failures);
+    let report = BenchmarkReport {
+        runtime: arguments.variant.label(),
+        manifest: arguments.manifest.display().to_string(),
+        samples: samples.len(),
+        successful,
+        failures: evaluation.failures,
+        exact_matches: evaluation.exact_matches,
+        exact_match_rate: ratio(evaluation.exact_matches, successful),
+        reference_characters: evaluation.reference_characters,
+        character_errors: evaluation.character_errors,
+        cer: ratio(evaluation.character_errors, evaluation.reference_characters),
+        model_load_seconds: load_seconds,
+        audio_seconds: evaluation.audio_seconds,
+        inference_seconds: evaluation.inference_seconds,
+        real_time_factor: float_ratio(evaluation.inference_seconds, evaluation.audio_seconds),
+    };
+    write_results(&arguments.output, &report, &evaluation.predictions)?;
+    println!("\n{}", serde_json::to_string_pretty(&report)?);
+    println!("Results: {}", arguments.output.display());
+    Ok(())
+}
+
+fn evaluate(recognizer: &OnlineRecognizer, samples: &[Sample]) -> Evaluation {
     let mut predictions = Vec::with_capacity(samples.len());
     let mut total_audio_seconds = 0.0;
     let mut total_inference_seconds = 0.0;
@@ -37,7 +62,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let mut failures = 0;
 
     for (index, sample) in samples.iter().enumerate() {
-        match transcribe(&recognizer, &sample.audio) {
+        match transcribe(recognizer, &sample.audio) {
             Ok(transcription) => {
                 let reference = normalize(&sample.reference);
                 let hypothesis = normalize(&transcription.text);
@@ -87,27 +112,25 @@ fn main() -> Result<(), Box<dyn Error>> {
         }
     }
 
-    let successful = samples.len().saturating_sub(failures);
-    let report = BenchmarkReport {
-        runtime: arguments.variant.label(),
-        manifest: arguments.manifest.display().to_string(),
-        samples: samples.len(),
-        successful,
+    Evaluation {
+        predictions,
         failures,
         exact_matches,
-        exact_match_rate: ratio(exact_matches, successful),
         reference_characters: total_reference_characters,
         character_errors: total_character_errors,
-        cer: ratio(total_character_errors, total_reference_characters),
-        model_load_seconds: load_seconds,
         audio_seconds: total_audio_seconds,
         inference_seconds: total_inference_seconds,
-        real_time_factor: float_ratio(total_inference_seconds, total_audio_seconds),
-    };
-    write_results(&arguments.output, &report, &predictions)?;
-    println!("\n{}", serde_json::to_string_pretty(&report)?);
-    println!("Results: {}", arguments.output.display());
-    Ok(())
+    }
+}
+
+struct Evaluation {
+    predictions: Vec<Prediction>,
+    failures: usize,
+    exact_matches: usize,
+    reference_characters: usize,
+    character_errors: usize,
+    audio_seconds: f64,
+    inference_seconds: f64,
 }
 
 #[derive(Clone, Copy)]
