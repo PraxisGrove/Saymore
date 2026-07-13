@@ -5,6 +5,7 @@ use template_domain::Greeting;
 mod audio_recording;
 mod cancelled_recording;
 mod feedback_sound;
+mod final_text_processing;
 mod settings;
 mod speech_recognition;
 mod text_delivery;
@@ -16,8 +17,14 @@ pub use audio_recording::{
 };
 pub use cancelled_recording::CancelledRecordingStore;
 pub use feedback_sound::{FeedbackSound, FeedbackSoundError, FeedbackSoundPlayer};
+pub use final_text_processing::{
+    FinalTextProcessingError, FinalTextProcessor, FinalTextRequest, LlmProvider, LlmProviderError,
+    LlmRefinementRequest, ProcessedText, RefinementFallbackReason, RefinementMode,
+    RefinementStatus, RefinementTerm,
+};
 pub use settings::{
-    AsrSettings, SaymoreSettings, SettingsStore, SettingsStoreError, VolcengineAsrSettings,
+    AsrSettings, ChatCompletionsLlmSettings, LlmSettings, SaymoreSettings, SettingsStore,
+    SettingsStoreError, VolcengineAsrSettings,
 };
 pub use speech_recognition::{
     SpeechRecognitionError, StreamingRecognitionSession, StreamingSpeechRecognizer,

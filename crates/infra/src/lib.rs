@@ -2,6 +2,8 @@
 
 use template_app::RecipientProvider;
 
+mod chat_completions_llm;
+
 #[cfg(target_os = "macos")]
 mod macos_audio_recorder;
 
@@ -52,6 +54,7 @@ pub use macos_shortcut_monitor::{DictationShortcutAction, MacOsShortcutMonitor};
 #[cfg(target_os = "macos")]
 pub use macos_text_delivery::{MacOsTextDeliverer, copy_text_to_clipboard};
 
+pub use chat_completions_llm::ChatCompletionsLlmProvider;
 pub use volcengine_asr::VolcengineSpeechRecognizer;
 
 #[derive(Debug, Clone, PartialEq, Eq)]

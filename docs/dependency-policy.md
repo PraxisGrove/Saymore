@@ -80,3 +80,31 @@ Rustls uses Mozilla's CA root dataset through `webpki-roots`. The dataset is
 licensed under `CDLA-Permissive-2.0`, which is explicitly allowed in
 `deny.toml`; this allowance applies to the certificate data dependency and does
 not change Saymore's source-code license.
+
+## Chat Completions LLM
+
+The OpenAI-compatible Chat Completions adapter uses `reqwest` 0.13.4 for
+asynchronous HTTP, JSON request bodies, bounded response streaming, redirects,
+and request timeouts. The enabled features are `json`, `rustls-no-provider`, and
+`stream`; default TLS, charset, HTTP/2, and system-proxy features remain off.
+The existing `rustls` dependency installs the `ring` crypto provider. Rust's
+standard library has no HTTPS client, and using `hyper` directly would expose
+transport details without reducing the transitive network stack. A blocking
+client was rejected because dropping an asynchronous request is the provider
+cancellation mechanism. `reqwest` is actively maintained and dual
+MIT/Apache-2.0.
+
+The `app` port uses `async-trait` 0.1 so a configured provider can be held as a
+trait object. Native `async fn` in traits is not object-safe, while exposing a
+boxed-future signature would leak executor-oriented types into every adapter.
+`tokio-util` 0.7 supplies `CancellationToken`; a custom atomic flag plus async
+notification would duplicate cancellation and wake-up behavior. Both crates
+are actively maintained and dual MIT/Apache-2.0. Only Tokio's existing runtime,
+sync, time, and macro features are used, with `test-util` enabled for app tests.
+
+Provider contract tests use `httpmock` 0.8.3 as a development-only dependency.
+It verifies HTTP method, path, headers, JSON bodies, delayed responses, and
+error mapping without real network services or credentials. A handwritten TCP
+server was rejected because HTTP framing and concurrent test shutdown would
+become unrelated test infrastructure. `httpmock` is MIT-licensed and does not
+enter production binaries.

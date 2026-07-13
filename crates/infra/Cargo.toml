@@ -12,18 +12,21 @@ path = "src/lib.rs"
 workspace = true
 
 [dependencies]
+async-trait = { workspace = true }
 template-app = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
 flate2 = { workspace = true }
 futures-util = { workspace = true }
+reqwest = { workspace = true }
 rustls = { workspace = true }
 tokio = { workspace = true }
 tokio-tungstenite = { workspace = true }
 uuid = { workspace = true }
 
 [dev-dependencies]
+httpmock = { workspace = true }
 sherpa-onnx = { workspace = true }
 
 [target.'cfg(target_os = "macos")'.dependencies]

@@ -1,8 +1,11 @@
+use std::collections::BTreeMap;
+
 use thiserror::Error;
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct SaymoreSettings {
     pub asr: AsrSettings,
+    pub llm: LlmSettings,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -15,6 +18,29 @@ pub struct VolcengineAsrSettings {
     pub enabled: bool,
     pub api_key: String,
     pub model: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LlmSettings {
+    pub enabled: bool,
+    pub chat_completions: ChatCompletionsLlmSettings,
+}
+
+impl Default for LlmSettings {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            chat_completions: ChatCompletionsLlmSettings::default(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct ChatCompletionsLlmSettings {
+    pub base_url: String,
+    pub api_key: String,
+    pub model: String,
+    pub custom_headers: BTreeMap<String, String>,
 }
 
 #[derive(Debug, PartialEq, Eq, Error)]

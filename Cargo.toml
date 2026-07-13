@@ -17,14 +17,17 @@ version = "0.1.0"
 
 [workspace.dependencies]
 anyhow = "1"
+async-trait = "0.1"
 assert_cmd = "2"
 cpal = "0.18.1"
 flate2 = "1.1.9"
 futures-util = "0.3.32"
 predicates = "3"
 raw-window-handle = "0.6"
+reqwest = { version = "0.13.4", default-features = false, features = ["json", "rustls-no-provider", "stream"] }
 rustls = { version = "0.23.41", default-features = false, features = ["ring", "std"] }
 rstest = "0.26"
+httpmock = "0.8.3"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sherpa-onnx = "1.13.4"
@@ -35,6 +38,7 @@ template-domain = { path = "crates/domain", version = "0.1.0" }
 template-infra = { path = "crates/infra", version = "0.1.0" }
 thiserror = "2"
 tokio = { version = "1.52.3", features = ["macros", "rt-multi-thread", "sync", "time"] }
+tokio-util = "0.7"
 tokio-tungstenite = { version = "0.30.0", features = ["rustls-tls-webpki-roots"] }
 uuid = { version = "1.23.5", features = ["v4"] }
 

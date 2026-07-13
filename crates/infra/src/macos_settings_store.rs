@@ -1,4 +1,5 @@
 use std::{
+    collections::BTreeMap,
     env, fs,
     fs::{File, OpenOptions, Permissions},
     io::{BufReader, BufWriter, Write},
@@ -9,10 +10,11 @@ use std::{
 
 use serde::{Deserialize, Serialize};
 use template_app::{
-    AsrSettings, SaymoreSettings, SettingsStore, SettingsStoreError, VolcengineAsrSettings,
+    AsrSettings, ChatCompletionsLlmSettings, LlmSettings, SaymoreSettings, SettingsStore,
+    SettingsStoreError, VolcengineAsrSettings,
 };
 
-const CONFIG_VERSION: u32 = 1;
+const CONFIG_VERSION: u32 = 2;
 
 pub struct JsonSettingsStore {
     path: PathBuf,
@@ -84,6 +86,8 @@ struct StoredSettings {
     version: u32,
     #[serde(default)]
     asr: StoredAsrSettings,
+    #[serde(default)]
+    llm: StoredLlmSettings,
 }
 
 #[derive(Debug, Default, Serialize, Deserialize)]
@@ -111,6 +115,39 @@ enum StoredAuthMode {
     ApiKey,
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+struct StoredLlmSettings {
+    #[serde(default = "enabled_by_default")]
+    enabled: bool,
+    #[serde(default)]
+    chat_completions: StoredChatCompletionsLlmSettings,
+}
+
+impl Default for StoredLlmSettings {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            chat_completions: StoredChatCompletionsLlmSettings::default(),
+        }
+    }
+}
+
+#[derive(Debug, Default, Serialize, Deserialize)]
+struct StoredChatCompletionsLlmSettings {
+    #[serde(default)]
+    base_url: String,
+    #[serde(default)]
+    api_key: String,
+    #[serde(default)]
+    model: String,
+    #[serde(default)]
+    custom_headers: BTreeMap<String, String>,
+}
+
+const fn enabled_by_default() -> bool {
+    true
+}
+
 impl From<&SaymoreSettings> for StoredSettings {
     fn from(settings: &SaymoreSettings) -> Self {
         Self {
@@ -123,6 +160,15 @@ impl From<&SaymoreSettings> for StoredSettings {
                     model: settings.asr.volcengine.model.clone(),
                 },
             },
+            llm: StoredLlmSettings {
+                enabled: settings.llm.enabled,
+                chat_completions: StoredChatCompletionsLlmSettings {
+                    base_url: settings.llm.chat_completions.base_url.clone(),
+                    api_key: settings.llm.chat_completions.api_key.clone(),
+                    model: settings.llm.chat_completions.model.clone(),
+                    custom_headers: settings.llm.chat_completions.custom_headers.clone(),
+                },
+            },
         }
     }
 }
@@ -131,7 +177,7 @@ impl TryFrom<StoredSettings> for SaymoreSettings {
     type Error = SettingsStoreError;
 
     fn try_from(stored: StoredSettings) -> Result<Self, Self::Error> {
-        if stored.version != CONFIG_VERSION {
+        if !matches!(stored.version, 1 | CONFIG_VERSION) {
             return Err(SettingsStoreError::Invalid(format!(
                 "unsupported config version {}",
                 stored.version
@@ -143,6 +189,15 @@ impl TryFrom<StoredSettings> for SaymoreSettings {
                     enabled: stored.asr.volcengine.enabled,
                     api_key: stored.asr.volcengine.api_key,
                     model: stored.asr.volcengine.model,
+                },
+            },
+            llm: LlmSettings {
+                enabled: stored.llm.enabled,
+                chat_completions: ChatCompletionsLlmSettings {
+                    base_url: stored.llm.chat_completions.base_url,
+                    api_key: stored.llm.chat_completions.api_key,
+                    model: stored.llm.chat_completions.model,
+                    custom_headers: stored.llm.chat_completions.custom_headers,
                 },
             },
         })
@@ -163,7 +218,10 @@ fn json_error(error: serde_json::Error) -> SettingsStoreError {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::{
+        collections::BTreeMap,
+        sync::atomic::{AtomicUsize, Ordering},
+    };
 
     use super::*;
 
@@ -182,6 +240,18 @@ mod tests {
                     model: "test-model".to_owned(),
                 },
             },
+            llm: LlmSettings {
+                enabled: true,
+                chat_completions: ChatCompletionsLlmSettings {
+                    base_url: "https://llm.example/v1".to_owned(),
+                    api_key: "llm-test-key".to_owned(),
+                    model: "test-llm".to_owned(),
+                    custom_headers: BTreeMap::from([(
+                        "X-Tenant".to_owned(),
+                        "tenant-a".to_owned(),
+                    )]),
+                },
+            },
         };
 
         assert!(store.save(&settings).is_ok());
@@ -190,6 +260,48 @@ mod tests {
             panic!("saved settings should have metadata");
         };
         assert_eq!(0o600, metadata.permissions().mode() & 0o777);
+
+        let _ = fs::remove_dir_all(directory);
+    }
+
+    #[test]
+    fn migrates_version_one_settings_with_default_llm_configuration() {
+        let directory = test_directory();
+        let path = directory.join("config.json");
+        assert!(fs::create_dir_all(&directory).is_ok());
+        assert!(
+            fs::write(
+                &path,
+                r#"{
+                    "version": 1,
+                    "asr": {
+                        "volcengine": {
+                            "enabled": true,
+                            "api_key": "existing-key",
+                            "model": "existing-model"
+                        }
+                    }
+                }"#,
+            )
+            .is_ok()
+        );
+        let store = JsonSettingsStore::at_path(path);
+
+        let settings = store.load();
+
+        assert_eq!(
+            Ok(SaymoreSettings {
+                asr: AsrSettings {
+                    volcengine: VolcengineAsrSettings {
+                        enabled: true,
+                        api_key: "existing-key".to_owned(),
+                        model: "existing-model".to_owned(),
+                    },
+                },
+                llm: LlmSettings::default(),
+            }),
+            settings
+        );
 
         let _ = fs::remove_dir_all(directory);
     }
