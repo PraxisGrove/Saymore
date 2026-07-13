@@ -40,7 +40,9 @@ mod ui {
     slint::include_modules!();
 }
 
-use ui::{AppWindow, RecordingOverlay, ResultOverlay};
+use ui::AppWindow;
+#[cfg(target_os = "macos")]
+use ui::{RecordingOverlay, ResultOverlay};
 
 #[cfg(target_os = "macos")]
 mod asr_runtime;
