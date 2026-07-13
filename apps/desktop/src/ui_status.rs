@@ -21,9 +21,13 @@ pub fn apply_transcription_completed(
     transcript: &str,
     delivery: Result<TextDeliveryOutcome, TextDeliveryError>,
 ) {
+    let verified = matches!(
+        delivery,
+        Ok(TextDeliveryOutcome::AccessibilityVerified | TextDeliveryOutcome::ClipboardVerified)
+    );
     ui.set_recording_active(false);
-    ui.set_recording_complete(delivery.is_ok());
-    ui.set_recording_failed(delivery.is_err());
+    ui.set_recording_complete(verified);
+    ui.set_recording_failed(!verified);
     ui.set_recording_level(0.0);
     match delivery {
         Ok(outcome) => {
@@ -40,6 +44,20 @@ pub fn apply_transcription_completed(
             ui.set_recording_detail(SharedString::from(text_delivery_error_message(&error)));
         }
     }
+}
+
+pub fn delivery_requires_copy_recovery(
+    delivery: &Result<TextDeliveryOutcome, TextDeliveryError>,
+) -> bool {
+    matches!(
+        delivery,
+        Ok(TextDeliveryOutcome::ClipboardAttempted)
+            | Err(TextDeliveryError::PermissionDenied
+                | TextDeliveryError::NoFocusedControl
+                | TextDeliveryError::UnsupportedControl
+                | TextDeliveryError::AccessibilityUnverified
+                | TextDeliveryError::System(_))
+    )
 }
 
 pub fn apply_asr_error(ui: &AppWindow, error: &SpeechRecognitionError) {
@@ -105,7 +123,7 @@ fn delivery_outcome_label(outcome: TextDeliveryOutcome) -> &'static str {
     match outcome {
         TextDeliveryOutcome::AccessibilityVerified => "已直接写入",
         TextDeliveryOutcome::ClipboardVerified => "已粘贴",
-        TextDeliveryOutcome::ClipboardAttempted => "已尝试粘贴",
+        TextDeliveryOutcome::ClipboardAttempted => "需要复制",
     }
 }
 
@@ -152,5 +170,21 @@ mod tests {
                 recording_error_message(&RecordingError::Capture("device stopped".to_owned())),
             ]
         );
+    }
+
+    #[test]
+    fn unverified_clipboard_attempt_requires_copy_recovery() {
+        assert!(delivery_requires_copy_recovery(&Ok(
+            TextDeliveryOutcome::ClipboardAttempted
+        )));
+        assert!(!delivery_requires_copy_recovery(&Ok(
+            TextDeliveryOutcome::AccessibilityVerified
+        )));
+        assert!(delivery_requires_copy_recovery(&Err(
+            TextDeliveryError::NoFocusedControl
+        )));
+        assert!(!delivery_requires_copy_recovery(&Err(
+            TextDeliveryError::SecureInput
+        )));
     }
 }

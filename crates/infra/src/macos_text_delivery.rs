@@ -36,6 +36,19 @@ const PASTE_VERIFICATION_TIMEOUT: Duration = Duration::from_millis(700);
 #[derive(Debug, Clone, Copy, Default)]
 pub struct MacOsTextDeliverer;
 
+/// Replaces the macOS clipboard with a transcript the user explicitly chose
+/// to copy from the recovery overlay.
+pub fn copy_text_to_clipboard(text: &str) -> Result<(), TextDeliveryError> {
+    let pasteboard = NSPasteboard::generalPasteboard();
+    if write_text(&pasteboard, text) {
+        Ok(())
+    } else {
+        Err(TextDeliveryError::System(
+            "failed to copy transcript to the pasteboard".to_owned(),
+        ))
+    }
+}
+
 impl TextDeliverer for MacOsTextDeliverer {
     fn authorization(&self) -> AccessibilityAuthorization {
         authorization_from(unsafe { AXIsProcessTrusted() })

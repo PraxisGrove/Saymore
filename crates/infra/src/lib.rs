@@ -50,7 +50,7 @@ pub use macos_microphone_permission::MacOsMicrophonePermission;
 pub use macos_shortcut_monitor::{DictationShortcutAction, MacOsShortcutMonitor};
 
 #[cfg(target_os = "macos")]
-pub use macos_text_delivery::MacOsTextDeliverer;
+pub use macos_text_delivery::{MacOsTextDeliverer, copy_text_to_clipboard};
 
 pub use volcengine_asr::VolcengineSpeechRecognizer;
 

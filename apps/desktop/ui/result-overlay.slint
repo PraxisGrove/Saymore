@@ -1,0 +1,85 @@
+export component ResultOverlay inherits Window {
+    title: "Saymore Result";
+    preferred-width: 360px;
+    preferred-height: 148px;
+    min-width: 360px;
+    min-height: 148px;
+    max-width: 360px;
+    max-height: 148px;
+    no-frame: true;
+    always-on-top: true;
+    background: transparent;
+
+    in property <string> transcript: "";
+    callback copy-result();
+    callback close-result();
+
+    Rectangle {
+        x: 2px;
+        y: 2px;
+        width: 356px;
+        height: 144px;
+        border-radius: 8px;
+        background: #1c1c1e;
+        border-width: 1px;
+        border-color: #3f3f46;
+
+        Text {
+            x: 20px;
+            y: 17px;
+            text: "复制最后的转录";
+            color: #f4f4f5;
+            font-size: 15px;
+            font-weight: 700;
+        }
+
+        Rectangle {
+            x: 320px;
+            y: 10px;
+            width: 26px;
+            height: 26px;
+            border-radius: 5px;
+            background: close-area.has-hover ? #343438 : transparent;
+
+            Text {
+                text: "×";
+                color: #a1a1aa;
+                font-size: 19px;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+            close-area := TouchArea { clicked => { root.close-result(); } }
+        }
+
+        Text {
+            x: 20px;
+            y: 50px;
+            width: 316px;
+            height: 42px;
+            text: root.transcript;
+            color: #d4d4d8;
+            font-size: 13px;
+            wrap: word-wrap;
+            overflow: elide;
+        }
+
+        Rectangle {
+            x: 275px;
+            y: 103px;
+            width: 61px;
+            height: 30px;
+            border-radius: 6px;
+            background: copy-area.pressed ? #52525b : copy-area.has-hover ? #3f3f46 : #343438;
+
+            Text {
+                text: "复制";
+                color: #ffffff;
+                font-size: 13px;
+                font-weight: 600;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+            copy-area := TouchArea { clicked => { root.copy-result(); } }
+        }
+    }
+}

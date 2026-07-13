@@ -40,10 +40,12 @@ mod ui {
     slint::include_modules!();
 }
 
-use ui::{AppWindow, RecordingOverlay};
+use ui::{AppWindow, RecordingOverlay, ResultOverlay};
 
 #[cfg(target_os = "macos")]
 mod asr_runtime;
+#[cfg(target_os = "macos")]
+mod delivery_runtime;
 #[cfg(target_os = "macos")]
 mod main_window;
 #[cfg(target_os = "macos")]
@@ -69,6 +71,23 @@ enum FinishError {
     Recognition(SpeechRecognitionError),
 }
 
+#[cfg(target_os = "macos")]
+#[derive(Clone)]
+struct DictationOverlays {
+    status: slint::Weak<RecordingOverlay>,
+    result: slint::Weak<ResultOverlay>,
+}
+
+#[cfg(target_os = "macos")]
+impl DictationOverlays {
+    fn new(status: &RecordingOverlay, result: &ResultOverlay) -> Self {
+        Self {
+            status: status.as_weak(),
+            result: result.as_weak(),
+        }
+    }
+}
+
 fn main() -> ExitCode {
     match run() {
         Ok(()) => ExitCode::SUCCESS,
@@ -85,6 +104,7 @@ fn run() -> Result<(), Box<dyn Error>> {
     settings_store.ensure_exists()?;
     let ui = AppWindow::new()?;
     let overlay = RecordingOverlay::new()?;
+    let result_overlay = ResultOverlay::new()?;
     let deliverer = MacOsTextDeliverer;
     let microphone = MacOsMicrophonePermission;
     let recorder = Arc::new(Mutex::new(MacOsAudioRecorder::default()));
@@ -121,17 +141,20 @@ fn run() -> Result<(), Box<dyn Error>> {
     );
 
     let first_recording = Arc::new(AtomicBool::new(true));
+    delivery_runtime::wire_result_actions(&result_overlay);
     wire_overlay_actions(
         &ui,
         &overlay,
+        &result_overlay,
         Arc::clone(&recorder),
         Arc::clone(&recording_active),
         Arc::clone(&cancelled),
         Arc::clone(&asr),
     );
+    let overlays = DictationOverlays::new(&overlay, &result_overlay);
     start_recording_shortcut(
         &ui,
-        &overlay,
+        overlays,
         recorder,
         first_recording,
         recording_active,
@@ -149,7 +172,7 @@ fn run() -> Result<(), Box<dyn Error>> {
 #[cfg(target_os = "macos")]
 fn start_recording_shortcut(
     ui: &AppWindow,
-    overlay: &RecordingOverlay,
+    overlays: DictationOverlays,
     recorder: Arc<Mutex<MacOsAudioRecorder>>,
     first_recording: Arc<AtomicBool>,
     recording_active: Arc<AtomicBool>,
@@ -157,13 +180,13 @@ fn start_recording_shortcut(
     asr: Arc<AsrSessionController>,
 ) {
     let shortcut_ui = ui.as_weak();
-    let shortcut_overlay = overlay.as_weak();
+    let shortcut_overlays = overlays;
     let monitor_active = Arc::clone(&recording_active);
     MacOsShortcutMonitor::start(monitor_active, move |action| match action {
         DictationShortcutAction::Toggle if recording_active.load(Ordering::Relaxed) => {
             finish_recording(
                 shortcut_ui.clone(),
-                shortcut_overlay.clone(),
+                shortcut_overlays.clone(),
                 Arc::clone(&recorder),
                 Arc::clone(&recording_active),
                 Arc::clone(&asr),
@@ -171,7 +194,7 @@ fn start_recording_shortcut(
         }
         DictationShortcutAction::Toggle => begin_recording(
             &shortcut_ui,
-            &shortcut_overlay,
+            &shortcut_overlays,
             &recorder,
             &first_recording,
             &recording_active,
@@ -180,7 +203,7 @@ fn start_recording_shortcut(
         ),
         DictationShortcutAction::Cancel => cancel_recording(
             &shortcut_ui,
-            &shortcut_overlay,
+            &shortcut_overlays.status,
             &recorder,
             &recording_active,
             &cancelled,
@@ -192,18 +215,21 @@ fn start_recording_shortcut(
 #[cfg(target_os = "macos")]
 fn begin_recording(
     ui: &slint::Weak<AppWindow>,
-    overlay: &slint::Weak<RecordingOverlay>,
+    overlays: &DictationOverlays,
     recorder: &Mutex<MacOsAudioRecorder>,
     first_recording: &Arc<AtomicBool>,
     recording_active: &Arc<AtomicBool>,
     cancelled: &Mutex<CancelledRecordingStore>,
     asr: &Arc<AsrSessionController>,
 ) {
+    if let Some(result_overlay) = overlays.result.upgrade() {
+        let _ = result_overlay.hide();
+    }
     if let Ok(mut cancelled) = cancelled.lock() {
         cancelled.clear();
     }
     let metrics_ui = ui.clone();
-    let metrics_overlay = overlay.clone();
+    let metrics_overlay = overlays.status.clone();
     let on_metrics = Arc::new(move |metrics| {
         recording_metrics::update(&metrics_ui, &metrics_overlay, metrics);
     });
@@ -233,7 +259,7 @@ fn begin_recording(
         .and_then(|mut recorder| recorder.start(on_metrics, on_audio_chunk));
 
     let event_ui = ui.clone();
-    let event_overlay = overlay.clone();
+    let event_overlay = overlays.status.clone();
     let first_recording = Arc::clone(first_recording);
     let recording_active = Arc::clone(recording_active);
     let show_device = first_recording.load(Ordering::Relaxed);
@@ -259,12 +285,12 @@ fn begin_recording(
 #[cfg(target_os = "macos")]
 fn finish_recording(
     ui: slint::Weak<AppWindow>,
-    overlay: slint::Weak<RecordingOverlay>,
+    overlays: DictationOverlays,
     recorder: Arc<Mutex<MacOsAudioRecorder>>,
     recording_active: Arc<AtomicBool>,
     asr: Arc<AsrSessionController>,
 ) {
-    let processing_overlay = overlay.clone();
+    let processing_overlay = overlays.status.clone();
     let _ = ui.upgrade_in_event_loop(move |ui| {
         ui.set_recording_active(false);
         ui.set_recording_failed(false);
@@ -281,7 +307,7 @@ fn finish_recording(
     if std::thread::Builder::new()
         .name("saymore-finish-dictation".to_owned())
         .spawn(move || {
-            finish_recording_worker(ui, overlay, recorder, recording_active, asr);
+            finish_recording_worker(ui, overlays, recorder, recording_active, asr);
         })
         .is_err()
     {
@@ -298,7 +324,7 @@ fn finish_recording(
 #[cfg(target_os = "macos")]
 fn finish_recording_worker(
     ui: slint::Weak<AppWindow>,
-    overlay: slint::Weak<RecordingOverlay>,
+    overlays: DictationOverlays,
     recorder: Arc<Mutex<MacOsAudioRecorder>>,
     recording_active: Arc<AtomicBool>,
     asr: Arc<AsrSessionController>,
@@ -339,24 +365,27 @@ fn finish_recording_worker(
                     &ui,
                     &SpeechRecognitionError::Protocol("empty transcript".to_owned()),
                 );
-                hide_overlay_after_delay(overlay);
+                hide_overlay_after_delay(overlays.status);
                 return;
             }
-            let delivery = MacOsTextDeliverer.deliver(&transcript);
-            play_feedback_sound(FeedbackSound::Finish);
-            apply_transcription_completed(&ui, &recording, &transcript, delivery);
-            hide_overlay_after_delay(overlay);
+            delivery_runtime::schedule_delivery(
+                ui.as_weak(),
+                overlays.status,
+                overlays.result,
+                recording,
+                transcript,
+            );
         }
         Err(FinishError::Recording(RecordingError::NotRecording)) => {}
         Err(FinishError::Recording(error)) => {
             play_feedback_sound(FeedbackSound::Failure);
             apply_recording_error(&ui, &error);
-            hide_overlay_after_delay(overlay);
+            hide_overlay_after_delay(overlays.status);
         }
         Err(FinishError::Recognition(error)) => {
             play_feedback_sound(FeedbackSound::Failure);
             apply_asr_error(&ui, &error);
-            hide_overlay_after_delay(overlay);
+            hide_overlay_after_delay(overlays.status);
         }
     });
 }
@@ -411,20 +440,21 @@ fn hide_overlay_after_delay(overlay: slint::Weak<RecordingOverlay>) {
 fn wire_overlay_actions(
     ui: &AppWindow,
     overlay: &RecordingOverlay,
+    result_overlay: &ResultOverlay,
     recorder: Arc<Mutex<MacOsAudioRecorder>>,
     recording_active: Arc<AtomicBool>,
     cancelled: Arc<Mutex<CancelledRecordingStore>>,
     asr: Arc<AsrSessionController>,
 ) {
     let finish_ui = ui.as_weak();
-    let finish_overlay = overlay.as_weak();
+    let finish_overlays = DictationOverlays::new(overlay, result_overlay);
     let finish_recorder = Arc::clone(&recorder);
     let finish_active = Arc::clone(&recording_active);
     let finish_asr = Arc::clone(&asr);
     overlay.on_finish(move || {
         finish_recording(
             finish_ui.clone(),
-            finish_overlay.clone(),
+            finish_overlays.clone(),
             Arc::clone(&finish_recorder),
             Arc::clone(&finish_active),
             Arc::clone(&finish_asr),
@@ -449,12 +479,14 @@ fn wire_overlay_actions(
 
     let undo_ui = ui.as_weak();
     let undo_overlay = overlay.as_weak();
+    let undo_result_overlay = result_overlay.as_weak();
     let undo_asr = Arc::clone(&asr);
     let undo_active = Arc::clone(&recording_active);
     overlay.on_undo_cancel(move || {
         undo_cancelled_recording(
             &undo_ui,
             &undo_overlay,
+            undo_result_overlay.clone(),
             &cancelled,
             Arc::clone(&undo_asr),
             Arc::clone(&undo_active),
@@ -540,6 +572,7 @@ fn schedule_cancel_expiration(
 fn undo_cancelled_recording(
     ui: &slint::Weak<AppWindow>,
     overlay: &slint::Weak<RecordingOverlay>,
+    result_overlay: slint::Weak<ResultOverlay>,
     cancelled: &Mutex<CancelledRecordingStore>,
     asr: Arc<AsrSessionController>,
     recording_active: Arc<AtomicBool>,
@@ -578,9 +611,13 @@ fn undo_cancelled_recording(
             let _ = event_ui.upgrade_in_event_loop(move |ui| match result {
                 Ok(transcript) => {
                     let transcript = normalize_transcript(&transcript);
-                    let delivery = MacOsTextDeliverer.deliver(&transcript);
-                    apply_transcription_completed(&ui, &recording, &transcript, delivery);
-                    hide_overlay_after_delay(event_overlay);
+                    delivery_runtime::schedule_delivery(
+                        ui.as_weak(),
+                        event_overlay,
+                        result_overlay,
+                        recording,
+                        transcript,
+                    );
                 }
                 Err(error) => {
                     apply_asr_error(&ui, &error);
