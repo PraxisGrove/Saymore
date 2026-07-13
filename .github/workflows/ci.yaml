@@ -23,6 +23,21 @@ jobs:
         with:
           components: rustfmt, clippy
 
+      - name: Install Linux desktop dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes \
+            libfontconfig-dev \
+            libgbm-dev \
+            libinput-dev \
+            libseat-dev \
+            libsystemd-dev \
+            libudev-dev \
+            libxcb-shape0-dev \
+            libxcb-xfixes0-dev \
+            libxkbcommon-dev \
+            libxkbcommon-x11-dev
+
       - name: Setup Rust cache
         uses: Swatinem/rust-cache@v2
 
