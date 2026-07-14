@@ -125,6 +125,7 @@ fn wire_history(ui: &AppWindow, storage: Arc<SqliteStorage>, state: Arc<Mutex<Ui
                         ui.set_history_has_more(false);
                         set_history_model(&ui, &state);
                     }
+                    ui.invoke_refresh_usage();
                 }
                 Err(error) => ui.set_history_status(SharedString::from(error.to_string())),
             });
@@ -152,6 +153,7 @@ fn wire_history(ui: &AppWindow, storage: Arc<SqliteStorage>, state: Arc<Mutex<Ui
                     ui.set_history_has_more(false);
                     ui.set_history_undo_visible(false);
                     ui.set_history_status(SharedString::from("历史已重新初始化"));
+                    ui.invoke_refresh_usage();
                 }
                 Err(error) => apply_history_error(&ui, error),
             });
@@ -220,12 +222,14 @@ fn commit_history_delete(
     id: String,
 ) {
     spawn_named("saymore-delete-history", move || {
-        if let Err(error) = storage.delete_history(&id) {
-            let _ = ui.upgrade_in_event_loop(move |ui| {
+        let result = storage.delete_history(&id);
+        let _ = ui.upgrade_in_event_loop(move |ui| match result {
+            Ok(()) => ui.invoke_refresh_usage(),
+            Err(error) => {
                 apply_history_error(&ui, error);
                 refresh_history_async(ui.as_weak(), storage, state);
-            });
-        }
+            }
+        });
     });
 }
 
@@ -571,7 +575,11 @@ fn refresh_history_after_cleanup(
         let now = now_ms();
         let history_result = storage.cleanup_history(now);
         match history_result {
-            Ok(_) => refresh_history_async(ui, storage, state),
+            Ok(_) => {
+                let usage_ui = ui.clone();
+                let _ = usage_ui.upgrade_in_event_loop(|ui| ui.invoke_refresh_usage());
+                refresh_history_async(ui, storage, state);
+            }
             Err(error) => {
                 let message = error.to_string();
                 let _ = ui.upgrade_in_event_loop(move |ui| {

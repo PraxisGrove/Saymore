@@ -62,7 +62,9 @@ pub use macos_microphone_permission::{
 pub use macos_shortcut_monitor::{DictationShortcutAction, MacOsShortcutMonitor};
 
 #[cfg(target_os = "macos")]
-pub use macos_text_delivery::{MacOsTextDeliverer, copy_text_to_clipboard};
+pub use macos_text_delivery::{
+    MacOsTextDeliverer, copy_text_to_clipboard, open_accessibility_privacy_settings,
+};
 
 pub use app_instance_guard::{AppInstanceGuard, AppInstanceGuardError};
 pub use app_paths::{AppEnvironment, AppPaths};

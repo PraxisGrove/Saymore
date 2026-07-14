@@ -54,6 +54,8 @@ mod diagnostics;
 #[cfg(target_os = "macos")]
 mod dictation_finish;
 #[cfg(target_os = "macos")]
+mod home_stats;
+#[cfg(target_os = "macos")]
 mod local_data_ui;
 #[cfg(target_os = "macos")]
 mod main_window;
@@ -172,6 +174,7 @@ fn run() -> Result<(), Box<dyn Error>> {
         microphone,
     );
     settings_ui::wire(&ui, Arc::clone(&settings_store));
+    home_stats::wire(&ui, Arc::clone(&local_storage));
     local_data_ui::wire(&ui, Arc::clone(&local_storage));
     ui_tuning::wire(&ui);
 

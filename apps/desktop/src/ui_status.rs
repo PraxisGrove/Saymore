@@ -31,6 +31,15 @@ pub fn apply_transcription_completed(
         &delivery,
         Ok(TextDeliveryOutcome::ClipboardAttempted | TextDeliveryOutcome::SecureClipboardAttempted)
     );
+    ui.set_delivery_healthy(verified);
+    ui.set_delivery_status(SharedString::from(match &delivery {
+        Ok(TextDeliveryOutcome::AccessibilityVerified | TextDeliveryOutcome::ClipboardVerified) => {
+            "文本投递正常"
+        }
+        Ok(TextDeliveryOutcome::ClipboardAttempted) => "已发出粘贴，但未能验证结果",
+        Ok(TextDeliveryOutcome::SecureClipboardAttempted) => "已尝试安全输入，但未能验证结果",
+        Err(error) => text_delivery_error_message(error),
+    }));
     ui.set_recording_active(false);
     ui.set_recording_complete(verified);
     ui.set_recording_attempted(attempted);

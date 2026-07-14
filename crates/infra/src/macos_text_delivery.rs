@@ -1,4 +1,10 @@
-use std::{ffi::c_void, ptr, thread, time::Duration, time::Instant};
+use std::{
+    ffi::c_void,
+    io,
+    process::Command,
+    ptr, thread,
+    time::{Duration, Instant},
+};
 
 use accessibility_sys::{
     AXIsProcessTrusted, AXIsProcessTrustedWithOptions, AXUIElementCopyAttributeValue,
@@ -48,6 +54,20 @@ pub struct MacOsTextDeliverer;
 /// to copy from the recovery overlay.
 pub fn copy_text_to_clipboard(text: &str) -> Result<(), TextDeliveryError> {
     clipboard::copy_text(text)
+}
+
+/// Opens the macOS Accessibility privacy pane for UI callers handling missing permission.
+pub fn open_accessibility_privacy_settings() -> Result<(), io::Error> {
+    let status = Command::new("/usr/bin/open")
+        .arg("x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")
+        .status()?;
+    if status.success() {
+        Ok(())
+    } else {
+        Err(io::Error::other(format!(
+            "System Settings exited with status {status}"
+        )))
+    }
 }
 
 impl TextDeliverer for MacOsTextDeliverer {

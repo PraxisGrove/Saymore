@@ -12,6 +12,7 @@ mod settings;
 mod speech_recognition;
 mod storage;
 mod text_delivery;
+mod usage_summary;
 
 pub use audio_recording::{
     AudioRecorder, MicrophoneAuthorization, MicrophonePermissionProvider, PcmChunk, PcmRecording,
@@ -47,6 +48,7 @@ pub use text_delivery::{
     AccessibilityAuthorization, DeliveryTargetPrivacy, TextDeliverer, TextDeliveryError,
     TextDeliveryOutcome,
 };
+pub use usage_summary::{USAGE_TREND_DAYS, UsageSummary, load_usage_summary};
 
 pub trait RecipientProvider {
     fn recipient(&self) -> &str;

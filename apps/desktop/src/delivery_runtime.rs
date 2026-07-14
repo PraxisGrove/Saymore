@@ -93,8 +93,11 @@ pub fn schedule_delivery(mut request: DeliveryRequest) {
                 ready.history_id = Some(history_id);
             }
             let _ = event_ui.upgrade_in_event_loop(move |ui| {
-                if let Err(error) = result {
-                    ui.set_history_status(SharedString::from(error.to_string()));
+                match result {
+                    Ok(()) => ui.invoke_refresh_usage(),
+                    Err(error) => {
+                        ui.set_history_status(SharedString::from(error.to_string()));
+                    }
                 }
                 schedule_ready_delivery(ready);
             });
@@ -218,6 +221,7 @@ fn persist_delivery_outcome(
     }
     let refresh_ui = ui.clone();
     let failure_ui = ui;
+    let refresh_usage = action == HistoryDeliveryAction::DiscardSensitive;
     let spawn = thread::Builder::new()
         .name("saymore-update-history".to_owned())
         .spawn(move || {
@@ -229,8 +233,12 @@ fn persist_delivery_outcome(
                 HistoryDeliveryAction::KeepPending => Ok(()),
             };
             let _ = refresh_ui.upgrade_in_event_loop(move |ui| {
-                if let Err(error) = result {
-                    ui.set_history_status(SharedString::from(error.to_string()));
+                match result {
+                    Ok(()) if refresh_usage => ui.invoke_refresh_usage(),
+                    Ok(()) => {}
+                    Err(error) => {
+                        ui.set_history_status(SharedString::from(error.to_string()));
+                    }
                 }
                 ui.invoke_refresh_history();
             });
