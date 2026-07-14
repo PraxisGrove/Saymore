@@ -1,60 +1,122 @@
 use std::{
     collections::BTreeMap,
-    env, fs,
+    fs,
     fs::{File, OpenOptions, Permissions},
     io::{BufReader, BufWriter, Write},
     os::unix::fs::{OpenOptionsExt, PermissionsExt},
     path::{Path, PathBuf},
     process,
+    sync::{Mutex, MutexGuard},
 };
 
 use serde::{Deserialize, Serialize};
 use template_app::{
-    AsrSettings, ChatCompletionsLlmSettings, LlmSettings, SaymoreSettings, SettingsStore,
+    ActiveProviders, AsrSettings, ChatCompletionsLlmSettings, LlmSettings, ProviderCatalog,
+    ProviderConfigStore, ProviderDataConsent, ProviderInstance, SaymoreSettings, SettingsStore,
     SettingsStoreError, VolcengineAsrSettings,
 };
+use uuid::Uuid;
 
-const CONFIG_VERSION: u32 = 2;
+use crate::app_paths::{AppEnvironment, AppPaths};
+
+const CONFIG_VERSION: u32 = 3;
+const VOLCENGINE_TYPE: &str = "volcengine";
+const CHAT_COMPLETIONS_TYPE: &str = "openai_compatible";
+const LLM_DATA_SCOPE: &str = "transcript+confirmed_dictionary_terms+refinement_parameters:v1";
 
 pub struct JsonSettingsStore {
     path: PathBuf,
+    access: Mutex<()>,
 }
 
 impl JsonSettingsStore {
-    pub fn for_current_user() -> Result<Self, SettingsStoreError> {
-        let home = env::var_os("HOME")
-            .ok_or_else(|| SettingsStoreError::Unavailable("HOME is not defined".to_owned()))?;
-        Ok(Self {
-            path: PathBuf::from(home).join("Library/Application Support/Saymore/config.json"),
-        })
+    pub fn for_current_user(environment: AppEnvironment) -> Result<Self, SettingsStoreError> {
+        let paths = AppPaths::for_current_user(environment)
+            .map_err(|error| SettingsStoreError::Unavailable(error.to_string()))?;
+        Ok(Self::at_path(paths.provider_config()))
     }
 
-    #[cfg(test)]
-    fn at_path(path: PathBuf) -> Self {
-        Self { path }
+    pub fn at_path(path: PathBuf) -> Self {
+        Self {
+            path,
+            access: Mutex::new(()),
+        }
     }
 
     pub fn ensure_exists(&self) -> Result<(), SettingsStoreError> {
+        let _guard = self.lock_access()?;
         if self.path.exists() {
-            Ok(())
+            self.load_catalog_unlocked().map(|_| ())
         } else {
-            self.save(&SaymoreSettings::default())
+            self.save_catalog_unlocked(&ProviderCatalog::default())
         }
     }
-}
 
-impl SettingsStore for JsonSettingsStore {
-    fn load(&self) -> Result<SaymoreSettings, SettingsStoreError> {
+    pub fn enable_llm_provider_if_unchanged(
+        &self,
+        preset: template_app::LlmProviderPreset,
+        expected_provider_id: &str,
+        expected_api_key: &str,
+    ) -> Result<bool, SettingsStoreError> {
+        let _guard = self.lock_access()?;
+        let mut catalog = self.load_catalog_unlocked()?;
+        if catalog.active.llm.as_deref() != Some(expected_provider_id)
+            || catalog.llm_provider_api_key(preset) != Some(expected_api_key)
+        {
+            return Ok(false);
+        }
+        let Some(provider) = catalog
+            .llm_providers
+            .iter_mut()
+            .find(|provider| provider.id == expected_provider_id)
+        else {
+            return Ok(false);
+        };
+        provider.data_consent = Some(ProviderDataConsent {
+            fingerprint: endpoint_fingerprint(preset.base_url()),
+        });
+        self.save_catalog_unlocked(&catalog)?;
+        Ok(true)
+    }
+
+    fn lock_access(&self) -> Result<MutexGuard<'_, ()>, SettingsStoreError> {
+        self.access.lock().map_err(|_| {
+            SettingsStoreError::Unavailable("settings access lock was poisoned".to_owned())
+        })
+    }
+
+    fn load_catalog_unlocked(&self) -> Result<ProviderCatalog, SettingsStoreError> {
         if !self.path.exists() {
-            return Ok(SaymoreSettings::default());
+            return Ok(ProviderCatalog::default());
         }
         let file = File::open(&self.path).map_err(io_error)?;
-        let stored: StoredSettings =
+        let value: serde_json::Value =
             serde_json::from_reader(BufReader::new(file)).map_err(json_error)?;
-        stored.try_into()
+        let version = value
+            .get("version")
+            .and_then(serde_json::Value::as_u64)
+            .ok_or_else(|| SettingsStoreError::Invalid("config version is missing".to_owned()))?;
+        match version {
+            1 | 2 => {
+                let legacy: LegacySettings = serde_json::from_value(value).map_err(json_error)?;
+                let catalog = legacy_catalog(legacy);
+                self.save_catalog_unlocked(&catalog)?;
+                Ok(catalog)
+            }
+            3 => {
+                let stored: StoredCatalog = serde_json::from_value(value).map_err(json_error)?;
+                let catalog = stored.into_catalog();
+                validate_catalog(&catalog)?;
+                Ok(catalog)
+            }
+            other => Err(SettingsStoreError::Invalid(format!(
+                "unsupported config version {other}"
+            ))),
+        }
     }
 
-    fn save(&self, settings: &SaymoreSettings) -> Result<(), SettingsStoreError> {
+    fn save_catalog_unlocked(&self, catalog: &ProviderCatalog) -> Result<(), SettingsStoreError> {
+        validate_catalog(catalog)?;
         let parent = self.path.parent().ok_or_else(|| {
             SettingsStoreError::Unavailable("settings path has no parent".to_owned())
         })?;
@@ -70,7 +132,7 @@ impl SettingsStore for JsonSettingsStore {
             .open(&temporary)
             .map_err(io_error)?;
         let mut writer = BufWriter::new(file);
-        serde_json::to_writer_pretty(&mut writer, &StoredSettings::from(settings))
+        serde_json::to_writer_pretty(&mut writer, &StoredCatalog::from(catalog))
             .map_err(json_error)?;
         writer.write_all(b"\n").map_err(io_error)?;
         writer.flush().map_err(io_error)?;
@@ -81,9 +143,41 @@ impl SettingsStore for JsonSettingsStore {
     }
 }
 
+impl SettingsStore for JsonSettingsStore {
+    fn load(&self) -> Result<SaymoreSettings, SettingsStoreError> {
+        let _guard = self.lock_access()?;
+        self.load_catalog_unlocked().and_then(catalog_to_settings)
+    }
+
+    fn save(&self, settings: &SaymoreSettings) -> Result<(), SettingsStoreError> {
+        let _guard = self.lock_access()?;
+        let mut catalog = if self.path.exists() {
+            self.load_catalog_unlocked()?
+        } else {
+            ProviderCatalog::default()
+        };
+        update_asr_provider(&mut catalog, &settings.asr.volcengine);
+        update_llm_provider(&mut catalog, &settings.llm);
+        self.save_catalog_unlocked(&catalog)
+    }
+}
+
+impl ProviderConfigStore for JsonSettingsStore {
+    fn load_catalog(&self) -> Result<ProviderCatalog, SettingsStoreError> {
+        let _guard = self.lock_access()?;
+        self.load_catalog_unlocked()
+    }
+
+    fn save_catalog(&self, catalog: &ProviderCatalog) -> Result<(), SettingsStoreError> {
+        let _guard = self.lock_access()?;
+        self.save_catalog_unlocked(catalog)
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize)]
-struct StoredSettings {
-    version: u32,
+struct LegacySettings {
+    #[serde(rename = "version")]
+    _version: u32,
     #[serde(default)]
     asr: StoredAsrSettings,
     #[serde(default)]
@@ -137,62 +231,355 @@ struct StoredChatCompletionsLlmSettings {
     custom_headers: BTreeMap<String, String>,
 }
 
-impl From<&SaymoreSettings> for StoredSettings {
-    fn from(settings: &SaymoreSettings) -> Self {
+#[derive(Debug, Serialize, Deserialize)]
+struct StoredCatalog {
+    version: u32,
+    #[serde(default)]
+    active: StoredActiveProviders,
+    #[serde(default)]
+    asr_providers: Vec<StoredProviderInstance>,
+    #[serde(default)]
+    llm_providers: Vec<StoredProviderInstance>,
+}
+
+#[derive(Debug, Default, Serialize, Deserialize)]
+struct StoredActiveProviders {
+    #[serde(default)]
+    asr: Option<String>,
+    #[serde(default)]
+    llm: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct StoredProviderInstance {
+    id: String,
+    name: String,
+    #[serde(rename = "type")]
+    provider_type: String,
+    config: serde_json::Value,
+    #[serde(default)]
+    data_consent: Option<StoredDataConsent>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct StoredDataConsent {
+    fingerprint: String,
+}
+
+impl From<&ProviderCatalog> for StoredCatalog {
+    fn from(catalog: &ProviderCatalog) -> Self {
         Self {
             version: CONFIG_VERSION,
-            asr: StoredAsrSettings {
-                volcengine: StoredVolcengineAsrSettings {
-                    enabled: settings.asr.volcengine.enabled,
-                    auth_mode: StoredAuthMode::ApiKey,
-                    api_key: settings.asr.volcengine.api_key.clone(),
-                    model: settings.asr.volcengine.model.clone(),
-                },
+            active: StoredActiveProviders {
+                asr: catalog.active.asr.clone(),
+                llm: catalog.active.llm.clone(),
             },
-            llm: StoredLlmSettings {
-                enabled: settings.llm.enabled,
-                confirmed_base_url: settings.llm.confirmed_base_url.clone(),
-                chat_completions: StoredChatCompletionsLlmSettings {
-                    base_url: settings.llm.chat_completions.base_url.clone(),
-                    api_key: settings.llm.chat_completions.api_key.clone(),
-                    model: settings.llm.chat_completions.model.clone(),
-                    custom_headers: settings.llm.chat_completions.custom_headers.clone(),
-                },
-            },
+            asr_providers: catalog
+                .asr_providers
+                .iter()
+                .map(StoredProviderInstance::from)
+                .collect(),
+            llm_providers: catalog
+                .llm_providers
+                .iter()
+                .map(StoredProviderInstance::from)
+                .collect(),
         }
     }
 }
 
-impl TryFrom<StoredSettings> for SaymoreSettings {
-    type Error = SettingsStoreError;
-
-    fn try_from(stored: StoredSettings) -> Result<Self, Self::Error> {
-        if !matches!(stored.version, 1 | CONFIG_VERSION) {
-            return Err(SettingsStoreError::Invalid(format!(
-                "unsupported config version {}",
-                stored.version
-            )));
+impl From<&ProviderInstance> for StoredProviderInstance {
+    fn from(provider: &ProviderInstance) -> Self {
+        Self {
+            id: provider.id.clone(),
+            name: provider.name.clone(),
+            provider_type: provider.provider_type.clone(),
+            config: provider.config.clone(),
+            data_consent: provider
+                .data_consent
+                .as_ref()
+                .map(|consent| StoredDataConsent {
+                    fingerprint: consent.fingerprint.clone(),
+                }),
         }
-        Ok(Self {
-            asr: AsrSettings {
-                volcengine: VolcengineAsrSettings {
-                    enabled: stored.asr.volcengine.enabled,
-                    api_key: stored.asr.volcengine.api_key,
-                    model: stored.asr.volcengine.model,
-                },
-            },
-            llm: LlmSettings {
-                enabled: stored.llm.enabled,
-                confirmed_base_url: stored.llm.confirmed_base_url,
-                chat_completions: ChatCompletionsLlmSettings {
-                    base_url: stored.llm.chat_completions.base_url,
-                    api_key: stored.llm.chat_completions.api_key,
-                    model: stored.llm.chat_completions.model,
-                    custom_headers: stored.llm.chat_completions.custom_headers,
-                },
-            },
-        })
     }
+}
+
+impl StoredCatalog {
+    fn into_catalog(self) -> ProviderCatalog {
+        ProviderCatalog {
+            active: ActiveProviders {
+                asr: self.active.asr,
+                llm: self.active.llm,
+            },
+            asr_providers: self
+                .asr_providers
+                .into_iter()
+                .map(StoredProviderInstance::into_provider)
+                .collect(),
+            llm_providers: self
+                .llm_providers
+                .into_iter()
+                .map(StoredProviderInstance::into_provider)
+                .collect(),
+        }
+    }
+}
+
+impl StoredProviderInstance {
+    fn into_provider(self) -> ProviderInstance {
+        ProviderInstance {
+            id: self.id,
+            name: self.name,
+            provider_type: self.provider_type,
+            config: self.config,
+            data_consent: self.data_consent.map(|consent| ProviderDataConsent {
+                fingerprint: consent.fingerprint,
+            }),
+        }
+    }
+}
+
+fn legacy_catalog(legacy: LegacySettings) -> ProviderCatalog {
+    let mut catalog = ProviderCatalog::default();
+    let asr = legacy.asr.volcengine;
+    if asr.enabled || !asr.api_key.is_empty() || !asr.model.is_empty() {
+        let id = Uuid::new_v4().to_string();
+        if asr.enabled {
+            catalog.active.asr = Some(id.clone());
+        }
+        catalog.asr_providers.push(ProviderInstance {
+            id,
+            name: "Volcengine".to_owned(),
+            provider_type: VOLCENGINE_TYPE.to_owned(),
+            config: serde_json::json!({
+                "auth_mode": "api_key",
+                "api_key": asr.api_key,
+                "model": asr.model
+            }),
+            data_consent: None,
+        });
+    }
+    let llm = legacy.llm;
+    let config = llm.chat_completions;
+    if llm.enabled
+        || !config.base_url.is_empty()
+        || !config.api_key.is_empty()
+        || !config.model.is_empty()
+    {
+        let id = Uuid::new_v4().to_string();
+        if llm.enabled {
+            catalog.active.llm = Some(id.clone());
+        }
+        let data_consent = (!llm.confirmed_base_url.is_empty()
+            && llm.confirmed_base_url == config.base_url)
+            .then(|| ProviderDataConsent {
+                fingerprint: endpoint_fingerprint(&config.base_url),
+            });
+        catalog.llm_providers.push(ProviderInstance {
+            id,
+            name: "OpenAI-compatible".to_owned(),
+            provider_type: CHAT_COMPLETIONS_TYPE.to_owned(),
+            config: serde_json::json!({
+                "base_url": config.base_url,
+                "api_key": config.api_key,
+                "model": config.model,
+                "custom_headers": config.custom_headers
+            }),
+            data_consent,
+        });
+    }
+    catalog
+}
+
+fn catalog_to_settings(catalog: ProviderCatalog) -> Result<SaymoreSettings, SettingsStoreError> {
+    validate_catalog(&catalog)?;
+    let asr_provider = active_provider(&catalog.asr_providers, catalog.active.asr.as_deref());
+    let asr = match asr_provider.filter(|provider| provider.provider_type == VOLCENGINE_TYPE) {
+        Some(provider) => {
+            let stored: StoredVolcengineAsrSettings =
+                serde_json::from_value(provider.config.clone()).map_err(json_error)?;
+            VolcengineAsrSettings {
+                enabled: true,
+                api_key: stored.api_key,
+                model: stored.model,
+            }
+        }
+        None => VolcengineAsrSettings::default(),
+    };
+    let active_llm = catalog.active.llm.as_deref();
+    let llm_provider = active_provider(&catalog.llm_providers, active_llm).or_else(|| {
+        catalog
+            .llm_providers
+            .iter()
+            .find(|provider| provider.provider_type == CHAT_COMPLETIONS_TYPE)
+    });
+    let (enabled, confirmed_base_url, chat_completions) =
+        match llm_provider.filter(|provider| provider.provider_type == CHAT_COMPLETIONS_TYPE) {
+            Some(provider) => {
+                let stored: StoredChatCompletionsLlmSettings =
+                    serde_json::from_value(provider.config.clone()).map_err(json_error)?;
+                let confirmed = provider
+                    .data_consent
+                    .as_ref()
+                    .filter(|consent| consent.fingerprint == endpoint_fingerprint(&stored.base_url))
+                    .map(|_| stored.base_url.clone())
+                    .unwrap_or_default();
+                let enabled = active_llm == Some(provider.id.as_str()) && !confirmed.is_empty();
+                (
+                    enabled,
+                    confirmed,
+                    ChatCompletionsLlmSettings {
+                        base_url: stored.base_url,
+                        api_key: stored.api_key,
+                        model: stored.model,
+                        custom_headers: stored.custom_headers,
+                    },
+                )
+            }
+            None => (false, String::new(), ChatCompletionsLlmSettings::default()),
+        };
+    Ok(SaymoreSettings {
+        asr: AsrSettings { volcengine: asr },
+        llm: LlmSettings {
+            enabled,
+            confirmed_base_url,
+            chat_completions,
+        },
+    })
+}
+
+fn update_asr_provider(catalog: &mut ProviderCatalog, settings: &VolcengineAsrSettings) {
+    let index = provider_index(
+        &catalog.asr_providers,
+        catalog.active.asr.as_deref(),
+        VOLCENGINE_TYPE,
+    );
+    if index.is_none() && settings.api_key.is_empty() && settings.model.is_empty() {
+        catalog.active.asr = None;
+        return;
+    }
+    let index = index.unwrap_or_else(|| {
+        catalog.asr_providers.push(ProviderInstance {
+            id: Uuid::new_v4().to_string(),
+            name: "Volcengine".to_owned(),
+            provider_type: VOLCENGINE_TYPE.to_owned(),
+            config: serde_json::Value::Null,
+            data_consent: None,
+        });
+        catalog.asr_providers.len() - 1
+    });
+    let provider = &mut catalog.asr_providers[index];
+    provider.config = serde_json::json!({
+        "auth_mode": "api_key",
+        "api_key": settings.api_key,
+        "model": settings.model
+    });
+    catalog.active.asr = settings.enabled.then(|| provider.id.clone());
+}
+
+fn update_llm_provider(catalog: &mut ProviderCatalog, settings: &LlmSettings) {
+    let index = provider_index(
+        &catalog.llm_providers,
+        catalog.active.llm.as_deref(),
+        CHAT_COMPLETIONS_TYPE,
+    );
+    let config = &settings.chat_completions;
+    if index.is_none()
+        && config.base_url.is_empty()
+        && config.api_key.is_empty()
+        && config.model.is_empty()
+    {
+        catalog.active.llm = None;
+        return;
+    }
+    let index = index.unwrap_or_else(|| {
+        catalog.llm_providers.push(ProviderInstance {
+            id: Uuid::new_v4().to_string(),
+            name: "OpenAI-compatible".to_owned(),
+            provider_type: CHAT_COMPLETIONS_TYPE.to_owned(),
+            config: serde_json::Value::Null,
+            data_consent: None,
+        });
+        catalog.llm_providers.len() - 1
+    });
+    let provider = &mut catalog.llm_providers[index];
+    provider.config = serde_json::json!({
+        "base_url": config.base_url,
+        "api_key": config.api_key,
+        "model": config.model,
+        "custom_headers": config.custom_headers
+    });
+    provider.data_consent = (!settings.confirmed_base_url.is_empty()
+        && settings.confirmed_base_url == config.base_url)
+        .then(|| ProviderDataConsent {
+            fingerprint: endpoint_fingerprint(&config.base_url),
+        });
+    catalog.active.llm = settings.enabled.then(|| provider.id.clone());
+}
+
+fn active_provider<'a>(
+    providers: &'a [ProviderInstance],
+    active: Option<&str>,
+) -> Option<&'a ProviderInstance> {
+    active.and_then(|id| providers.iter().find(|provider| provider.id == id))
+}
+
+fn provider_index(
+    providers: &[ProviderInstance],
+    active: Option<&str>,
+    provider_type: &str,
+) -> Option<usize> {
+    active
+        .and_then(|id| providers.iter().position(|provider| provider.id == id))
+        .filter(|index| providers[*index].provider_type == provider_type)
+        .or_else(|| {
+            providers
+                .iter()
+                .position(|provider| provider.provider_type == provider_type)
+        })
+}
+
+fn endpoint_fingerprint(base_url: &str) -> String {
+    format!(
+        "provider:{CHAT_COMPLETIONS_TYPE}|endpoint:{}|scope:{LLM_DATA_SCOPE}",
+        base_url.trim()
+    )
+}
+
+fn validate_catalog(catalog: &ProviderCatalog) -> Result<(), SettingsStoreError> {
+    let mut ids = std::collections::BTreeSet::new();
+    for provider in catalog
+        .asr_providers
+        .iter()
+        .chain(catalog.llm_providers.iter())
+    {
+        if provider.id.trim().is_empty()
+            || provider.name.trim().is_empty()
+            || provider.provider_type.trim().is_empty()
+            || !ids.insert(provider.id.as_str())
+        {
+            return Err(SettingsStoreError::Invalid(
+                "provider catalog contains an empty or duplicate identity".to_owned(),
+            ));
+        }
+    }
+    if catalog.active.asr.as_ref().is_some_and(|active| {
+        !catalog
+            .asr_providers
+            .iter()
+            .any(|provider| &provider.id == active)
+    }) || catalog.active.llm.as_ref().is_some_and(|active| {
+        !catalog
+            .llm_providers
+            .iter()
+            .any(|provider| &provider.id == active)
+    }) {
+        return Err(SettingsStoreError::Invalid(
+            "active provider does not reference its matching provider list".to_owned(),
+        ));
+    }
+    Ok(())
 }
 
 fn temporary_path(path: &Path) -> PathBuf {
@@ -208,111 +595,4 @@ fn json_error(error: serde_json::Error) -> SettingsStoreError {
 }
 
 #[cfg(test)]
-mod tests {
-    use std::{
-        collections::BTreeMap,
-        sync::atomic::{AtomicUsize, Ordering},
-    };
-
-    use super::*;
-
-    static TEST_ID: AtomicUsize = AtomicUsize::new(0);
-
-    #[test]
-    fn saves_and_loads_volcengine_settings_with_private_permissions() {
-        let directory = test_directory();
-        let path = directory.join("config.json");
-        let store = JsonSettingsStore::at_path(path.clone());
-        let settings = SaymoreSettings {
-            asr: AsrSettings {
-                volcengine: VolcengineAsrSettings {
-                    enabled: true,
-                    api_key: "test-key".to_owned(),
-                    model: "test-model".to_owned(),
-                },
-            },
-            llm: LlmSettings {
-                enabled: true,
-                confirmed_base_url: "https://llm.example/v1".to_owned(),
-                chat_completions: ChatCompletionsLlmSettings {
-                    base_url: "https://llm.example/v1".to_owned(),
-                    api_key: "llm-test-key".to_owned(),
-                    model: "test-llm".to_owned(),
-                    custom_headers: BTreeMap::from([(
-                        "X-Tenant".to_owned(),
-                        "tenant-a".to_owned(),
-                    )]),
-                },
-            },
-        };
-
-        assert!(store.save(&settings).is_ok());
-        assert_eq!(Ok(settings), store.load());
-        let Ok(metadata) = fs::metadata(&path) else {
-            panic!("saved settings should have metadata");
-        };
-        assert_eq!(0o600, metadata.permissions().mode() & 0o777);
-
-        let _ = fs::remove_dir_all(directory);
-    }
-
-    #[test]
-    fn migrates_version_one_settings_with_default_llm_configuration() {
-        let directory = test_directory();
-        let path = directory.join("config.json");
-        assert!(fs::create_dir_all(&directory).is_ok());
-        assert!(
-            fs::write(
-                &path,
-                r#"{
-                    "version": 1,
-                    "asr": {
-                        "volcengine": {
-                            "enabled": true,
-                            "api_key": "existing-key",
-                            "model": "existing-model"
-                        }
-                    }
-                }"#,
-            )
-            .is_ok()
-        );
-        let store = JsonSettingsStore::at_path(path);
-
-        let settings = store.load();
-
-        assert_eq!(
-            Ok(SaymoreSettings {
-                asr: AsrSettings {
-                    volcengine: VolcengineAsrSettings {
-                        enabled: true,
-                        api_key: "existing-key".to_owned(),
-                        model: "existing-model".to_owned(),
-                    },
-                },
-                llm: LlmSettings::default(),
-            }),
-            settings
-        );
-
-        let _ = fs::remove_dir_all(directory);
-    }
-
-    #[test]
-    fn rejects_unknown_config_versions() {
-        let directory = test_directory();
-        let path = directory.join("config.json");
-        assert!(fs::create_dir_all(&directory).is_ok());
-        assert!(fs::write(&path, r#"{"version":99,"asr":{}}"#).is_ok());
-        let store = JsonSettingsStore::at_path(path);
-
-        assert!(matches!(store.load(), Err(SettingsStoreError::Invalid(_))));
-
-        let _ = fs::remove_dir_all(directory);
-    }
-
-    fn test_directory() -> PathBuf {
-        let id = TEST_ID.fetch_add(1, Ordering::Relaxed);
-        env::temp_dir().join(format!("saymore-settings-{}-{id}", process::id()))
-    }
-}
+mod tests;

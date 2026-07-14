@@ -61,14 +61,14 @@
   },
   {
     "id": "confirmed-technical-terms",
-    "transcript": "我先用 ray cast 打开闹心，然后用 table 输入会议记录，最后提交到 github。",
+    "transcript": "我先用 raycast 打开 notion，然后用 typeless 输入会议记录，最后提交到 github。",
     "expected": "我先用 Raycast 打开 Notion，然后用 Typeless 输入会议记录，最后提交到 GitHub。",
     "language": "zh-CN",
     "relevant_terms": [
-      { "canonical": "Raycast", "recognized_as": ["ray cast"] },
-      { "canonical": "Notion", "recognized_as": ["闹心"] },
-      { "canonical": "Typeless", "recognized_as": ["table"] },
-      { "canonical": "GitHub", "recognized_as": ["github"] }
+      { "canonical": "Raycast" },
+      { "canonical": "Notion" },
+      { "canonical": "Typeless" },
+      { "canonical": "GitHub" }
     ]
   },
   {

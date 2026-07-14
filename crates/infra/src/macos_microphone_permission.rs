@@ -1,5 +1,6 @@
 use block2::RcBlock;
 use objc2_av_foundation::{AVAuthorizationStatus, AVCaptureDevice, AVMediaTypeAudio};
+use std::{io, process::Command};
 use template_app::{MicrophoneAuthorization, MicrophonePermissionProvider};
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -23,6 +24,19 @@ impl MicrophonePermissionProvider for MacOsMicrophonePermission {
             }
         }
         self.authorization()
+    }
+}
+
+pub fn open_microphone_privacy_settings() -> Result<(), io::Error> {
+    let status = Command::new("/usr/bin/open")
+        .arg("x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone")
+        .status()?;
+    if status.success() {
+        Ok(())
+    } else {
+        Err(io::Error::other(format!(
+            "System Settings exited with status {status}"
+        )))
     }
 }
 

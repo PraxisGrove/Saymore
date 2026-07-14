@@ -12,7 +12,7 @@ use template_app::{
 use template_app::{FinalTextProcessor, FinalTextRequest, RefinementMode, RefinementStatus};
 use template_infra::ChatCompletionsLlmProvider;
 #[cfg(target_os = "macos")]
-use template_infra::JsonSettingsStore;
+use template_infra::{AppEnvironment, JsonSettingsStore};
 
 #[tokio::test]
 async fn sends_an_openai_compatible_chat_completion_request()
@@ -55,7 +55,6 @@ async fn sends_an_openai_compatible_chat_completion_request()
             language: Some("zh-CN".to_owned()),
             relevant_terms: vec![template_app::RefinementTerm {
                 canonical: "Typeless".to_owned(),
-                recognized_as: vec!["table".to_owned()],
             }],
         })
         .await?;
@@ -63,6 +62,34 @@ async fn sends_an_openai_compatible_chat_completion_request()
     if result != "Refined text." {
         return Err("provider returned an unexpected completion".into());
     }
+    completion.assert_async().await;
+    Ok(())
+}
+
+#[tokio::test]
+async fn sends_deepseek_v4_in_non_thinking_mode() -> Result<(), Box<dyn std::error::Error>> {
+    let server = MockServer::start_async().await;
+    let completion = server
+        .mock_async(|when, then| {
+            when.method(POST)
+                .path("/chat/completions")
+                .body_includes(r#""model":"deepseek-v4-flash""#)
+                .body_includes(r#""thinking":{"type":"disabled"}"#)
+                .body_excludes("reasoning_effort");
+            then.status(200).json_body(serde_json::json!({
+                "choices": [{"message": {"content": "Refined text."}}]
+            }));
+        })
+        .await;
+    let provider = ChatCompletionsLlmProvider::new(ChatCompletionsLlmSettings {
+        base_url: server.base_url(),
+        api_key: "deepseek-key".to_owned(),
+        model: "deepseek-v4-flash".to_owned(),
+        custom_headers: BTreeMap::new(),
+    })?;
+
+    provider.test_connection().await?;
+
     completion.assert_async().await;
     Ok(())
 }
@@ -120,7 +147,7 @@ async fn maps_a_bad_request_to_permanent_configuration_failure()
 #[tokio::test]
 #[ignore = "requires a live LLM configuration in the current user's config file"]
 async fn connects_using_current_user_llm_configuration() -> Result<(), Box<dyn std::error::Error>> {
-    let store = JsonSettingsStore::for_current_user()?;
+    let store = JsonSettingsStore::for_current_user(AppEnvironment::Production)?;
     let settings = store.load()?;
     let provider = ChatCompletionsLlmProvider::new(settings.llm.chat_completions)?;
 
@@ -147,13 +174,12 @@ async fn live_configuration_matches_refinement_golden_cases()
     #[derive(serde::Deserialize)]
     struct GoldenTerm {
         canonical: String,
-        recognized_as: Vec<String>,
     }
 
     let cases: Vec<GoldenCase> =
         serde_json::from_str(include_str!("fixtures/llm_refinement_cases.json"))?;
     let case_filter = std::env::var("SAYMORE_LLM_CASE").ok();
-    let store = JsonSettingsStore::for_current_user()?;
+    let store = JsonSettingsStore::for_current_user(AppEnvironment::Production)?;
     let settings = store.load()?;
     let provider = ChatCompletionsLlmProvider::new(settings.llm.chat_completions)?;
     let processor = FinalTextProcessor::configured(Arc::new(provider));
@@ -171,7 +197,6 @@ async fn live_configuration_matches_refinement_golden_cases()
             .into_iter()
             .map(|term| template_app::RefinementTerm {
                 canonical: term.canonical,
-                recognized_as: term.recognized_as,
             })
             .collect();
         let result = processor

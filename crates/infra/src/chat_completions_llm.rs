@@ -24,6 +24,7 @@ pub struct ChatCompletionsLlmProvider {
     api_key: String,
     model: String,
     custom_headers: HeaderMap,
+    request_dialect: ChatCompletionsDialect,
 }
 
 impl ChatCompletionsLlmProvider {
@@ -52,6 +53,7 @@ impl ChatCompletionsLlmProvider {
             client,
             endpoint,
             api_key: settings.api_key,
+            request_dialect: ChatCompletionsDialect::for_model(&settings.model),
             model: settings.model,
             custom_headers,
         })
@@ -80,6 +82,7 @@ impl ChatCompletionsLlmProvider {
                 "LLM refinement request is too large".to_owned(),
             ));
         }
+        let request_options = self.request_dialect.request_options();
         let body = ChatCompletionRequest {
             model: &self.model,
             messages: [
@@ -93,7 +96,8 @@ impl ChatCompletionsLlmProvider {
                 },
             ],
             stream: false,
-            reasoning_effort: "none",
+            reasoning_effort: request_options.reasoning_effort,
+            thinking: request_options.thinking,
             max_tokens: completion_token_limit(&request.transcript),
             temperature: 0.2,
         };
@@ -139,9 +143,53 @@ struct ChatCompletionRequest<'a> {
     model: &'a str,
     messages: [ChatMessage<'a>; 2],
     stream: bool,
-    reasoning_effort: &'static str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    reasoning_effort: Option<&'static str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    thinking: Option<ThinkingControl>,
     max_tokens: u32,
     temperature: f32,
+}
+
+#[derive(Debug, Clone, Copy)]
+enum ChatCompletionsDialect {
+    OpenAiCompatible,
+    DeepSeek,
+}
+
+impl ChatCompletionsDialect {
+    fn for_model(model: &str) -> Self {
+        if model.trim().starts_with("deepseek-") {
+            Self::DeepSeek
+        } else {
+            Self::OpenAiCompatible
+        }
+    }
+
+    fn request_options(self) -> ChatCompletionRequestOptions {
+        match self {
+            Self::OpenAiCompatible => ChatCompletionRequestOptions {
+                reasoning_effort: Some("none"),
+                thinking: None,
+            },
+            Self::DeepSeek => ChatCompletionRequestOptions {
+                reasoning_effort: None,
+                thinking: Some(ThinkingControl { mode: "disabled" }),
+            },
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+struct ChatCompletionRequestOptions {
+    reasoning_effort: Option<&'static str>,
+    thinking: Option<ThinkingControl>,
+}
+
+#[derive(Debug, Clone, Copy, Serialize)]
+struct ThinkingControl {
+    #[serde(rename = "type")]
+    mode: &'static str,
 }
 
 #[derive(Serialize)]
@@ -175,7 +223,6 @@ struct RefinementContent<'a> {
 #[derive(Serialize)]
 struct RefinementTermContent<'a> {
     canonical: &'a str,
-    recognized_as: &'a [String],
 }
 
 fn refinement_content(request: &LlmRefinementRequest) -> Result<String, LlmProviderError> {
@@ -184,7 +231,6 @@ fn refinement_content(request: &LlmRefinementRequest) -> Result<String, LlmProvi
         .iter()
         .map(|term: &RefinementTerm| RefinementTermContent {
             canonical: &term.canonical,
-            recognized_as: &term.recognized_as,
         })
         .collect();
     serde_json::to_string(&RefinementContent {
