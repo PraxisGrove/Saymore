@@ -38,6 +38,6 @@ core-foundation-sys = "0.8"
 core-graphics = "0.25"
 cpal = { workspace = true }
 objc2 = "0.6"
-objc2-app-kit = { version = "0.3", features = ["NSEvent", "NSPasteboard", "NSPasteboardItem", "NSScreen", "NSSound", "NSView", "NSWindow"] }
+objc2-app-kit = { version = "0.3", features = ["NSEvent", "NSLayoutAnchor", "NSLayoutConstraint", "NSPasteboard", "NSPasteboardItem", "NSScreen", "NSSound", "NSToolbar", "NSView", "NSWindow", "objc2-core-foundation"] }
 objc2-av-foundation = { version = "0.3", features = ["AVCaptureDevice", "AVMediaFormat", "block2"] }
 objc2-foundation = { version = "0.3", features = ["NSArray", "NSData", "NSString"] }
