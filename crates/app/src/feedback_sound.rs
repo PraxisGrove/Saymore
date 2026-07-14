@@ -4,15 +4,13 @@ use thiserror::Error;
 pub enum FeedbackSound {
     Start,
     Finish,
-    Cancel,
-    Failure,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
 pub enum FeedbackSoundError {
-    #[error("the requested system sound is unavailable")]
+    #[error("the requested feedback sound is unavailable")]
     Unavailable,
-    #[error("the system sound could not be played")]
+    #[error("the feedback sound could not be played")]
     PlaybackFailed,
 }
 

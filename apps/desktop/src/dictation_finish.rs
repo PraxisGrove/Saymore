@@ -2,16 +2,20 @@ use std::sync::{
     Arc, Mutex,
     atomic::{AtomicBool, Ordering},
 };
-use std::time::Instant;
+use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 use slint::{ComponentHandle, SharedString};
-use template_app::{AudioRecorder, FeedbackSound, RecordingError, SpeechRecognitionError};
+use template_app::{
+    AudioRecorder, HistoryDelivery, HistoryRefinement, LocalSettingsStore, NewHistoryRecord,
+    ProviderConfigStore, RecordingError, RefinementFallbackReason, RefinementStatus,
+    SpeechRecognitionError,
+};
 use template_infra::MacOsAudioRecorder;
+use uuid::Uuid;
 
 use crate::refinement_runtime::ProcessingActivity;
 use crate::{
     DictationOverlays, TextProcessingServices, delivery_runtime, hide_overlay_after_delay,
-    play_feedback_sound,
     ui::AppWindow,
     ui_status::{apply_asr_error, apply_recording_error},
 };
@@ -35,11 +39,11 @@ pub fn finish_recording(
         ui.set_recording_active(false);
         ui.set_recording_failed(false);
         ui.set_recording_complete(false);
+        ui.set_recording_attempted(false);
         ui.set_recording_status(SharedString::from(processing_label));
         ui.set_recording_detail(SharedString::from(processing_label));
         if let Some(overlay) = processing_overlay.upgrade() {
             overlay.set_mode(1);
-            overlay.set_show_device(false);
             overlay.set_processing_label(SharedString::from(processing_label));
         }
     });
@@ -105,41 +109,155 @@ fn finish_recording_worker(
     let processing_result = transcription_result.and_then(|(recording, transcript)| {
         let activity_ui = ui.clone();
         let activity_overlay = overlays.status.clone();
+        let relevant_terms = crate::refinement_runtime::relevant_terms_for_transcript(
+            &processing.storage,
+            &transcript,
+        );
         processing
             .refinement
-            .process_final_transcript(&transcript, plan, move || {
+            .process_final_transcript(&transcript, plan, relevant_terms, move || {
                 show_processing_activity(
                     &activity_ui,
                     &activity_overlay,
                     ProcessingActivity::Refining,
                 );
             })
-            .map(|processed| (recording, processed))
+            .map(|outcome| {
+                let history = prepare_history(
+                    &processing,
+                    &recording,
+                    &transcript,
+                    outcome.llm_refined_text.as_deref(),
+                    &outcome.processed,
+                );
+                (recording, outcome.processed, history)
+            })
             .map_err(FinishError::Recognition)
     });
     recording_active.store(false, Ordering::Relaxed);
     let _ = ui.upgrade_in_event_loop(move |ui| match processing_result {
-        Ok((recording, processed)) => {
-            delivery_runtime::schedule_delivery(
-                ui.as_weak(),
-                overlays.status,
-                overlays.result,
+        Ok((recording, processed, history)) => {
+            if let Some(error) = &history.error {
+                ui.set_history_status(SharedString::from(error));
+            }
+            delivery_runtime::schedule_delivery(delivery_runtime::DeliveryRequest {
+                ui: ui.as_weak(),
+                status_overlay: overlays.status,
+                result_overlay: overlays.result,
                 recording,
                 processed,
-            );
+                history: history.record,
+                storage: processing.storage,
+            });
         }
         Err(FinishError::Recording(RecordingError::NotRecording)) => {}
         Err(FinishError::Recording(error)) => {
-            play_feedback_sound(FeedbackSound::Failure);
             apply_recording_error(&ui, &error);
             hide_overlay_after_delay(overlays.status);
         }
         Err(FinishError::Recognition(error)) => {
-            play_feedback_sound(FeedbackSound::Failure);
             apply_asr_error(&ui, &error);
             hide_overlay_after_delay(overlays.status);
         }
     });
+}
+
+pub(crate) struct PreparedHistory {
+    pub(crate) record: Option<NewHistoryRecord>,
+    pub(crate) error: Option<String>,
+}
+
+pub(crate) fn prepare_history(
+    processing: &TextProcessingServices,
+    recording: &template_app::PcmRecording,
+    raw_asr_text: &str,
+    llm_refined_text: Option<&str>,
+    processed: &template_app::ProcessedText,
+) -> PreparedHistory {
+    let id = Uuid::new_v4().to_string();
+    let settings = match processing.storage.load_settings() {
+        Ok(settings) if settings.history_enabled => settings,
+        Ok(_) => {
+            return PreparedHistory {
+                record: None,
+                error: None,
+            };
+        }
+        Err(error) => {
+            return PreparedHistory {
+                record: None,
+                error: Some(error.to_string()),
+            };
+        }
+    };
+    let _ = settings;
+    let catalog = processing.provider_config.load_catalog().ok();
+    let record = NewHistoryRecord {
+        id,
+        created_at_ms: now_ms(),
+        final_text: processed.text.clone(),
+        raw_asr_text: experimental_asr_text(raw_asr_text),
+        llm_refined_text: experimental_llm_refined_text(llm_refined_text),
+        audio_duration_ms: recording.duration_ms,
+        language: None,
+        delivery: HistoryDelivery::NotDelivered,
+        refinement: history_refinement(&processed.refinement),
+        asr_provider_id: catalog
+            .as_ref()
+            .and_then(|catalog| catalog.active.asr.clone()),
+        llm_provider_id: catalog
+            .as_ref()
+            .and_then(|catalog| catalog.active.llm.clone()),
+    };
+    PreparedHistory {
+        record: Some(record),
+        error: None,
+    }
+}
+
+fn experimental_llm_refined_text(llm_refined_text: Option<&str>) -> Option<String> {
+    #[cfg(any(debug_assertions, feature = "history-experiments"))]
+    {
+        llm_refined_text.map(str::to_owned)
+    }
+    #[cfg(not(any(debug_assertions, feature = "history-experiments")))]
+    {
+        let _ = llm_refined_text;
+        None
+    }
+}
+
+fn experimental_asr_text(raw_asr_text: &str) -> Option<String> {
+    #[cfg(any(debug_assertions, feature = "history-experiments"))]
+    {
+        Some(raw_asr_text.to_owned())
+    }
+    #[cfg(not(any(debug_assertions, feature = "history-experiments")))]
+    {
+        let _ = raw_asr_text;
+        None
+    }
+}
+
+fn history_refinement(status: &RefinementStatus) -> HistoryRefinement {
+    match status {
+        RefinementStatus::Disabled | RefinementStatus::Skipped(_) => HistoryRefinement::NotUsed,
+        RefinementStatus::Completed => HistoryRefinement::Completed,
+        RefinementStatus::FellBack(RefinementFallbackReason::Timeout) => {
+            HistoryRefinement::TimedOut
+        }
+        RefinementStatus::FellBack(RefinementFallbackReason::OutputRejected) => {
+            HistoryRefinement::OutputRejected
+        }
+        RefinementStatus::FellBack(_) => HistoryRefinement::ProviderUnavailable,
+    }
+}
+
+fn now_ms() -> i64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|duration| duration.as_millis().min(i64::MAX as u128) as i64)
+        .unwrap_or_default()
 }
 
 fn log_asr_finalization<T>(result: &Result<T, FinishError>, duration_ms: u128) {
@@ -175,4 +293,24 @@ pub(crate) fn show_processing_activity(
             overlay.set_processing_label(SharedString::from(label));
         }
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn experimental_history_fields_follow_the_build_contract() {
+        let enabled = cfg!(any(debug_assertions, feature = "history-experiments"));
+
+        assert_eq!(
+            enabled.then(|| "ASR 原始结果".to_owned()),
+            experimental_asr_text("ASR 原始结果")
+        );
+        assert_eq!(
+            enabled.then(|| "LLM 润色结果".to_owned()),
+            experimental_llm_refined_text(Some("LLM 润色结果"))
+        );
+        assert_eq!(None, experimental_llm_refined_text(None));
+    }
 }

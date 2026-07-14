@@ -1,0 +1,16 @@
+Interface Sounds (1.0)
+
+Created and distributed by Kenney (https://kenney.nl)
+Creation date: 2020-02-11
+Source: https://kenney.nl/assets/interface-sounds
+
+License: Creative Commons Zero (CC0 1.0 Universal)
+https://creativecommons.org/publicdomain/zero/1.0/
+
+This content is free to use in personal, educational, and commercial projects.
+Crediting Kenney is appreciated but not required.
+
+Saymore uses converted versions of:
+
+- drop_002.ogg as dictation-start.wav
+- switch_001.ogg as dictation-finish.wav, with gain reduced by 6 dB

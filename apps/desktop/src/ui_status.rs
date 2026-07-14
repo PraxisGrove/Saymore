@@ -11,6 +11,7 @@ pub fn apply_recording_started(ui: &AppWindow) {
     ui.set_recording_active(true);
     ui.set_recording_failed(false);
     ui.set_recording_complete(false);
+    ui.set_recording_attempted(false);
     ui.set_recording_level(0.0);
     ui.set_recording_status(SharedString::from("正在录音"));
     ui.set_recording_detail(SharedString::from("0.0 秒 · 0 个输入采样"));
@@ -23,16 +24,24 @@ pub fn apply_transcription_completed(
     delivery: Result<TextDeliveryOutcome, TextDeliveryError>,
 ) {
     let verified = matches!(
-        delivery,
+        &delivery,
         Ok(TextDeliveryOutcome::AccessibilityVerified | TextDeliveryOutcome::ClipboardVerified)
+    );
+    let attempted = matches!(
+        &delivery,
+        Ok(TextDeliveryOutcome::ClipboardAttempted | TextDeliveryOutcome::SecureClipboardAttempted)
     );
     ui.set_recording_active(false);
     ui.set_recording_complete(verified);
-    ui.set_recording_failed(!verified);
+    ui.set_recording_attempted(attempted);
+    ui.set_recording_failed(delivery.is_err());
     ui.set_recording_level(0.0);
     match delivery {
         Ok(outcome) => {
-            ui.set_recording_status(SharedString::from(completion_status(&processed.refinement)));
+            ui.set_recording_status(SharedString::from(delivery_status(
+                &processed.refinement,
+                outcome,
+            )));
             ui.set_recording_detail(SharedString::from(completion_detail(
                 recording, processed, outcome,
             )));
@@ -50,6 +59,16 @@ fn completion_status(refinement: &RefinementStatus) -> &'static str {
         RefinementStatus::Skipped(_) => "转写完成",
         RefinementStatus::Completed => "润色完成",
         RefinementStatus::FellBack(_) => "润色未完成",
+    }
+}
+
+fn delivery_status(refinement: &RefinementStatus, outcome: TextDeliveryOutcome) -> &'static str {
+    match outcome {
+        TextDeliveryOutcome::AccessibilityVerified | TextDeliveryOutcome::ClipboardVerified => {
+            completion_status(refinement)
+        }
+        TextDeliveryOutcome::ClipboardAttempted => "已尝试投递",
+        TextDeliveryOutcome::SecureClipboardAttempted => "已尝试安全输入",
     }
 }
 
@@ -91,18 +110,19 @@ pub fn delivery_requires_copy_recovery(
 ) -> bool {
     matches!(
         delivery,
-        Ok(TextDeliveryOutcome::ClipboardAttempted)
-            | Err(TextDeliveryError::PermissionDenied
-                | TextDeliveryError::NoFocusedControl
-                | TextDeliveryError::UnsupportedControl
-                | TextDeliveryError::AccessibilityUnverified
-                | TextDeliveryError::System(_))
+        Err(TextDeliveryError::PermissionDenied
+            | TextDeliveryError::NoFocusedControl
+            | TextDeliveryError::UnsupportedControl
+            | TextDeliveryError::AccessibilityUnverified
+            | TextDeliveryError::SecureDeliveryFailed(_)
+            | TextDeliveryError::System(_))
     )
 }
 
 pub fn apply_asr_error(ui: &AppWindow, error: &SpeechRecognitionError) {
     ui.set_recording_active(false);
     ui.set_recording_complete(false);
+    ui.set_recording_attempted(false);
     ui.set_recording_failed(true);
     ui.set_recording_level(0.0);
     ui.set_recording_status(SharedString::from("识别失败"));
@@ -113,6 +133,7 @@ pub fn apply_recording_error(ui: &AppWindow, error: &RecordingError) {
     ui.set_recording_active(false);
     ui.set_recording_failed(true);
     ui.set_recording_complete(false);
+    ui.set_recording_attempted(false);
     ui.set_recording_level(0.0);
     ui.set_recording_status(SharedString::from("录音失败"));
     ui.set_recording_detail(SharedString::from(recording_error_message(error)));
@@ -163,7 +184,8 @@ fn delivery_outcome_label(outcome: TextDeliveryOutcome) -> &'static str {
     match outcome {
         TextDeliveryOutcome::AccessibilityVerified => "已直接写入",
         TextDeliveryOutcome::ClipboardVerified => "已粘贴",
-        TextDeliveryOutcome::ClipboardAttempted => "需要复制",
+        TextDeliveryOutcome::ClipboardAttempted => "已发出粘贴",
+        TextDeliveryOutcome::SecureClipboardAttempted => "已尝试安全输入",
     }
 }
 
@@ -171,9 +193,9 @@ fn text_delivery_error_message(error: &TextDeliveryError) -> &'static str {
     match error {
         TextDeliveryError::PermissionDenied => "需要辅助功能权限",
         TextDeliveryError::NoFocusedControl => "没有找到可输入的位置",
-        TextDeliveryError::SecureInput => "当前安全输入框不接受投递",
         TextDeliveryError::UnsupportedControl => "当前控件不支持文字投递",
         TextDeliveryError::AccessibilityUnverified => "无法确认文字是否写入",
+        TextDeliveryError::SecureDeliveryFailed(_) => "安全输入投递失败",
         TextDeliveryError::System(_) => "系统文字投递失败",
     }
 }
@@ -214,9 +236,12 @@ mod tests {
     }
 
     #[test]
-    fn unverified_clipboard_attempt_requires_copy_recovery() {
-        assert!(delivery_requires_copy_recovery(&Ok(
+    fn issued_clipboard_paste_does_not_open_copy_recovery() {
+        assert!(!delivery_requires_copy_recovery(&Ok(
             TextDeliveryOutcome::ClipboardAttempted
+        )));
+        assert!(!delivery_requires_copy_recovery(&Ok(
+            TextDeliveryOutcome::SecureClipboardAttempted
         )));
         assert!(!delivery_requires_copy_recovery(&Ok(
             TextDeliveryOutcome::AccessibilityVerified
@@ -224,9 +249,10 @@ mod tests {
         assert!(delivery_requires_copy_recovery(&Err(
             TextDeliveryError::NoFocusedControl
         )));
-        assert!(!delivery_requires_copy_recovery(&Err(
-            TextDeliveryError::SecureInput
-        )));
+        assert_eq!(
+            "已尝试安全输入",
+            delivery_outcome_label(TextDeliveryOutcome::SecureClipboardAttempted)
+        );
     }
 
     #[test]
@@ -266,6 +292,24 @@ mod tests {
                 &recording,
                 &fallback,
                 TextDeliveryOutcome::AccessibilityVerified
+            )
+        );
+    }
+
+    #[test]
+    fn unverified_delivery_uses_an_attempted_status() {
+        assert_eq!(
+            "已尝试投递",
+            delivery_status(
+                &RefinementStatus::Completed,
+                TextDeliveryOutcome::ClipboardAttempted
+            )
+        );
+        assert_eq!(
+            "已尝试安全输入",
+            delivery_status(
+                &RefinementStatus::Completed,
+                TextDeliveryOutcome::SecureClipboardAttempted
             )
         );
     }
