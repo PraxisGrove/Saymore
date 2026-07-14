@@ -1,87 +1,61 @@
+import "../fonts/InterVariable.ttf";
+
 export component RecordingOverlay inherits Window {
     title: "Saymore Recording";
-    preferred-width: 150px;
-    preferred-height: 62px;
-    min-width: 150px;
-    min-height: 62px;
-    max-width: 150px;
-    max-height: 62px;
+    default-font-family: "Inter";
+    preferred-width: 120px;
+    preferred-height: 32px;
+    min-width: 120px;
+    min-height: 32px;
+    max-width: 120px;
+    max-height: 32px;
     no-frame: true;
     always-on-top: true;
     background: transparent;
 
-    in property <bool> show-device: false;
-    in property <string> device-name: "";
     in property <float> recording-level: 0;
     in property <string> processing-label: "正在转写";
-    // 0 = recording, 1 = processing, 2 = cancelled
+    // 0 = recording, 1 = processing, 2 = cancelled, 3 = delivered, 4 = refinement failed
     in property <int> mode: 0;
     callback cancel();
     callback finish();
     callback undo-cancel();
 
-    if root.show-device: Rectangle {
-        x: 5px;
-        y: 0px;
-        width: 140px;
-        height: 23px;
-        border-radius: 7px;
-        background: #1c1c1e;
-        border-width: 1px;
-        border-color: #343438;
-
-        Text {
-            x: 10px;
-            width: 120px;
-            text: "使用中 " + root.device-name;
-            color: #e4e4e7;
-            font-size: 10px;
-            font-weight: 600;
-            horizontal-alignment: center;
-            vertical-alignment: center;
-            overflow: elide;
-        }
-    }
-
-    Rectangle {
-        x: 15px;
-        y: 27px;
+    capsule := Rectangle {
         width: 120px;
         height: 32px;
         border-radius: 16px;
-        background: #111113;
+        background: #11110f;
         border-width: 1px;
-        border-color: #3f3f46;
+        border-color: root.mode == 3 ? #5b9e00 : root.mode == 4 ? #c98200 : #454543;
+        if root.mode == 0: recording-state := Rectangle {
+            private property <float> wave-scale: 0.45 + root.recording-level * 0.55;
+            animate wave-scale { duration: 90ms; easing: ease-out; }
 
-        if root.mode == 0: Rectangle {
             Rectangle {
                 x: 3px;
                 y: 3px;
                 width: 26px;
                 height: 26px;
                 border-radius: 13px;
-                background: #343438;
+                background: cancel-area.has-hover ? #4a4946 : #353537;
+                border-width: 1px;
+                border-color: #535357;
+                accessible-role: button;
+                accessible-label: "取消录音";
+                accessible-action-default => { root.cancel(); }
 
-                Text { text: "×"; color: #d4d4d8; font-size: 18px; horizontal-alignment: center; vertical-alignment: center; }
-                TouchArea { clicked => { root.cancel(); } }
+                Text { text: "×"; color: #d1cfc5; font-size: 18px; horizontal-alignment: center; vertical-alignment: center; }
+                cancel-area := TouchArea { mouse-cursor: pointer; clicked => { root.cancel(); } }
             }
 
-            wave := Rectangle {
-                x: 34px;
-                y: 5px;
-                width: 52px;
-                height: 22px;
-                background: transparent;
-
-                bar-a := Rectangle { x: 0px; width: 3px; height: max(3px, root.recording-level * 9px); y: (parent.height - bar-a.height) / 2; border-radius: 2px; background: #ffffff; animate height { duration: 70ms; easing: ease-out; } }
-                bar-b := Rectangle { x: 7px; width: 3px; height: max(5px, root.recording-level * 16px); y: (parent.height - bar-b.height) / 2; border-radius: 2px; background: #ffffff; animate height { duration: 70ms; easing: ease-out; } }
-                bar-c := Rectangle { x: 14px; width: 3px; height: max(7px, root.recording-level * 21px); y: (parent.height - bar-c.height) / 2; border-radius: 2px; background: #ffffff; animate height { duration: 70ms; easing: ease-out; } }
-                bar-d := Rectangle { x: 21px; width: 3px; height: max(4px, root.recording-level * 13px); y: (parent.height - bar-d.height) / 2; border-radius: 2px; background: #ffffff; animate height { duration: 70ms; easing: ease-out; } }
-                bar-e := Rectangle { x: 28px; width: 3px; height: max(6px, root.recording-level * 19px); y: (parent.height - bar-e.height) / 2; border-radius: 2px; background: #ffffff; animate height { duration: 70ms; easing: ease-out; } }
-                bar-f := Rectangle { x: 35px; width: 3px; height: max(3px, root.recording-level * 10px); y: (parent.height - bar-f.height) / 2; border-radius: 2px; background: #ffffff; animate height { duration: 70ms; easing: ease-out; } }
-                bar-g := Rectangle { x: 42px; width: 3px; height: max(5px, root.recording-level * 17px); y: (parent.height - bar-g.height) / 2; border-radius: 2px; background: #ffffff; animate height { duration: 70ms; easing: ease-out; } }
-                bar-h := Rectangle { x: 49px; width: 3px; height: max(4px, root.recording-level * 12px); y: (parent.height - bar-h.height) / 2; border-radius: 2px; background: #ffffff; animate height { duration: 70ms; easing: ease-out; } }
-            }
+            Rectangle { x: 39px; width: 3px; height: 6px * recording-state.wave-scale; y: (parent.height - self.height) / 2; border-radius: 2px; background: #faf9f5; }
+            Rectangle { x: 46px; width: 3px; height: 10px * recording-state.wave-scale; y: (parent.height - self.height) / 2; border-radius: 2px; background: #faf9f5; }
+            Rectangle { x: 53px; width: 3px; height: 15px * recording-state.wave-scale; y: (parent.height - self.height) / 2; border-radius: 2px; background: #faf9f5; }
+            Rectangle { x: 60px; width: 3px; height: 20px * recording-state.wave-scale; y: (parent.height - self.height) / 2; border-radius: 2px; background: #e97858; }
+            Rectangle { x: 67px; width: 3px; height: 15px * recording-state.wave-scale; y: (parent.height - self.height) / 2; border-radius: 2px; background: #faf9f5; }
+            Rectangle { x: 74px; width: 3px; height: 10px * recording-state.wave-scale; y: (parent.height - self.height) / 2; border-radius: 2px; background: #faf9f5; }
+            Rectangle { x: 81px; width: 3px; height: 6px * recording-state.wave-scale; y: (parent.height - self.height) / 2; border-radius: 2px; background: #faf9f5; }
 
             Rectangle {
                 x: 91px;
@@ -89,30 +63,88 @@ export component RecordingOverlay inherits Window {
                 width: 26px;
                 height: 26px;
                 border-radius: 13px;
-                background: #f4f4f5;
+                background: finish-area.has-hover ? #ffffff : #faf9f5;
+                accessible-role: button;
+                accessible-label: "完成录音";
+                accessible-action-default => { root.finish(); }
 
-                Text { text: "✓"; color: #18181b; font-size: 17px; horizontal-alignment: center; vertical-alignment: center; }
-                TouchArea { clicked => { root.finish(); } }
+                Text { text: "✓"; color: #141413; font-size: 17px; font-weight: 700; horizontal-alignment: center; vertical-alignment: center; }
+                finish-area := TouchArea { mouse-cursor: pointer; clicked => { root.finish(); } }
             }
         }
 
         if root.mode == 1: Rectangle {
-            Text { text: root.processing-label + "…"; color: #f4f4f5; font-size: 11px; font-weight: 600; horizontal-alignment: center; vertical-alignment: center; }
+            Rectangle {
+                x: 4px;
+                y: 4px;
+                width: 24px;
+                height: 24px;
+                border-radius: 12px;
+                background: transparent;
+                border-width: 3px;
+                border-color: #5e5d59;
+            }
+            spinner := Path {
+                private property <float> start: mod(animation-tick(), 900ms) / 900ms;
+                private property <float> sweep: 0.24;
+                x: 4px;
+                y: 4px;
+                width: 24px;
+                height: 24px;
+                viewbox-width: 100;
+                viewbox-height: 100;
+                fill: transparent;
+                stroke: #e97858;
+                stroke-width: 3px;
+                stroke-line-cap: round;
+
+                MoveTo {
+                    x: 50 - 38 * sin(-spinner.start * 360deg);
+                    y: 50 - 38 * cos(-spinner.start * 360deg);
+                }
+                ArcTo {
+                    radius-x: 38;
+                    radius-y: 38;
+                    x: 50 - 38 * sin(-(spinner.start + spinner.sweep) * 360deg);
+                    y: 50 - 38 * cos(-(spinner.start + spinner.sweep) * 360deg);
+                    sweep: true;
+                    large-arc: false;
+                }
+            }
+            Text { x: 32px; width: 88px; text: root.processing-label; color: #faf9f5; font-size: 12px; font-weight: 650; horizontal-alignment: center; vertical-alignment: center; }
         }
 
         if root.mode == 2: Rectangle {
-            Text { x: 9px; width: 48px; text: "已取消"; color: #f4f4f5; font-size: 10px; font-weight: 600; vertical-alignment: center; }
-
             Rectangle {
-                x: 63px;
-                y: 4px;
-                width: 52px;
-                height: 24px;
-                border-radius: 12px;
-                background: #2a2a2e;
-                Text { text: "撤销"; color: #ffffff; font-size: 10px; horizontal-alignment: center; vertical-alignment: center; }
-                TouchArea { clicked => { root.undo-cancel(); } }
+                x: 3px; y: 3px; width: 26px; height: 26px; border-radius: 13px;
+                background: #353537; border-width: 1px; border-color: #535357;
+                Text { text: "×"; color: #d1cfc5; font-size: 17px; horizontal-alignment: center; vertical-alignment: center; }
             }
+            Text { x: 31px; width: 38px; text: "已取消"; color: #faf9f5; font-size: 12px; font-weight: 650; horizontal-alignment: center; vertical-alignment: center; }
+            Rectangle { x: 72px; y: 8px; width: 1px; height: 16px; background: #5e5d59; }
+            Rectangle {
+                x: 74px; width: 43px; height: parent.height; background: transparent;
+                accessible-role: button; accessible-label: "撤销取消";
+                accessible-action-default => { root.undo-cancel(); }
+                Text { text: "撤销"; color: #faf9f5; font-size: 12px; font-weight: 650; horizontal-alignment: center; vertical-alignment: center; }
+                TouchArea { mouse-cursor: pointer; clicked => { root.undo-cancel(); } }
+            }
+        }
+
+        if root.mode == 3: Rectangle {
+            Rectangle {
+                x: 3px; y: 3px; width: 26px; height: 26px; border-radius: 13px; background: #5b9e00;
+                Text { text: "✓"; color: #ffffff; font-size: 16px; font-weight: 700; horizontal-alignment: center; vertical-alignment: center; }
+            }
+            Text { x: 32px; width: 88px; text: "已粘贴"; color: #faf9f5; font-size: 12px; font-weight: 650; horizontal-alignment: center; vertical-alignment: center; }
+        }
+
+        if root.mode == 4: Rectangle {
+            Rectangle {
+                x: 3px; y: 3px; width: 26px; height: 26px; border-radius: 13px; background: #c98200;
+                Text { text: "!"; color: #ffffff; font-size: 16px; font-weight: 700; horizontal-alignment: center; vertical-alignment: center; }
+            }
+            Text { x: 32px; width: 88px; text: "润色失败"; color: #faf9f5; font-size: 12px; font-weight: 650; horizontal-alignment: center; vertical-alignment: center; }
         }
     }
 }

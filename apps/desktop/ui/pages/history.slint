@@ -1,7 +1,67 @@
-import { EmptyState, PageHeading } from "../components.slint";
+import { ScrollView } from "std-widgets.slint";
+import { AppButton, EmptyState, PageHeading } from "../components.slint";
+import { AppColors } from "../color-system.slint";
+
+export struct HistoryListItem {
+    id: string,
+    text: string,
+    raw-asr-text: string,
+    has-raw-asr-text: bool,
+    refined-text: string,
+    has-refined-text: bool,
+    time: string,
+    detail: string,
+    delivered: bool,
+}
+
+component HistoryIconButton inherits Rectangle {
+    in property <image> icon;
+    in property <string> label;
+    in property <bool> danger: false;
+    callback activated();
+    width: 34px;
+    height: 34px;
+    border-radius: 6px;
+    background: touch.has-hover ? (root.danger ? AppColors.danger-soft : AppColors.surface-subtle) : transparent;
+    accessible-role: button;
+    accessible-label: root.label;
+    accessible-action-default => { root.activated(); }
+    Image { width: 17px; height: 17px; source: root.icon; x: 8px; y: 8px; }
+    touch := TouchArea { mouse-cursor: pointer; clicked => { root.activated(); } }
+    if touch.has-hover: Rectangle {
+        x: (parent.width - self.width) / 2;
+        y: parent.height + 4px;
+        width: tip-text.preferred-width + 14px;
+        height: 25px;
+        border-radius: 5px;
+        background: AppColors.ink;
+        z: 10;
+        tip-text := Text { text: root.label; color: #ffffff; font-size: 11px; horizontal-alignment: center; vertical-alignment: center; }
+    }
+}
 
 export component HistoryPage inherits Rectangle {
-    background: #fafbfc;
+    in property <[HistoryListItem]> items;
+    in property <string> status-text: "";
+    in property <bool> undo-visible: false;
+    in property <bool> has-more: false;
+    in property <bool> locked: false;
+    callback refresh();
+    callback load-more();
+    callback copy(string);
+    callback delete-record(string);
+    callback clear-all();
+    callback reset();
+    callback undo-delete();
+    property <bool> clear-confirmation-visible: false;
+    property <bool> detail-visible: false;
+    property <string> detail-text: "";
+    property <string> detail-raw-asr-text: "";
+    property <bool> detail-has-raw-asr-text: false;
+    property <string> detail-refined-text: "";
+    property <bool> detail-has-refined-text: false;
+    property <string> detail-meta: "";
+    background: AppColors.canvas;
 
     VerticalLayout {
         padding-left: 32px;
@@ -10,40 +70,170 @@ export component HistoryPage inherits Rectangle {
         padding-bottom: 28px;
         spacing: 18px;
 
-        PageHeading { height: 38px; label: "历史记录"; }
-
-        Rectangle {
-            height: 82px;
-            border-width: 0px;
-            border-radius: 8px;
-            background: #ffffff;
-            drop-shadow-blur: 12px;
-            drop-shadow-offset-y: 2px;
-            drop-shadow-color: #1f29370d;
-
-            HorizontalLayout {
-                padding-left: 20px;
-                padding-right: 18px;
-                spacing: 18px;
-                cross-axis-alignment: center;
-
-                VerticalLayout {
-                    spacing: 5px;
-                    alignment: center;
-                    Text { text: "本地历史（尚未启用）"; color: #292c31; font-size: 14px; font-weight: 650; }
-                    Text { text: "加密存储接入前，Saymore 不会保存口述内容"; color: #747b85; font-size: 12px; }
-                }
-
-                Rectangle { horizontal-stretch: 1; background: transparent; }
-
-                Text { text: "未启用"; color: #8a9099; font-size: 12px; vertical-alignment: center; }
+        HorizontalLayout {
+            height: 38px;
+            cross-axis-alignment: center;
+            PageHeading { label: "历史记录"; }
+            Rectangle { horizontal-stretch: 1; background: transparent; }
+            if !root.locked: HistoryIconButton {
+                icon: @image-url("../../icons/lucide/trash-2.svg");
+                label: "清空全部历史";
+                danger: true;
+                activated => { root.clear-confirmation-visible = true; }
             }
         }
 
-        EmptyState {
+        if !root.status-text.is-empty: Text {
+            height: 28px;
+            text: root.status-text;
+            color: AppColors.danger;
+            font-size: 12px;
+            vertical-alignment: center;
+        }
+
+        if root.items.length == 0 && !root.locked: EmptyState {
             vertical-stretch: 1;
             title: "暂无历史记录";
-            detail: "完成加密历史存储后，这里将支持查看、复制、删除单条记录和清空全部。";
+            detail: "识别成功的最终文本会安全地保存在这里";
+        }
+
+        if root.locked: VerticalLayout {
+            vertical-stretch: 1;
+            alignment: center;
+            spacing: 14px;
+            Text { text: "历史已锁定"; color: #25282d; font-size: 18px; font-weight: 700; horizontal-alignment: center; }
+            Text { text: "历史密钥不可用。设置和词典仍可正常使用。"; color: #777d86; font-size: 12px; horizontal-alignment: center; }
+            AppButton { text: "删除旧历史并重新初始化"; danger: true; clicked => { root.reset-confirmation-visible = true; } }
+        }
+
+        if root.items.length > 0: ScrollView {
+            vertical-stretch: 1;
+            VerticalLayout {
+                spacing: 10px;
+                for item in root.items: Rectangle {
+                    height: 88px;
+                    border-width: 1px;
+                    border-color: AppColors.border;
+                    border-radius: 7px;
+                    background: row-touch.has-hover ? AppColors.surface-warm : AppColors.surface;
+                    row-touch := TouchArea {
+                        mouse-cursor: pointer;
+                        clicked => {
+                            root.detail-text = item.text;
+                            root.detail-raw-asr-text = item.raw-asr-text;
+                            root.detail-has-raw-asr-text = item.has-raw-asr-text;
+                            root.detail-refined-text = item.refined-text;
+                            root.detail-has-refined-text = item.has-refined-text;
+                            root.detail-meta = item.time + "  ·  " + item.detail;
+                            root.detail-visible = true;
+                        }
+                    }
+                    HorizontalLayout {
+                        padding-left: 18px;
+                        padding-right: 12px;
+                        spacing: 12px;
+                        cross-axis-alignment: center;
+                        VerticalLayout {
+                            spacing: 7px;
+                            Text { text: item.text; color: AppColors.ink; font-size: 14px; overflow: elide; }
+                            Text { text: item.time + "  ·  " + item.detail; color: item.delivered ? AppColors.text-muted : AppColors.danger; font-size: 11px; }
+                        }
+                        Rectangle { horizontal-stretch: 1; background: transparent; }
+                        HistoryIconButton { icon: @image-url("../../icons/lucide/copy.svg"); label: "复制文本"; activated => { root.copy(item.id); } }
+                        HistoryIconButton { icon: @image-url("../../icons/lucide/trash-2.svg"); label: "删除记录"; danger: true; activated => { root.delete-record(item.id); } }
+                    }
+                }
+                if root.has-more: Rectangle {
+                    height: 40px;
+                    background: transparent;
+                    Text { text: "加载更多"; color: #176b4c; font-size: 12px; horizontal-alignment: center; vertical-alignment: center; }
+                    TouchArea { mouse-cursor: pointer; clicked => { root.load-more(); } }
+                }
+            }
+        }
+    }
+
+    if root.undo-visible: Rectangle {
+        x: (parent.width - self.width) / 2;
+        y: parent.height - self.height - 18px;
+        width: 230px;
+        height: 48px;
+        border-radius: 7px;
+        background: AppColors.ink;
+        drop-shadow-blur: 12px;
+        drop-shadow-offset-y: 2px;
+        drop-shadow-color: #17130e30;
+        HorizontalLayout {
+            padding-left: 16px;
+            padding-right: 10px;
+            cross-axis-alignment: center;
+            Text { text: "已删除"; color: #ffffff; font-size: 12px; }
+            Rectangle { horizontal-stretch: 1; background: transparent; }
+            Rectangle {
+                width: 58px; height: 32px; border-radius: 5px; background: undo-touch.has-hover ? #4d5158 : #3b3f45;
+                Text { text: "撤销"; color: #ffffff; font-size: 12px; font-weight: 650; horizontal-alignment: center; vertical-alignment: center; }
+                undo-touch := TouchArea { mouse-cursor: pointer; clicked => { root.undo-delete(); } }
+            }
+        }
+    }
+
+    property <bool> reset-confirmation-visible: false;
+    if root.detail-visible || root.clear-confirmation-visible || root.reset-confirmation-visible: Rectangle {
+        background: #17130e66;
+        TouchArea { clicked => { root.detail-visible = false; root.clear-confirmation-visible = false; root.reset-confirmation-visible = false; } }
+        Rectangle {
+            width: min(parent.width - 64px, 560px);
+            height: root.clear-confirmation-visible || root.reset-confirmation-visible ? 190px : min(parent.height - 96px, 420px);
+            x: (parent.width - self.width) / 2;
+            y: (parent.height - self.height) / 2;
+            border-radius: 8px;
+            background: AppColors.surface;
+            if root.clear-confirmation-visible: VerticalLayout {
+                padding: 24px; spacing: 18px;
+                Text { text: "清空全部历史？"; color: AppColors.ink; font-size: 18px; font-weight: 700; }
+                Text { text: "此操作无法撤销。"; color: AppColors.text-muted; font-size: 13px; }
+                HorizontalLayout {
+                    alignment: end; spacing: 10px;
+                    Rectangle { width: 78px; height: 36px; border-radius: 6px; background: #f0f1f3; Text { text: "取消"; horizontal-alignment: center; vertical-alignment: center; } TouchArea { clicked => { root.clear-confirmation-visible = false; } } }
+                    Rectangle { width: 92px; height: 36px; border-radius: 6px; background: AppColors.danger; Text { text: "清空"; color: #ffffff; horizontal-alignment: center; vertical-alignment: center; } TouchArea { clicked => { root.clear-confirmation-visible = false; root.clear-all(); } } }
+                }
+            }
+            if root.reset-confirmation-visible: VerticalLayout {
+                padding: 24px; spacing: 18px;
+                Text { text: "重新初始化历史？"; color: #25282d; font-size: 18px; font-weight: 700; }
+                Text { text: "旧历史将永久删除，词典和设置不会受影响。"; color: #777d86; font-size: 13px; }
+                HorizontalLayout {
+                    alignment: end; spacing: 10px;
+                    AppButton { text: "取消"; clicked => { root.reset-confirmation-visible = false; } }
+                    AppButton { text: "删除并重置"; danger: true; clicked => { root.reset-confirmation-visible = false; root.reset(); } }
+                }
+            }
+            if root.detail-visible && !root.clear-confirmation-visible && !root.reset-confirmation-visible: VerticalLayout {
+                padding: 24px; spacing: 16px;
+                HorizontalLayout {
+                    Text { text: "听写详情"; color: AppColors.ink; font-size: 18px; font-weight: 700; }
+                    Rectangle { horizontal-stretch: 1; background: transparent; }
+                    HistoryIconButton { icon: @image-url("../../icons/lucide/x.svg"); label: "关闭"; activated => { root.detail-visible = false; } }
+                }
+                Text { text: root.detail-meta; color: AppColors.text-muted; font-size: 12px; }
+                if root.detail-has-raw-asr-text: Text { text: "ASR 原始结果"; color: AppColors.text-muted; font-size: 11px; font-weight: 650; }
+                if root.detail-has-raw-asr-text: ScrollView {
+                    vertical-stretch: 1;
+                    Text { width: parent.width; text: root.detail-raw-asr-text; color: AppColors.ink; font-size: 14px; wrap: word-wrap; }
+                }
+                if root.detail-has-raw-asr-text: Rectangle { height: 1px; background: AppColors.border; }
+                if root.detail-has-refined-text: Text { text: "LLM 润色结果"; color: AppColors.text-muted; font-size: 11px; font-weight: 650; }
+                if root.detail-has-refined-text: ScrollView {
+                    vertical-stretch: 1;
+                    Text { width: parent.width; text: root.detail-refined-text; color: AppColors.ink; font-size: 14px; wrap: word-wrap; }
+                }
+                if root.detail-has-refined-text: Rectangle { height: 1px; background: AppColors.border; }
+                Text { text: root.detail-has-raw-asr-text || root.detail-has-refined-text ? "最终交付结果" : "识别结果"; color: AppColors.text-muted; font-size: 11px; font-weight: 650; }
+                ScrollView {
+                    vertical-stretch: 1;
+                    Text { width: parent.width; text: root.detail-text; color: AppColors.ink; font-size: 14px; wrap: word-wrap; }
+                }
+            }
         }
     }
 }

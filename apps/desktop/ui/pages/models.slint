@@ -1,0 +1,239 @@
+import { AppButton, AppCheckBox, AppSelect, LlmProvider, StatusPill } from "../components.slint";
+import { AppColors } from "../color-system.slint";
+
+component ModelApiKeyField inherits Rectangle {
+    in-out property <string> text;
+    in property <string> placeholder-text;
+    in property <string> accessible-name;
+    callback accepted(string);
+    height: 42px;
+    clip: true;
+    border-width: 1px;
+    border-color: api-input.has-focus ? AppColors.brand : AppColors.border;
+    border-radius: 8px;
+    background: AppColors.surface;
+    horizontal-stretch: 1;
+
+    if root.text.is-empty: Text {
+        x: 13px;
+        text: root.placeholder-text;
+        color: #a1a1aa;
+        font-size: 12px;
+        vertical-alignment: center;
+    }
+
+    api-input := TextInput {
+        x: 13px;
+        width: max(parent.width - 26px, self.preferred-width);
+        text <=> root.text;
+        input-type: InputType.password;
+        accessible-label: root.accessible-name;
+        accessible-value: root.text.is-empty ? "" : "已填写";
+        color: AppColors.ink;
+        font-size: 12px;
+        vertical-alignment: center;
+        accepted => { root.accepted(self.text); }
+    }
+}
+
+export component ModelsPage inherits Rectangle {
+    in-out property <string> asr-api-key;
+    in property <bool> asr-configured;
+    in property <bool> asr-config-error;
+    in property <string> asr-config-status;
+    in-out property <bool> llm-enabled;
+    in-out property <LlmProvider> llm-provider: LlmProvider.sensenova;
+    in-out property <string> sensenova-api-key;
+    in-out property <string> deepseek-api-key;
+    in property <string> llm-provider-target;
+    in property <bool> llm-provider-local;
+    in property <string> llm-config-status;
+    in-out property <bool> llm-confirmation-visible: false;
+    callback save-asr-config(string);
+    callback delete-asr-config();
+    callback request-llm-enable();
+    callback set-llm-enabled(bool, string);
+    callback save-llm-config(LlmProvider, string);
+    callback select-llm-provider(LlmProvider);
+    background: transparent;
+
+    VerticalLayout {
+        padding-left: 30px;
+        padding-right: 30px;
+        padding-top: 28px;
+        padding-bottom: 22px;
+        spacing: 9px;
+
+        Text { height: 42px; text: "模型"; color: AppColors.ink; font-size: 27px; font-weight: 700; vertical-alignment: center; }
+
+        HorizontalLayout {
+            height: 34px;
+            alignment: space-between;
+            cross-axis-alignment: center;
+            Text { text: "语音识别"; color: AppColors.ink; font-size: 15px; font-weight: 650; }
+            StatusPill { label: root.asr-config-status; granted: root.asr-configured && !root.asr-config-error; }
+        }
+
+        Text { height: 20px; text: "火山引擎 · API Key 仅保存在本机"; color: AppColors.text-muted; font-size: 12px; }
+
+        HorizontalLayout {
+            height: 42px;
+            spacing: 10px;
+            api-field := Rectangle {
+                clip: true;
+                border-width: 1px;
+                border-color: api-input.has-focus ? AppColors.brand : AppColors.border;
+                border-radius: 8px;
+                background: AppColors.surface;
+                horizontal-stretch: 1;
+
+                if root.asr-api-key.is-empty: Text { x: 13px; text: "输入火山引擎 API Key"; color: #a1a1aa; font-size: 12px; vertical-alignment: center; }
+
+                api-input := TextInput {
+                    x: 13px;
+                    width: max(parent.width - 26px, self.preferred-width);
+                    text <=> root.asr-api-key;
+                    input-type: InputType.password;
+                    accessible-label: "火山引擎 API Key";
+                    accessible-value: root.asr-api-key.is-empty ? "" : "已填写";
+                    color: AppColors.ink;
+                    font-size: 12px;
+                    vertical-alignment: center;
+                    accepted => { root.save-asr-config(self.text); }
+                }
+            }
+            AppButton { text: "保存配置"; primary: true; enabled: !root.asr-api-key.is-empty; clicked => { root.save-asr-config(api-input.text); } }
+            AppButton { text: "删除"; danger: true; enabled: root.asr-configured; clicked => { root.delete-asr-config(); } }
+        }
+
+        Rectangle { height: 1px; background: AppColors.border; }
+
+        HorizontalLayout {
+            height: 36px;
+            cross-axis-alignment: center;
+            Text { text: "大模型提供商"; color: AppColors.text; font-size: 15px; font-weight: 650; }
+            Rectangle { horizontal-stretch: 1; background: transparent; }
+            AppSelect {
+                width: 174px;
+                model: ["商汤 SenseNova", "DeepSeek"];
+                current-value: root.llm-provider == LlmProvider.deepseek ? "DeepSeek" : "商汤 SenseNova";
+                selected(value) => {
+                    root.llm-provider = value == "DeepSeek" ? LlmProvider.deepseek : LlmProvider.sensenova;
+                    root.select-llm-provider(root.llm-provider);
+                }
+            }
+        }
+
+        HorizontalLayout {
+            height: 42px;
+            spacing: 10px;
+            if root.llm-provider == LlmProvider.sensenova: ModelApiKeyField {
+                text <=> root.sensenova-api-key;
+                placeholder-text: "输入商汤 SenseNova API Key";
+                accessible-name: "商汤 SenseNova API Key";
+                accepted(value) => { root.save-llm-config(LlmProvider.sensenova, value); }
+            }
+            if root.llm-provider == LlmProvider.deepseek: ModelApiKeyField {
+                text <=> root.deepseek-api-key;
+                placeholder-text: "输入 DeepSeek API Key";
+                accessible-name: "DeepSeek API Key";
+                accepted(value) => { root.save-llm-config(LlmProvider.deepseek, value); }
+            }
+            AppButton {
+                text: "保存 API Key";
+                primary: true;
+                enabled: root.llm-provider == LlmProvider.deepseek ? !root.deepseek-api-key.is-empty : !root.sensenova-api-key.is-empty;
+                clicked => {
+                    root.save-llm-config(
+                        root.llm-provider,
+                        root.llm-provider == LlmProvider.deepseek ? root.deepseek-api-key : root.sensenova-api-key
+                    );
+                }
+            }
+        }
+
+        AppCheckBox {
+            height: 32px;
+            text: "启用大模型润色";
+            checked <=> root.llm-enabled;
+            toggled => {
+                if self.checked {
+                    root.llm-enabled = false;
+                    root.request-llm-enable();
+                } else if !root.llm-confirmation-visible {
+                    root.set-llm-enabled(false, "");
+                }
+            }
+        }
+        Text { height: 20px; text: root.llm-config-status; color: AppColors.text-muted; font-size: 12px; }
+        HorizontalLayout {
+            height: 42px;
+            spacing: 20px;
+            VerticalLayout {
+                spacing: 2px;
+                Text { text: "语音识别"; color: AppColors.text-muted; font-size: 10px; }
+                Text { text: "豆包流式语音识别模型 2.0"; color: AppColors.text; font-size: 11px; }
+            }
+            VerticalLayout {
+                spacing: 2px;
+                Text { text: "规则标准化"; color: AppColors.text-muted; font-size: 10px; }
+                Text { text: "基础标点与数字格式"; color: AppColors.text; font-size: 11px; }
+            }
+            VerticalLayout {
+                spacing: 2px;
+                Text { text: "文本处理"; color: AppColors.text-muted; font-size: 10px; }
+                Text {
+                    text: root.llm-enabled ? (root.llm-provider == LlmProvider.deepseek ? "DeepSeek 润色" : "SenseNova 润色") : "仅安全本地清理";
+                    color: AppColors.text;
+                    font-size: 11px;
+                }
+            }
+        }
+        Rectangle { vertical-stretch: 1; background: transparent; }
+    }
+
+    if root.llm-confirmation-visible: Rectangle {
+        x: 0px;
+        y: 0px;
+        width: parent.width;
+        height: parent.height;
+        background: #00000066;
+
+        Rectangle {
+            width: 440px;
+            height: 250px;
+            x: (parent.width - self.width) / 2;
+            y: (parent.height - self.height) / 2;
+            background: AppColors.surface;
+            border-radius: 8px;
+
+            VerticalLayout {
+                padding: 24px;
+                spacing: 14px;
+                Text { height: 28px; text: "确认启用云端润色"; color: AppColors.ink; font-size: 18px; font-weight: 650; }
+                Text {
+                    height: 76px;
+                    text: "启用后，Saymore 会把本次转写文本发送到以下服务进行润色：\n" + root.llm-provider-target + "\n当前版本不发送个人词典条目。";
+                    color: AppColors.text;
+                    font-size: 13px;
+                    wrap: word-wrap;
+                }
+                Rectangle { vertical-stretch: 1; background: transparent; }
+                HorizontalLayout {
+                    height: 40px;
+                    spacing: 10px;
+                    alignment: end;
+                    AppButton { text: "取消"; clicked => { root.llm-confirmation-visible = false; } }
+                    AppButton {
+                        primary: true;
+                        text: "确认启用";
+                        clicked => {
+                            root.llm-confirmation-visible = false;
+                            root.set-llm-enabled(true, root.llm-provider-target);
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

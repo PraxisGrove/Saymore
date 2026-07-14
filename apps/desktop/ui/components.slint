@@ -1,5 +1,8 @@
+import { AppColors } from "color-system.slint";
+
 export enum AppPage {
     home,
+    models,
     history,
     dictionary,
     settings,
@@ -7,11 +10,15 @@ export enum AppPage {
 
 export enum SettingsSection {
     general,
-    voice-models,
     shortcuts-audio,
     delivery-permissions,
     privacy-history,
     about-updates,
+}
+
+export enum LlmProvider {
+    sensenova,
+    deepseek,
 }
 
 export component StatusPill inherits Rectangle {
@@ -20,7 +27,7 @@ export component StatusPill inherits Rectangle {
     width: 136px;
     height: 28px;
     border-radius: 6px;
-    background: root.granted ? #e7f8f0 : #f1f2f4;
+    background: root.granted ? AppColors.success-soft : AppColors.surface-muted;
 
     HorizontalLayout {
         padding-left: 10px;
@@ -33,12 +40,12 @@ export component StatusPill inherits Rectangle {
             width: 7px;
             height: 7px;
             border-radius: 4px;
-            background: root.granted ? #0f9f6e : #98a0aa;
+            background: root.granted ? AppColors.success : AppColors.text-muted;
         }
 
         Text {
             text: root.label;
-            color: root.granted ? #087a55 : #515862;
+            color: root.granted ? AppColors.success : AppColors.text;
             font-size: 12px;
             font-weight: 600;
             vertical-alignment: center;
@@ -48,22 +55,39 @@ export component StatusPill inherits Rectangle {
 
 export component NavItem inherits Rectangle {
     in property <string> label;
+    in property <image> icon;
     in property <bool> selected;
     callback activated();
-    height: 42px;
+    height: 38px;
     border-radius: 6px;
-    background: root.selected ? #e4e7eb : transparent;
+    background: root.selected ? AppColors.surface-muted : transparent;
     accessible-role: button;
     accessible-label: root.label;
     accessible-action-default => { root.activated(); }
 
-    Text {
-        x: 18px;
-        text: root.label;
-        color: root.selected ? #18181b : #626873;
-        font-size: 14px;
-        font-weight: root.selected ? 650 : 500;
-        vertical-alignment: center;
+    HorizontalLayout {
+        padding-left: 14px;
+        padding-right: 12px;
+        spacing: 10px;
+        cross-axis-alignment: center;
+
+        Image {
+            width: 17px;
+            height: 17px;
+            source: root.icon;
+            image-fit: contain;
+            image-rendering: smooth;
+        }
+
+        Text {
+            text: root.label;
+            color: root.selected ? AppColors.ink : AppColors.text-muted;
+            font-size: 14px;
+            font-weight: root.selected ? 650 : 500;
+            vertical-alignment: center;
+        }
+
+        Rectangle { horizontal-stretch: 1; background: transparent; }
     }
 
     TouchArea { clicked => { root.activated(); } }
@@ -72,10 +96,213 @@ export component NavItem inherits Rectangle {
 export component PageHeading inherits Text {
     in property <string> label;
     text: root.label;
-    color: #18181b;
+    color: AppColors.ink;
     font-size: 25px;
     font-weight: 700;
     vertical-alignment: center;
+}
+
+export component AppButton inherits Rectangle {
+    in property <string> text;
+    in property <bool> enabled: true;
+    in property <bool> primary: false;
+    in property <bool> danger: false;
+    callback clicked();
+
+    min-width: max(64px, button-label.preferred-width + 24px);
+    min-height: 34px;
+    horizontal-stretch: 0;
+    vertical-stretch: 0;
+    border-radius: 6px;
+    border-width: root.primary ? 0px : 1px;
+    border-color: root.danger ? AppColors.danger : AppColors.border;
+    background: !root.enabled ? AppColors.surface-muted
+        : root.primary ? (button-touch.has-hover ? AppColors.brand-strong : AppColors.brand)
+        : button-touch.has-hover ? AppColors.surface-muted : AppColors.surface;
+    accessible-role: button;
+    accessible-label: root.text;
+    accessible-enabled: root.enabled;
+    accessible-action-default => { if root.enabled { root.clicked(); } }
+
+    button-label := Text {
+        text: root.text;
+        color: !root.enabled ? AppColors.text-muted
+            : root.primary ? #ffffff
+            : root.danger ? AppColors.danger : AppColors.text;
+        font-size: 12px;
+        font-weight: 650;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+    button-touch := TouchArea {
+        enabled: root.enabled;
+        mouse-cursor: root.enabled ? pointer : default;
+        clicked => { root.clicked(); }
+    }
+}
+
+export component AppCheckBox inherits Rectangle {
+    in property <string> text: "";
+    in property <bool> enabled: true;
+    in-out property <bool> checked;
+    callback toggled();
+
+    min-width: root.text.is-empty ? 18px : check-label.preferred-width + 26px;
+    min-height: 24px;
+    horizontal-stretch: 0;
+    vertical-stretch: 0;
+    background: transparent;
+    accessible-role: checkbox;
+    accessible-label: root.text;
+    accessible-enabled: root.enabled;
+    accessible-checked: root.checked;
+    accessible-action-default => {
+        if root.enabled {
+            root.checked = !root.checked;
+            root.toggled();
+        }
+    }
+
+    Rectangle {
+        x: 0px;
+        y: (parent.height - self.height) / 2;
+        width: 18px;
+        height: 18px;
+        border-radius: 4px;
+        border-width: 1px;
+        border-color: root.checked ? AppColors.info : AppColors.border;
+        background: root.checked ? #20aeea : AppColors.surface;
+        if root.checked: Text {
+            text: "✓";
+            color: #ffffff;
+            font-size: 13px;
+            font-weight: 700;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+        }
+    }
+    check-label := Text {
+        x: 26px;
+        width: max(0px, parent.width - 26px);
+        text: root.text;
+        color: root.enabled ? AppColors.text : AppColors.text-muted;
+        font-size: 13px;
+        vertical-alignment: center;
+    }
+    TouchArea {
+        enabled: root.enabled;
+        mouse-cursor: root.enabled ? pointer : default;
+        clicked => {
+            root.checked = !root.checked;
+            root.toggled();
+        }
+    }
+}
+
+export component AppLineEdit inherits Rectangle {
+    in-out property <string> text;
+    in property <string> placeholder-text;
+    callback accepted();
+
+    min-width: 140px;
+    min-height: 36px;
+    horizontal-stretch: 1;
+    vertical-stretch: 0;
+    border-radius: 7px;
+    border-width: 1px;
+    border-color: line-input.has-focus ? AppColors.brand : AppColors.border;
+    background: AppColors.surface;
+
+    if root.text.is-empty: Text {
+        x: 11px;
+        width: parent.width - 22px;
+        text: root.placeholder-text;
+        color: AppColors.text-muted;
+        font-size: 12px;
+        vertical-alignment: center;
+        overflow: elide;
+    }
+    line-input := TextInput {
+        x: 11px;
+        width: parent.width - 22px;
+        text <=> root.text;
+        color: AppColors.text;
+        font-size: 12px;
+        vertical-alignment: center;
+        accepted => { root.accepted(); }
+    }
+}
+
+export component AppSelect inherits Rectangle {
+    in property <[string]> model;
+    in-out property <string> current-value;
+    callback selected(string);
+
+    min-width: 132px;
+    min-height: 36px;
+    horizontal-stretch: 0;
+    vertical-stretch: 0;
+    border-radius: 7px;
+    border-width: 1px;
+    border-color: AppColors.border;
+    background: select-touch.has-hover ? AppColors.surface-muted : AppColors.surface;
+    accessible-role: combobox;
+    accessible-label: "选择 " + root.current-value;
+    accessible-value: root.current-value;
+    accessible-expandable: true;
+    accessible-action-expand => { select-popup.show(); }
+
+    Text {
+        x: 11px;
+        width: parent.width - 38px;
+        text: root.current-value;
+        color: AppColors.text;
+        font-size: 12px;
+        vertical-alignment: center;
+        overflow: elide;
+    }
+    Text {
+        x: parent.width - 26px;
+        width: 16px;
+        text: "⌄";
+        color: AppColors.text-muted;
+        font-size: 14px;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+    select-touch := TouchArea { mouse-cursor: pointer; clicked => { select-popup.show(); } }
+
+    select-popup := PopupWindow {
+        x: 0px;
+        y: root.height + 4px;
+        width: root.width;
+        height: root.model.length * 34px + 8px;
+        close-policy: close-on-click-outside;
+
+        Rectangle {
+            border-radius: 7px;
+            border-width: 1px;
+            border-color: AppColors.border;
+            background: AppColors.surface;
+            VerticalLayout {
+                padding: 4px;
+                for value in root.model: Rectangle {
+                    height: 34px;
+                    border-radius: 5px;
+                    background: option-touch.has-hover || value == root.current-value ? AppColors.surface-muted : transparent;
+                    Text { x: 9px; width: parent.width - 18px; text: value; color: AppColors.text; font-size: 12px; vertical-alignment: center; }
+                    option-touch := TouchArea {
+                        mouse-cursor: pointer;
+                        clicked => {
+                            root.current-value = value;
+                            root.selected(value);
+                            select-popup.close();
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 export component EmptyState inherits Rectangle {
@@ -83,7 +310,7 @@ export component EmptyState inherits Rectangle {
     in property <string> detail;
     border-width: 0px;
     border-radius: 8px;
-    background: #ffffff;
+    background: AppColors.surface;
     drop-shadow-blur: 12px;
     drop-shadow-offset-y: 2px;
     drop-shadow-color: #1f29370d;
@@ -95,7 +322,7 @@ export component EmptyState inherits Rectangle {
 
         Text {
             text: root.title;
-            color: #2b2e33;
+            color: AppColors.ink;
             font-size: 15px;
             font-weight: 650;
             horizontal-alignment: center;
@@ -103,7 +330,7 @@ export component EmptyState inherits Rectangle {
 
         Text {
             text: root.detail;
-            color: #7c838d;
+            color: AppColors.text-muted;
             font-size: 12px;
             horizontal-alignment: center;
             wrap: word-wrap;

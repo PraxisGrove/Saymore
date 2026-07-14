@@ -1,7 +1,22 @@
-import { EmptyState, PageHeading } from "../components.slint";
+import { ScrollView } from "std-widgets.slint";
+import { AppButton, AppLineEdit, EmptyState, PageHeading } from "../components.slint";
+import { AppColors } from "../color-system.slint";
+
+export struct DictionaryListItem {
+    id: string,
+    canonical: string,
+    language: string,
+    origin: string,
+}
 
 export component DictionaryPage inherits Rectangle {
-    background: #fafbfc;
+    in property <[DictionaryListItem]> items;
+    in property <string> status-text: "";
+    callback add-word(string, string);
+    callback delete-word(string);
+    callback import-csv();
+    property <bool> add-visible: false;
+    background: AppColors.canvas;
 
     VerticalLayout {
         padding-left: 32px;
@@ -12,47 +27,94 @@ export component DictionaryPage inherits Rectangle {
 
         HorizontalLayout {
             height: 38px;
-            alignment: space-between;
             cross-axis-alignment: center;
-
             PageHeading { label: "词典"; }
-
+            Rectangle { horizontal-stretch: 1; background: transparent; }
+            AppButton { text: "导入 CSV"; clicked => { root.import-csv(); } }
             Rectangle {
-                width: 92px;
-                height: 36px;
-                border-radius: 6px;
-                background: #dfe3e8;
-                Text { text: "+ 新词"; color: #9298a1; font-size: 12px; font-weight: 600; horizontal-alignment: center; vertical-alignment: center; }
+                width: 94px; height: 36px; border-radius: 6px; background: add-touch.has-hover ? AppColors.brand-strong : AppColors.brand;
+                accessible-role: button; accessible-label: "添加词条";
+                accessible-action-default => { root.add-visible = true; }
+                HorizontalLayout {
+                    padding-left: 12px; padding-right: 14px; spacing: 7px; cross-axis-alignment: center;
+                    Image { width: 16px; height: 16px; source: @image-url("../../icons/lucide/plus.svg"); }
+                    Text { text: "添加"; color: #ffffff; font-size: 12px; font-weight: 650; }
+                }
+                add-touch := TouchArea { mouse-cursor: pointer; clicked => { root.add-visible = true; } }
             }
         }
 
-        HorizontalLayout {
-            height: 40px;
-            spacing: 12px;
-
-            Rectangle {
-                horizontal-stretch: 1;
-                border-width: 0px;
-                border-radius: 8px;
-                background: #ffffff;
-                drop-shadow-blur: 8px;
-                drop-shadow-offset-y: 1px;
-                drop-shadow-color: #1f29370a;
-                Text { x: 14px; text: "搜索词条"; color: #a0a5ad; font-size: 12px; vertical-alignment: center; }
-            }
-
-            Rectangle {
-                width: 238px;
-                border-radius: 8px;
-                background: #f0f1f3;
-                Text { text: "全部    词汇候选    手动添加"; color: #666d77; font-size: 12px; horizontal-alignment: center; vertical-alignment: center; }
-            }
+        if !root.status-text.is-empty: Text {
+            height: 28px; text: root.status-text; color: AppColors.text-muted; font-size: 12px; vertical-alignment: center;
         }
 
-        EmptyState {
+        if root.items.length == 0: EmptyState {
             vertical-stretch: 1;
             title: "词典还是空的";
-            detail: "词典存储接入后，可在这里维护标准写法、常见错误写法、语言标签和待确认候选。";
+            detail: "添加人名、产品名和术语，统一专有词的标准写法";
+        }
+
+        if root.items.length > 0: ScrollView {
+            vertical-stretch: 1;
+            VerticalLayout {
+                spacing: 10px;
+                for item in root.items: Rectangle {
+                    height: 72px;
+                    border-width: 1px;
+                    border-color: AppColors.border;
+                    border-radius: 7px;
+                    background: AppColors.surface;
+                    HorizontalLayout {
+                        padding-left: 18px; padding-right: 12px; spacing: 12px; cross-axis-alignment: center;
+                        VerticalLayout {
+                            spacing: 5px;
+                            Text { text: item.canonical; color: AppColors.ink; font-size: 15px; font-weight: 650; }
+                            Text { text: item.language + "  ·  " + item.origin; color: AppColors.text-muted; font-size: 11px; }
+                        }
+                        Rectangle { horizontal-stretch: 1; background: transparent; }
+                        Rectangle {
+                            width: 34px; height: 34px; border-radius: 6px; background: delete-touch.has-hover ? AppColors.danger-soft : transparent;
+                            accessible-role: button; accessible-label: "删除词条";
+                            accessible-action-default => { root.delete-word(item.id); }
+                            Image { width: 17px; height: 17px; x: 8px; y: 8px; source: @image-url("../../icons/lucide/trash-2.svg"); }
+                            delete-touch := TouchArea { mouse-cursor: pointer; clicked => { root.delete-word(item.id); } }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if root.add-visible: Rectangle {
+        background: #17130e66;
+        TouchArea { clicked => { root.add-visible = false; } }
+        Rectangle {
+            width: min(parent.width - 64px, 480px);
+            height: 250px;
+            x: (parent.width - self.width) / 2;
+            y: (parent.height - self.height) / 2;
+            border-radius: 8px;
+            background: AppColors.surface;
+            VerticalLayout {
+                padding: 24px; spacing: 14px;
+                Text { text: "添加到词典"; color: AppColors.ink; font-size: 18px; font-weight: 700; }
+                word-input := AppLineEdit { placeholder-text: "输入标准写法"; }
+                language-input := AppLineEdit { text: "zh-Hans"; placeholder-text: "语言，例如 zh-Hans 或 en"; }
+                HorizontalLayout {
+                    alignment: end; spacing: 10px;
+                    AppButton { text: "取消"; clicked => { root.add-visible = false; } }
+                    AppButton {
+                        text: "添加";
+                        primary: true;
+                        enabled: !word-input.text.is-empty && !language-input.text.is-empty;
+                        clicked => {
+                            root.add-word(word-input.text, language-input.text);
+                            word-input.text = "";
+                            root.add-visible = false;
+                        }
+                    }
+                }
+            }
         }
     }
 }

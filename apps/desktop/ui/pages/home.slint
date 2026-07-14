@@ -1,46 +1,62 @@
-import { PageHeading, StatusPill } from "../components.slint";
+import { UiTuning } from "../ui-tuning.slint";
+import { AppColors } from "../color-system.slint";
 
-component UsageStat inherits Rectangle {
+component CompactStat inherits Rectangle {
     in property <string> label;
     in property <string> value;
     in property <string> unit;
-    border-radius: 8px;
-    background: #ffffff;
-    drop-shadow-blur: 12px;
-    drop-shadow-offset-y: 2px;
-    drop-shadow-color: #1f29370d;
+    height: 43px;
+    background: transparent;
 
-    VerticalLayout {
-        padding: 18px;
-        spacing: 8px;
+    HorizontalLayout {
+        spacing: 10px;
+        cross-axis-alignment: center;
 
-        Text {
-            text: root.label;
-            color: #707781;
-            font-size: 12px;
-            font-weight: 550;
+        Rectangle {
+            width: 7px;
+            height: 7px;
+            border-radius: 4px;
+            background: AppColors.text-muted;
         }
 
-        HorizontalLayout {
-            spacing: 7px;
-            cross-axis-alignment: end;
+        VerticalLayout {
+            spacing: 2px;
+            alignment: center;
 
-            Text {
-                text: root.value;
-                color: #202327;
-                font-size: 24px;
-                font-weight: 700;
+            HorizontalLayout {
+                spacing: 4px;
+                Text { text: root.value; color: AppColors.ink; font-size: 16px; font-weight: 700; }
+                Text { text: root.unit; color: AppColors.text-muted; font-size: 10px; vertical-alignment: bottom; }
+                Rectangle { horizontal-stretch: 1; background: transparent; }
             }
 
-            Text {
-                text: root.unit;
-                color: #858b94;
-                font-size: 11px;
-                vertical-alignment: bottom;
-            }
-
-            Rectangle { horizontal-stretch: 1; background: transparent; }
+            Text { text: root.label; color: AppColors.text-muted; font-size: 10px; }
         }
+    }
+}
+
+component DayBar inherits Rectangle {
+    in property <length> bar-height;
+    in property <string> label;
+    background: transparent;
+
+    Rectangle {
+        x: (parent.width - self.width) / 2;
+        y: parent.height - self.height - 22px;
+        width: 28px;
+        height: root.bar-height;
+        border-radius: 7px;
+        background: AppColors.success-soft;
+    }
+
+    Text {
+        y: parent.height - 14px;
+        width: parent.width;
+        height: 14px;
+        text: root.label;
+        color: AppColors.text-muted;
+        font-size: 9px;
+        horizontal-alignment: center;
     }
 }
 
@@ -56,6 +72,7 @@ export component HomePage inherits Rectangle {
     in property <bool> recording-active;
     in property <bool> recording-failed;
     in property <bool> recording-complete;
+    in property <bool> recording-attempted;
     in property <float> recording-level;
     in property <string> recording-status;
     in property <string> recording-detail;
@@ -65,179 +82,233 @@ export component HomePage inherits Rectangle {
     private property <bool> idle-attention: !root.can-record || !root.authorized;
     private property <string> idle-status: !root.microphone-authorized ? "需要麦克风权限"
         : !root.asr-configured || root.asr-config-error ? "需要配置语音服务"
-        : !root.authorized ? "仅结果浮层模式"
-        : "已就绪";
+        : !root.authorized ? "结果浮层模式"
+        : "开始口述";
     private property <string> idle-detail: !root.microphone-authorized ? "前往设置授予麦克风权限"
-        : !root.asr-configured || root.asr-config-error ? "前往设置完成语音模型配置"
-        : !root.authorized ? "辅助功能未授权，口述结果将显示在结果浮层"
-        : "单击右 Command 开始口述";
-    background: #fafbfc;
+        : !root.asr-configured || root.asr-config-error ? "前往模型页面完成配置"
+        : !root.authorized ? "辅助功能未授权，结果将在浮层中显示"
+        : "按下快捷键后，说话即转成文字";
+    background: transparent;
 
     VerticalLayout {
-        padding-left: 32px;
-        padding-right: 32px;
-        padding-top: 48px;
-        padding-bottom: 28px;
-        spacing: 18px;
+        padding-left: UiTuning.home-left-padding * 1px;
+        padding-right: 10px;
+        padding-top: UiTuning.home-top-padding * 1px;
+        padding-bottom: 18px;
+        spacing: UiTuning.section-gap * 1px;
 
-        HorizontalLayout {
-            height: 38px;
-            alignment: space-between;
-            cross-axis-alignment: center;
-
-            PageHeading { label: "首页"; }
-
-            Text {
-                text: "右 Command";
-                color: #4b515b;
-                font-size: 12px;
-                font-weight: 600;
-                vertical-alignment: center;
-            }
+        Text {
+            height: 42px;
+            text: "解放双手，放开说";
+            color: AppColors.ink;
+            font-size: 27px;
+            font-weight: 700;
+            vertical-alignment: center;
         }
 
-        Rectangle {
-            height: 94px;
-            border-width: 0px;
-            border-radius: 8px;
-            background: root.recording-failed ? #fff2f2 : root.recording-active ? #edf3ff : root.idle-attention ? #fff8e7 : #edfaf4;
-            drop-shadow-blur: 12px;
-            drop-shadow-offset-y: 2px;
-            drop-shadow-color: #1f29370d;
+        HorizontalLayout {
+            vertical-stretch: 1;
+            spacing: UiTuning.column-gap * 1px;
 
-            HorizontalLayout {
-                padding-left: 22px;
-                padding-right: 18px;
-                spacing: 16px;
-                cross-axis-alignment: center;
+            VerticalLayout {
+                spacing: 12px;
 
                 Rectangle {
-                    width: 11px;
-                    height: 11px;
-                    border-radius: 6px;
-                    background: root.recording-failed ? #c23b3f : root.recording-active ? #315fdd : root.idle-attention ? #d48a12 : #15966b;
+                    height: 86px;
+                    border-radius: UiTuning.card-radius * 1px;
+                    background: root.recording-failed ? AppColors.danger-soft : root.recording-attempted ? AppColors.warning-soft : AppColors.surface-warm;
+
+                    HorizontalLayout {
+                        padding-left: 18px;
+                        padding-right: 14px;
+                        spacing: 14px;
+                        cross-axis-alignment: center;
+
+                        VerticalLayout {
+                            spacing: 5px;
+                            alignment: center;
+
+                            Text {
+                                text: root.recording-active || root.recording-failed || root.recording-complete || root.recording-attempted ? root.recording-status : "直接说";
+                                color: AppColors.ink;
+                                font-size: 14px;
+                                font-weight: 700;
+                            }
+
+                            Text {
+                                text: root.recording-active || root.recording-failed || root.recording-complete || root.recording-attempted ? root.recording-detail : root.idle-detail;
+                                color: AppColors.text-muted;
+                                font-size: 11px;
+                                overflow: elide;
+                            }
+
+                            Rectangle {
+                                height: 4px;
+                                border-radius: 2px;
+                                background: AppColors.border;
+
+                                Rectangle {
+                                    width: root.recording-active ? max(4px, parent.width * root.recording-level) : 4px;
+                                    height: parent.height;
+                                    border-radius: 2px;
+                                    background: root.recording-failed ? AppColors.danger : root.recording-attempted ? AppColors.warning : root.recording-complete ? AppColors.success : AppColors.text-muted;
+                                    animate width { duration: 80ms; easing: ease-out; }
+                                }
+                            }
+                        }
+
+                        VerticalLayout {
+                            width: 126px;
+                            spacing: 6px;
+                            alignment: center;
+
+                            Rectangle {
+                                height: 30px;
+                                border-width: 1px;
+                                border-color: AppColors.border;
+                                border-radius: 7px;
+                                background: AppColors.surface;
+
+                                Text {
+                                    text: "右 Command";
+                                    color: AppColors.text;
+                                    font-size: 11px;
+                                    font-weight: 600;
+                                    horizontal-alignment: center;
+                                    vertical-alignment: center;
+                                }
+                            }
+
+                            Rectangle {
+                                height: 30px;
+                                border-radius: 7px;
+                                background: root.recording-failed ? AppColors.danger-soft : root.recording-attempted ? AppColors.warning-soft : root.idle-attention ? AppColors.warning-soft : AppColors.success-soft;
+
+                                Text {
+                                    text: root.recording-active || root.recording-failed || root.recording-complete || root.recording-attempted ? root.recording-status : root.idle-status;
+                                    color: root.recording-failed ? AppColors.danger : root.recording-attempted ? AppColors.warning : root.idle-attention ? AppColors.warning : AppColors.success;
+                                    font-size: 11px;
+                                    font-weight: 650;
+                                    horizontal-alignment: center;
+                                    vertical-alignment: center;
+                                    overflow: elide;
+                                }
+                            }
+                        }
+                    }
                 }
 
-                VerticalLayout {
-                    spacing: 4px;
-                    alignment: center;
+                Text { height: 20px; text: "运行状态"; color: AppColors.text; font-size: 14px; font-weight: 650; vertical-alignment: center; }
 
-                    Text {
-                        text: root.recording-active || root.recording-failed || root.recording-complete ? root.recording-status : root.idle-status;
-                        color: #202327;
-                        font-size: 17px;
-                        font-weight: 650;
-                    }
-
-                    Text {
-                        text: root.recording-active || root.recording-failed || root.recording-complete ? root.recording-detail : root.idle-detail;
-                        color: #69717b;
-                        font-size: 12px;
-                        overflow: elide;
-                    }
-                }
-
-                Rectangle { horizontal-stretch: 1; background: transparent; }
-
-                Rectangle {
-                    width: 150px;
-                    height: 7px;
-                    border-radius: 4px;
-                    background: #dce1e7;
+                HorizontalLayout {
+                    height: 104px;
+                    spacing: 12px;
 
                     Rectangle {
-                        width: root.recording-active ? max(5px, parent.width * root.recording-level) : 5px;
-                        height: parent.height;
-                        border-radius: 4px;
-                        background: root.recording-active ? #315fdd : root.recording-complete ? #15966b : #9da3ad;
-                        animate width { duration: 80ms; easing: ease-out; }
+                        border-radius: UiTuning.card-radius * 1px;
+                        background: AppColors.surface-warm;
+                        accessible-role: button;
+                        accessible-label: "打开模型页面";
+                        accessible-action-default => { root.open-model-settings(); }
+
+                        VerticalLayout {
+                            padding: 16px;
+                            spacing: 8px;
+                            HorizontalLayout {
+                                height: 30px;
+                                alignment: space-between;
+                                cross-axis-alignment: center;
+                                Text { text: "模型"; color: #292622; font-size: 13px; font-weight: 650; }
+                                Rectangle {
+                                    width: 104px;
+                                    height: 26px;
+                                    border-radius: 7px;
+                                    background: root.asr-configured && !root.asr-config-error ? AppColors.success-soft : AppColors.warning-soft;
+                                    Text { text: "●  " + root.asr-config-status; color: root.asr-configured && !root.asr-config-error ? AppColors.success : AppColors.warning; font-size: 10px; font-weight: 650; horizontal-alignment: center; vertical-alignment: center; }
+                                }
+                            }
+                            Text { text: root.llm-enabled ? "火山引擎语音识别 · 大模型润色" : "火山引擎语音识别 · 仅转写"; color: #817b73; font-size: 11px; }
+                        }
+
+                        TouchArea { clicked => { root.open-model-settings(); } }
+                    }
+
+                    Rectangle {
+                        border-radius: UiTuning.card-radius * 1px;
+                        background: AppColors.surface-warm;
+                        accessible-role: button;
+                        accessible-label: "打开投递与权限设置";
+                        accessible-action-default => { root.open-delivery-settings(); }
+
+                        VerticalLayout {
+                            padding: 16px;
+                            spacing: 8px;
+                            HorizontalLayout {
+                                height: 30px;
+                                alignment: space-between;
+                                cross-axis-alignment: center;
+                                Text { text: "系统与投递"; color: #292622; font-size: 13px; font-weight: 650; }
+                                Rectangle {
+                                    width: 112px;
+                                    height: 26px;
+                                    border-radius: 7px;
+                                    background: root.microphone-authorized && root.authorized ? AppColors.success-soft : AppColors.warning-soft;
+                                    Text { text: "●  " + (root.microphone-authorized && root.authorized ? "已授权" : "需检查"); color: root.microphone-authorized && root.authorized ? AppColors.success : AppColors.warning; font-size: 10px; font-weight: 650; horizontal-alignment: center; vertical-alignment: center; }
+                                }
+                            }
+                            Text { text: "麦克风与辅助功能"; color: #817b73; font-size: 11px; }
+                        }
+
+                        TouchArea { clicked => { root.open-delivery-settings(); } }
+                    }
+                }
+
+                Text { height: 20px; text: "近 7 天"; color: #2b2824; font-size: 14px; font-weight: 650; vertical-alignment: center; }
+
+                Rectangle {
+                    vertical-stretch: 1;
+                    border-radius: UiTuning.card-radius * 1px;
+                    background: AppColors.surface-warm;
+
+                    HorizontalLayout {
+                        padding-left: 20px;
+                        padding-right: 20px;
+                        padding-top: 18px;
+                        padding-bottom: 14px;
+                        spacing: 10px;
+                        alignment: space-around;
+
+                        DayBar { bar-height: 8px; label: "一"; }
+                        DayBar { bar-height: 8px; label: "二"; }
+                        DayBar { bar-height: 8px; label: "三"; }
+                        DayBar { bar-height: 8px; label: "四"; }
+                        DayBar { bar-height: 8px; label: "五"; }
+                        DayBar { bar-height: 8px; label: "六"; }
+                        DayBar { bar-height: 8px; label: "日"; }
                     }
                 }
             }
-        }
-
-        Text { height: 20px; text: "运行状态"; color: #35383d; font-size: 14px; font-weight: 650; vertical-alignment: center; }
-
-        HorizontalLayout {
-            height: 136px;
-            spacing: 14px;
 
             Rectangle {
-                border-width: 0px;
-                border-radius: 8px;
-                background: #ffffff;
-                drop-shadow-blur: 12px;
-                drop-shadow-offset-y: 2px;
-                drop-shadow-color: #1f29370d;
-                accessible-role: button;
-                accessible-label: "打开语音与模型设置";
-                accessible-action-default => { root.open-model-settings(); }
+                width: UiTuning.stats-width * 1px;
+                height: 234px;
+                border-radius: UiTuning.card-radius * 1px;
+                background: AppColors.surface-warm;
 
                 VerticalLayout {
-                    padding: 18px;
-                    spacing: 10px;
+                    padding-left: 16px;
+                    padding-right: 16px;
+                    padding-top: 14px;
+                    padding-bottom: 12px;
+                    spacing: 0px;
 
-                    HorizontalLayout {
-                        height: 30px;
-                        alignment: space-between;
-                        cross-axis-alignment: center;
-                        Text { text: "语音与模型"; color: #292c31; font-size: 14px; font-weight: 650; }
-                        StatusPill { label: root.asr-config-status; granted: root.asr-configured && !root.asr-config-error; }
-                    }
-                    Text { text: root.llm-enabled ? "火山引擎语音识别 · 大模型润色" : "火山引擎语音识别 · 仅转写"; color: #6e7580; font-size: 12px; }
-                    Text { text: root.asr-configured ? "API Key 已保存在本机配置" : "需要先完成语音服务配置"; color: #8a9099; font-size: 11px; }
+                    Text { height: 36px; text: "使用统计"; color: #292622; font-size: 14px; font-weight: 700; }
+                    CompactStat { label: "累计口述"; value: "—"; unit: "分钟"; }
+                    CompactStat { label: "累计字数"; value: "—"; unit: "字"; }
+                    CompactStat { label: "平均速度"; value: "—"; unit: "字/分"; }
+                    CompactStat { label: "本周记录"; value: "—"; unit: "条"; }
                 }
-
-                TouchArea { clicked => { root.open-model-settings(); } }
-            }
-
-            Rectangle {
-                border-width: 0px;
-                border-radius: 8px;
-                background: #ffffff;
-                drop-shadow-blur: 12px;
-                drop-shadow-offset-y: 2px;
-                drop-shadow-color: #1f29370d;
-                accessible-role: button;
-                accessible-label: "打开投递与权限设置";
-                accessible-action-default => { root.open-delivery-settings(); }
-
-                VerticalLayout {
-                    padding: 18px;
-                    spacing: 9px;
-
-                    Text { height: 24px; text: "系统与投递"; color: #292c31; font-size: 14px; font-weight: 650; vertical-alignment: center; }
-                    HorizontalLayout {
-                        height: 28px;
-                        alignment: space-between;
-                        cross-axis-alignment: center;
-                        Text { text: "麦克风"; color: #6e7580; font-size: 12px; }
-                        StatusPill { label: root.microphone-status; granted: root.microphone-authorized; }
-                    }
-                    HorizontalLayout {
-                        height: 28px;
-                        alignment: space-between;
-                        cross-axis-alignment: center;
-                        Text { text: "辅助功能"; color: #6e7580; font-size: 12px; }
-                        StatusPill { label: root.authorization-status; granted: root.authorized; }
-                    }
-                }
-
-                TouchArea { clicked => { root.open-delivery-settings(); } }
             }
         }
-
-        Text { height: 20px; text: "使用统计"; color: #35383d; font-size: 14px; font-weight: 650; vertical-alignment: center; }
-
-        HorizontalLayout {
-            height: 112px;
-            spacing: 14px;
-
-            UsageStat { label: "累计口述"; value: "—"; unit: "分钟"; }
-            UsageStat { label: "累计字数"; value: "—"; unit: "字"; }
-            UsageStat { label: "平均速度"; value: "—"; unit: "字/分"; }
-        }
-
-        Rectangle { vertical-stretch: 1; background: transparent; }
     }
 }

@@ -1,55 +1,106 @@
 import { AppPage, NavItem } from "components.slint";
+import { UiTuning } from "ui-tuning.slint";
+import { AppColors } from "color-system.slint";
 
 export component AppSidebar inherits Rectangle {
     in-out property <AppPage> current-page: AppPage.home;
-    width: 184px;
-    background: #f2f3f5;
+    in property <bool> development-environment: false;
+    width: UiTuning.sidebar-width * 1px;
+    background: AppColors.surface-warm;
     border-width: 0px;
+    border-radius: UiTuning.sidebar-radius * 1px;
 
     VerticalLayout {
-        padding-left: 10px;
-        padding-right: 10px;
-        padding-top: 46px;
+        padding-left: 12px;
+        padding-right: 12px;
+        padding-top: 42px;
         padding-bottom: 18px;
-        spacing: 6px;
+        spacing: 4px;
 
         HorizontalLayout {
-            height: 54px;
-            spacing: 10px;
+            height: 46px;
+            padding-left: 14px;
+            spacing: 7px;
             cross-axis-alignment: center;
 
             Image {
-                width: 34px;
-                height: 34px;
-                source: @image-url("../icons/saymore-icon.svg");
+                width: UiTuning.brand-logo-size * 1px;
+                height: UiTuning.brand-logo-size * 1px;
+                source: @image-url("../icons/saymore-mark-3d-136.png");
                 image-fit: contain;
                 image-rendering: smooth;
             }
 
             Text {
                 text: "Saymore";
-                color: #18181b;
-                font-size: 17px;
-                font-weight: 700;
+                color: AppColors.ink;
+                font-size: UiTuning.brand-font-size * 1px;
+                font-weight: 800;
                 vertical-alignment: center;
+            }
+
+            if root.development-environment: Rectangle {
+                width: 31px;
+                height: 18px;
+                border-radius: 5px;
+                background: AppColors.warning-soft;
+
+                Text {
+                    text: "DEV";
+                    color: AppColors.warning;
+                    font-size: 9px;
+                    font-weight: 700;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
             }
         }
 
-        Rectangle { height: 10px; background: transparent; }
+        Rectangle { height: 4px; background: transparent; }
 
-        NavItem { label: "首页"; selected: root.current-page == AppPage.home; activated => { root.current-page = AppPage.home; } }
-        NavItem { label: "历史记录"; selected: root.current-page == AppPage.history; activated => { root.current-page = AppPage.history; } }
-        NavItem { label: "词典"; selected: root.current-page == AppPage.dictionary; activated => { root.current-page = AppPage.dictionary; } }
+        NavItem { label: "首页"; icon: @image-url("../icons/lucide/house.svg"); selected: root.current-page == AppPage.home; activated => { root.current-page = AppPage.home; } }
+        NavItem { label: "模型"; icon: @image-url("../icons/lucide/sparkles.svg"); selected: root.current-page == AppPage.models; activated => { root.current-page = AppPage.models; } }
+        NavItem { label: "历史"; icon: @image-url("../icons/lucide/history.svg"); selected: root.current-page == AppPage.history; activated => { root.current-page = AppPage.history; } }
+        NavItem { label: "词典"; icon: @image-url("../icons/lucide/book-open.svg"); selected: root.current-page == AppPage.dictionary; activated => { root.current-page = AppPage.dictionary; } }
+        NavItem { label: "设置"; icon: @image-url("../icons/lucide/settings.svg"); selected: root.current-page == AppPage.settings; activated => { root.current-page = AppPage.settings; } }
 
         Rectangle { vertical-stretch: 1; background: transparent; }
 
-        NavItem { label: "设置"; selected: root.current-page == AppPage.settings; activated => { root.current-page = AppPage.settings; } }
+        Rectangle {
+            height: 118px;
+            border-radius: 14px;
+            background: AppColors.surface;
+
+            VerticalLayout {
+                padding-left: 12px;
+                padding-right: 12px;
+                padding-top: 12px;
+                padding-bottom: 10px;
+                spacing: 6px;
+
+                Text { text: "本地存储"; color: AppColors.text-muted; font-size: 11px; font-weight: 600; }
+                HorizontalLayout {
+                    height: 22px;
+                    spacing: 4px;
+                    Text { text: "0 MB"; color: AppColors.ink; font-size: 15px; font-weight: 700; }
+                    Text { text: "/ 2 GB"; color: AppColors.text-muted; font-size: 10px; vertical-alignment: bottom; }
+                    Rectangle { horizontal-stretch: 1; background: transparent; }
+                }
+                Rectangle { height: 4px; border-radius: 2px; background: AppColors.border; }
+                Rectangle {
+                    height: 28px;
+                    border-radius: 7px;
+                    background: AppColors.surface-muted;
+                    Text { text: "管理空间"; color: AppColors.text; font-size: 10px; font-weight: 600; horizontal-alignment: center; vertical-alignment: center; }
+                }
+            }
+        }
 
         Text {
-            height: 24px;
-            text: "v0.1.0";
-            color: #a0a5ad;
-            font-size: 10px;
+            height: 18px;
+            text: "本地优先 · 隐私保护";
+            color: AppColors.text-muted;
+            font-size: 9px;
             horizontal-alignment: center;
             vertical-alignment: bottom;
         }

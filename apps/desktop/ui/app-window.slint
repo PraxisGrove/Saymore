@@ -1,21 +1,31 @@
 import { AppSidebar } from "sidebar.slint";
+import "../fonts/InterVariable.ttf";
 import { HomePage } from "pages/home.slint";
-import { HistoryPage } from "pages/history.slint";
-import { DictionaryPage } from "pages/dictionary.slint";
+import { ModelsPage } from "pages/models.slint";
+import { HistoryListItem, HistoryPage } from "pages/history.slint";
+import { DictionaryListItem, DictionaryPage } from "pages/dictionary.slint";
 import { SettingsPage } from "pages/settings.slint";
-import { AppPage, SettingsSection } from "components.slint";
+import { AppPage, LlmProvider, SettingsSection } from "components.slint";
+import { UiTuning, UiTuningOverlay } from "ui-tuning.slint";
+import { AppColors } from "color-system.slint";
+export { UiTuning } from "ui-tuning.slint";
 export { RecordingOverlay } from "recording-overlay.slint";
 export { ResultOverlay } from "result-overlay.slint";
+export { MicrophoneIntroOverlay, MicrophonePermissionOverlay } from "microphone-access.slint";
+export { LlmProvider } from "components.slint";
 
 export component AppWindow inherits Window {
-    title: "Saymore";
+    title: root.development-environment ? "Saymore Preview" : "Saymore";
+    default-font-family: "Inter";
+    default-font-size: 13px;
     preferred-width: 920px;
     preferred-height: 620px;
     min-width: 820px;
     min-height: 560px;
-    background: #fafbfc;
+    background: AppColors.canvas;
 
     in-out property <AppPage> current-page: AppPage.home;
+    in property <bool> development-environment: false;
     in-out property <SettingsSection> settings-section: SettingsSection.general;
     in property <bool> authorized: false;
     in property <string> authorization-status: "检测中";
@@ -24,6 +34,7 @@ export component AppWindow inherits Window {
     in property <bool> recording-active: false;
     in property <bool> recording-failed: false;
     in property <bool> recording-complete: false;
+    in property <bool> recording-attempted: false;
     in property <float> recording-level: 0;
     in property <string> recording-status: "等待录音";
     in property <string> recording-detail: "单击右 Command 开始";
@@ -32,65 +43,185 @@ export component AppWindow inherits Window {
     in property <bool> asr-config-error: false;
     in property <string> asr-config-status: "未配置";
     in-out property <bool> llm-enabled: false;
+    in-out property <LlmProvider> llm-provider: LlmProvider.sensenova;
+    in-out property <string> sensenova-api-key: "";
+    in-out property <string> deepseek-api-key: "";
     in property <string> llm-provider-target: "";
     in property <bool> llm-provider-local: false;
     in property <string> llm-config-status: "未启用";
     in-out property <bool> llm-confirmation-visible: false;
+    in property <bool> ui-tuning-available: false;
+    in-out property <bool> ui-tuning-visible: false;
+    in-out property <string> ui-tuning-copy-status: "";
+    in property <[HistoryListItem]> history-items;
+    in property <string> history-status: "";
+    in property <bool> history-undo-visible: false;
+    in property <bool> history-has-more: false;
+    in property <bool> history-locked: false;
+    in property <[DictionaryListItem]> dictionary-items;
+    in property <string> dictionary-status: "";
+    in-out property <bool> history-enabled: true;
+    in-out property <string> history-retention: "7 天";
     callback request-authorization();
     callback request-microphone-authorization();
     callback save-asr-config(string);
     callback delete-asr-config();
     callback request-llm-enable();
     callback set-llm-enabled(bool, string);
+    callback save-llm-config(LlmProvider, string);
+    callback select-llm-provider(LlmProvider);
+    callback copy-ui-tuning(string) -> bool;
+    callback refresh-history();
+    callback load-more-history();
+    callback copy-history(string);
+    callback delete-history(string);
+    callback clear-history();
+    callback reset-history();
+    callback undo-history-delete();
+    callback add-dictionary-word(string, string);
+    callback refresh-dictionary();
+    callback delete-dictionary-word(string);
+    callback import-dictionary-csv();
+    callback set-history-enabled(bool);
+    callback set-history-retention(string);
 
-    HorizontalLayout {
-        spacing: 0px;
+    changed current-page => {
+        if root.current-page == AppPage.history {
+            root.refresh-history();
+        }
+    }
 
-        AppSidebar { current-page <=> root.current-page; }
+    if root.current-page != AppPage.settings: HorizontalLayout {
+        padding: UiTuning.outer-padding * 1px;
+        spacing: UiTuning.shell-gap * 1px;
 
-        if root.current-page == AppPage.home: HomePage {
-            authorized: root.authorized;
-            authorization-status: root.authorization-status;
-            microphone-authorized: root.microphone-authorized;
-            microphone-status: root.microphone-status;
-            asr-configured: root.asr-configured;
-            asr-config-error: root.asr-config-error;
-            asr-config-status: root.asr-config-status;
-            llm-enabled: root.llm-enabled;
-            recording-active: root.recording-active;
-            recording-failed: root.recording-failed;
-            recording-complete: root.recording-complete;
-            recording-level: root.recording-level;
-            recording-status: root.recording-status;
-            recording-detail: root.recording-detail;
-            open-model-settings => { root.settings-section = SettingsSection.voice-models; root.current-page = AppPage.settings; }
-            open-delivery-settings => { root.settings-section = SettingsSection.delivery-permissions; root.current-page = AppPage.settings; }
+        AppSidebar {
+            current-page <=> root.current-page;
+            development-environment: root.development-environment;
         }
 
-        if root.current-page == AppPage.history: HistoryPage { }
-        if root.current-page == AppPage.dictionary: DictionaryPage { }
+        Rectangle {
+            horizontal-stretch: 1;
+            vertical-stretch: 1;
+            background: transparent;
 
-        if root.current-page == AppPage.settings: SettingsPage {
-            current-section <=> root.settings-section;
-            authorized: root.authorized;
-            authorization-status: root.authorization-status;
-            microphone-authorized: root.microphone-authorized;
-            microphone-status: root.microphone-status;
-            asr-api-key <=> root.asr-api-key;
-            asr-configured: root.asr-configured;
-            asr-config-error: root.asr-config-error;
-            asr-config-status: root.asr-config-status;
-            llm-enabled <=> root.llm-enabled;
-            llm-provider-target: root.llm-provider-target;
-            llm-provider-local: root.llm-provider-local;
-            llm-config-status: root.llm-config-status;
-            llm-confirmation-visible <=> root.llm-confirmation-visible;
-            request-authorization => { root.request-authorization(); }
-            request-microphone-authorization => { root.request-microphone-authorization(); }
-            save-asr-config(api-key) => { root.save-asr-config(api-key); }
-            delete-asr-config => { root.delete-asr-config(); }
-            request-llm-enable => { root.request-llm-enable(); }
-            set-llm-enabled(enabled, base-url) => { root.set-llm-enabled(enabled, base-url); }
+            if root.current-page == AppPage.home: HomePage {
+                width: parent.width;
+                height: parent.height;
+                authorized: root.authorized;
+                authorization-status: root.authorization-status;
+                microphone-authorized: root.microphone-authorized;
+                microphone-status: root.microphone-status;
+                asr-configured: root.asr-configured;
+                asr-config-error: root.asr-config-error;
+                asr-config-status: root.asr-config-status;
+                llm-enabled: root.llm-enabled;
+                recording-active: root.recording-active;
+                recording-failed: root.recording-failed;
+                recording-complete: root.recording-complete;
+                recording-attempted: root.recording-attempted;
+                recording-level: root.recording-level;
+                recording-status: root.recording-status;
+                recording-detail: root.recording-detail;
+                open-model-settings => { root.current-page = AppPage.models; }
+                open-delivery-settings => { root.settings-section = SettingsSection.delivery-permissions; root.current-page = AppPage.settings; }
+            }
+
+            if root.current-page == AppPage.models: ModelsPage {
+                width: parent.width;
+                height: parent.height;
+                asr-api-key <=> root.asr-api-key;
+                asr-configured: root.asr-configured;
+                asr-config-error: root.asr-config-error;
+                asr-config-status: root.asr-config-status;
+                llm-enabled <=> root.llm-enabled;
+                llm-provider <=> root.llm-provider;
+                sensenova-api-key <=> root.sensenova-api-key;
+                deepseek-api-key <=> root.deepseek-api-key;
+                llm-provider-target: root.llm-provider-target;
+                llm-provider-local: root.llm-provider-local;
+                llm-config-status: root.llm-config-status;
+                llm-confirmation-visible <=> root.llm-confirmation-visible;
+                save-asr-config(api-key) => { root.save-asr-config(api-key); }
+                delete-asr-config => { root.delete-asr-config(); }
+                request-llm-enable => { root.request-llm-enable(); }
+                set-llm-enabled(enabled, base-url) => { root.set-llm-enabled(enabled, base-url); }
+                save-llm-config(provider, api-key) => { root.save-llm-config(provider, api-key); }
+                select-llm-provider(provider) => { root.select-llm-provider(provider); }
+            }
+
+            if root.current-page == AppPage.history: HistoryPage {
+                width: parent.width;
+                height: parent.height;
+                items: root.history-items;
+                status-text: root.history-status;
+                undo-visible: root.history-undo-visible;
+                has-more: root.history-has-more;
+                locked: root.history-locked;
+                refresh => { root.refresh-history(); }
+                load-more => { root.load-more-history(); }
+                copy(id) => { root.copy-history(id); }
+                delete-record(id) => { root.delete-history(id); }
+                clear-all => { root.clear-history(); }
+                reset => { root.reset-history(); }
+                undo-delete => { root.undo-history-delete(); }
+            }
+            if root.current-page == AppPage.dictionary: DictionaryPage {
+                width: parent.width;
+                height: parent.height;
+                items: root.dictionary-items;
+                status-text: root.dictionary-status;
+                add-word(word, language) => { root.add-dictionary-word(word, language); }
+                delete-word(id) => { root.delete-dictionary-word(id); }
+                import-csv => { root.import-dictionary-csv(); }
+            }
+
+        }
+    }
+
+    if root.current-page == AppPage.settings: SettingsPage {
+        width: parent.width;
+        height: parent.height;
+        current-section <=> root.settings-section;
+        authorized: root.authorized;
+        authorization-status: root.authorization-status;
+        microphone-authorized: root.microphone-authorized;
+        microphone-status: root.microphone-status;
+        history-enabled <=> root.history-enabled;
+        history-retention <=> root.history-retention;
+        back-to-app => { root.current-page = AppPage.home; }
+        request-authorization => { root.request-authorization(); }
+        request-microphone-authorization => { root.request-microphone-authorization(); }
+        set-history-enabled(enabled) => { root.set-history-enabled(enabled); }
+        set-history-retention(retention) => { root.set-history-retention(retention); }
+    }
+
+    if root.ui-tuning-available && !root.ui-tuning-visible: Rectangle {
+        x: parent.width - self.width - 18px;
+        y: parent.height - self.height - 18px;
+        width: 58px;
+        height: 30px;
+        border-radius: 7px;
+        background: tuning-touch.has-hover ? AppColors.brand-strong : AppColors.brand;
+        drop-shadow-blur: 10px;
+        drop-shadow-offset-y: 2px;
+        drop-shadow-color: #17130e24;
+        accessible-role: button;
+        accessible-label: "打开 UI 调参";
+        accessible-action-default => { root.ui-tuning-visible = true; }
+
+        Text { text: "调参"; color: #ffffff; font-size: 11px; font-weight: 650; horizontal-alignment: center; vertical-alignment: center; }
+        tuning-touch := TouchArea { clicked => { root.ui-tuning-visible = true; } }
+    }
+
+    if root.ui-tuning-visible: UiTuningOverlay {
+        width: parent.width;
+        height: parent.height;
+        copy-status: root.ui-tuning-copy-status;
+        close-requested => { root.ui-tuning-visible = false; }
+        parameters-changed => { root.ui-tuning-copy-status = ""; }
+        copy-requested(config) => {
+            root.ui-tuning-copy-status = root.copy-ui-tuning(config) ? "已复制，可直接发给 Codex" : "复制失败";
         }
     }
 }

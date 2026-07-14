@@ -1,0 +1,334 @@
+export global UiTuning {
+    out property <int> outer-padding: 10;
+    in-out property <int> shell-gap: 12;
+    in-out property <int> sidebar-width: 184;
+    in-out property <int> sidebar-radius: 18;
+    in-out property <int> brand-logo-size: 34;
+    in-out property <int> brand-font-size: 26;
+    in-out property <int> home-left-padding: 20;
+    in-out property <int> home-top-padding: 36;
+    in-out property <int> section-gap: 14;
+    in-out property <int> column-gap: 14;
+    in-out property <int> card-radius: 12;
+    in-out property <int> stats-width: 170;
+    in-out property <int> grid-size: 8;
+    in-out property <bool> grid-visible: true;
+    in-out property <bool> baselines-visible: true;
+
+    public function reset() {
+        self.shell-gap = 12;
+        self.sidebar-width = 184;
+        self.sidebar-radius = 18;
+        self.brand-logo-size = 34;
+        self.brand-font-size = 26;
+        self.home-left-padding = 20;
+        self.home-top-padding = 36;
+        self.section-gap = 14;
+        self.column-gap = 14;
+        self.card-radius = 12;
+        self.stats-width = 170;
+        self.grid-size = 8;
+    }
+}
+
+component StepButton inherits Rectangle {
+    in property <string> label;
+    callback activated();
+    width: 26px;
+    height: 22px;
+    border-radius: 5px;
+    background: touch.has-hover ? #e5e1da : #f1eee9;
+    accessible-role: button;
+    accessible-label: root.label;
+    accessible-action-default => { root.activated(); }
+
+    Text {
+        text: root.label;
+        color: #36322e;
+        font-size: 15px;
+        font-weight: 650;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+
+    touch := TouchArea { clicked => { root.activated(); } }
+}
+
+component TuningRow inherits Rectangle {
+    in property <string> label;
+    in-out property <int> value;
+    in property <int> minimum;
+    in property <int> maximum;
+    in property <int> step: 1;
+    callback changed();
+    height: 28px;
+    background: transparent;
+
+    HorizontalLayout {
+        spacing: 7px;
+        cross-axis-alignment: center;
+
+        Text {
+            text: root.label;
+            color: #49443e;
+            font-size: 11px;
+            horizontal-stretch: 1;
+            vertical-alignment: center;
+        }
+
+        StepButton {
+            label: "−";
+            activated => {
+                root.value = max(root.minimum, root.value - root.step);
+                root.changed();
+            }
+        }
+
+        Text {
+            width: 38px;
+            text: root.value;
+            color: #1e1c19;
+            font-size: 11px;
+            font-weight: 650;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+        }
+
+        StepButton {
+            label: "+";
+            activated => {
+                root.value = min(root.maximum, root.value + root.step);
+                root.changed();
+            }
+        }
+    }
+}
+
+component ToggleRow inherits Rectangle {
+    in property <string> label;
+    in-out property <bool> checked;
+    height: 26px;
+    background: transparent;
+    accessible-role: checkbox;
+    accessible-label: root.label;
+    accessible-checked: root.checked;
+    accessible-action-default => { root.checked = !root.checked; }
+
+    HorizontalLayout {
+        spacing: 8px;
+        cross-axis-alignment: center;
+        Text { text: root.label; color: #49443e; font-size: 11px; horizontal-stretch: 1; }
+        Rectangle {
+            width: 34px;
+            height: 18px;
+            border-radius: 9px;
+            background: root.checked ? #176b4c : #d8d3cc;
+            Rectangle {
+                x: root.checked ? 18px : 2px;
+                y: 2px;
+                width: 14px;
+                height: 14px;
+                border-radius: 7px;
+                background: #ffffff;
+                animate x { duration: 100ms; easing: ease-out; }
+            }
+        }
+    }
+
+    TouchArea { clicked => { root.checked = !root.checked; } }
+}
+
+export component UiTuningOverlay inherits Rectangle {
+    in property <string> copy-status;
+    in-out property <bool> dock-left: false;
+    in-out property <int> panel-page: 0;
+    callback close-requested();
+    callback copy-requested(string);
+    callback parameters-changed();
+    background: transparent;
+
+    if UiTuning.grid-visible: Rectangle {
+        for vertical[index] in 240: Rectangle {
+            x: index * UiTuning.grid-size * 1px;
+            width: 1px;
+            height: parent.height;
+            background: #1677ff1f;
+        }
+        for horizontal[index] in 140: Rectangle {
+            y: index * UiTuning.grid-size * 1px;
+            width: parent.width;
+            height: 1px;
+            background: #1677ff1f;
+        }
+    }
+
+    if UiTuning.baselines-visible: Rectangle {
+        Rectangle {
+            x: (UiTuning.outer-padding + 26) * 1px;
+            width: 1px;
+            height: parent.height;
+            background: #e54b4b99;
+        }
+        Rectangle {
+            x: (UiTuning.outer-padding + UiTuning.sidebar-width + UiTuning.shell-gap + UiTuning.home-left-padding) * 1px;
+            width: 1px;
+            height: parent.height;
+            background: #e54b4b99;
+        }
+        Rectangle {
+            y: (UiTuning.outer-padding + UiTuning.home-top-padding) * 1px;
+            width: parent.width;
+            height: 1px;
+            background: #e54b4b99;
+        }
+        Rectangle {
+            y: (UiTuning.outer-padding + UiTuning.home-top-padding + 42 + UiTuning.section-gap) * 1px;
+            width: parent.width;
+            height: 1px;
+            background: #e54b4b99;
+        }
+    }
+
+    panel := Rectangle {
+        x: root.dock-left ? 12px : parent.width - self.width - 12px;
+        y: 46px;
+        width: 292px;
+        height: 396px;
+        border-width: 1px;
+        border-color: #d8d3cc;
+        border-radius: 8px;
+        background: #fffefcf5;
+        drop-shadow-blur: 18px;
+        drop-shadow-offset-y: 4px;
+        drop-shadow-color: #17130e2e;
+
+        TouchArea { }
+
+        VerticalLayout {
+            padding-left: 14px;
+            padding-right: 14px;
+            padding-top: 10px;
+            padding-bottom: 10px;
+            spacing: 2px;
+
+            HorizontalLayout {
+                height: 30px;
+                cross-axis-alignment: center;
+                Text { text: "UI 调参"; color: #1b1916; font-size: 15px; font-weight: 700; horizontal-stretch: 1; }
+                StepButton { label: "⇆"; activated => { root.dock-left = !root.dock-left; } }
+                StepButton { label: "×"; activated => { root.close-requested(); } }
+            }
+
+            Text {
+                height: 22px;
+                text: "所有数值实时作用于当前窗口";
+                color: #817b73;
+                font-size: 10px;
+                vertical-alignment: center;
+            }
+
+            HorizontalLayout {
+                height: 28px;
+                spacing: 4px;
+
+                Rectangle {
+                    border-radius: 6px;
+                    background: root.panel-page == 0 ? #e8e4de : transparent;
+                    Text { text: "布局"; color: #3f3a35; font-size: 11px; font-weight: 600; horizontal-alignment: center; vertical-alignment: center; }
+                    TouchArea { clicked => { root.panel-page = 0; } }
+                }
+                Rectangle {
+                    border-radius: 6px;
+                    background: root.panel-page == 1 ? #e8e4de : transparent;
+                    Text { text: "品牌与样式"; color: #3f3a35; font-size: 11px; font-weight: 600; horizontal-alignment: center; vertical-alignment: center; }
+                    TouchArea { clicked => { root.panel-page = 1; } }
+                }
+            }
+
+            if root.panel-page == 0: VerticalLayout {
+                spacing: 2px;
+                TuningRow { label: "侧栏与内容间距"; value <=> UiTuning.shell-gap; minimum: 0; maximum: 32; changed => { root.parameters-changed(); } }
+                TuningRow { label: "侧栏宽度"; value <=> UiTuning.sidebar-width; minimum: 150; maximum: 240; step: 2; changed => { root.parameters-changed(); } }
+                TuningRow { label: "主页左边距"; value <=> UiTuning.home-left-padding; minimum: 0; maximum: 48; step: 2; changed => { root.parameters-changed(); } }
+                TuningRow { label: "主页上边距"; value <=> UiTuning.home-top-padding; minimum: 12; maximum: 64; step: 2; changed => { root.parameters-changed(); } }
+                TuningRow { label: "主页区块间距"; value <=> UiTuning.section-gap; minimum: 4; maximum: 32; changed => { root.parameters-changed(); } }
+                TuningRow { label: "主栏与右栏间距"; value <=> UiTuning.column-gap; minimum: 4; maximum: 32; changed => { root.parameters-changed(); } }
+                TuningRow { label: "统计栏宽度"; value <=> UiTuning.stats-width; minimum: 140; maximum: 220; step: 2; changed => { root.parameters-changed(); } }
+            }
+
+            if root.panel-page == 1: VerticalLayout {
+                spacing: 2px;
+                TuningRow { label: "侧栏圆角"; value <=> UiTuning.sidebar-radius; minimum: 0; maximum: 28; changed => { root.parameters-changed(); } }
+                TuningRow { label: "Logo 尺寸"; value <=> UiTuning.brand-logo-size; minimum: 22; maximum: 46; changed => { root.parameters-changed(); } }
+                TuningRow { label: "品牌字号"; value <=> UiTuning.brand-font-size; minimum: 18; maximum: 32; changed => { root.parameters-changed(); } }
+                TuningRow { label: "主页卡片圆角"; value <=> UiTuning.card-radius; minimum: 0; maximum: 24; changed => { root.parameters-changed(); } }
+            }
+
+            Rectangle { height: 1px; background: #ebe7e1; }
+            ToggleRow { label: "显示 8 px 网格"; checked <=> UiTuning.grid-visible; }
+            ToggleRow { label: "显示关键基线"; checked <=> UiTuning.baselines-visible; }
+
+            HorizontalLayout {
+                height: 32px;
+                spacing: 8px;
+
+                Rectangle {
+                    border-radius: 6px;
+                    background: reset-touch.has-hover ? #e5e1da : #f1eee9;
+                    accessible-role: button;
+                    accessible-label: "恢复默认 UI 参数";
+                    accessible-action-default => {
+                        UiTuning.reset();
+                        root.parameters-changed();
+                    }
+                    Text { text: "恢复默认"; color: #3f3a35; font-size: 11px; font-weight: 600; horizontal-alignment: center; vertical-alignment: center; }
+                    reset-touch := TouchArea {
+                        clicked => {
+                            UiTuning.reset();
+                            root.parameters-changed();
+                        }
+                    }
+                }
+
+                Rectangle {
+                    border-radius: 6px;
+                    background: copy-touch.has-hover ? #105b40 : #176b4c;
+                    accessible-role: button;
+                    accessible-label: "复制当前 UI 参数";
+                    Text { text: "复制参数"; color: #ffffff; font-size: 11px; font-weight: 650; horizontal-alignment: center; vertical-alignment: center; }
+                    accessible-action-default => {
+                        root.copy-requested(root.parameter-summary());
+                    }
+                    copy-touch := TouchArea {
+                        clicked => {
+                            root.copy-requested(root.parameter-summary());
+                        }
+                    }
+                }
+            }
+
+            Text {
+                height: 16px;
+                text: root.copy-status;
+                color: #176b4c;
+                font-size: 10px;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+        }
+    }
+
+    pure function parameter-summary() -> string {
+        return "shell-gap=" + UiTuning.shell-gap
+            + "\nsidebar-width=" + UiTuning.sidebar-width
+            + "\nsidebar-radius=" + UiTuning.sidebar-radius
+            + "\nbrand-logo-size=" + UiTuning.brand-logo-size
+            + "\nbrand-font-size=" + UiTuning.brand-font-size
+            + "\nhome-left-padding=" + UiTuning.home-left-padding
+            + "\nhome-top-padding=" + UiTuning.home-top-padding
+            + "\nsection-gap=" + UiTuning.section-gap
+            + "\ncolumn-gap=" + UiTuning.column-gap
+            + "\ncard-radius=" + UiTuning.card-radius
+            + "\nstats-width=" + UiTuning.stats-width;
+    }
+}
