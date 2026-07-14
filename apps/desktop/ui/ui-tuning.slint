@@ -1,9 +1,9 @@
 export global UiTuning {
     out property <int> outer-padding: 10;
-    in-out property <int> shell-gap: 12;
-    in-out property <int> sidebar-width: 184;
+    in-out property <int> shell-gap: 20;
+    in-out property <int> sidebar-width: 205;
     in-out property <int> sidebar-radius: 18;
-    in-out property <int> brand-logo-size: 34;
+    in-out property <int> brand-logo-size: 30;
     in-out property <int> brand-font-size: 26;
     in-out property <int> home-left-padding: 20;
     in-out property <int> home-top-padding: 36;
@@ -16,10 +16,10 @@ export global UiTuning {
     in-out property <bool> baselines-visible: true;
 
     public function reset() {
-        self.shell-gap = 12;
-        self.sidebar-width = 184;
+        self.shell-gap = 20;
+        self.sidebar-width = 205;
         self.sidebar-radius = 18;
-        self.brand-logo-size = 34;
+        self.brand-logo-size = 30;
         self.brand-font-size = 26;
         self.home-left-padding = 20;
         self.home-top-padding = 36;

@@ -1,5 +1,4 @@
 import { AppSidebar } from "sidebar.slint";
-import "../fonts/InterVariable.ttf";
 import { HomePage } from "pages/home.slint";
 import { ModelsPage } from "pages/models.slint";
 import { HistoryListItem, HistoryPage } from "pages/history.slint";
@@ -16,7 +15,7 @@ export { LlmProvider } from "components.slint";
 
 export component AppWindow inherits Window {
     title: root.development-environment ? "Saymore Preview" : "Saymore";
-    default-font-family: "Inter";
+    default-font-family: "PingFang SC";
     default-font-size: 13px;
     preferred-width: 920px;
     preferred-height: 620px;
@@ -27,6 +26,7 @@ export component AppWindow inherits Window {
     in-out property <AppPage> current-page: AppPage.home;
     in property <bool> development-environment: false;
     in-out property <SettingsSection> settings-section: SettingsSection.general;
+    in-out property <bool> focus-asr-config: false;
     in property <bool> authorized: false;
     in property <string> authorization-status: "检测中";
     in property <bool> microphone-authorized: false;
@@ -38,6 +38,16 @@ export component AppWindow inherits Window {
     in property <float> recording-level: 0;
     in property <string> recording-status: "等待录音";
     in property <string> recording-detail: "单击右 Command 开始";
+    in property <string> shortcut-label: "右 Command";
+    in property <bool> shortcut-enabled: true;
+    in property <bool> delivery-healthy: true;
+    in property <string> delivery-status: "文本投递正常";
+    in property <string> usage-total-minutes: "0";
+    in property <string> usage-total-characters: "0";
+    in property <string> usage-average-speed: "0";
+    in property <[float]> usage-trend;
+    in property <[string]> usage-day-labels;
+    in property <int> usage-highlighted-day: -1;
     in-out property <string> asr-api-key: "";
     in property <bool> asr-configured: false;
     in property <bool> asr-config-error: false;
@@ -64,6 +74,9 @@ export component AppWindow inherits Window {
     in-out property <string> history-retention: "7 天";
     callback request-authorization();
     callback request-microphone-authorization();
+    callback open-microphone-settings();
+    callback open-accessibility-settings();
+    callback refresh-usage();
     callback save-asr-config(string);
     callback delete-asr-config();
     callback request-llm-enable();
@@ -115,21 +128,26 @@ export component AppWindow inherits Window {
                 asr-configured: root.asr-configured;
                 asr-config-error: root.asr-config-error;
                 asr-config-status: root.asr-config-status;
-                llm-enabled: root.llm-enabled;
-                recording-active: root.recording-active;
-                recording-failed: root.recording-failed;
-                recording-complete: root.recording-complete;
-                recording-attempted: root.recording-attempted;
-                recording-level: root.recording-level;
-                recording-status: root.recording-status;
-                recording-detail: root.recording-detail;
-                open-model-settings => { root.current-page = AppPage.models; }
+                shortcut-label: root.shortcut-label;
+                shortcut-enabled: root.shortcut-enabled;
+                delivery-healthy: root.delivery-healthy;
+                delivery-status: root.delivery-status;
+                usage-total-minutes: root.usage-total-minutes;
+                usage-total-characters: root.usage-total-characters;
+                usage-average-speed: root.usage-average-speed;
+                usage-trend: root.usage-trend;
+                usage-day-labels: root.usage-day-labels;
+                usage-highlighted-day: root.usage-highlighted-day;
+                open-model-settings => { root.focus-asr-config = true; root.current-page = AppPage.models; }
+                open-microphone-settings => { root.open-microphone-settings(); }
+                open-accessibility-settings => { root.open-accessibility-settings(); }
                 open-delivery-settings => { root.settings-section = SettingsSection.delivery-permissions; root.current-page = AppPage.settings; }
             }
 
             if root.current-page == AppPage.models: ModelsPage {
                 width: parent.width;
                 height: parent.height;
+                focus-asr-config: root.focus-asr-config;
                 asr-api-key <=> root.asr-api-key;
                 asr-configured: root.asr-configured;
                 asr-config-error: root.asr-config-error;

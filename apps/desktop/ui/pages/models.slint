@@ -37,6 +37,9 @@ component ModelApiKeyField inherits Rectangle {
 }
 
 export component ModelsPage inherits Rectangle {
+    in property <bool> focus-asr-config: false;
+    forward-focus: api-input;
+    init => { if root.focus-asr-config { root.focus(); } }
     in-out property <string> asr-api-key;
     in property <bool> asr-configured;
     in property <bool> asr-config-error;

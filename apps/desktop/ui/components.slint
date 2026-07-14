@@ -60,34 +60,30 @@ export component NavItem inherits Rectangle {
     callback activated();
     height: 38px;
     border-radius: 6px;
-    background: root.selected ? AppColors.surface-muted : transparent;
+    background: root.selected ? AppColors.selected : transparent;
     accessible-role: button;
     accessible-label: root.label;
     accessible-action-default => { root.activated(); }
 
-    HorizontalLayout {
-        padding-left: 14px;
-        padding-right: 12px;
-        spacing: 10px;
-        cross-axis-alignment: center;
+    Image {
+        x: 12px;
+        y: 10px;
+        width: 17px;
+        height: 17px;
+        source: root.icon;
+        colorize: root.selected ? AppColors.ink : AppColors.text-muted;
+        image-fit: contain;
+        image-rendering: smooth;
+    }
 
-        Image {
-            width: 17px;
-            height: 17px;
-            source: root.icon;
-            image-fit: contain;
-            image-rendering: smooth;
-        }
-
-        Text {
-            text: root.label;
-            color: root.selected ? AppColors.ink : AppColors.text-muted;
-            font-size: 14px;
-            font-weight: root.selected ? 650 : 500;
-            vertical-alignment: center;
-        }
-
-        Rectangle { horizontal-stretch: 1; background: transparent; }
+    Text {
+        x: 40px;
+        width: parent.width - 40px;
+        text: root.label;
+        color: root.selected ? AppColors.ink : AppColors.text-muted;
+        font-size: 14px;
+        font-weight: root.selected ? 650 : 500;
+        vertical-alignment: center;
     }
 
     TouchArea { clicked => { root.activated(); } }
