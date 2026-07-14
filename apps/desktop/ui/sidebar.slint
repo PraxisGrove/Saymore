@@ -1,18 +1,16 @@
 import { AppPage, NavItem } from "components.slint";
 import { AppColors } from "color-system.slint";
-import { UiTuning } from "ui-tuning.slint";
 
 export component AppSidebar inherits Rectangle {
     in-out property <AppPage> current-page: AppPage.home;
-    in property <bool> development-environment: false;
-    width: UiTuning.sidebar-width * 1px;
+    width: 205px;
     background: AppColors.sidebar;
-    border-radius: UiTuning.sidebar-radius * 1px;
+    border-radius: 18px;
 
     Image {
         x: 26px;
         y: 48px;
-        width: UiTuning.brand-logo-size * 1px;
+        width: 30px;
         height: 35px;
         source: @image-url("../icons/saymore-mark-3d-136.png");
         image-fit: contain;
@@ -24,18 +22,8 @@ export component AppSidebar inherits Rectangle {
         y: 48px;
         text: "Saymore";
         color: AppColors.ink;
-        font-size: UiTuning.brand-font-size * 1px;
+        font-size: 26px;
         font-weight: 700;
-    }
-
-    if root.development-environment: Rectangle {
-        x: 161px;
-        y: 56px;
-        width: 31px;
-        height: 18px;
-        border-radius: 5px;
-        background: AppColors.warning-soft;
-        Text { text: "DEV"; color: AppColors.warning; font-size: 9px; font-weight: 700; horizontal-alignment: center; vertical-alignment: center; }
     }
 
     NavItem { x: 26px; y: 109px; width: 146px; label: "首页"; icon: @image-url("../icons/lucide/house.svg"); selected: root.current-page == AppPage.home; activated => { root.current-page = AppPage.home; } }

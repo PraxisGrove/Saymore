@@ -5,9 +5,7 @@ import { HistoryListItem, HistoryPage } from "pages/history.slint";
 import { DictionaryListItem, DictionaryPage } from "pages/dictionary.slint";
 import { SettingsPage } from "pages/settings.slint";
 import { AppPage, LlmProvider, SettingsSection } from "components.slint";
-import { UiTuning, UiTuningOverlay } from "ui-tuning.slint";
 import { AppColors } from "color-system.slint";
-export { UiTuning } from "ui-tuning.slint";
 export { RecordingOverlay } from "recording-overlay.slint";
 export { ResultOverlay } from "result-overlay.slint";
 export { MicrophoneIntroOverlay, MicrophonePermissionOverlay } from "microphone-access.slint";
@@ -60,9 +58,6 @@ export component AppWindow inherits Window {
     in property <bool> llm-provider-local: false;
     in property <string> llm-config-status: "未启用";
     in-out property <bool> llm-confirmation-visible: false;
-    in property <bool> ui-tuning-available: false;
-    in-out property <bool> ui-tuning-visible: false;
-    in-out property <string> ui-tuning-copy-status: "";
     in property <[HistoryListItem]> history-items;
     in property <string> history-status: "";
     in property <bool> history-undo-visible: false;
@@ -83,7 +78,6 @@ export component AppWindow inherits Window {
     callback set-llm-enabled(bool, string);
     callback save-llm-config(LlmProvider, string);
     callback select-llm-provider(LlmProvider);
-    callback copy-ui-tuning(string) -> bool;
     callback refresh-history();
     callback load-more-history();
     callback copy-history(string);
@@ -105,12 +99,11 @@ export component AppWindow inherits Window {
     }
 
     if root.current-page != AppPage.settings: HorizontalLayout {
-        padding: UiTuning.outer-padding * 1px;
-        spacing: UiTuning.shell-gap * 1px;
+        padding: 10px;
+        spacing: 20px;
 
         AppSidebar {
             current-page <=> root.current-page;
-            development-environment: root.development-environment;
         }
 
         Rectangle {
@@ -214,32 +207,13 @@ export component AppWindow inherits Window {
         set-history-retention(retention) => { root.set-history-retention(retention); }
     }
 
-    if root.ui-tuning-available && !root.ui-tuning-visible: Rectangle {
-        x: parent.width - self.width - 18px;
-        y: parent.height - self.height - 18px;
-        width: 58px;
-        height: 30px;
-        border-radius: 7px;
-        background: tuning-touch.has-hover ? AppColors.brand-strong : AppColors.brand;
-        drop-shadow-blur: 10px;
-        drop-shadow-offset-y: 2px;
-        drop-shadow-color: #17130e24;
-        accessible-role: button;
-        accessible-label: "打开 UI 调参";
-        accessible-action-default => { root.ui-tuning-visible = true; }
-
-        Text { text: "调参"; color: #ffffff; font-size: 11px; font-weight: 650; horizontal-alignment: center; vertical-alignment: center; }
-        tuning-touch := TouchArea { clicked => { root.ui-tuning-visible = true; } }
-    }
-
-    if root.ui-tuning-visible: UiTuningOverlay {
-        width: parent.width;
-        height: parent.height;
-        copy-status: root.ui-tuning-copy-status;
-        close-requested => { root.ui-tuning-visible = false; }
-        parameters-changed => { root.ui-tuning-copy-status = ""; }
-        copy-requested(config) => {
-            root.ui-tuning-copy-status = root.copy-ui-tuning(config) ? "已复制，可直接发给 Codex" : "复制失败";
-        }
+    if root.development-environment: Rectangle {
+        x: parent.width - self.width - 12px;
+        y: 12px;
+        width: 31px;
+        height: 18px;
+        border-radius: 5px;
+        background: AppColors.warning-soft;
+        Text { text: "DEV"; color: AppColors.warning; font-size: 9px; font-weight: 700; horizontal-alignment: center; vertical-alignment: center; }
     }
 }

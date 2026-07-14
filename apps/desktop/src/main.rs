@@ -73,9 +73,6 @@ mod settings_ui;
 mod ui_status;
 
 #[cfg(target_os = "macos")]
-mod ui_tuning;
-
-#[cfg(target_os = "macos")]
 use asr_runtime::AsrSessionController;
 #[cfg(target_os = "macos")]
 use refinement_runtime::RefinementRuntime;
@@ -176,7 +173,6 @@ fn run() -> Result<(), Box<dyn Error>> {
     settings_ui::wire(&ui, Arc::clone(&settings_store));
     home_stats::wire(&ui, Arc::clone(&local_storage));
     local_data_ui::wire(&ui, Arc::clone(&local_storage));
-    ui_tuning::wire(&ui);
 
     let request_accessibility_ui = ui.as_weak();
     ui.on_request_authorization(move || {

@@ -228,9 +228,7 @@ export component HomePage inherits Rectangle {
 
         private property <length> metric-step: (self.width - 62px) / 3;
         UsageMetric { x: 20px; y: 32px; width: parent.metric-step - 30px; height: 78px; value: root.usage-total-minutes; unit: "分钟"; label: "累计口述"; }
-        Rectangle { x: 20px + parent.metric-step - 30px; y: 32px; width: 1px; height: 68px; background: AppColors.border; }
         UsageMetric { x: 20px + parent.metric-step; y: 32px; width: parent.metric-step - 30px; height: 78px; value: root.usage-total-characters; unit: "字"; label: "累计字数"; }
-        Rectangle { x: 20px + parent.metric-step * 2 - 30px; y: 32px; width: 1px; height: 68px; background: AppColors.border; }
         UsageMetric { x: 20px + parent.metric-step * 2; y: 32px; width: parent.metric-step - 30px; height: 78px; value: root.usage-average-speed; unit: "字/分"; label: "平均速度"; }
 
         Text { x: 20px; y: 116px; text: "最近 7 天趋势"; color: AppColors.text-muted; font-size: 11px; font-weight: 600; }
