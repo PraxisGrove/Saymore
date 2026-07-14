@@ -22,7 +22,7 @@ pub use feedback_sound::{FeedbackSound, FeedbackSoundError, FeedbackSoundPlayer}
 pub use final_text_processing::{
     FinalTextProcessingError, FinalTextProcessor, FinalTextRequest, LlmProvider, LlmProviderError,
     LlmRefinementRequest, ProcessedText, RefinementFallbackReason, RefinementMode,
-    RefinementStatus, RefinementTerm,
+    RefinementSkipReason, RefinementStatus, RefinementTerm, refinement_needed,
 };
 pub use settings::{
     AsrSettings, ChatCompletionsLlmSettings, LlmSettings, SaymoreSettings, SettingsStore,

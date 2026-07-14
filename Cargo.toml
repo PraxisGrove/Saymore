@@ -37,6 +37,8 @@ template-app = { path = "crates/app", version = "0.1.0" }
 template-domain = { path = "crates/domain", version = "0.1.0" }
 template-infra = { path = "crates/infra", version = "0.1.0" }
 thiserror = "2"
+tracing = "0.1"
+tracing-subscriber = "0.3"
 tokio = { version = "1.52.3", features = ["macros", "rt-multi-thread", "sync", "time"] }
 tokio-util = "0.7"
 tokio-tungstenite = { version = "0.30.0", features = ["rustls-tls-webpki-roots"] }

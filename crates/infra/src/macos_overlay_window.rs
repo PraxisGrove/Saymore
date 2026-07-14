@@ -1,7 +1,9 @@
 use std::{ffi::c_void, ptr::NonNull};
 
 use objc2::{MainThreadMarker, rc::Retained};
-use objc2_app_kit::{NSEvent, NSFloatingWindowLevel, NSScreen, NSView, NSWindowCollectionBehavior};
+use objc2_app_kit::{
+    NSEvent, NSFloatingWindowLevel, NSScreen, NSView, NSWindowCollectionBehavior, NSWindowStyleMask,
+};
 use objc2_foundation::{NSPoint, NSPointInRect};
 use thiserror::Error;
 
@@ -35,6 +37,8 @@ pub unsafe fn configure_overlay_window(
     let window = view
         .window()
         .ok_or(MacOsOverlayWindowError::MissingWindow)?;
+    window.setStyleMask(overlay_style_mask(window.styleMask()));
+    window.setHidesOnDeactivate(false);
     let mouse = NSEvent::mouseLocation();
     let screens = NSScreen::screens(mtm);
     let visible_frame = screens
@@ -57,4 +61,21 @@ pub unsafe fn configure_overlay_window(
             | NSWindowCollectionBehavior::Transient,
     );
     Ok(())
+}
+
+fn overlay_style_mask(current: NSWindowStyleMask) -> NSWindowStyleMask {
+    current | NSWindowStyleMask::NonactivatingPanel
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn overlay_windows_do_not_activate_the_application() {
+        assert!(
+            overlay_style_mask(NSWindowStyleMask::Borderless)
+                .contains(NSWindowStyleMask::NonactivatingPanel)
+        );
+    }
 }

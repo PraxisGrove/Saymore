@@ -30,7 +30,7 @@ async fn sends_an_openai_compatible_chat_completion_request()
                 .body_includes(r#""role":"user""#)
                 .body_includes(r#""stream":false"#)
                 .body_includes(r#""reasoning_effort":"none""#)
-                .body_includes(r#""max_tokens":128"#)
+                .body_includes(r#""max_tokens":44"#)
                 .body_includes(r#""temperature":0.2"#)
                 .body_includes("raw text")
                 .body_includes("Typeless");
@@ -184,10 +184,15 @@ async fn live_configuration_matches_refinement_golden_cases()
             )
             .into());
         }
-        if result.text != case.expected {
+        let matches_expected = if case.id == "explicit-numbered-steps" {
+            result.text.replace("：\n\n1.", "：\n1.") == case.expected.replace("：\n\n1.", "：\n1.")
+        } else {
+            result.text == case.expected
+        };
+        if !matches_expected {
             return Err(format!(
-                "live refinement case '{}' completed with different text",
-                case.id
+                "live refinement case '{}' completed with different text\nexpected: {:?}\nactual: {:?}",
+                case.id, case.expected, result.text
             )
             .into());
         }

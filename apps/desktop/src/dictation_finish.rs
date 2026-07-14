@@ -2,11 +2,13 @@ use std::sync::{
     Arc, Mutex,
     atomic::{AtomicBool, Ordering},
 };
+use std::time::Instant;
 
 use slint::{ComponentHandle, SharedString};
 use template_app::{AudioRecorder, FeedbackSound, RecordingError, SpeechRecognitionError};
 use template_infra::MacOsAudioRecorder;
 
+use crate::refinement_runtime::ProcessingActivity;
 use crate::{
     DictationOverlays, TextProcessingServices, delivery_runtime, hide_overlay_after_delay,
     play_feedback_sound,
@@ -27,7 +29,7 @@ pub fn finish_recording(
     processing: TextProcessingServices,
 ) {
     let plan = processing.refinement.plan();
-    let processing_label = plan.processing_label();
+    let processing_label = ProcessingActivity::Transcribing.label();
     let processing_overlay = overlays.status.clone();
     let _ = ui.upgrade_in_event_loop(move |ui| {
         ui.set_recording_active(false);
@@ -85,20 +87,33 @@ fn finish_recording_worker(
 
     let recording_result = recorder.stop();
     let transcription_result = match recording_result {
-        Ok(recording) => processing
-            .asr
-            .finish()
-            .map(|text| (recording, text))
-            .map_err(FinishError::Recognition),
+        Ok(recording) => {
+            let started = Instant::now();
+            let result = processing
+                .asr
+                .finish()
+                .map(|text| (recording, text))
+                .map_err(FinishError::Recognition);
+            log_asr_finalization(&result, started.elapsed().as_millis());
+            result
+        }
         Err(error) => {
             processing.asr.cancel();
             Err(FinishError::Recording(error))
         }
     };
     let processing_result = transcription_result.and_then(|(recording, transcript)| {
+        let activity_ui = ui.clone();
+        let activity_overlay = overlays.status.clone();
         processing
             .refinement
-            .process_final_transcript(&transcript, plan)
+            .process_final_transcript(&transcript, plan, move || {
+                show_processing_activity(
+                    &activity_ui,
+                    &activity_overlay,
+                    ProcessingActivity::Refining,
+                );
+            })
             .map(|processed| (recording, processed))
             .map_err(FinishError::Recognition)
     });
@@ -123,6 +138,41 @@ fn finish_recording_worker(
             play_feedback_sound(FeedbackSound::Failure);
             apply_asr_error(&ui, &error);
             hide_overlay_after_delay(overlays.status);
+        }
+    });
+}
+
+fn log_asr_finalization<T>(result: &Result<T, FinishError>, duration_ms: u128) {
+    match result {
+        Ok(_) => tracing::info!(
+            target: "saymore::diagnostics",
+            event = "asr.finalized",
+            duration_ms
+        ),
+        Err(_) => tracing::warn!(
+            target: "saymore::diagnostics",
+            event = "asr.finalization_failed",
+            duration_ms
+        ),
+    }
+}
+
+pub(crate) fn show_processing_activity(
+    ui: &slint::Weak<AppWindow>,
+    overlay: &slint::Weak<crate::ui::RecordingOverlay>,
+    activity: ProcessingActivity,
+) {
+    match activity {
+        ProcessingActivity::Transcribing => return,
+        ProcessingActivity::Refining => {}
+    }
+    let label = activity.label();
+    let overlay = overlay.clone();
+    let _ = ui.upgrade_in_event_loop(move |ui| {
+        ui.set_recording_status(SharedString::from(label));
+        ui.set_recording_detail(SharedString::from(label));
+        if let Some(overlay) = overlay.upgrade() {
+            overlay.set_processing_label(SharedString::from(label));
         }
     });
 }

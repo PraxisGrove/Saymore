@@ -10,6 +10,8 @@ use crate::refinement_policy::{REFINEMENT_INSTRUCTIONS, accepts_refinement};
 const REFINEMENT_TIMEOUT: Duration = Duration::from_secs(8);
 const FAILURE_PAUSE: Duration = Duration::from_secs(5 * 60);
 const FAILURE_THRESHOLD: u8 = 3;
+const MIN_CJK_REFINEMENT_UNITS: usize = 20;
+const MIN_ENGLISH_REFINEMENT_WORDS: usize = 8;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LlmRefinementRequest {
@@ -59,8 +61,14 @@ pub struct ProcessedText {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RefinementStatus {
     Disabled,
+    Skipped(RefinementSkipReason),
     Completed,
     FellBack(RefinementFallbackReason),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RefinementSkipReason {
+    ShortTranscript,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -134,6 +142,19 @@ impl FinalTextProcessor {
         request: FinalTextRequest,
         cancellation: CancellationToken,
     ) -> Result<ProcessedText, FinalTextProcessingError> {
+        self.process_with_attempt_observer(request, cancellation, || {})
+            .await
+    }
+
+    pub async fn process_with_attempt_observer<F>(
+        &self,
+        request: FinalTextRequest,
+        cancellation: CancellationToken,
+        on_provider_attempt: F,
+    ) -> Result<ProcessedText, FinalTextProcessingError>
+    where
+        F: FnOnce(),
+    {
         reject_cancelled(&cancellation)?;
         let text = clean_transcript(&request.transcript);
         let RefinementMode::Enabled = request.refinement else {
@@ -143,6 +164,13 @@ impl FinalTextProcessor {
                 refinement: RefinementStatus::Disabled,
             });
         };
+        if !refinement_needed(&text, &RefinementMode::Enabled) {
+            reject_cancelled(&cancellation)?;
+            return Ok(ProcessedText {
+                text,
+                refinement: RefinementStatus::Skipped(RefinementSkipReason::ShortTranscript),
+            });
+        }
         let Some(provider) = &self.provider else {
             reject_cancelled(&cancellation)?;
             return Ok(ProcessedText {
@@ -165,6 +193,7 @@ impl FinalTextProcessor {
             language: request.language,
             relevant_terms: relevant_terms.clone(),
         };
+        on_provider_attempt();
         let refined = tokio::select! {
             () = cancellation.cancelled() => return Err(FinalTextProcessingError::Cancelled),
             result = tokio::time::timeout(
@@ -223,6 +252,54 @@ impl FinalTextProcessor {
             }
         }
     }
+}
+
+pub fn refinement_needed(transcript: &str, mode: &RefinementMode) -> bool {
+    if *mode == RefinementMode::Disabled {
+        return false;
+    }
+    let mut cjk_units = 0usize;
+    let mut non_cjk_words = 0usize;
+    let mut inside_non_cjk_word = false;
+    let mut characters = transcript.chars().peekable();
+    while let Some(character) = characters.next() {
+        if is_cjk(character) {
+            cjk_units = cjk_units.saturating_add(1);
+            inside_non_cjk_word = false;
+        } else if character.is_alphanumeric() {
+            if !inside_non_cjk_word {
+                non_cjk_words = non_cjk_words.saturating_add(1);
+                inside_non_cjk_word = true;
+            }
+        } else if is_internal_word_joiner(character)
+            && inside_non_cjk_word
+            && characters.peek().is_some_and(|next| next.is_alphanumeric())
+        {
+            continue;
+        } else {
+            inside_non_cjk_word = false;
+        }
+    }
+    if cjk_units == 0 {
+        non_cjk_words >= MIN_ENGLISH_REFINEMENT_WORDS
+    } else {
+        cjk_units.saturating_add(non_cjk_words.saturating_mul(2)) >= MIN_CJK_REFINEMENT_UNITS
+    }
+}
+
+fn is_internal_word_joiner(character: char) -> bool {
+    matches!(character, '\'' | '\u{2019}' | '-')
+}
+
+fn is_cjk(character: char) -> bool {
+    matches!(
+        character,
+        '\u{3400}'..='\u{4dbf}'
+            | '\u{4e00}'..='\u{9fff}'
+            | '\u{f900}'..='\u{faff}'
+            | '\u{3040}'..='\u{30ff}'
+            | '\u{ac00}'..='\u{d7af}'
+    )
 }
 
 fn reject_cancelled(cancellation: &CancellationToken) -> Result<(), FinalTextProcessingError> {

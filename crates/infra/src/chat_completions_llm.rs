@@ -14,7 +14,7 @@ use template_app::{
 
 const MAX_REQUEST_BYTES: usize = 256 * 1024;
 const MAX_RESPONSE_BYTES: usize = 1024 * 1024;
-const MIN_COMPLETION_TOKENS: u32 = 128;
+const MIN_COMPLETION_TOKENS: u32 = 32;
 const MAX_COMPLETION_TOKENS: u32 = 8_192;
 const PROVIDER_TIMEOUT: Duration = Duration::from_secs(8);
 
@@ -203,7 +203,7 @@ fn completion_token_limit(transcript: &str) -> u32 {
     source_chars
         .saturating_mul(3)
         .div_ceil(2)
-        .saturating_add(64)
+        .saturating_add(32)
         .clamp(MIN_COMPLETION_TOKENS, MAX_COMPLETION_TOKENS)
 }
 
@@ -308,7 +308,7 @@ mod tests {
     #[test]
     fn completion_budget_scales_with_transcript_and_stays_bounded() {
         assert_eq!(
-            (128, 1_564, 8_192),
+            (40, 1_532, 8_192),
             (
                 completion_token_limit("short"),
                 completion_token_limit(&"字".repeat(1_000)),

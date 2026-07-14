@@ -1,291 +1,80 @@
 [
   {
     "id": "stutter-and-accidental-repetition",
-    "transcript": "我我我觉得这个这个功能很好。",
-    "expected": "我觉得这个功能很好。",
+    "transcript": "我我我觉得这个这个功能很好，所以我们可以先完成测试，然后再决定是否发布。",
+    "expected": "我觉得这个功能很好，所以我们可以先完成测试，然后再决定是否发布。",
     "language": "zh-CN"
   },
   {
     "id": "emphatic-repetition",
-    "transcript": "这个真的真的很重要。",
-    "expected": "这个真的真的很重要。"
+    "transcript": "这个真的真的很重要，我们今天必须先验证完整流程，然后才能决定是否发布。",
+    "expected": "这个真的真的很重要，我们今天必须先验证完整流程，然后才能决定是否发布。",
+    "language": "zh-CN"
   },
   {
     "id": "semantically-empty-fillers",
-    "transcript": "嗯，明天下午开会，呃。",
-    "expected": "明天下午开会。"
-  },
-  {
-    "id": "meaningful-colloquial-words",
-    "transcript": "然后这个按钮就是用来保存的。",
-    "expected": "然后这个按钮就是用来保存的。"
+    "transcript": "嗯，明天下午开会，呃，主要讨论登录问题和设置页面，最后确认发布计划。",
+    "expected": "明天下午开会，主要讨论登录问题和设置页面，最后确认发布计划。",
+    "language": "zh-CN"
   },
   {
     "id": "explicit-self-correction",
-    "transcript": "会议安排在周三，不对，周四下午三点。",
-    "expected": "会议安排在周四下午三点。"
-  },
-  {
-    "id": "question-is-not-answered",
-    "transcript": "你觉得这个方案能不能实现",
-    "expected": "你觉得这个方案能不能实现？"
+    "transcript": "会议安排在周三，不对，周四下午三点，届时我们会检查登录问题和发布计划。",
+    "expected": "会议安排在周四下午三点，届时我们会检查登录问题和发布计划。",
+    "language": "zh-CN"
   },
   {
     "id": "conservative-casual-wording",
-    "transcript": "这个事情就是他们那边还没给，然后我们这边现在就弄不了。",
-    "expected": "这个事情他们那边还没给，我们这边现在就弄不了。"
+    "transcript": "这个事情就是他们那边还没给，然后我们这边现在就弄不了，只能等他们给了以后再继续。",
+    "expected": "这个事情他们那边还没给，我们这边现在就弄不了，只能等他们给了以后再继续。",
+    "language": "zh-CN"
   },
   {
     "id": "explicit-numbered-steps",
-    "transcript": "要做两步，第一打开设置，第二选择模型。",
-    "expected": "要做两步：\n1. 打开设置\n2. 选择模型。"
-  },
-  {
-    "id": "semantic-paragraphs",
-    "transcript": "先说项目进度目前已经完成开发接下来讨论风险服务器容量还没有验证",
-    "expected": "先说项目进度，目前已经完成开发。\n\n接下来讨论风险，服务器容量还没有验证。",
+    "transcript": "接下来要做三步，第一检查登录配置，第二测试语音输入，第三确认发布文档。",
+    "expected": "接下来要做三步：\n\n1. 检查登录配置\n2. 测试语音输入\n3. 确认发布文档",
     "language": "zh-CN"
   },
   {
-    "id": "spoken-email-structure",
-    "transcript": "王老师您好换一段附件是项目报告换一段谢谢小李",
-    "expected": "王老师，您好：\n\n附件是项目报告。\n\n谢谢！\n小李",
+    "id": "time-based-semantic-paragraphs",
+    "transcript": "今天先把登录问题修好并完成测试。明天再处理设置页面的样式。发布之前还需要检查一次配置迁移，避免老用户的数据丢失。",
+    "expected": "今天先把登录问题修好并完成测试。\n\n明天再处理设置页面的样式。\n\n发布之前还需要检查一次配置迁移，避免老用户的数据丢失。",
     "language": "zh-CN"
   },
   {
-    "id": "formatting-newline-command",
-    "transcript": "第一行换行第二行换一段第三段",
-    "expected": "第一行\n第二行\n\n第三段",
+    "id": "purpose-based-semantic-paragraphs",
+    "transcript": "先说项目进度，目前已经完成开发和基础测试。接下来讨论风险，服务器容量和配置迁移还没有验证。",
+    "expected": "先说项目进度，目前已经完成开发和基础测试。\n\n接下来讨论风险，服务器容量和配置迁移还没有验证。",
     "language": "zh-CN"
   },
   {
-    "id": "ordinary-line-wrap-language",
-    "transcript": "这个编辑器的自动换行有问题。",
-    "expected": "这个编辑器的自动换行有问题。",
+    "id": "cause-and-result-stays-together",
+    "transcript": "这个功能失败是因为当前网络不稳定，所以我们先保留原来的处理方式，等网络恢复以后再重新测试。",
+    "expected": "这个功能失败是因为当前网络不稳定，所以我们先保留原来的处理方式，等网络恢复以后再重新测试。",
     "language": "zh-CN"
   },
   {
-    "id": "confirmed-relevant-term",
-    "transcript": "我现在用的是 table 这个语音输入软件。",
-    "expected": "我现在用的是 Typeless 这个语音输入软件。",
-    "language": "zh-CN",
-    "relevant_terms": [
-      {
-        "canonical": "Typeless",
-        "recognized_as": ["table"]
-      }
-    ]
-  },
-  {
-    "id": "dictionary-simple-typeless-spaced-alias",
-    "transcript": "我现在使用的是 type less 语音输入软件。",
-    "expected": "我现在使用的是 Typeless 语音输入软件。",
-    "language": "zh-CN",
-    "relevant_terms": [
-      {
-        "canonical": "Typeless",
-        "recognized_as": [
-          "type less"
-        ]
-      }
-    ]
-  },
-  {
-    "id": "dictionary-simple-notion-homophone",
-    "transcript": "请把会议记录保存到闹心里。",
-    "expected": "请把会议记录保存到 Notion 里。",
-    "language": "zh-CN",
-    "relevant_terms": [
-      {
-        "canonical": "Notion",
-        "recognized_as": [
-          "闹心"
-        ]
-      }
-    ]
-  },
-  {
-    "id": "dictionary-simple-raycast-spacing",
-    "transcript": "我用 ray cast 打开这个应用。",
-    "expected": "我用 Raycast 打开这个应用。",
-    "language": "zh-CN",
-    "relevant_terms": [
-      {
-        "canonical": "Raycast",
-        "recognized_as": [
-          "ray cast"
-        ]
-      }
-    ]
-  },
-  {
-    "id": "dictionary-simple-postgresql-phonetic",
-    "transcript": "数据库使用 post grass q l。",
-    "expected": "数据库使用 PostgreSQL。",
-    "language": "zh-CN",
-    "relevant_terms": [
-      {
-        "canonical": "PostgreSQL",
-        "recognized_as": [
-          "post grass q l"
-        ]
-      }
-    ]
-  },
-  {
-    "id": "dictionary-simple-sensenova-spacing",
-    "transcript": "这个功能调用 sense nova 模型。",
-    "expected": "这个功能调用 SenseNova 模型。",
-    "language": "zh-CN",
-    "relevant_terms": [
-      {
-        "canonical": "SenseNova",
-        "recognized_as": [
-          "sense nova"
-        ]
-      }
-    ]
-  },
-  {
-    "id": "dictionary-complex-multiple-terms",
-    "transcript": "我先用 ray cast 打开闹心，然后用 table 输入会议记录。",
-    "expected": "我先用 Raycast 打开 Notion，然后用 Typeless 输入会议记录。",
-    "language": "zh-CN",
-    "relevant_terms": [
-      {
-        "canonical": "Raycast",
-        "recognized_as": [
-          "ray cast"
-        ]
-      },
-      {
-        "canonical": "Notion",
-        "recognized_as": [
-          "闹心"
-        ]
-      },
-      {
-        "canonical": "Typeless",
-        "recognized_as": [
-          "table"
-        ]
-      }
-    ]
-  },
-  {
-    "id": "dictionary-complex-repeated-aliases",
-    "transcript": "table 今天识别错了，type less 昨天也识别错了。",
-    "expected": "Typeless 今天识别错了，Typeless 昨天也识别错了。",
-    "language": "zh-CN",
-    "relevant_terms": [
-      {
-        "canonical": "Typeless",
-        "recognized_as": [
-          "table",
-          "type less"
-        ]
-      }
-    ]
-  },
-  {
-    "id": "dictionary-complex-context-preserves-homophone",
-    "transcript": "这个需求反复改，真的很闹心。",
-    "expected": "这个需求反复改，真的很闹心。",
-    "language": "zh-CN",
-    "relevant_terms": [
-      {
-        "canonical": "Notion",
-        "recognized_as": [
-          "闹心"
-        ]
-      }
-    ]
-  },
-  {
-    "id": "dictionary-complex-terms-with-protected-command",
-    "transcript": "请在 github 仓库里运行 cargo test --workspace，然后把结果贴到 notion。",
-    "expected": "请在 GitHub 仓库里运行 cargo test --workspace，然后把结果贴到 Notion。",
-    "language": "zh-CN",
-    "relevant_terms": [
-      {
-        "canonical": "GitHub",
-        "recognized_as": [
-          "github"
-        ]
-      },
-      {
-        "canonical": "Notion",
-        "recognized_as": [
-          "notion"
-        ]
-      }
-    ]
-  },
-  {
-    "id": "dictionary-complex-multiple-technical-terms",
-    "transcript": "我用 cloud code 修改 post grass q l 的配置，再通过 github 提交。",
-    "expected": "我用 Claude Code 修改 PostgreSQL 的配置，再通过 GitHub 提交。",
-    "language": "zh-CN",
-    "relevant_terms": [
-      {
-        "canonical": "Claude Code",
-        "recognized_as": [
-          "cloud code"
-        ]
-      },
-      {
-        "canonical": "PostgreSQL",
-        "recognized_as": [
-          "post grass q l"
-        ]
-      },
-      {
-        "canonical": "GitHub",
-        "recognized_as": [
-          "github"
-        ]
-      }
-    ]
-  },
-  {
-    "id": "dictionary-complex-unused-term-is-not-inserted",
-    "transcript": "我现在使用的是系统自带输入法。",
-    "expected": "我现在使用的是系统自带输入法。",
-    "language": "zh-CN",
-    "relevant_terms": [
-      {
-        "canonical": "Typeless",
-        "recognized_as": [
-          "table",
-          "type less"
-        ]
-      }
-    ]
-  },
-  {
-    "id": "dictionary-complex-numeric-technical-name",
-    "transcript": "这个功能调用 g p t four 模型。",
-    "expected": "这个功能调用 GPT-4 模型。",
-    "language": "zh-CN",
-    "relevant_terms": [
-      {
-        "canonical": "GPT-4",
-        "recognized_as": [
-          "g p t four"
-        ]
-      }
-    ]
-  },
-  {
-    "id": "mixed-chinese-and-english",
-    "transcript": "这个 API 的 response time 大概是 200 milliseconds。",
-    "expected": "这个 API 的 response time 大概是 200 milliseconds。",
+    "id": "unfinished-final-semantic-unit",
+    "transcript": "今天先完成登录测试。明天处理设置页面。然后发布之前我还想要",
+    "expected": "今天先完成登录测试。\n\n明天处理设置页面。\n\n然后发布之前我还想要",
     "language": "zh-CN"
+  },
+  {
+    "id": "confirmed-technical-terms",
+    "transcript": "我先用 ray cast 打开闹心，然后用 table 输入会议记录，最后提交到 github。",
+    "expected": "我先用 Raycast 打开 Notion，然后用 Typeless 输入会议记录，最后提交到 GitHub。",
+    "language": "zh-CN",
+    "relevant_terms": [
+      { "canonical": "Raycast", "recognized_as": ["ray cast"] },
+      { "canonical": "Notion", "recognized_as": ["闹心"] },
+      { "canonical": "Typeless", "recognized_as": ["table"] },
+      { "canonical": "GitHub", "recognized_as": ["github"] }
+    ]
   },
   {
     "id": "protected-technical-content",
-    "transcript": "请访问 https://example.com/v1，版本是 v1.2.3，运行 cargo test --workspace。",
-    "expected": "请访问 https://example.com/v1，版本是 v1.2.3，运行 cargo test --workspace。",
+    "transcript": "请访问 https://example.com/v1，确认版本是 v1.2.3，然后运行 cargo test --workspace 并记录结果。",
+    "expected": "请访问 https://example.com/v1，确认版本是 v1.2.3，然后运行 cargo test --workspace 并记录结果。",
     "language": "zh-CN"
   }
 ]

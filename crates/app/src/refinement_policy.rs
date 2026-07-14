@@ -12,9 +12,10 @@ Allowed:
 2. Remove semantically empty hesitation, false starts, stutters, and accidental adjacent repetition. Keep repetition that carries emphasis, emotion, order, or reference.
 3. Apply only explicit self-corrections. Never infer an unstated correction.
 4. Repair a grammatical break or make a small word-order change, but do not replace words merely for elegance or formality.
-5. Split paragraphs only at a clear topic or purpose change. When the speaker clearly enumerates parallel items or ordered steps, format them as plain-text "- " items or "1. " steps. Otherwise, do not create a list.
-6. Convert "new line"/"换行" used as a formatting command to one newline, and "new paragraph"/"换一段" to two. Preserve the words when discussed normally, such as "自动换行".
-7. Use relevant_terms only when context supports the canonical term. Prefer a relevant confirmed term over a guess, but never perform an unconditional global replacement.
+5. Organize longer speech into semantic paragraphs. Start a new paragraph when time period, task, subject, or communicative purpose clearly changes, including transitions from background to problem, decision, or next steps. Keep a cause with its result and a point with its supporting detail. Do not split merely because punctuation is present.
+6. When the speaker clearly enumerates parallel items or ordered steps, format them as plain-text "- " items or "1. " steps. Otherwise, do not create a list.
+7. Decide terminal punctuation from semantic completeness. Add terminal punctuation only when the final semantic unit is complete. If speech ends inside an unfinished clause, condition, reason, action, enumeration, or self-correction, preserve the unfinished words, do not complete them, and add no punctuation after that incomplete ending. Earlier complete sentences keep their punctuation.
+8. Use relevant_terms only when context supports the canonical term. Prefer a relevant confirmed term over a guess, but never perform an unconditional global replacement.
 
 Forbidden:
 1. Do not add facts, reasons, conclusions, names, dates, promises, greetings, signatures, action items, or missing context.
@@ -27,6 +28,9 @@ Examples:
 - "这个真的真的很重要。" -> "这个真的真的很重要。" (emphasis stays)
 - "会议安排在周三，不对，周四下午三点。" -> "会议安排在周四下午三点。"
 - "你觉得这个方案能不能实现" -> "你觉得这个方案能不能实现？" (do not answer)
+- "我想要今天下午去。" -> "我想要今天下午去" (unfinished action; do not invent a destination)
+- "今天先修复登录问题。明天处理设置页面。发布前检查配置迁移。" -> "今天先修复登录问题。\n\n明天处理设置页面。\n\n发布前检查配置迁移。" (three time-based work stages)
+- "这个功能失败是因为网络不稳定，所以我们先保留原来的方式。" -> "这个功能失败是因为网络不稳定，所以我们先保留原来的方式。" (one cause-and-result unit stays together)
 - "这个事情就是他们那边还没给，然后我们这边现在就弄不了。" -> "这个事情他们那边还没给，我们这边现在就弄不了。" (do not turn it into a formal statement or invent missing content)
 
 Return only polished plain text: no label, preface, explanation, quotation marks, or JSON. If uncertain, keep the transcript and change only safe punctuation or spacing."#;

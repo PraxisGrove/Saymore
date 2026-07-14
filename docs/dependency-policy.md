@@ -108,3 +108,19 @@ error mapping without real network services or credentials. A handwritten TCP
 server was rejected because HTTP framing and concurrent test shutdown would
 become unrelated test infrastructure. `httpmock` is MIT-licensed and does not
 enter production binaries.
+
+## Local Diagnostics
+
+The desktop crate uses `tracing` 0.1 and `tracing-subscriber` 0.3 for structured,
+privacy-filtered runtime diagnostics. Packaged desktop applications do not have
+a reliable terminal, and a custom logger would duplicate event formatting,
+filtering, subscriber installation, and writer integration. Remote services such
+as Sentry were rejected for normal ASR and LLM request failures because these
+diagnostics should remain on the user's device.
+
+Both crates are actively maintained by the Tokio project and are licensed under
+MIT. Their default features are enabled: `tracing` uses `std` and `attributes`;
+`tracing-subscriber` uses its formatting, ANSI, registry, smallvec, tracing-log,
+and thread-local support. The installed subscriber filters on Saymore's explicit
+diagnostic target, disables ANSI output, and writes through the bounded local log
+adapter. Neither dependency enters the `domain` or `app` crates.

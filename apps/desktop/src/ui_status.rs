@@ -47,6 +47,7 @@ pub fn apply_transcription_completed(
 fn completion_status(refinement: &RefinementStatus) -> &'static str {
     match refinement {
         RefinementStatus::Disabled => "转写完成",
+        RefinementStatus::Skipped(_) => "转写完成",
         RefinementStatus::Completed => "润色完成",
         RefinementStatus::FellBack(_) => "润色未完成",
     }
@@ -57,8 +58,8 @@ fn completion_detail(
     processed: &ProcessedText,
     outcome: TextDeliveryOutcome,
 ) -> String {
-    if matches!(processed.refinement, RefinementStatus::FellBack(_)) {
-        return "润色未完成，已使用转写结果".to_owned();
+    if let RefinementStatus::FellBack(reason) = &processed.refinement {
+        return fallback_detail(reason).to_owned();
     }
     format!(
         "{} · {} 字 · {}",
@@ -66,6 +67,23 @@ fn completion_detail(
         processed.text.chars().count(),
         delivery_outcome_label(outcome)
     )
+}
+
+pub fn fallback_detail(reason: &template_app::RefinementFallbackReason) -> &'static str {
+    use template_app::RefinementFallbackReason;
+
+    match reason {
+        RefinementFallbackReason::Timeout
+        | RefinementFallbackReason::Transport
+        | RefinementFallbackReason::Quota
+        | RefinementFallbackReason::TemporarilyUnavailable => "润色服务暂时不可用，已使用转写结果",
+        RefinementFallbackReason::OutputRejected => "润色结果异常，已使用转写结果",
+        RefinementFallbackReason::NotConfigured
+        | RefinementFallbackReason::Authentication
+        | RefinementFallbackReason::InvalidConfiguration
+        | RefinementFallbackReason::ModelUnavailable
+        | RefinementFallbackReason::Protocol => "润色未完成，已使用转写结果",
+    }
 }
 
 pub fn delivery_requires_copy_recovery(
@@ -227,6 +245,12 @@ mod tests {
             text: "润色文本".to_owned(),
             refinement: RefinementStatus::Completed,
         };
+        let skipped = ProcessedText {
+            text: "短转写文本".to_owned(),
+            refinement: RefinementStatus::Skipped(
+                template_app::RefinementSkipReason::ShortTranscript,
+            ),
+        };
         let fallback = ProcessedText {
             text: "转写文本".to_owned(),
             refinement: RefinementStatus::FellBack(RefinementFallbackReason::Timeout),
@@ -234,9 +258,10 @@ mod tests {
 
         assert_eq!("转写完成", completion_status(&disabled.refinement));
         assert_eq!("润色完成", completion_status(&completed.refinement));
+        assert_eq!("转写完成", completion_status(&skipped.refinement));
         assert_eq!("润色未完成", completion_status(&fallback.refinement));
         assert_eq!(
-            "润色未完成，已使用转写结果",
+            "润色服务暂时不可用，已使用转写结果",
             completion_detail(
                 &recording,
                 &fallback,

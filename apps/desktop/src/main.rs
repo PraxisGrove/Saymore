@@ -49,6 +49,8 @@ mod asr_runtime;
 #[cfg(target_os = "macos")]
 mod delivery_runtime;
 #[cfg(target_os = "macos")]
+mod diagnostics;
+#[cfg(target_os = "macos")]
 mod dictation_finish;
 #[cfg(target_os = "macos")]
 mod main_window;
@@ -109,6 +111,9 @@ fn main() -> ExitCode {
 
 #[cfg(target_os = "macos")]
 fn run() -> Result<(), Box<dyn Error>> {
+    if let Err(error) = diagnostics::init() {
+        eprintln!("failed to initialize local diagnostics: {error}");
+    }
     let settings_store = Arc::new(JsonSettingsStore::for_current_user()?);
     settings_store.ensure_exists()?;
     let ui = AppWindow::new()?;
@@ -299,6 +304,7 @@ fn first_recording_overlay(overlay: &RecordingOverlay, device_name: &str, show_d
     overlay.set_show_device(show_device);
     overlay.set_mode(0);
     overlay.set_recording_level(0.0);
+    let _ = configure_recording_overlay(overlay);
     if overlay.show().is_ok() {
         position_overlay(overlay);
     }
@@ -315,8 +321,15 @@ fn first_recording_overlay(overlay: &RecordingOverlay, device_name: &str, show_d
 
 #[cfg(target_os = "macos")]
 fn position_overlay(overlay: &RecordingOverlay) {
+    if let Err(error) = configure_recording_overlay(overlay) {
+        eprintln!("failed to position recording overlay: {error}");
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn configure_recording_overlay(overlay: &RecordingOverlay) -> Result<(), String> {
     let handle = overlay.window().window_handle();
-    let result = handle
+    handle
         .window_handle()
         .map_err(|error| error.to_string())
         .and_then(|handle| match handle.as_raw() {
@@ -324,10 +337,7 @@ fn position_overlay(overlay: &RecordingOverlay) {
                 configure_overlay_window(handle.ns_view).map_err(|error| error.to_string())
             },
             _ => Err("the overlay does not have an AppKit window handle".to_owned()),
-        });
-    if let Err(error) = result {
-        eprintln!("failed to position recording overlay: {error}");
-    }
+        })
 }
 
 #[cfg(target_os = "macos")]
@@ -493,7 +503,7 @@ fn undo_cancelled_recording(
 
     recording_active.store(true, Ordering::Relaxed);
     let plan = refinement.plan();
-    let processing_label = plan.processing_label();
+    let processing_label = refinement_runtime::ProcessingActivity::Transcribing.label();
     if let Some(overlay) = overlay.upgrade() {
         overlay.set_mode(1);
         overlay.set_processing_label(SharedString::from(processing_label));
@@ -516,8 +526,17 @@ fn undo_cancelled_recording(
                 }
                 asr.finish()
             });
-            let result = result
-                .and_then(|transcript| refinement.process_final_transcript(&transcript, plan));
+            let result = result.and_then(|transcript| {
+                let activity_ui = event_ui.clone();
+                let activity_overlay = event_overlay.clone();
+                refinement.process_final_transcript(&transcript, plan, move || {
+                    dictation_finish::show_processing_activity(
+                        &activity_ui,
+                        &activity_overlay,
+                        refinement_runtime::ProcessingActivity::Refining,
+                    );
+                })
+            });
             recording_active.store(false, Ordering::Relaxed);
             let _ = event_ui.upgrade_in_event_loop(move |ui| match result {
                 Ok(processed) => {

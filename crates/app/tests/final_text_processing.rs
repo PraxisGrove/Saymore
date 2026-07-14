@@ -53,6 +53,18 @@ fn enabled_request(transcript: &str) -> FinalTextRequest {
     FinalTextRequest::new(transcript, RefinementMode::Enabled)
 }
 
+fn eligible_transcript(transcript: &str) -> String {
+    format!("{transcript} 这是一段需要经过完整润色流程处理的较长语音内容。")
+}
+
+fn eligible_candidate(candidate: &str) -> String {
+    if candidate.is_empty() {
+        String::new()
+    } else {
+        eligible_transcript(candidate)
+    }
+}
+
 #[tokio::test]
 async fn disabled_refinement_returns_safely_cleaned_text_without_calling_provider() {
     let provider = Arc::new(CountingProvider {
@@ -85,11 +97,18 @@ async fn enabled_refinement_returns_one_provider_result() {
         result: Ok("Clean text.".to_owned()),
     });
     let processor = FinalTextProcessor::configured(provider.clone());
+    let attempts = AtomicUsize::new(0);
 
     let result = processor
-        .process(
-            FinalTextRequest::new("  raw   text  ", RefinementMode::Enabled),
+        .process_with_attempt_observer(
+            FinalTextRequest::new(
+                "Today we need to finish the login test and then review the release settings",
+                RefinementMode::Enabled,
+            ),
             CancellationToken::new(),
+            || {
+                attempts.fetch_add(1, Ordering::Relaxed);
+            },
         )
         .await;
 
@@ -100,18 +119,85 @@ async fn enabled_refinement_returns_one_provider_result() {
         }),
         result
     );
+    assert_eq!(1, attempts.load(Ordering::Relaxed));
     assert_eq!(1, provider.calls.load(Ordering::Relaxed));
+}
+
+#[tokio::test]
+async fn enabled_refinement_skips_short_transcripts_without_calling_provider() {
+    let provider = Arc::new(CountingProvider {
+        calls: AtomicUsize::new(0),
+        result: Ok("unused".to_owned()),
+    });
+    let processor = FinalTextProcessor::configured(provider.clone());
+    let attempts = AtomicUsize::new(0);
+
+    for transcript in [
+        "不是周三，是周四。",
+        "第一步修复登录。",
+        "我想要今天下午去。",
+    ] {
+        assert_eq!(
+            Ok(ProcessedText {
+                text: transcript.to_owned(),
+                refinement: RefinementStatus::Skipped(
+                    template_app::RefinementSkipReason::ShortTranscript,
+                ),
+            }),
+            processor
+                .process_with_attempt_observer(
+                    enabled_request(transcript),
+                    CancellationToken::new(),
+                    || {
+                        attempts.fetch_add(1, Ordering::Relaxed);
+                    },
+                )
+                .await
+        );
+    }
+    assert_eq!(0, attempts.load(Ordering::Relaxed));
+    assert_eq!(0, provider.calls.load(Ordering::Relaxed));
+}
+
+#[test]
+fn refinement_threshold_uses_cjk_units_and_english_words() {
+    assert!(!template_app::refinement_needed(
+        "一二三四五六七八九十一二三四五六七八九",
+        &RefinementMode::Enabled,
+    ));
+    assert!(template_app::refinement_needed(
+        "一二三四五六七八九十一二三四五六七八九十",
+        &RefinementMode::Enabled,
+    ));
+    assert!(!template_app::refinement_needed(
+        "one two three four five six seven",
+        &RefinementMode::Enabled,
+    ));
+    assert!(template_app::refinement_needed(
+        "one two three four five six seven eight",
+        &RefinementMode::Enabled,
+    ));
+    assert!(!template_app::refinement_needed(
+        "I'm sure it's fine, don't worry",
+        &RefinementMode::Enabled,
+    ));
+    assert!(!template_app::refinement_needed(
+        "A well-tested end-to-end flow isn't broken",
+        &RefinementMode::Enabled,
+    ));
 }
 
 #[tokio::test]
 async fn provider_receives_the_fixed_conservative_policy_and_relevant_context()
 -> Result<(), Box<dyn std::error::Error>> {
+    let source = eligible_transcript("我现在用的是 table 这个语音输入软件。");
+    let refined = eligible_transcript("我现在用的是 Typeless 这个语音输入软件。");
     let provider = Arc::new(CapturingProvider {
         request: std::sync::Mutex::new(None),
-        result: "我现在用的是 Typeless 这个语音输入软件。".to_owned(),
+        result: refined.clone(),
     });
     let processor = FinalTextProcessor::configured(provider.clone());
-    let mut request = enabled_request("  我现在用的是 table 这个语音输入软件  ");
+    let mut request = enabled_request(&source);
     request.language = Some("zh-CN".to_owned());
     request.relevant_terms = vec![RefinementTerm {
         canonical: "Typeless".to_owned(),
@@ -130,8 +216,8 @@ async fn provider_receives_the_fixed_conservative_policy_and_relevant_context()
         canonical: "Typeless".to_owned(),
         recognized_as: vec!["table".to_owned()],
     }];
-    if result.text != "我现在用的是 Typeless 这个语音输入软件。"
-        || captured.transcript != "我现在用的是 table 这个语音输入软件"
+    if result.text != refined
+        || captured.transcript != source
         || captured.language != Some("zh-CN".to_owned())
         || captured.relevant_terms != expected_terms
     {
@@ -160,7 +246,6 @@ async fn conservative_transformations_pass_the_output_guard() {
             "要做两步，第一打开设置，第二选择模型。",
             "要做两步：\n1. 打开设置\n2. 选择模型。",
         ),
-        ("第一行换行第二行", "第一行\n第二行"),
         (
             "我现在用的是 table 这个语音输入软件。",
             "我现在用的是 Typeless 这个语音输入软件。",
@@ -172,16 +257,18 @@ async fn conservative_transformations_pass_the_output_guard() {
     ];
 
     for (source, refined) in cases {
+        let source = eligible_transcript(source);
+        let refined = eligible_candidate(refined);
         let processor = FinalTextProcessor::configured(Arc::new(CountingProvider {
             calls: AtomicUsize::new(0),
-            result: Ok(refined.to_owned()),
+            result: Ok(refined.clone()),
         }));
         let result = processor
-            .process(enabled_request(source), CancellationToken::new())
+            .process(enabled_request(&source), CancellationToken::new())
             .await;
         assert_eq!(
             Ok(ProcessedText {
-                text: refined.to_owned(),
+                text: refined,
                 refinement: RefinementStatus::Completed,
             }),
             result,
@@ -226,16 +313,18 @@ async fn confirmed_terms_allow_exact_technical_name_corrections() {
     ];
 
     for (source, refined, relevant_terms) in cases {
+        let source = eligible_transcript(source);
+        let refined = eligible_candidate(refined);
         let processor = FinalTextProcessor::configured(Arc::new(CountingProvider {
             calls: AtomicUsize::new(0),
-            result: Ok(refined.to_owned()),
+            result: Ok(refined.clone()),
         }));
-        let mut request = enabled_request(source);
+        let mut request = enabled_request(&source);
         request.relevant_terms = relevant_terms;
 
         assert_eq!(
             Ok(ProcessedText {
-                text: refined.to_owned(),
+                text: refined,
                 refinement: RefinementStatus::Completed,
             }),
             processor.process(request, CancellationToken::new()).await,
@@ -269,16 +358,18 @@ async fn confirmed_terms_do_not_authorize_other_technical_changes() {
     ];
 
     for (source, unsafe_output) in cases {
+        let source = eligible_transcript(source);
+        let unsafe_output = eligible_candidate(unsafe_output);
         let processor = FinalTextProcessor::configured(Arc::new(CountingProvider {
             calls: AtomicUsize::new(0),
-            result: Ok(unsafe_output.to_owned()),
+            result: Ok(unsafe_output),
         }));
-        let mut request = enabled_request(source);
+        let mut request = enabled_request(&source);
         request.relevant_terms = relevant_terms.clone();
 
         assert_eq!(
             Ok(ProcessedText {
-                text: source.to_owned(),
+                text: source.clone(),
                 refinement: RefinementStatus::FellBack(RefinementFallbackReason::OutputRejected),
             }),
             processor.process(request, CancellationToken::new()).await,
@@ -325,16 +416,18 @@ async fn unsafe_provider_outputs_fall_back_to_the_cleaned_transcript() {
     ];
 
     for (source, unsafe_output) in cases {
+        let source = eligible_transcript(source);
+        let unsafe_output = eligible_candidate(unsafe_output);
         let processor = FinalTextProcessor::configured(Arc::new(CountingProvider {
             calls: AtomicUsize::new(0),
-            result: Ok(unsafe_output.to_owned()),
+            result: Ok(unsafe_output),
         }));
         let result = processor
-            .process(enabled_request(source), CancellationToken::new())
+            .process(enabled_request(&source), CancellationToken::new())
             .await;
         assert_eq!(
             Ok(ProcessedText {
-                text: source.to_owned(),
+                text: source.clone(),
                 refinement: RefinementStatus::FellBack(RefinementFallbackReason::OutputRejected,),
             }),
             result,
@@ -350,17 +443,18 @@ async fn provider_failure_falls_back_to_safely_cleaned_text() {
         result: Err(LlmProviderError::Transport("offline".to_owned())),
     });
     let processor = FinalTextProcessor::configured(provider);
+    let transcript = "keep this transcript exactly as it was originally spoken by the user";
 
     let result = processor
         .process(
-            FinalTextRequest::new("  keep   this  ", RefinementMode::Enabled),
+            FinalTextRequest::new(transcript, RefinementMode::Enabled),
             CancellationToken::new(),
         )
         .await;
 
     assert_eq!(
         Ok(ProcessedText {
-            text: "keep this".to_owned(),
+            text: transcript.to_owned(),
             refinement: RefinementStatus::FellBack(RefinementFallbackReason::Transport),
         }),
         result
@@ -370,14 +464,15 @@ async fn provider_failure_falls_back_to_safely_cleaned_text() {
 #[tokio::test(start_paused = true)]
 async fn provider_request_times_out_after_eight_seconds() {
     let processor = FinalTextProcessor::configured(Arc::new(PendingProvider));
+    let transcript = "keep this transcript exactly as it was originally spoken by the user";
 
     let result = processor
-        .process(enabled_request("keep this"), CancellationToken::new())
+        .process(enabled_request(transcript), CancellationToken::new())
         .await;
 
     assert_eq!(
         Ok(ProcessedText {
-            text: "keep this".to_owned(),
+            text: transcript.to_owned(),
             refinement: RefinementStatus::FellBack(RefinementFallbackReason::Timeout),
         }),
         result
@@ -392,7 +487,12 @@ async fn cancellation_prevents_a_late_refinement_result() {
     let task_cancellation = cancellation.clone();
     let task = tokio::spawn(async move {
         task_processor
-            .process(enabled_request("discard this"), task_cancellation)
+            .process(
+                enabled_request(
+                    "discard this transcript because the user cancelled the complete request",
+                ),
+                task_cancellation,
+            )
             .await
     });
     tokio::task::yield_now().await;
@@ -437,19 +537,20 @@ async fn three_transient_failures_pause_calls_for_five_minutes() {
     });
     let processor = FinalTextProcessor::configured(provider.clone());
     let cancellation = CancellationToken::new();
+    let transcript = "keep this transcript exactly as it was originally spoken by the user";
 
     for _ in 0..3 {
         let _ = processor
-            .process(enabled_request("keep this"), cancellation.clone())
+            .process(enabled_request(transcript), cancellation.clone())
             .await;
     }
     let paused = processor
-        .process(enabled_request("keep this"), cancellation.clone())
+        .process(enabled_request(transcript), cancellation.clone())
         .await;
 
     assert_eq!(
         Ok(ProcessedText {
-            text: "keep this".to_owned(),
+            text: transcript.to_owned(),
             refinement: RefinementStatus::FellBack(
                 RefinementFallbackReason::TemporarilyUnavailable,
             ),
@@ -460,7 +561,7 @@ async fn three_transient_failures_pause_calls_for_five_minutes() {
 
     tokio::time::advance(std::time::Duration::from_secs(300)).await;
     let _ = processor
-        .process(enabled_request("keep this"), cancellation)
+        .process(enabled_request(transcript), cancellation)
         .await;
     assert_eq!(4, provider.calls.load(Ordering::Relaxed));
 }

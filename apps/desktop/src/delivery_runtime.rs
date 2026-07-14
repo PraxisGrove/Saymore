@@ -12,7 +12,7 @@ use template_infra::{
 
 use crate::{
     ui::{AppWindow, RecordingOverlay, ResultOverlay},
-    ui_status::{apply_transcription_completed, delivery_requires_copy_recovery},
+    ui_status::{apply_transcription_completed, delivery_requires_copy_recovery, fallback_detail},
 };
 
 const FOCUS_SETTLE_DELAY: Duration = Duration::from_millis(80);
@@ -44,17 +44,22 @@ pub fn schedule_delivery(
     recording: PcmRecording,
     processed: ProcessedText,
 ) {
-    let fell_back = matches!(processed.refinement, RefinementStatus::FellBack(_));
+    let fallback = match &processed.refinement {
+        RefinementStatus::FellBack(reason) => Some(reason),
+        RefinementStatus::Disabled | RefinementStatus::Skipped(_) | RefinementStatus::Completed => {
+            None
+        }
+    };
     if let Some(overlay) = status_overlay.upgrade() {
-        if fell_back {
+        if let Some(reason) = fallback {
             overlay.set_mode(1);
-            overlay.set_processing_label(SharedString::from("润色未完成，已使用转写结果"));
+            overlay.set_processing_label(SharedString::from(fallback_detail(reason)));
         } else {
             let _ = overlay.hide();
         }
     }
 
-    let delivery_delay = if fell_back {
+    let delivery_delay = if fallback.is_some() {
         FALLBACK_NOTICE_DELAY
     } else {
         FOCUS_SETTLE_DELAY
@@ -88,14 +93,21 @@ pub fn schedule_delivery(
 
 fn show_result_overlay(overlay: &ResultOverlay, transcript: &str) {
     overlay.set_transcript(SharedString::from(transcript));
+    let _ = configure_result_overlay(overlay);
     if overlay.show().is_ok() {
         position_result_overlay(overlay);
     }
 }
 
 fn position_result_overlay(overlay: &ResultOverlay) {
+    if let Err(error) = configure_result_overlay(overlay) {
+        eprintln!("failed to position result overlay: {error}");
+    }
+}
+
+fn configure_result_overlay(overlay: &ResultOverlay) -> Result<(), String> {
     let handle = overlay.window().window_handle();
-    let result = handle
+    handle
         .window_handle()
         .map_err(|error| error.to_string())
         .and_then(|handle| match handle.as_raw() {
@@ -103,8 +115,5 @@ fn position_result_overlay(overlay: &ResultOverlay) {
                 configure_overlay_window(handle.ns_view).map_err(|error| error.to_string())
             },
             _ => Err("the result overlay does not have an AppKit window handle".to_owned()),
-        });
-    if let Err(error) = result {
-        eprintln!("failed to position result overlay: {error}");
-    }
+        })
 }
