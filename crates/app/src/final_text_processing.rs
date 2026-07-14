@@ -49,7 +49,6 @@ impl FinalTextRequest {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RefinementTerm {
     pub canonical: String,
-    pub recognized_as: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

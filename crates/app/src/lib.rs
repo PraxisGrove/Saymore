@@ -10,6 +10,7 @@ mod refinement_policy;
 mod refinement_terms;
 mod settings;
 mod speech_recognition;
+mod storage;
 mod text_delivery;
 
 pub use audio_recording::{
@@ -24,15 +25,27 @@ pub use final_text_processing::{
     LlmRefinementRequest, ProcessedText, RefinementFallbackReason, RefinementMode,
     RefinementSkipReason, RefinementStatus, RefinementTerm, refinement_needed,
 };
+pub use refinement_terms::{
+    normalize_standard_spellings, relevant_dictionary_terms, standard_spelling_occurs,
+};
 pub use settings::{
-    AsrSettings, ChatCompletionsLlmSettings, LlmSettings, SaymoreSettings, SettingsStore,
-    SettingsStoreError, VolcengineAsrSettings,
+    ActiveProviders, AsrSettings, ChatCompletionsLlmSettings, LlmProviderPreset, LlmSettings,
+    ProviderCatalog, ProviderConfigStore, ProviderDataConsent, ProviderInstance, SaymoreSettings,
+    SettingsStore, SettingsStoreError, VolcengineAsrSettings,
 };
 pub use speech_recognition::{
     SpeechRecognitionError, StreamingRecognitionSession, StreamingSpeechRecognizer,
 };
+pub use storage::{
+    DictionaryEntry, DictionaryOrigin, DictionaryStore, HistoryCursor, HistoryDelivery,
+    HistoryPage, HistoryRecord, HistoryRefinement, HistoryRetention, HistoryStore, InstalledModel,
+    InstalledModelStore, LocalSettings, LocalSettingsStore, NewDictionaryEntry, NewHistoryRecord,
+    SecretStore, SecretStoreError, StorageError, dictionary_comparison_key, dictionary_variant_key,
+    normalize_language_tag,
+};
 pub use text_delivery::{
-    AccessibilityAuthorization, TextDeliverer, TextDeliveryError, TextDeliveryOutcome,
+    AccessibilityAuthorization, DeliveryTargetPrivacy, TextDeliverer, TextDeliveryError,
+    TextDeliveryOutcome,
 };
 
 pub trait RecipientProvider {

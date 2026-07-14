@@ -7,6 +7,7 @@ use async_trait::async_trait;
 use template_app::{
     FinalTextProcessor, FinalTextRequest, LlmProvider, LlmProviderError, LlmRefinementRequest,
     ProcessedText, RefinementFallbackReason, RefinementMode, RefinementStatus, RefinementTerm,
+    normalize_standard_spellings, standard_spelling_occurs,
 };
 use tokio_util::sync::CancellationToken;
 
@@ -88,6 +89,72 @@ async fn disabled_refinement_returns_safely_cleaned_text_without_calling_provide
         result
     );
     assert_eq!(0, provider.calls.load(Ordering::Relaxed));
+}
+
+#[tokio::test]
+async fn disabled_refinement_does_not_infer_split_words() {
+    let processor = FinalTextProcessor::unconfigured();
+    let mut request = FinalTextRequest::new("please use say more today", RefinementMode::Disabled);
+    request.relevant_terms = vec![RefinementTerm {
+        canonical: "Saymore".to_owned(),
+    }];
+
+    let result = processor.process(request, CancellationToken::new()).await;
+
+    assert_eq!(
+        Ok(ProcessedText {
+            text: "please use say more today".to_owned(),
+            refinement: RefinementStatus::Disabled,
+        }),
+        result
+    );
+}
+
+#[test]
+fn standard_spellings_normalize_case_and_full_width_tokens() {
+    let terms = vec![
+        RefinementTerm {
+            canonical: "OpenAI".to_owned(),
+        },
+        RefinementTerm {
+            canonical: "GitHub".to_owned(),
+        },
+    ];
+
+    assert_eq!(
+        "OpenAI、OpenAI、OpenAI 和 GitHub",
+        normalize_standard_spellings("openai、OPENAI、ＯｐｅｎＡＩ 和 github", &terms)
+    );
+    assert!(standard_spelling_occurs("使用openai接口", "OpenAI"));
+}
+
+#[test]
+fn standard_spellings_do_not_join_words_or_rewrite_protected_tokens() {
+    let terms = vec![RefinementTerm {
+        canonical: "OpenAI".to_owned(),
+    }];
+    let text = "open ai openair myopenai https://openai.com me@openai.com openai_client";
+
+    assert_eq!(text, normalize_standard_spellings(text, &terms));
+}
+
+#[tokio::test]
+async fn ambiguous_cjk_substrings_are_not_replaced_locally() {
+    let processor = FinalTextProcessor::unconfigured();
+    let mut request = FinalTextRequest::new("我喝苹果汁", RefinementMode::Disabled);
+    request.relevant_terms = vec![RefinementTerm {
+        canonical: "Apple".to_owned(),
+    }];
+
+    let result = processor.process(request, CancellationToken::new()).await;
+
+    assert_eq!(
+        Ok(ProcessedText {
+            text: "我喝苹果汁".to_owned(),
+            refinement: RefinementStatus::Disabled,
+        }),
+        result
+    );
 }
 
 #[tokio::test]
@@ -190,8 +257,8 @@ fn refinement_threshold_uses_cjk_units_and_english_words() {
 #[tokio::test]
 async fn provider_receives_the_fixed_conservative_policy_and_relevant_context()
 -> Result<(), Box<dyn std::error::Error>> {
-    let source = eligible_transcript("我现在用的是 table 这个语音输入软件。");
-    let refined = eligible_transcript("我现在用的是 Typeless 这个语音输入软件。");
+    let source = eligible_transcript("请在 github 仓库里继续测试。");
+    let refined = eligible_transcript("请在 GitHub 仓库里继续测试。");
     let provider = Arc::new(CapturingProvider {
         request: std::sync::Mutex::new(None),
         result: refined.clone(),
@@ -200,8 +267,7 @@ async fn provider_receives_the_fixed_conservative_policy_and_relevant_context()
     let mut request = enabled_request(&source);
     request.language = Some("zh-CN".to_owned());
     request.relevant_terms = vec![RefinementTerm {
-        canonical: "Typeless".to_owned(),
-        recognized_as: vec!["table".to_owned()],
+        canonical: "GitHub".to_owned(),
     }];
 
     let result = processor.process(request, CancellationToken::new()).await?;
@@ -213,8 +279,7 @@ async fn provider_receives_the_fixed_conservative_policy_and_relevant_context()
         .ok_or("provider request was not captured")?;
 
     let expected_terms = vec![RefinementTerm {
-        canonical: "Typeless".to_owned(),
-        recognized_as: vec!["table".to_owned()],
+        canonical: "GitHub".to_owned(),
     }];
     if result.text != refined
         || captured.transcript != source
@@ -278,39 +343,19 @@ async fn conservative_transformations_pass_the_output_guard() {
 }
 
 #[tokio::test]
-async fn confirmed_terms_allow_exact_technical_name_corrections() {
-    let cases = [
-        (
-            "数据库使用 post grass q l。",
-            "数据库使用 PostgreSQL。",
-            vec![RefinementTerm {
-                canonical: "PostgreSQL".to_owned(),
-                recognized_as: vec!["post grass q l".to_owned()],
-            }],
-        ),
-        (
-            "请在 github 仓库里运行 cargo test --workspace，然后把结果贴到 notion。",
-            "请在 GitHub 仓库里运行 cargo test --workspace，然后把结果贴到 Notion。",
-            vec![
-                RefinementTerm {
-                    canonical: "GitHub".to_owned(),
-                    recognized_as: vec!["github".to_owned()],
-                },
-                RefinementTerm {
-                    canonical: "Notion".to_owned(),
-                    recognized_as: vec!["notion".to_owned()],
-                },
-            ],
-        ),
-        (
-            "这个功能调用 g p t four 模型。",
-            "这个功能调用 GPT-4 模型。",
-            vec![RefinementTerm {
-                canonical: "GPT-4".to_owned(),
-                recognized_as: vec!["g p t four".to_owned()],
-            }],
-        ),
-    ];
+async fn standard_spelling_terms_allow_exact_format_corrections() {
+    let cases = [(
+        "请在 github 仓库里运行 cargo test --workspace，然后把结果贴到 notion。",
+        "请在 GitHub 仓库里运行 cargo test --workspace，然后把结果贴到 Notion。",
+        vec![
+            RefinementTerm {
+                canonical: "GitHub".to_owned(),
+            },
+            RefinementTerm {
+                canonical: "Notion".to_owned(),
+            },
+        ],
+    )];
 
     for (source, refined, relevant_terms) in cases {
         let source = eligible_transcript(source);
@@ -334,7 +379,7 @@ async fn confirmed_terms_allow_exact_technical_name_corrections() {
 }
 
 #[tokio::test]
-async fn confirmed_terms_do_not_authorize_other_technical_changes() {
+async fn standard_spelling_terms_do_not_authorize_other_technical_changes() {
     let cases = [
         (
             "请在 github 仓库里运行 cargo test --workspace。",
@@ -349,11 +394,9 @@ async fn confirmed_terms_do_not_authorize_other_technical_changes() {
     let relevant_terms = vec![
         RefinementTerm {
             canonical: "GitHub".to_owned(),
-            recognized_as: vec!["github".to_owned()],
         },
         RefinementTerm {
             canonical: "Typeless".to_owned(),
-            recognized_as: vec!["table".to_owned()],
         },
     ];
 
