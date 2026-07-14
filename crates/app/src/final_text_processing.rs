@@ -158,11 +158,12 @@ impl FinalTextProcessor {
             });
         }
         let fallback_text = text.clone();
+        let relevant_terms = request.relevant_terms;
         let provider_request = LlmRefinementRequest {
             instructions: REFINEMENT_INSTRUCTIONS.to_owned(),
             transcript: text,
             language: request.language,
-            relevant_terms: request.relevant_terms,
+            relevant_terms: relevant_terms.clone(),
         };
         let refined = tokio::select! {
             () = cancellation.cancelled() => return Err(FinalTextProcessingError::Cancelled),
@@ -171,7 +172,7 @@ impl FinalTextProcessor {
                 provider.refine(provider_request),
             ) => result,
         };
-        self.complete_provider_attempt(refined, fallback_text, &cancellation)
+        self.complete_provider_attempt(refined, fallback_text, &relevant_terms, &cancellation)
             .await
     }
 
@@ -179,10 +180,11 @@ impl FinalTextProcessor {
         &self,
         refined: Result<Result<String, LlmProviderError>, tokio::time::error::Elapsed>,
         fallback_text: String,
+        relevant_terms: &[RefinementTerm],
         cancellation: &CancellationToken,
     ) -> Result<ProcessedText, FinalTextProcessingError> {
         match refined {
-            Ok(Ok(text)) if accepts_refinement(&fallback_text, &text) => {
+            Ok(Ok(text)) if accepts_refinement(&fallback_text, &text, relevant_terms) => {
                 reject_cancelled(cancellation)?;
                 self.circuit.lock().await.record_success();
                 Ok(ProcessedText {

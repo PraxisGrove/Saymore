@@ -115,21 +115,14 @@ enum StoredAuthMode {
     ApiKey,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Default, Serialize, Deserialize)]
 struct StoredLlmSettings {
-    #[serde(default = "enabled_by_default")]
+    #[serde(default)]
     enabled: bool,
     #[serde(default)]
+    confirmed_base_url: String,
+    #[serde(default)]
     chat_completions: StoredChatCompletionsLlmSettings,
-}
-
-impl Default for StoredLlmSettings {
-    fn default() -> Self {
-        Self {
-            enabled: true,
-            chat_completions: StoredChatCompletionsLlmSettings::default(),
-        }
-    }
 }
 
 #[derive(Debug, Default, Serialize, Deserialize)]
@@ -142,10 +135,6 @@ struct StoredChatCompletionsLlmSettings {
     model: String,
     #[serde(default)]
     custom_headers: BTreeMap<String, String>,
-}
-
-const fn enabled_by_default() -> bool {
-    true
 }
 
 impl From<&SaymoreSettings> for StoredSettings {
@@ -162,6 +151,7 @@ impl From<&SaymoreSettings> for StoredSettings {
             },
             llm: StoredLlmSettings {
                 enabled: settings.llm.enabled,
+                confirmed_base_url: settings.llm.confirmed_base_url.clone(),
                 chat_completions: StoredChatCompletionsLlmSettings {
                     base_url: settings.llm.chat_completions.base_url.clone(),
                     api_key: settings.llm.chat_completions.api_key.clone(),
@@ -193,6 +183,7 @@ impl TryFrom<StoredSettings> for SaymoreSettings {
             },
             llm: LlmSettings {
                 enabled: stored.llm.enabled,
+                confirmed_base_url: stored.llm.confirmed_base_url,
                 chat_completions: ChatCompletionsLlmSettings {
                     base_url: stored.llm.chat_completions.base_url,
                     api_key: stored.llm.chat_completions.api_key,
@@ -242,6 +233,7 @@ mod tests {
             },
             llm: LlmSettings {
                 enabled: true,
+                confirmed_base_url: "https://llm.example/v1".to_owned(),
                 chat_completions: ChatCompletionsLlmSettings {
                     base_url: "https://llm.example/v1".to_owned(),
                     api_key: "llm-test-key".to_owned(),

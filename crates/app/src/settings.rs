@@ -20,19 +20,11 @@ pub struct VolcengineAsrSettings {
     pub model: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct LlmSettings {
     pub enabled: bool,
+    pub confirmed_base_url: String,
     pub chat_completions: ChatCompletionsLlmSettings,
-}
-
-impl Default for LlmSettings {
-    fn default() -> Self {
-        Self {
-            enabled: true,
-            chat_completions: ChatCompletionsLlmSettings::default(),
-        }
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]

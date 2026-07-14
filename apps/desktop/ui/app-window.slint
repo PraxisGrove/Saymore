@@ -31,10 +31,17 @@ export component AppWindow inherits Window {
     in property <bool> asr-configured: false;
     in property <bool> asr-config-error: false;
     in property <string> asr-config-status: "未配置";
+    in-out property <bool> llm-enabled: false;
+    in property <string> llm-provider-target: "";
+    in property <bool> llm-provider-local: false;
+    in property <string> llm-config-status: "未启用";
+    in-out property <bool> llm-confirmation-visible: false;
     callback request-authorization();
     callback request-microphone-authorization();
     callback save-asr-config(string);
     callback delete-asr-config();
+    callback request-llm-enable();
+    callback set-llm-enabled(bool, string);
 
     HorizontalLayout {
         spacing: 0px;
@@ -49,6 +56,7 @@ export component AppWindow inherits Window {
             asr-configured: root.asr-configured;
             asr-config-error: root.asr-config-error;
             asr-config-status: root.asr-config-status;
+            llm-enabled: root.llm-enabled;
             recording-active: root.recording-active;
             recording-failed: root.recording-failed;
             recording-complete: root.recording-complete;
@@ -72,10 +80,17 @@ export component AppWindow inherits Window {
             asr-configured: root.asr-configured;
             asr-config-error: root.asr-config-error;
             asr-config-status: root.asr-config-status;
+            llm-enabled <=> root.llm-enabled;
+            llm-provider-target: root.llm-provider-target;
+            llm-provider-local: root.llm-provider-local;
+            llm-config-status: root.llm-config-status;
+            llm-confirmation-visible <=> root.llm-confirmation-visible;
             request-authorization => { root.request-authorization(); }
             request-microphone-authorization => { root.request-microphone-authorization(); }
             save-asr-config(api-key) => { root.save-asr-config(api-key); }
             delete-asr-config => { root.delete-asr-config(); }
+            request-llm-enable => { root.request-llm-enable(); }
+            set-llm-enabled(enabled, base-url) => { root.set-llm-enabled(enabled, base-url); }
         }
     }
 }

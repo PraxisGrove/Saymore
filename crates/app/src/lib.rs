@@ -7,6 +7,7 @@ mod cancelled_recording;
 mod feedback_sound;
 mod final_text_processing;
 mod refinement_policy;
+mod refinement_terms;
 mod settings;
 mod speech_recognition;
 mod text_delivery;

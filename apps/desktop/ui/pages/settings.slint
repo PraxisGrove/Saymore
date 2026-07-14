@@ -1,4 +1,4 @@
-import { Button } from "std-widgets.slint";
+import { Button, CheckBox } from "std-widgets.slint";
 import { NavItem, PageHeading, SettingsSection, StatusPill } from "../components.slint";
 
 component SettingsRow inherits Rectangle {
@@ -52,10 +52,17 @@ export component SettingsPage inherits Rectangle {
     in property <bool> asr-configured;
     in property <bool> asr-config-error;
     in property <string> asr-config-status;
+    in-out property <bool> llm-enabled;
+    in property <string> llm-provider-target;
+    in property <bool> llm-provider-local;
+    in property <string> llm-config-status;
+    in-out property <bool> llm-confirmation-visible: false;
     callback request-authorization();
     callback request-microphone-authorization();
     callback save-asr-config(string);
     callback delete-asr-config();
+    callback request-llm-enable();
+    callback set-llm-enabled(bool, string);
     in-out property <SettingsSection> current-section: SettingsSection.general;
     background: #fafbfc;
 
@@ -157,9 +164,25 @@ export component SettingsPage inherits Rectangle {
                     }
 
                     Rectangle { height: 1px; background: #e5e7eb; }
+                    CheckBox {
+                        height: 34px;
+                        text: "启用大模型润色";
+                        checked <=> root.llm-enabled;
+                        toggled => {
+                            if self.checked {
+                                root.llm-enabled = false;
+                                root.request-llm-enable();
+                            } else if !root.llm-confirmation-visible {
+                                root.set-llm-enabled(false, "");
+                            }
+                        }
+                    }
+                    Text { height: 20px; text: root.llm-config-status; color: #747b85; font-size: 12px; }
+                    Rectangle { height: 1px; background: #e5e7eb; }
                     Text { height: 30px; text: "当前模型"; color: #30343a; font-size: 14px; font-weight: 650; vertical-alignment: center; }
                     SettingsRow { title: "语音识别"; detail: "豆包流式语音识别模型 2.0"; }
                     SettingsRow { title: "规则标准化"; detail: "基础标点与数字格式"; }
+                    SettingsRow { title: "文本处理"; detail: root.llm-enabled ? "SenseNova 大模型润色" : "仅安全本地清理"; }
                     Rectangle { vertical-stretch: 1; background: transparent; }
                 }
 
@@ -201,6 +224,53 @@ export component SettingsPage inherits Rectangle {
                     SettingsRow { title: "许可证"; detail: "MIT OR Apache-2.0"; }
                     SettingsRow { title: "界面技术"; detail: "Made with Slint"; }
                     Rectangle { vertical-stretch: 1; background: transparent; }
+                }
+            }
+        }
+    }
+
+    if root.llm-confirmation-visible: Rectangle {
+        x: 0px;
+        y: 0px;
+        width: parent.width;
+        height: parent.height;
+        background: #00000066;
+
+        Rectangle {
+            width: 440px;
+            height: 250px;
+            x: (parent.width - self.width) / 2;
+            y: (parent.height - self.height) / 2;
+            background: #ffffff;
+            border-radius: 8px;
+
+            VerticalLayout {
+                padding: 24px;
+                spacing: 14px;
+                Text { height: 28px; text: "确认启用云端润色"; color: #25282d; font-size: 18px; font-weight: 650; }
+                Text {
+                    height: 76px;
+                    text: "启用后，Saymore 会把本次转写文本发送到以下服务进行润色：\n" + root.llm-provider-target + "\n当前版本不发送个人词典条目。";
+                    color: #535862;
+                    font-size: 13px;
+                    wrap: word-wrap;
+                }
+                Rectangle { vertical-stretch: 1; background: transparent; }
+                HorizontalLayout {
+                    height: 40px;
+                    spacing: 10px;
+                    alignment: end;
+                    Button {
+                        text: "取消";
+                        clicked => { root.llm-confirmation-visible = false; }
+                    }
+                    Button {
+                        text: "确认启用";
+                        clicked => {
+                            root.llm-confirmation-visible = false;
+                            root.set-llm-enabled(true, root.llm-provider-target);
+                        }
+                    }
                 }
             }
         }

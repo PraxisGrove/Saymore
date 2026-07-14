@@ -29,6 +29,9 @@ async fn sends_an_openai_compatible_chat_completion_request()
                 .body_includes(r#""role":"system""#)
                 .body_includes(r#""role":"user""#)
                 .body_includes(r#""stream":false"#)
+                .body_includes(r#""reasoning_effort":"none""#)
+                .body_includes(r#""max_tokens":128"#)
+                .body_includes(r#""temperature":0.2"#)
                 .body_includes("raw text")
                 .body_includes("Typeless");
             then.status(200).json_body(serde_json::json!({
@@ -174,8 +177,19 @@ async fn live_configuration_matches_refinement_golden_cases()
         let result = processor
             .process(request, tokio_util::sync::CancellationToken::new())
             .await?;
-        if result.text != case.expected || result.refinement != RefinementStatus::Completed {
-            return Err(format!("live refinement case '{}' did not match", case.id).into());
+        if result.refinement != RefinementStatus::Completed {
+            return Err(format!(
+                "live refinement case '{}' did not complete: {:?}",
+                case.id, result.refinement
+            )
+            .into());
+        }
+        if result.text != case.expected {
+            return Err(format!(
+                "live refinement case '{}' completed with different text",
+                case.id
+            )
+            .into());
         }
     }
     if !matched {

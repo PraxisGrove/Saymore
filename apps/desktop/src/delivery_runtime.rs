@@ -3,7 +3,8 @@ use std::time::Duration;
 use raw_window_handle::{HasWindowHandle, RawWindowHandle};
 use slint::{ComponentHandle, SharedString, Timer};
 use template_app::{
-    FeedbackSound, FeedbackSoundPlayer, PcmRecording, TextDeliverer, TextDeliveryOutcome,
+    FeedbackSound, FeedbackSoundPlayer, PcmRecording, ProcessedText, RefinementStatus,
+    TextDeliverer, TextDeliveryOutcome,
 };
 use template_infra::{
     MacOsFeedbackSoundPlayer, MacOsTextDeliverer, configure_overlay_window, copy_text_to_clipboard,
@@ -15,6 +16,7 @@ use crate::{
 };
 
 const FOCUS_SETTLE_DELAY: Duration = Duration::from_millis(80);
+const FALLBACK_NOTICE_DELAY: Duration = Duration::from_millis(900);
 
 pub fn wire_result_actions(overlay: &ResultOverlay) {
     let copy_overlay = overlay.as_weak();
@@ -40,14 +42,28 @@ pub fn schedule_delivery(
     status_overlay: slint::Weak<RecordingOverlay>,
     result_overlay: slint::Weak<ResultOverlay>,
     recording: PcmRecording,
-    transcript: String,
+    processed: ProcessedText,
 ) {
+    let fell_back = matches!(processed.refinement, RefinementStatus::FellBack(_));
     if let Some(overlay) = status_overlay.upgrade() {
-        let _ = overlay.hide();
+        if fell_back {
+            overlay.set_mode(1);
+            overlay.set_processing_label(SharedString::from("润色未完成，已使用转写结果"));
+        } else {
+            let _ = overlay.hide();
+        }
     }
 
-    Timer::single_shot(FOCUS_SETTLE_DELAY, move || {
-        let delivery = MacOsTextDeliverer.deliver(&transcript);
+    let delivery_delay = if fell_back {
+        FALLBACK_NOTICE_DELAY
+    } else {
+        FOCUS_SETTLE_DELAY
+    };
+    Timer::single_shot(delivery_delay, move || {
+        if let Some(overlay) = status_overlay.upgrade() {
+            let _ = overlay.hide();
+        }
+        let delivery = MacOsTextDeliverer.deliver(&processed.text);
         let requires_recovery = delivery_requires_copy_recovery(&delivery);
         let verified = matches!(
             delivery,
@@ -62,10 +78,10 @@ pub fn schedule_delivery(
         let _ = MacOsFeedbackSoundPlayer.play(sound);
 
         if let Some(ui) = ui.upgrade() {
-            apply_transcription_completed(&ui, &recording, &transcript, delivery);
+            apply_transcription_completed(&ui, &recording, &processed, delivery);
         }
         if requires_recovery && let Some(overlay) = result_overlay.upgrade() {
-            show_result_overlay(&overlay, &transcript);
+            show_result_overlay(&overlay, &processed.text);
         }
     });
 }

@@ -77,6 +77,206 @@
     ]
   },
   {
+    "id": "dictionary-simple-typeless-spaced-alias",
+    "transcript": "我现在使用的是 type less 语音输入软件。",
+    "expected": "我现在使用的是 Typeless 语音输入软件。",
+    "language": "zh-CN",
+    "relevant_terms": [
+      {
+        "canonical": "Typeless",
+        "recognized_as": [
+          "type less"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "dictionary-simple-notion-homophone",
+    "transcript": "请把会议记录保存到闹心里。",
+    "expected": "请把会议记录保存到 Notion 里。",
+    "language": "zh-CN",
+    "relevant_terms": [
+      {
+        "canonical": "Notion",
+        "recognized_as": [
+          "闹心"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "dictionary-simple-raycast-spacing",
+    "transcript": "我用 ray cast 打开这个应用。",
+    "expected": "我用 Raycast 打开这个应用。",
+    "language": "zh-CN",
+    "relevant_terms": [
+      {
+        "canonical": "Raycast",
+        "recognized_as": [
+          "ray cast"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "dictionary-simple-postgresql-phonetic",
+    "transcript": "数据库使用 post grass q l。",
+    "expected": "数据库使用 PostgreSQL。",
+    "language": "zh-CN",
+    "relevant_terms": [
+      {
+        "canonical": "PostgreSQL",
+        "recognized_as": [
+          "post grass q l"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "dictionary-simple-sensenova-spacing",
+    "transcript": "这个功能调用 sense nova 模型。",
+    "expected": "这个功能调用 SenseNova 模型。",
+    "language": "zh-CN",
+    "relevant_terms": [
+      {
+        "canonical": "SenseNova",
+        "recognized_as": [
+          "sense nova"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "dictionary-complex-multiple-terms",
+    "transcript": "我先用 ray cast 打开闹心，然后用 table 输入会议记录。",
+    "expected": "我先用 Raycast 打开 Notion，然后用 Typeless 输入会议记录。",
+    "language": "zh-CN",
+    "relevant_terms": [
+      {
+        "canonical": "Raycast",
+        "recognized_as": [
+          "ray cast"
+        ]
+      },
+      {
+        "canonical": "Notion",
+        "recognized_as": [
+          "闹心"
+        ]
+      },
+      {
+        "canonical": "Typeless",
+        "recognized_as": [
+          "table"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "dictionary-complex-repeated-aliases",
+    "transcript": "table 今天识别错了，type less 昨天也识别错了。",
+    "expected": "Typeless 今天识别错了，Typeless 昨天也识别错了。",
+    "language": "zh-CN",
+    "relevant_terms": [
+      {
+        "canonical": "Typeless",
+        "recognized_as": [
+          "table",
+          "type less"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "dictionary-complex-context-preserves-homophone",
+    "transcript": "这个需求反复改，真的很闹心。",
+    "expected": "这个需求反复改，真的很闹心。",
+    "language": "zh-CN",
+    "relevant_terms": [
+      {
+        "canonical": "Notion",
+        "recognized_as": [
+          "闹心"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "dictionary-complex-terms-with-protected-command",
+    "transcript": "请在 github 仓库里运行 cargo test --workspace，然后把结果贴到 notion。",
+    "expected": "请在 GitHub 仓库里运行 cargo test --workspace，然后把结果贴到 Notion。",
+    "language": "zh-CN",
+    "relevant_terms": [
+      {
+        "canonical": "GitHub",
+        "recognized_as": [
+          "github"
+        ]
+      },
+      {
+        "canonical": "Notion",
+        "recognized_as": [
+          "notion"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "dictionary-complex-multiple-technical-terms",
+    "transcript": "我用 cloud code 修改 post grass q l 的配置，再通过 github 提交。",
+    "expected": "我用 Claude Code 修改 PostgreSQL 的配置，再通过 GitHub 提交。",
+    "language": "zh-CN",
+    "relevant_terms": [
+      {
+        "canonical": "Claude Code",
+        "recognized_as": [
+          "cloud code"
+        ]
+      },
+      {
+        "canonical": "PostgreSQL",
+        "recognized_as": [
+          "post grass q l"
+        ]
+      },
+      {
+        "canonical": "GitHub",
+        "recognized_as": [
+          "github"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "dictionary-complex-unused-term-is-not-inserted",
+    "transcript": "我现在使用的是系统自带输入法。",
+    "expected": "我现在使用的是系统自带输入法。",
+    "language": "zh-CN",
+    "relevant_terms": [
+      {
+        "canonical": "Typeless",
+        "recognized_as": [
+          "table",
+          "type less"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "dictionary-complex-numeric-technical-name",
+    "transcript": "这个功能调用 g p t four 模型。",
+    "expected": "这个功能调用 GPT-4 模型。",
+    "language": "zh-CN",
+    "relevant_terms": [
+      {
+        "canonical": "GPT-4",
+        "recognized_as": [
+          "g p t four"
+        ]
+      }
+    ]
+  },
+  {
     "id": "mixed-chinese-and-english",
     "transcript": "这个 API 的 response time 大概是 200 milliseconds。",
     "expected": "这个 API 的 response time 大概是 200 milliseconds。",

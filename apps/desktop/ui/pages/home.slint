@@ -52,6 +52,7 @@ export component HomePage inherits Rectangle {
     in property <bool> asr-configured;
     in property <bool> asr-config-error;
     in property <string> asr-config-status;
+    in property <bool> llm-enabled;
     in property <bool> recording-active;
     in property <bool> recording-failed;
     in property <bool> recording-complete;
@@ -183,7 +184,7 @@ export component HomePage inherits Rectangle {
                         Text { text: "语音与模型"; color: #292c31; font-size: 14px; font-weight: 650; }
                         StatusPill { label: root.asr-config-status; granted: root.asr-configured && !root.asr-config-error; }
                     }
-                    Text { text: "火山引擎语音识别"; color: #6e7580; font-size: 12px; }
+                    Text { text: root.llm-enabled ? "火山引擎语音识别 · 大模型润色" : "火山引擎语音识别 · 仅转写"; color: #6e7580; font-size: 12px; }
                     Text { text: root.asr-configured ? "API Key 已保存在本机配置" : "需要先完成语音服务配置"; color: #8a9099; font-size: 11px; }
                 }
 

@@ -13,6 +13,7 @@ export component RecordingOverlay inherits Window {
     in property <bool> show-device: false;
     in property <string> device-name: "";
     in property <float> recording-level: 0;
+    in property <string> processing-label: "正在转写";
     // 0 = recording, 1 = processing, 2 = cancelled
     in property <int> mode: 0;
     callback cancel();
@@ -96,7 +97,7 @@ export component RecordingOverlay inherits Window {
         }
 
         if root.mode == 1: Rectangle {
-            Text { text: "正在转写…"; color: #f4f4f5; font-size: 11px; font-weight: 600; horizontal-alignment: center; vertical-alignment: center; }
+            Text { text: root.processing-label + "…"; color: #f4f4f5; font-size: 11px; font-weight: 600; horizontal-alignment: center; vertical-alignment: center; }
         }
 
         if root.mode == 2: Rectangle {

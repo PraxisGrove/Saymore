@@ -14,6 +14,8 @@ use template_app::{
 
 const MAX_REQUEST_BYTES: usize = 256 * 1024;
 const MAX_RESPONSE_BYTES: usize = 1024 * 1024;
+const MIN_COMPLETION_TOKENS: u32 = 128;
+const MAX_COMPLETION_TOKENS: u32 = 8_192;
 const PROVIDER_TIMEOUT: Duration = Duration::from_secs(8);
 
 pub struct ChatCompletionsLlmProvider {
@@ -91,6 +93,9 @@ impl ChatCompletionsLlmProvider {
                 },
             ],
             stream: false,
+            reasoning_effort: "none",
+            max_tokens: completion_token_limit(&request.transcript),
+            temperature: 0.2,
         };
         let mut builder = self
             .client
@@ -134,6 +139,9 @@ struct ChatCompletionRequest<'a> {
     model: &'a str,
     messages: [ChatMessage<'a>; 2],
     stream: bool,
+    reasoning_effort: &'static str,
+    max_tokens: u32,
+    temperature: f32,
 }
 
 #[derive(Serialize)]
@@ -185,6 +193,18 @@ fn refinement_content(request: &LlmRefinementRequest) -> Result<String, LlmProvi
         relevant_terms,
     })
     .map_err(|_| protocol_failure("LLM refinement content could not be encoded"))
+}
+
+fn completion_token_limit(transcript: &str) -> u32 {
+    let source_chars = match u32::try_from(transcript.chars().count()) {
+        Ok(count) => count,
+        Err(_) => MAX_COMPLETION_TOKENS,
+    };
+    source_chars
+        .saturating_mul(3)
+        .div_ceil(2)
+        .saturating_add(64)
+        .clamp(MIN_COMPLETION_TOKENS, MAX_COMPLETION_TOKENS)
 }
 
 fn completion_endpoint(base_url: &str) -> Result<Url, LlmProviderError> {
@@ -284,6 +304,18 @@ mod tests {
     use httpmock::{Method::POST, MockServer};
 
     use super::*;
+
+    #[test]
+    fn completion_budget_scales_with_transcript_and_stays_bounded() {
+        assert_eq!(
+            (128, 1_564, 8_192),
+            (
+                completion_token_limit("short"),
+                completion_token_limit(&"字".repeat(1_000)),
+                completion_token_limit(&"字".repeat(10_000)),
+            )
+        );
+    }
 
     #[tokio::test]
     async fn connection_test_honors_provider_timeout() -> Result<(), Box<dyn std::error::Error>> {

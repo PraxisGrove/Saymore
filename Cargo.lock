@@ -4930,11 +4930,14 @@ dependencies = [
 name = "saymore-desktop"
 version = "0.1.0"
 dependencies = [
+ "httpmock",
  "raw-window-handle",
  "slint",
  "slint-build",
  "template-app",
  "template-infra",
+ "tokio",
+ "tokio-util",
 ]
 
 [[package]]

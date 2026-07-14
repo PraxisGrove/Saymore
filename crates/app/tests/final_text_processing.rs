@@ -191,6 +191,103 @@ async fn conservative_transformations_pass_the_output_guard() {
 }
 
 #[tokio::test]
+async fn confirmed_terms_allow_exact_technical_name_corrections() {
+    let cases = [
+        (
+            "数据库使用 post grass q l。",
+            "数据库使用 PostgreSQL。",
+            vec![RefinementTerm {
+                canonical: "PostgreSQL".to_owned(),
+                recognized_as: vec!["post grass q l".to_owned()],
+            }],
+        ),
+        (
+            "请在 github 仓库里运行 cargo test --workspace，然后把结果贴到 notion。",
+            "请在 GitHub 仓库里运行 cargo test --workspace，然后把结果贴到 Notion。",
+            vec![
+                RefinementTerm {
+                    canonical: "GitHub".to_owned(),
+                    recognized_as: vec!["github".to_owned()],
+                },
+                RefinementTerm {
+                    canonical: "Notion".to_owned(),
+                    recognized_as: vec!["notion".to_owned()],
+                },
+            ],
+        ),
+        (
+            "这个功能调用 g p t four 模型。",
+            "这个功能调用 GPT-4 模型。",
+            vec![RefinementTerm {
+                canonical: "GPT-4".to_owned(),
+                recognized_as: vec!["g p t four".to_owned()],
+            }],
+        ),
+    ];
+
+    for (source, refined, relevant_terms) in cases {
+        let processor = FinalTextProcessor::configured(Arc::new(CountingProvider {
+            calls: AtomicUsize::new(0),
+            result: Ok(refined.to_owned()),
+        }));
+        let mut request = enabled_request(source);
+        request.relevant_terms = relevant_terms;
+
+        assert_eq!(
+            Ok(ProcessedText {
+                text: refined.to_owned(),
+                refinement: RefinementStatus::Completed,
+            }),
+            processor.process(request, CancellationToken::new()).await,
+            "confirmed term correction was rejected for {source}"
+        );
+    }
+}
+
+#[tokio::test]
+async fn confirmed_terms_do_not_authorize_other_technical_changes() {
+    let cases = [
+        (
+            "请在 github 仓库里运行 cargo test --workspace。",
+            "请在 GitHub 仓库里运行 cargo check --workspace。",
+        ),
+        (
+            "请访问 https://github.com/example。",
+            "请访问 https://GitHub.com/example。",
+        ),
+        ("这个 timetable 需要更新。", "这个 timeTypeless 需要更新。"),
+    ];
+    let relevant_terms = vec![
+        RefinementTerm {
+            canonical: "GitHub".to_owned(),
+            recognized_as: vec!["github".to_owned()],
+        },
+        RefinementTerm {
+            canonical: "Typeless".to_owned(),
+            recognized_as: vec!["table".to_owned()],
+        },
+    ];
+
+    for (source, unsafe_output) in cases {
+        let processor = FinalTextProcessor::configured(Arc::new(CountingProvider {
+            calls: AtomicUsize::new(0),
+            result: Ok(unsafe_output.to_owned()),
+        }));
+        let mut request = enabled_request(source);
+        request.relevant_terms = relevant_terms.clone();
+
+        assert_eq!(
+            Ok(ProcessedText {
+                text: source.to_owned(),
+                refinement: RefinementStatus::FellBack(RefinementFallbackReason::OutputRejected),
+            }),
+            processor.process(request, CancellationToken::new()).await,
+            "unconfirmed technical change was accepted for {source}"
+        );
+    }
+}
+
+#[tokio::test]
 async fn unsafe_provider_outputs_fall_back_to_the_cleaned_transcript() {
     let expanded = "新增内容".repeat(40);
     let cases = [

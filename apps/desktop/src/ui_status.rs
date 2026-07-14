@@ -1,7 +1,8 @@
 use slint::SharedString;
 use template_app::{
-    AccessibilityAuthorization, MicrophoneAuthorization, PcmRecording, RecordingError,
-    SpeechRecognitionError, TextDeliveryError, TextDeliveryOutcome,
+    AccessibilityAuthorization, MicrophoneAuthorization, PcmRecording, ProcessedText,
+    RecordingError, RefinementStatus, SpeechRecognitionError, TextDeliveryError,
+    TextDeliveryOutcome,
 };
 
 use crate::{asr_runtime, ui::AppWindow};
@@ -18,7 +19,7 @@ pub fn apply_recording_started(ui: &AppWindow) {
 pub fn apply_transcription_completed(
     ui: &AppWindow,
     recording: &PcmRecording,
-    transcript: &str,
+    processed: &ProcessedText,
     delivery: Result<TextDeliveryOutcome, TextDeliveryError>,
 ) {
     let verified = matches!(
@@ -31,12 +32,9 @@ pub fn apply_transcription_completed(
     ui.set_recording_level(0.0);
     match delivery {
         Ok(outcome) => {
-            ui.set_recording_status(SharedString::from("转写完成"));
-            ui.set_recording_detail(SharedString::from(format!(
-                "{} · {} 字 · {}",
-                format_duration(recording.duration_ms),
-                transcript.chars().count(),
-                delivery_outcome_label(outcome)
+            ui.set_recording_status(SharedString::from(completion_status(&processed.refinement)));
+            ui.set_recording_detail(SharedString::from(completion_detail(
+                recording, processed, outcome,
             )));
         }
         Err(error) => {
@@ -44,6 +42,30 @@ pub fn apply_transcription_completed(
             ui.set_recording_detail(SharedString::from(text_delivery_error_message(&error)));
         }
     }
+}
+
+fn completion_status(refinement: &RefinementStatus) -> &'static str {
+    match refinement {
+        RefinementStatus::Disabled => "转写完成",
+        RefinementStatus::Completed => "润色完成",
+        RefinementStatus::FellBack(_) => "润色未完成",
+    }
+}
+
+fn completion_detail(
+    recording: &PcmRecording,
+    processed: &ProcessedText,
+    outcome: TextDeliveryOutcome,
+) -> String {
+    if matches!(processed.refinement, RefinementStatus::FellBack(_)) {
+        return "润色未完成，已使用转写结果".to_owned();
+    }
+    format!(
+        "{} · {} 字 · {}",
+        format_duration(recording.duration_ms),
+        processed.text.chars().count(),
+        delivery_outcome_label(outcome)
+    )
 }
 
 pub fn delivery_requires_copy_recovery(
@@ -152,6 +174,7 @@ fn recording_error_message(error: &RecordingError) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use template_app::RefinementFallbackReason;
 
     #[test]
     fn formats_recording_duration_to_tenths() {
@@ -186,5 +209,39 @@ mod tests {
         assert!(!delivery_requires_copy_recovery(&Err(
             TextDeliveryError::SecureInput
         )));
+    }
+
+    #[test]
+    fn completion_copy_reflects_the_selected_processing_mode_and_fallback() {
+        let recording = PcmRecording {
+            samples: Vec::new(),
+            sample_rate: 16_000,
+            channels: 1,
+            duration_ms: 1_250,
+        };
+        let disabled = ProcessedText {
+            text: "转写文本".to_owned(),
+            refinement: RefinementStatus::Disabled,
+        };
+        let completed = ProcessedText {
+            text: "润色文本".to_owned(),
+            refinement: RefinementStatus::Completed,
+        };
+        let fallback = ProcessedText {
+            text: "转写文本".to_owned(),
+            refinement: RefinementStatus::FellBack(RefinementFallbackReason::Timeout),
+        };
+
+        assert_eq!("转写完成", completion_status(&disabled.refinement));
+        assert_eq!("润色完成", completion_status(&completed.refinement));
+        assert_eq!("润色未完成", completion_status(&fallback.refinement));
+        assert_eq!(
+            "润色未完成，已使用转写结果",
+            completion_detail(
+                &recording,
+                &fallback,
+                TextDeliveryOutcome::AccessibilityVerified
+            )
+        );
     }
 }
