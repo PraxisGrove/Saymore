@@ -6,6 +6,10 @@ use std::process::ExitCode;
 
 #[cfg(target_os = "macos")]
 mod macos_bundle;
+#[cfg(target_os = "macos")]
+mod macos_preview;
+#[cfg(target_os = "macos")]
+mod macos_preview_signing;
 
 const DEFAULT_WARN_FILE_LINES: usize = 600;
 const DEFAULT_MAX_FILE_LINES: usize = 800;
@@ -32,6 +36,8 @@ fn run(args: Vec<String>) -> Result<(), Box<dyn Error>> {
     match command {
         #[cfg(target_os = "macos")]
         "bundle-macos" => macos_bundle::run(),
+        #[cfg(target_os = "macos")]
+        "preview-macos" => macos_preview::run(&args[1..]),
         "size" => run_size_gate(SizeConfig::from_args(&args[1..])?),
         "update-readme-version" => update_readme_version(&args[1..]),
         "help" | "-h" | "--help" => {
@@ -46,6 +52,8 @@ fn print_help() {
     println!("xtask commands:");
     #[cfg(target_os = "macos")]
     println!("  bundle-macos");
+    #[cfg(target_os = "macos")]
+    println!("  preview-macos [--once]");
     println!(
         "  size [--root <dir>] [--glob <glob>] [--warn-file-lines <n>] [--max-file-lines <n>] [--warn-fn-lines <n>] [--max-fn-lines <n>]"
     );

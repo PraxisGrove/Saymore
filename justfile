@@ -35,6 +35,12 @@ size:
 build:
     cargo build --workspace --all-targets --release
 
+preview:
+    ./scripts/dev-preview.sh
+
+release:
+    cargo run -p xtask -- bundle-macos
+
 ci:
     cargo fmt --all --check
     cargo check --workspace --all-targets

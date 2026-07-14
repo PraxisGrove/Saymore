@@ -30,11 +30,60 @@ The desktop crate's Rust build script must compile its `.slint` files so the
 standard `cargo check` and `cargo build` commands validate both UI declarations
 and Rust code.
 
-Create the local ad-hoc signed macOS application bundle with:
+## Desktop Preview
+
+There are two macOS app workflows:
+
+- `./scripts/dev-preview.sh` builds, installs, and watches the debug
+  `Saymore Preview.app`.
+- `cargo run -p xtask -- bundle-macos` creates the release-profile
+  `Saymore.app` bundle.
+
+Use the persistent preview while iterating on the desktop UI:
+
+```bash
+./scripts/dev-preview.sh
+```
+
+The preview installs a debug build at `/Applications/Saymore Preview.app` with
+the stable bundle identifier `com.saymore.desktop.preview`. It also creates and
+reuses a local code-signing identity under
+`~/Library/Application Support/Saymore Dev/preview-signing`, because macOS TCC
+does not preserve Accessibility authorization across rebuilt ad-hoc binaries.
+Grant the Preview app microphone and Accessibility permission once. Saving a
+Rust, Slint, Cargo, font, icon, or audio change performs an incremental debug
+build and restarts the preview app without changing that authorization identity.
+A failed build leaves the current preview open.
+`target/debug/saymore-desktop` is only an intermediate Cargo artifact; do not
+launch it as a separate preview app because it does not have the Preview bundle's
+stable macOS permission identity.
+
+The signing identity is self-signed, local to the development machine, and used
+only for `Saymore Preview.app`; it does not replace release signing. On its first
+creation, macOS asks for user authentication once to trust that certificate for
+local code signing. The first Preview run after migrating from the old ad-hoc
+workflow also requires Accessibility to be enabled once again for the new stable
+identity.
+
+The Preview bundle is also the development environment. Its bundle marker forces
+the app to use `~/Library/Application Support/Saymore Dev`, the development
+history key, development Provider configuration, and a separate instance lock.
+It can run alongside `/Applications/Saymore.app`; refreshing Preview only stops
+the Preview process. This workflow never writes production local data, performs
+a release build, or overwrites `/Applications/Saymore.app`.
+
+The two app identities currently listen for the same global Right Command
+shortcut. Their storage and processes can coexist, but close one app before a
+dictation test so both do not react to the same shortcut.
+
+Create the local ad-hoc signed release bundle with:
 
 ```bash
 cargo run -p xtask -- bundle-macos
 ```
+
+If `just` is installed, `just preview` and `just release` are optional aliases
+for these two commands.
 
 ## Optional Shortcuts
 
