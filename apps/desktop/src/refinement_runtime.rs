@@ -6,10 +6,12 @@ use std::{
 
 use template_app::{
     ChatCompletionsLlmSettings, FinalTextProcessor, FinalTextRequest, ProcessedText,
-    RefinementFallbackReason, RefinementMode, RefinementStatus, SettingsStore,
-    SpeechRecognitionError,
+    RefinementFallbackReason, RefinementMode, RefinementStatus, RefinementTerm, SettingsStore,
+    SpeechRecognitionError, normalize_standard_spellings, relevant_dictionary_terms,
 };
-use template_infra::{ChatCompletionsLlmProvider, JsonSettingsStore};
+#[cfg(test)]
+use template_infra::AppEnvironment;
+use template_infra::{ChatCompletionsLlmProvider, JsonSettingsStore, SqliteStorage};
 use tokio::runtime::Runtime;
 use tokio_util::sync::CancellationToken;
 
@@ -45,6 +47,11 @@ struct ProcessorCache {
     processor: Arc<FinalTextProcessor>,
 }
 
+pub struct ProcessedTranscript {
+    pub processed: ProcessedText,
+    pub llm_refined_text: Option<String>,
+}
+
 impl RefinementRuntime {
     pub fn new(settings: Arc<JsonSettingsStore>) -> Result<Self, io::Error> {
         Ok(Self {
@@ -75,8 +82,9 @@ impl RefinementRuntime {
         &self,
         transcript: &str,
         plan: RefinementPlan,
+        relevant_terms: Vec<RefinementTerm>,
         on_provider_attempt: F,
-    ) -> Result<ProcessedText, SpeechRecognitionError>
+    ) -> Result<ProcessedTranscript, SpeechRecognitionError>
     where
         F: FnOnce(),
     {
@@ -86,23 +94,26 @@ impl RefinementRuntime {
                 "empty transcript".to_owned(),
             ));
         }
-        Ok(self.process(transcript, plan, on_provider_attempt))
+        Ok(self.process(transcript, plan, relevant_terms, on_provider_attempt))
     }
 
     fn process<F>(
         &self,
         transcript: String,
         plan: RefinementPlan,
+        relevant_terms: Vec<RefinementTerm>,
         on_provider_attempt: F,
-    ) -> ProcessedText
+    ) -> ProcessedTranscript
     where
         F: FnOnce(),
     {
         let started = Instant::now();
         let fallback_text = transcript.clone();
         let processor = self.processor_for(plan.provider);
-        let request = FinalTextRequest::new(transcript, plan.mode);
-        let processed = match self
+        let mut request = FinalTextRequest::new(transcript, plan.mode);
+        request.relevant_terms = relevant_terms.clone();
+        request.language = Some(inferred_transcript_language(&request.transcript).to_owned());
+        let mut processed = match self
             .runtime
             .block_on(processor.process_with_attempt_observer(
                 request,
@@ -115,8 +126,14 @@ impl RefinementRuntime {
                 refinement: RefinementStatus::FellBack(RefinementFallbackReason::Protocol),
             },
         };
+        let llm_refined_text = matches!(processed.refinement, RefinementStatus::Completed)
+            .then(|| processed.text.clone());
+        processed.text = normalize_standard_spellings(&processed.text, &relevant_terms);
         log_refinement_result(&processed.refinement, started.elapsed().as_millis());
-        processed
+        ProcessedTranscript {
+            processed,
+            llm_refined_text,
+        }
     }
 
     fn processor_for(
@@ -142,6 +159,28 @@ impl RefinementRuntime {
             processor: Arc::clone(&processor),
         });
         processor
+    }
+}
+
+pub fn relevant_terms_for_transcript(
+    storage: &SqliteStorage,
+    transcript: &str,
+) -> Vec<RefinementTerm> {
+    relevant_dictionary_terms(
+        storage,
+        transcript,
+        inferred_transcript_language(transcript),
+    )
+    .unwrap_or_default()
+}
+
+fn inferred_transcript_language(text: &str) -> &'static str {
+    if text.chars().any(
+        |character| matches!(character as u32, 0x3400..=0x4DBF | 0x4E00..=0x9FFF | 0xF900..=0xFAFF),
+    ) {
+        "zh-Hans"
+    } else {
+        "en"
     }
 }
 
@@ -191,17 +230,47 @@ mod tests {
     }
 
     #[test]
+    fn infers_the_minimal_refinement_language_hint() {
+        assert_eq!("zh-Hans", inferred_transcript_language("你好 OpenAI"));
+        assert_eq!("en", inferred_transcript_language("hello OpenAI"));
+    }
+
+    #[test]
     fn disabled_plan_returns_the_transcript_without_a_provider_call() {
         let runtime = test_runtime();
 
         let Ok(processed) =
-            runtime.process_final_transcript("  原始文本。  ", disabled_plan(), || {})
+            runtime.process_final_transcript("  原始文本。  ", disabled_plan(), Vec::new(), || {})
         else {
             panic!("non-empty transcript should be processed");
         };
 
-        assert_eq!("原始文本。", processed.text);
-        assert_eq!(RefinementStatus::Disabled, processed.refinement);
+        assert_eq!("原始文本。", processed.processed.text);
+        assert_eq!(RefinementStatus::Disabled, processed.processed.refinement);
+        assert_eq!(None, processed.llm_refined_text);
+    }
+
+    #[test]
+    fn standard_spelling_runs_after_the_optional_refinement_stage() {
+        let runtime = test_runtime();
+        let terms = vec![RefinementTerm {
+            canonical: "OpenAI".to_owned(),
+        }];
+
+        let Ok(processed) = runtime.process_final_transcript(
+            "openai、ＯｐｅｎＡＩ，但不要合并 open ai。",
+            disabled_plan(),
+            terms,
+            || {},
+        ) else {
+            panic!("non-empty transcript should be processed");
+        };
+
+        assert_eq!(
+            "OpenAI、OpenAI，但不要合并 open ai。",
+            processed.processed.text
+        );
+        assert_eq!(None, processed.llm_refined_text);
     }
 
     #[test]
@@ -221,13 +290,14 @@ mod tests {
 
         let transcript = "今天先完成登录测试，明天处理设置页面，发布前检查配置迁移。";
         let attempted = AtomicBool::new(false);
-        let Ok(processed) = runtime.process_final_transcript(transcript, plan, || {
+        let Ok(processed) = runtime.process_final_transcript(transcript, plan, Vec::new(), || {
             attempted.store(true, Ordering::Relaxed)
         }) else {
             panic!("non-empty transcript should be processed");
         };
 
-        assert_eq!(RefinementStatus::Completed, processed.refinement);
+        assert_eq!(RefinementStatus::Completed, processed.processed.refinement);
+        assert_eq!(Some("原始文本。".to_owned()), processed.llm_refined_text);
         assert!(attempted.load(Ordering::Relaxed));
         completion.assert();
     }
@@ -241,13 +311,19 @@ mod tests {
         };
         let attempted = AtomicBool::new(false);
 
-        let Ok(processed) = runtime.process_final_transcript("好的，谢谢。", plan, || {
-            attempted.store(true, Ordering::Relaxed)
-        }) else {
+        let Ok(processed) =
+            runtime.process_final_transcript("好的，谢谢。", plan, Vec::new(), || {
+                attempted.store(true, Ordering::Relaxed)
+            })
+        else {
             panic!("non-empty transcript should be processed");
         };
 
-        assert!(matches!(processed.refinement, RefinementStatus::Skipped(_)));
+        assert!(matches!(
+            processed.processed.refinement,
+            RefinementStatus::Skipped(_)
+        ));
+        assert_eq!(None, processed.llm_refined_text);
         assert!(!attempted.load(Ordering::Relaxed));
     }
 
@@ -265,15 +341,17 @@ mod tests {
         };
 
         let transcript = "今天先完成登录测试，明天处理设置页面，发布前检查配置迁移。";
-        let Ok(processed) = runtime.process_final_transcript(transcript, plan, || {}) else {
+        let Ok(processed) = runtime.process_final_transcript(transcript, plan, Vec::new(), || {})
+        else {
             panic!("non-empty transcript should be processed");
         };
 
-        assert_eq!(transcript, processed.text);
+        assert_eq!(transcript, processed.processed.text);
         assert_eq!(
             RefinementStatus::FellBack(RefinementFallbackReason::Authentication),
-            processed.refinement
+            processed.processed.refinement
         );
+        assert_eq!(None, processed.llm_refined_text);
         rejected.assert();
     }
 
@@ -281,7 +359,7 @@ mod tests {
     fn rejects_an_empty_normalized_transcript() {
         let runtime = test_runtime();
 
-        let result = runtime.process_final_transcript(" \n ", disabled_plan(), || {});
+        let result = runtime.process_final_transcript(" \n ", disabled_plan(), Vec::new(), || {});
 
         assert!(matches!(result, Err(SpeechRecognitionError::Protocol(_))));
     }
@@ -290,22 +368,25 @@ mod tests {
     #[ignore = "uses the current user's live LLM configuration"]
     fn current_user_configuration_runs_the_desktop_pipeline()
     -> Result<(), Box<dyn std::error::Error>> {
-        let settings = Arc::new(JsonSettingsStore::for_current_user()?);
+        let settings = Arc::new(JsonSettingsStore::for_current_user(
+            AppEnvironment::Production,
+        )?);
         let runtime = RefinementRuntime::new(settings)?;
         let plan = runtime.plan();
         let processed = runtime.process_final_transcript(
             "这个真的真的很重要，而且我们今天需要先完成测试，再决定下一步怎么处理。",
             plan,
+            Vec::new(),
             || {},
         )?;
-        if processed.refinement != RefinementStatus::Completed {
+        if processed.processed.refinement != RefinementStatus::Completed {
             return Err("desktop refinement pipeline did not complete".into());
         }
         Ok(())
     }
 
     fn test_runtime() -> RefinementRuntime {
-        let Ok(settings) = JsonSettingsStore::for_current_user() else {
+        let Ok(settings) = JsonSettingsStore::for_current_user(AppEnvironment::Production) else {
             panic!("current user settings path should be available");
         };
         let Ok(runtime) = RefinementRuntime::new(Arc::new(settings)) else {

@@ -1,12 +1,32 @@
 use std::sync::Arc;
 
 use slint::{ComponentHandle, SharedString};
-use template_app::{SettingsStore, VolcengineAsrSettings};
+use template_app::{LlmProviderPreset, ProviderConfigStore, SettingsStore, VolcengineAsrSettings};
+#[cfg(test)]
+use template_app::{ProviderCatalog, ProviderInstance};
+#[cfg(test)]
+use template_infra::AppEnvironment;
 use template_infra::{ChatCompletionsLlmProvider, JsonSettingsStore};
 
-use crate::ui::AppWindow;
+use crate::ui::{AppWindow, LlmProvider as UiLlmProvider};
 
 const VOLCENGINE_MODEL: &str = "bigmodel_async";
+#[cfg(test)]
+const CHAT_COMPLETIONS_TYPE: &str = "openai_compatible";
+
+fn provider_preset(provider: UiLlmProvider) -> LlmProviderPreset {
+    match provider {
+        UiLlmProvider::Sensenova => LlmProviderPreset::SenseNova,
+        UiLlmProvider::Deepseek => LlmProviderPreset::DeepSeek,
+    }
+}
+
+fn ui_provider(provider: LlmProviderPreset) -> UiLlmProvider {
+    match provider {
+        LlmProviderPreset::SenseNova => UiLlmProvider::Sensenova,
+        LlmProviderPreset::DeepSeek => UiLlmProvider::Deepseek,
+    }
+}
 
 pub fn wire(ui: &AppWindow, store: Arc<JsonSettingsStore>) {
     apply_loaded_settings(ui, &store);
@@ -60,29 +80,78 @@ pub fn wire(ui: &AppWindow, store: Arc<JsonSettingsStore>) {
 }
 
 fn wire_llm(ui: &AppWindow, store: Arc<JsonSettingsStore>) {
+    wire_llm_config_actions(ui, Arc::clone(&store));
+    wire_llm_enablement(ui, store);
+}
+
+fn wire_llm_config_actions(ui: &AppWindow, store: Arc<JsonSettingsStore>) {
+    let save_ui = ui.as_weak();
+    let save_store = Arc::clone(&store);
+    ui.on_save_llm_config(move |provider, api_key| {
+        let Some(ui) = save_ui.upgrade() else {
+            return;
+        };
+        let provider = provider_preset(provider);
+        if api_key.trim().is_empty() {
+            ui.set_llm_config_status(SharedString::from("请输入 API Key"));
+            return;
+        }
+        let result = save_store.load_catalog().and_then(|mut catalog| {
+            catalog.save_llm_provider_config(provider, api_key.as_str());
+            save_store.save_catalog(&catalog)
+        });
+        if result.is_ok() {
+            apply_loaded_settings(&ui, &save_store);
+            ui.set_llm_config_status(SharedString::from("已保存，请启用并测试连接"));
+        } else {
+            ui.set_llm_config_status(SharedString::from("保存失败"));
+        }
+    });
+
+    let select_ui = ui.as_weak();
+    let select_store = Arc::clone(&store);
+    ui.on_select_llm_provider(move |provider| {
+        let Some(ui) = select_ui.upgrade() else {
+            return;
+        };
+        let provider = provider_preset(provider);
+        let result = select_store.load_catalog().and_then(|mut catalog| {
+            catalog.select_llm_provider(provider);
+            select_store.save_catalog(&catalog)
+        });
+        if result.is_ok() {
+            apply_loaded_settings(&ui, &select_store);
+            ui.set_llm_provider_target(SharedString::from(provider.base_url()));
+        } else {
+            ui.set_llm_config_status(SharedString::from("切换失败"));
+        }
+    });
+}
+
+fn wire_llm_enablement(ui: &AppWindow, store: Arc<JsonSettingsStore>) {
     let prepare_ui = ui.as_weak();
     let prepare_store = Arc::clone(&store);
     ui.on_request_llm_enable(move || {
         let Some(ui) = prepare_ui.upgrade() else {
             return;
         };
-        let Ok(settings) = prepare_store.load() else {
+        let provider = provider_preset(ui.get_llm_provider());
+        let Ok(catalog) = prepare_store.load_catalog() else {
             ui.set_llm_config_status(SharedString::from("配置读取失败"));
             return;
         };
-        let base_url = settings.llm.chat_completions.base_url.trim().to_owned();
-        if base_url.is_empty() {
-            ui.set_llm_config_status(SharedString::from("未配置服务地址"));
+        if catalog
+            .llm_provider_api_key(provider)
+            .is_none_or(str::is_empty)
+        {
+            ui.set_llm_config_status(SharedString::from("请先保存 API Key"));
             return;
         }
+        let base_url = provider.base_url().to_owned();
         let local = provider_is_local(&base_url);
         ui.set_llm_provider_target(SharedString::from(&base_url));
         ui.set_llm_provider_local(local);
-        if local {
-            start_llm_test(&ui, Arc::clone(&prepare_store), base_url);
-        } else {
-            ui.set_llm_confirmation_visible(true);
-        }
+        ui.set_llm_confirmation_visible(true);
     });
 
     let llm_ui = ui.as_weak();
@@ -103,25 +172,29 @@ fn wire_llm(ui: &AppWindow, store: Arc<JsonSettingsStore>) {
             }));
             return;
         }
-        start_llm_test(&ui, Arc::clone(&store), expected_base_url.to_string());
+        let provider = provider_preset(ui.get_llm_provider());
+        if provider.base_url() != expected_base_url.trim() {
+            ui.set_llm_config_status(SharedString::from("模型提供商已改变"));
+            return;
+        }
+        start_llm_test(&ui, Arc::clone(&store), provider);
     });
 }
 
-fn start_llm_test(ui: &AppWindow, store: Arc<JsonSettingsStore>, expected_base_url: String) {
+fn start_llm_test(ui: &AppWindow, store: Arc<JsonSettingsStore>, provider: LlmProviderPreset) {
     ui.set_llm_enabled(false);
     ui.set_llm_config_status(SharedString::from("正在测试连接"));
     let test_ui = ui.as_weak();
     let spawn_result = std::thread::Builder::new()
         .name("saymore-test-llm".to_owned())
         .spawn(move || {
-            let result = test_and_enable_llm(&store, &expected_base_url);
+            let result = test_and_enable_llm(&store, provider);
+            let event_store = Arc::clone(&store);
             let _ = test_ui.upgrade_in_event_loop(move |ui| {
-                ui.set_llm_enabled(result.is_ok());
-                ui.set_llm_config_status(SharedString::from(if result.is_ok() {
-                    "已启用"
-                } else {
-                    "连接测试失败"
-                }));
+                apply_loaded_settings(&ui, &event_store);
+                if result.is_err() {
+                    ui.set_llm_config_status(SharedString::from("连接测试失败"));
+                }
             });
         });
     if spawn_result.is_err() {
@@ -129,12 +202,25 @@ fn start_llm_test(ui: &AppWindow, store: Arc<JsonSettingsStore>, expected_base_u
     }
 }
 
-fn test_and_enable_llm(store: &JsonSettingsStore, expected_base_url: &str) -> Result<(), String> {
-    let settings = store.load().map_err(|error| error.to_string())?;
-    let provider_settings = settings.llm.chat_completions;
-    if provider_settings.base_url.trim() != expected_base_url.trim() {
-        return Err("LLM provider changed before confirmation".to_owned());
-    }
+fn test_and_enable_llm(
+    store: &JsonSettingsStore,
+    provider_preset: LlmProviderPreset,
+) -> Result<(), String> {
+    let mut catalog = store.load_catalog().map_err(|error| error.to_string())?;
+    let api_key = catalog
+        .llm_provider_api_key(provider_preset)
+        .ok_or_else(|| "LLM API Key is missing".to_owned())?
+        .to_owned();
+    let provider_settings = provider_preset.settings(&api_key);
+    catalog.select_llm_provider(provider_preset);
+    let expected_provider_id = catalog
+        .active
+        .llm
+        .clone()
+        .ok_or_else(|| "LLM provider selection failed".to_owned())?;
+    store
+        .save_catalog(&catalog)
+        .map_err(|error| error.to_string())?;
     let provider = ChatCompletionsLlmProvider::new(provider_settings.clone())
         .map_err(|error| error.to_string())?;
     let runtime = tokio::runtime::Builder::new_current_thread()
@@ -144,29 +230,50 @@ fn test_and_enable_llm(store: &JsonSettingsStore, expected_base_url: &str) -> Re
     runtime
         .block_on(provider.test_connection())
         .map_err(|error| error.to_string())?;
-    let mut settings = store.load().map_err(|error| error.to_string())?;
-    if settings.llm.chat_completions != provider_settings {
+    if !store
+        .enable_llm_provider_if_unchanged(
+            provider_preset,
+            &expected_provider_id,
+            &provider_settings.api_key,
+        )
+        .map_err(|error| error.to_string())?
+    {
         return Err("LLM provider changed during connection test".to_owned());
     }
-    settings.llm.enabled = true;
-    settings.llm.confirmed_base_url = expected_base_url.trim().to_owned();
-    store.save(&settings).map_err(|error| error.to_string())
+    Ok(())
 }
 
 fn apply_loaded_settings(ui: &AppWindow, store: &JsonSettingsStore) {
-    match store.load() {
-        Ok(settings) => {
-            let llm_base_url = settings.llm.chat_completions.base_url.trim();
+    match (store.load(), store.load_catalog()) {
+        (Ok(settings), Ok(catalog)) => {
+            let selected = catalog
+                .active_llm_provider()
+                .unwrap_or(LlmProviderPreset::SenseNova);
+            ui.set_llm_provider(ui_provider(selected));
+            ui.set_sensenova_api_key(SharedString::from(
+                catalog
+                    .llm_provider_api_key(LlmProviderPreset::SenseNova)
+                    .unwrap_or_default(),
+            ));
+            ui.set_deepseek_api_key(SharedString::from(
+                catalog
+                    .llm_provider_api_key(LlmProviderPreset::DeepSeek)
+                    .unwrap_or_default(),
+            ));
+            let llm_configured = !settings.llm.chat_completions.api_key.trim().is_empty();
+            let llm_base_url = selected.base_url();
             let llm_enabled = settings.llm.enabled
-                && !llm_base_url.is_empty()
+                && llm_configured
                 && settings.llm.confirmed_base_url.trim() == llm_base_url;
             ui.set_llm_enabled(llm_enabled);
             ui.set_llm_provider_target(SharedString::from(llm_base_url));
             ui.set_llm_provider_local(provider_is_local(llm_base_url));
             ui.set_llm_config_status(SharedString::from(if llm_enabled {
                 "已启用"
-            } else {
+            } else if llm_configured {
                 "未启用"
+            } else {
+                "请保存当前提供商的 API Key"
             }));
             let provider = settings.asr.volcengine;
             let configured = provider.enabled && !provider.api_key.trim().is_empty();
@@ -178,7 +285,7 @@ fn apply_loaded_settings(ui: &AppWindow, store: &JsonSettingsStore) {
                 if configured { "已配置" } else { "未配置" },
             );
         }
-        Err(_) => apply_status(ui, false, true, "配置读取失败"),
+        _ => apply_status(ui, false, true, "配置读取失败"),
     }
 }
 
@@ -207,4 +314,101 @@ fn apply_status(ui: &AppWindow, configured: bool, error: bool, status: &str) {
     ui.set_asr_configured(configured);
     ui.set_asr_config_error(error);
     ui.set_asr_config_status(SharedString::from(status));
+}
+
+#[cfg(test)]
+mod tests {
+    use std::fs;
+
+    use super::*;
+    use uuid::Uuid;
+
+    #[test]
+    fn sensenova_configuration_uses_the_supported_endpoint_and_model() {
+        let settings = LlmProviderPreset::SenseNova.settings("test-key");
+
+        assert_eq!(LlmProviderPreset::SenseNova.base_url(), settings.base_url);
+        assert_eq!(LlmProviderPreset::SenseNova.model(), settings.model);
+        assert_eq!("test-key", settings.api_key);
+        assert!(settings.custom_headers.is_empty());
+    }
+
+    #[test]
+    fn deepseek_configuration_uses_the_official_chat_completions_api() {
+        let settings = LlmProviderPreset::DeepSeek.settings("deepseek-key");
+
+        assert_eq!("https://api.deepseek.com", settings.base_url);
+        assert_eq!("deepseek-v4-flash", settings.model);
+        assert_eq!("deepseek-key", settings.api_key);
+        assert!(settings.custom_headers.is_empty());
+    }
+
+    #[test]
+    fn persists_both_provider_keys_and_selects_deepseek() {
+        let directory =
+            std::env::temp_dir().join(format!("saymore-provider-switch-{}", Uuid::new_v4()));
+        let store = JsonSettingsStore::at_path(directory.join("providers.json"));
+        let mut catalog = ProviderCatalog::default();
+
+        catalog.save_llm_provider_config(LlmProviderPreset::SenseNova, "sense-key");
+        catalog.save_llm_provider_config(LlmProviderPreset::DeepSeek, "deepseek-key");
+        catalog.select_llm_provider(LlmProviderPreset::DeepSeek);
+        assert_eq!(Ok(()), store.save_catalog(&catalog));
+        let Ok(catalog) = store.load_catalog() else {
+            panic!("saved provider catalog should be readable");
+        };
+
+        assert_eq!(
+            Some("sense-key"),
+            catalog.llm_provider_api_key(LlmProviderPreset::SenseNova)
+        );
+        assert_eq!(
+            Some("deepseek-key"),
+            catalog.llm_provider_api_key(LlmProviderPreset::DeepSeek)
+        );
+        assert_eq!(Some("deepseek"), catalog.active.llm.as_deref());
+        let _ = fs::remove_dir_all(directory);
+    }
+
+    #[test]
+    fn adopts_an_active_legacy_sensenova_instance_without_losing_selection() {
+        let mut catalog = ProviderCatalog {
+            active: template_app::ActiveProviders {
+                asr: None,
+                llm: Some("legacy-id".to_owned()),
+            },
+            asr_providers: Vec::new(),
+            llm_providers: vec![ProviderInstance {
+                id: "legacy-id".to_owned(),
+                name: "OpenAI-compatible".to_owned(),
+                provider_type: CHAT_COMPLETIONS_TYPE.to_owned(),
+                config: serde_json::json!({
+                    "base_url": LlmProviderPreset::SenseNova.base_url(),
+                    "api_key": "legacy-key",
+                    "model": LlmProviderPreset::SenseNova.model(),
+                }),
+                data_consent: None,
+            }],
+        };
+
+        catalog.save_llm_provider_config(LlmProviderPreset::SenseNova, "legacy-key");
+
+        assert_eq!(Some("sensenova"), catalog.active.llm.as_deref());
+        assert_eq!(
+            Some("legacy-key"),
+            catalog.llm_provider_api_key(LlmProviderPreset::SenseNova)
+        );
+    }
+
+    #[test]
+    #[ignore = "uses and enables the current user's live SenseNova configuration"]
+    fn current_user_sensenova_configuration_can_be_enabled() {
+        let Ok(store) = JsonSettingsStore::for_current_user(AppEnvironment::Production) else {
+            panic!("current user settings should be available");
+        };
+
+        let result = test_and_enable_llm(&store, LlmProviderPreset::SenseNova);
+
+        assert!(result.is_ok(), "SenseNova enablement failed: {result:?}");
+    }
 }

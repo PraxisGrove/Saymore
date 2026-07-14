@@ -7,6 +7,9 @@ edition.workspace = true
 license.workspace = true
 publish = false
 
+[features]
+history-experiments = []
+
 [lints]
 workspace = true
 
@@ -19,11 +22,17 @@ template-app = { workspace = true }
 template-infra = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
+chrono = { workspace = true }
+uuid = { workspace = true }
+
+[dev-dependencies]
+serde_json = { workspace = true }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 raw-window-handle = { workspace = true }
 tokio = { workspace = true }
 tokio-util = { workspace = true }
+rfd = { workspace = true }
 
 [target.'cfg(target_os = "macos")'.dev-dependencies]
 httpmock = { workspace = true }

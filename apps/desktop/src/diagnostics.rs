@@ -1,5 +1,5 @@
 use std::{
-    env, fs,
+    fs,
     fs::{File, OpenOptions, Permissions},
     io::{self, Write},
     os::unix::fs::{OpenOptionsExt, PermissionsExt},
@@ -13,8 +13,7 @@ use tracing_subscriber::{
 
 const MAX_LOG_BYTES: u64 = 2 * 1024 * 1024;
 
-pub fn init() -> Result<(), io::Error> {
-    let directory = diagnostics_directory()?;
+pub fn init(directory: PathBuf) -> Result<(), io::Error> {
     prepare_directory(&directory)?;
     let writer = BoundedLogWriter::open(directory)?;
     let log_layer = fmt::layer()
@@ -34,12 +33,6 @@ pub fn init() -> Result<(), io::Error> {
 fn prepare_directory(directory: &Path) -> Result<(), io::Error> {
     fs::create_dir_all(directory)?;
     fs::set_permissions(directory, Permissions::from_mode(0o700))
-}
-
-fn diagnostics_directory() -> Result<PathBuf, io::Error> {
-    let home = env::var_os("HOME")
-        .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "HOME is not defined"))?;
-    Ok(PathBuf::from(home).join("Library/Application Support/Saymore/logs"))
 }
 
 struct BoundedLogWriter {
@@ -108,6 +101,7 @@ fn open_log(path: &Path) -> Result<File, io::Error> {
 
 #[cfg(test)]
 mod tests {
+    use std::env;
     use std::sync::atomic::{AtomicUsize, Ordering};
 
     use super::*;

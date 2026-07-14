@@ -11,8 +11,6 @@ use std::{
     time::{Duration, Instant},
 };
 
-#[cfg(target_os = "macos")]
-use raw_window_handle::{HasWindowHandle, RawWindowHandle};
 use slint::{ComponentHandle, SharedString};
 #[cfg(target_os = "macos")]
 use slint::{Timer, TimerMode};
@@ -24,8 +22,9 @@ use template_app::{
 use template_app::{FeedbackSound, FeedbackSoundPlayer, TextDeliverer};
 #[cfg(target_os = "macos")]
 use template_infra::{
-    DictationShortcutAction, JsonSettingsStore, MacOsAudioRecorder, MacOsFeedbackSoundPlayer,
-    MacOsMicrophonePermission, MacOsShortcutMonitor, MacOsTextDeliverer, configure_overlay_window,
+    AppEnvironment, AppInstanceGuard, AppPaths, DictationShortcutAction, JsonSettingsStore,
+    MacOsAudioRecorder, MacOsFeedbackSoundPlayer, MacOsMicrophonePermission, MacOsShortcutMonitor,
+    MacOsTextDeliverer, PlatformSecretStore, SqliteStorage,
 };
 
 // Slint-generated code contains framework-internal unwraps and panics. Keep the
@@ -42,8 +41,10 @@ mod ui {
 
 use ui::AppWindow;
 #[cfg(target_os = "macos")]
-use ui::{RecordingOverlay, ResultOverlay};
+use ui::{MicrophoneIntroOverlay, MicrophonePermissionOverlay, RecordingOverlay, ResultOverlay};
 
+#[cfg(target_os = "macos")]
+mod app_environment;
 #[cfg(target_os = "macos")]
 mod asr_runtime;
 #[cfg(target_os = "macos")]
@@ -53,7 +54,13 @@ mod diagnostics;
 #[cfg(target_os = "macos")]
 mod dictation_finish;
 #[cfg(target_os = "macos")]
+mod local_data_ui;
+#[cfg(target_os = "macos")]
 mod main_window;
+#[cfg(target_os = "macos")]
+mod microphone_access;
+#[cfg(target_os = "macos")]
+mod overlay_window;
 #[cfg(target_os = "macos")]
 mod recording_metrics;
 #[cfg(target_os = "macos")]
@@ -62,6 +69,9 @@ mod refinement_runtime;
 mod settings_ui;
 #[cfg(target_os = "macos")]
 mod ui_status;
+
+#[cfg(target_os = "macos")]
+mod ui_tuning;
 
 #[cfg(target_os = "macos")]
 use asr_runtime::AsrSessionController;
@@ -97,6 +107,18 @@ impl DictationOverlays {
 pub(crate) struct TextProcessingServices {
     pub(crate) asr: Arc<AsrSessionController>,
     pub(crate) refinement: Arc<RefinementRuntime>,
+    pub(crate) storage: Arc<SqliteStorage>,
+    pub(crate) provider_config: Arc<JsonSettingsStore>,
+}
+
+#[cfg(target_os = "macos")]
+struct ShortcutRuntime {
+    recorder: Arc<Mutex<MacOsAudioRecorder>>,
+    microphone_access: microphone_access::MicrophoneAccess,
+    first_recording: Arc<AtomicBool>,
+    recording_active: Arc<AtomicBool>,
+    cancelled: Arc<Mutex<CancelledRecordingStore>>,
+    processing: TextProcessingServices,
 }
 
 fn main() -> ExitCode {
@@ -111,36 +133,52 @@ fn main() -> ExitCode {
 
 #[cfg(target_os = "macos")]
 fn run() -> Result<(), Box<dyn Error>> {
-    if let Err(error) = diagnostics::init() {
+    let environment = app_environment::resolve()?;
+    let paths = AppPaths::for_current_user(environment)?;
+    if let Err(error) = diagnostics::init(paths.data_directory().join("logs")) {
         eprintln!("failed to initialize local diagnostics: {error}");
     }
-    let settings_store = Arc::new(JsonSettingsStore::for_current_user()?);
+    let _instance_guard = AppInstanceGuard::acquire(&paths.instance_lock())?;
+    let settings_store = Arc::new(JsonSettingsStore::at_path(paths.provider_config()));
     settings_store.ensure_exists()?;
+    let local_storage = Arc::new(SqliteStorage::start(
+        paths.database(),
+        Arc::new(PlatformSecretStore::new(environment)),
+    )?);
     let ui = AppWindow::new()?;
+    ui.set_development_environment(environment == AppEnvironment::Development);
     let overlay = RecordingOverlay::new()?;
     let result_overlay = ResultOverlay::new()?;
+    let microphone_intro_overlay = MicrophoneIntroOverlay::new()?;
+    let microphone_permission_overlay = MicrophonePermissionOverlay::new()?;
     let deliverer = MacOsTextDeliverer;
     let microphone = MacOsMicrophonePermission;
     let recorder = Arc::new(Mutex::new(MacOsAudioRecorder::default()));
     let recording_active = Arc::new(AtomicBool::new(false));
     let asr = Arc::new(AsrSessionController::new(Arc::clone(&settings_store)));
     let refinement = Arc::new(RefinementRuntime::new(Arc::clone(&settings_store))?);
-    let processing = TextProcessingServices { asr, refinement };
+    let processing = TextProcessingServices {
+        asr,
+        refinement,
+        storage: Arc::clone(&local_storage),
+        provider_config: Arc::clone(&settings_store),
+    };
     let cancelled = Arc::new(Mutex::new(CancelledRecordingStore::new(CANCEL_UNDO_WINDOW)));
     update_authorizations(&ui, deliverer.authorization(), microphone.authorization());
+    let microphone_access = microphone_access::wire(
+        &ui,
+        &microphone_intro_overlay,
+        &microphone_permission_overlay,
+        microphone,
+    );
     settings_ui::wire(&ui, Arc::clone(&settings_store));
+    local_data_ui::wire(&ui, Arc::clone(&local_storage));
+    ui_tuning::wire(&ui);
 
     let request_accessibility_ui = ui.as_weak();
     ui.on_request_authorization(move || {
         if let Some(ui) = request_accessibility_ui.upgrade() {
             update_accessibility_authorization(&ui, deliverer.request_authorization());
-        }
-    });
-
-    let request_microphone_ui = ui.as_weak();
-    ui.on_request_microphone_authorization(move || {
-        if let Some(ui) = request_microphone_ui.upgrade() {
-            update_microphone_authorization(&ui, microphone.request_authorization());
         }
     });
 
@@ -171,12 +209,19 @@ fn run() -> Result<(), Box<dyn Error>> {
     start_recording_shortcut(
         &ui,
         overlays,
-        recorder,
-        first_recording,
-        recording_active,
-        cancelled,
-        processing,
+        ShortcutRuntime {
+            recorder,
+            microphone_access,
+            first_recording,
+            recording_active,
+            cancelled,
+            processing,
+        },
     );
+    prepare_overlay_window(overlay.window());
+    prepare_overlay_window(result_overlay.window());
+    prepare_overlay_window(microphone_intro_overlay.window());
+    prepare_overlay_window(microphone_permission_overlay.window());
     ui.show()?;
     main_window::schedule_titlebar_integration(&ui);
     slint::run_event_loop()?;
@@ -186,44 +231,40 @@ fn run() -> Result<(), Box<dyn Error>> {
 }
 
 #[cfg(target_os = "macos")]
-fn start_recording_shortcut(
-    ui: &AppWindow,
-    overlays: DictationOverlays,
-    recorder: Arc<Mutex<MacOsAudioRecorder>>,
-    first_recording: Arc<AtomicBool>,
-    recording_active: Arc<AtomicBool>,
-    cancelled: Arc<Mutex<CancelledRecordingStore>>,
-    processing: TextProcessingServices,
-) {
+fn start_recording_shortcut(ui: &AppWindow, overlays: DictationOverlays, runtime: ShortcutRuntime) {
     let shortcut_ui = ui.as_weak();
     let shortcut_overlays = overlays;
-    let monitor_active = Arc::clone(&recording_active);
+    let monitor_active = Arc::clone(&runtime.recording_active);
     MacOsShortcutMonitor::start(monitor_active, move |action| match action {
-        DictationShortcutAction::Toggle if recording_active.load(Ordering::Relaxed) => {
+        DictationShortcutAction::Toggle if runtime.recording_active.load(Ordering::Relaxed) => {
             dictation_finish::finish_recording(
                 shortcut_ui.clone(),
                 shortcut_overlays.clone(),
-                Arc::clone(&recorder),
-                Arc::clone(&recording_active),
-                processing.clone(),
+                Arc::clone(&runtime.recorder),
+                Arc::clone(&runtime.recording_active),
+                runtime.processing.clone(),
             );
         }
-        DictationShortcutAction::Toggle => begin_recording(
-            &shortcut_ui,
-            &shortcut_overlays,
-            &recorder,
-            &first_recording,
-            &recording_active,
-            &cancelled,
-            &processing.asr,
-        ),
+        DictationShortcutAction::Toggle => {
+            if runtime.microphone_access.allows_recording() {
+                begin_recording(
+                    &shortcut_ui,
+                    &shortcut_overlays,
+                    &runtime.recorder,
+                    &runtime.first_recording,
+                    &runtime.recording_active,
+                    &runtime.cancelled,
+                    &runtime.processing.asr,
+                );
+            }
+        }
         DictationShortcutAction::Cancel => cancel_recording(
             &shortcut_ui,
             &shortcut_overlays.status,
-            &recorder,
-            &recording_active,
-            &cancelled,
-            &processing.asr,
+            &runtime.recorder,
+            &runtime.recording_active,
+            &runtime.cancelled,
+            &runtime.processing.asr,
         ),
     });
 }
@@ -292,7 +333,6 @@ fn begin_recording(
         }
         Err(error) => {
             failed_asr.cancel();
-            play_feedback_sound(FeedbackSound::Failure);
             apply_recording_error(&ui, &error);
         }
     });
@@ -300,44 +340,19 @@ fn begin_recording(
 
 #[cfg(target_os = "macos")]
 fn first_recording_overlay(overlay: &RecordingOverlay, device_name: &str, show_device: bool) {
-    overlay.set_device_name(SharedString::from(device_name));
-    overlay.set_show_device(show_device);
+    let _ = (device_name, show_device);
     overlay.set_mode(0);
     overlay.set_recording_level(0.0);
-    let _ = configure_recording_overlay(overlay);
-    if overlay.show().is_ok() {
-        position_overlay(overlay);
-    }
-
-    if show_device {
-        let overlay = overlay.as_weak();
-        Timer::single_shot(Duration::from_secs(2), move || {
-            if let Some(overlay) = overlay.upgrade() {
-                overlay.set_show_device(false);
-            }
-        });
+    if let Err(error) = overlay_window::present(overlay.window()) {
+        tracing::warn!(event = "recording.overlay_present_failed", reason = %error);
     }
 }
 
 #[cfg(target_os = "macos")]
-fn position_overlay(overlay: &RecordingOverlay) {
-    if let Err(error) = configure_recording_overlay(overlay) {
-        eprintln!("failed to position recording overlay: {error}");
+fn prepare_overlay_window(window: &slint::Window) {
+    if let Err(error) = overlay_window::prepare(window) {
+        tracing::warn!(event = "overlay.prepare_failed", reason = %error);
     }
-}
-
-#[cfg(target_os = "macos")]
-fn configure_recording_overlay(overlay: &RecordingOverlay) -> Result<(), String> {
-    let handle = overlay.window().window_handle();
-    handle
-        .window_handle()
-        .map_err(|error| error.to_string())
-        .and_then(|handle| match handle.as_raw() {
-            RawWindowHandle::AppKit(handle) => unsafe {
-                configure_overlay_window(handle.ns_view).map_err(|error| error.to_string())
-            },
-            _ => Err("the overlay does not have an AppKit window handle".to_owned()),
-        })
 }
 
 #[cfg(target_os = "macos")]
@@ -393,8 +408,7 @@ fn wire_overlay_actions(
     let undo_ui = ui.as_weak();
     let undo_overlay = overlay.as_weak();
     let undo_result_overlay = result_overlay.as_weak();
-    let undo_asr = Arc::clone(&processing.asr);
-    let undo_refinement = Arc::clone(&processing.refinement);
+    let undo_processing = processing;
     let undo_active = Arc::clone(&recording_active);
     overlay.on_undo_cancel(move || {
         undo_cancelled_recording(
@@ -402,9 +416,8 @@ fn wire_overlay_actions(
             &undo_overlay,
             undo_result_overlay.clone(),
             &cancelled,
-            Arc::clone(&undo_asr),
             Arc::clone(&undo_active),
-            Arc::clone(&undo_refinement),
+            undo_processing.clone(),
         );
     });
 }
@@ -428,7 +441,6 @@ fn cancel_recording(
     let cancelled = Arc::clone(cancelled);
     let _ = ui.upgrade_in_event_loop(move |ui| match result {
         Ok(recording) => {
-            play_feedback_sound(FeedbackSound::Cancel);
             let generation = match cancelled.lock() {
                 Ok(mut cancelled) => cancelled.retain(recording, Instant::now()),
                 Err(_) => {
@@ -444,18 +456,17 @@ fn cancel_recording(
             ui.set_recording_active(false);
             ui.set_recording_complete(false);
             ui.set_recording_failed(false);
+            ui.set_recording_attempted(false);
             ui.set_recording_level(0.0);
             ui.set_recording_status(SharedString::from("录音已取消"));
             ui.set_recording_detail(SharedString::from("2 秒内可以撤销"));
             if let Some(overlay) = cancel_overlay.upgrade() {
-                overlay.set_show_device(false);
                 overlay.set_mode(2);
             }
             schedule_cancel_expiration(cancel_overlay, cancelled, generation);
         }
         Err(RecordingError::NotRecording) => {}
         Err(error) => {
-            play_feedback_sound(FeedbackSound::Failure);
             apply_recording_error(&ui, &error);
         }
     });
@@ -463,7 +474,9 @@ fn cancel_recording(
 
 #[cfg(target_os = "macos")]
 pub(crate) fn play_feedback_sound(sound: FeedbackSound) {
-    let _ = MacOsFeedbackSoundPlayer.play(sound);
+    if let Err(error) = MacOsFeedbackSoundPlayer.play(sound) {
+        eprintln!("failed to play feedback sound: {error}");
+    }
 }
 
 #[cfg(target_os = "macos")]
@@ -489,9 +502,8 @@ fn undo_cancelled_recording(
     overlay: &slint::Weak<RecordingOverlay>,
     result_overlay: slint::Weak<ResultOverlay>,
     cancelled: &Mutex<CancelledRecordingStore>,
-    asr: Arc<AsrSessionController>,
     recording_active: Arc<AtomicBool>,
-    refinement: Arc<RefinementRuntime>,
+    processing: TextProcessingServices,
 ) {
     let recording = cancelled
         .lock()
@@ -502,7 +514,7 @@ fn undo_cancelled_recording(
     };
 
     recording_active.store(true, Ordering::Relaxed);
-    let plan = refinement.plan();
+    let plan = processing.refinement.plan();
     let processing_label = refinement_runtime::ProcessingActivity::Transcribing.label();
     if let Some(overlay) = overlay.upgrade() {
         overlay.set_mode(1);
@@ -520,33 +532,54 @@ fn undo_cancelled_recording(
     let spawn_result = std::thread::Builder::new()
         .name("saymore-undo-dictation".to_owned())
         .spawn(move || {
-            let result = asr.start(Arc::new(|_| {})).and_then(|()| {
+            let result = processing.asr.start(Arc::new(|_| {})).and_then(|()| {
                 for chunk in recording.samples.chunks(1_600) {
-                    asr.push_audio(chunk.to_vec())?;
+                    processing.asr.push_audio(chunk.to_vec())?;
                 }
-                asr.finish()
+                processing.asr.finish()
             });
             let result = result.and_then(|transcript| {
                 let activity_ui = event_ui.clone();
                 let activity_overlay = event_overlay.clone();
-                refinement.process_final_transcript(&transcript, plan, move || {
-                    dictation_finish::show_processing_activity(
-                        &activity_ui,
-                        &activity_overlay,
-                        refinement_runtime::ProcessingActivity::Refining,
-                    );
-                })
+                let relevant_terms = refinement_runtime::relevant_terms_for_transcript(
+                    &processing.storage,
+                    &transcript,
+                );
+                processing
+                    .refinement
+                    .process_final_transcript(&transcript, plan, relevant_terms, move || {
+                        dictation_finish::show_processing_activity(
+                            &activity_ui,
+                            &activity_overlay,
+                            refinement_runtime::ProcessingActivity::Refining,
+                        );
+                    })
+                    .map(|outcome| {
+                        let history = dictation_finish::prepare_history(
+                            &processing,
+                            &recording,
+                            &transcript,
+                            outcome.llm_refined_text.as_deref(),
+                            &outcome.processed,
+                        );
+                        (transcript, outcome.processed, history)
+                    })
             });
             recording_active.store(false, Ordering::Relaxed);
             let _ = event_ui.upgrade_in_event_loop(move |ui| match result {
-                Ok(processed) => {
-                    delivery_runtime::schedule_delivery(
-                        ui.as_weak(),
-                        event_overlay,
+                Ok((_transcript, processed, history)) => {
+                    if let Some(error) = history.error {
+                        ui.set_history_status(SharedString::from(error));
+                    }
+                    delivery_runtime::schedule_delivery(delivery_runtime::DeliveryRequest {
+                        ui: ui.as_weak(),
+                        status_overlay: event_overlay,
                         result_overlay,
                         recording,
                         processed,
-                    );
+                        history: history.record,
+                        storage: processing.storage,
+                    });
                 }
                 Err(error) => {
                     apply_asr_error(&ui, &error);
