@@ -2,16 +2,20 @@ use std::sync::Arc;
 
 use slint::{ComponentHandle, SharedString};
 use template_app::{
-    LlmProviderPreset, ProviderConfigStore, SaymoreSettings, SettingsStore, SettingsStoreError,
-    SpeechRecognitionError, VolcengineAsrSettings,
+    LlmProviderPreset, OpenAiCompatibleAsrSettings, ProviderConfigStore, SaymoreSettings,
+    SettingsStore, SettingsStoreError, SpeechRecognitionError, VolcengineAsrSettings,
 };
 #[cfg(test)]
 use template_app::{ProviderCatalog, ProviderInstance};
 #[cfg(test)]
 use template_infra::AppEnvironment;
-use template_infra::{ChatCompletionsLlmProvider, JsonSettingsStore, VolcengineSpeechRecognizer};
+use template_infra::{
+    ChatCompletionsLlmProvider, JsonSettingsStore, OpenAiCompatibleSpeechRecognizer,
+    VolcengineSpeechRecognizer,
+};
+use uuid::Uuid;
 
-use crate::ui::{AppWindow, LlmProvider as UiLlmProvider};
+use crate::ui::{AppWindow, AsrProvider as UiAsrProvider, LlmProvider as UiLlmProvider};
 
 mod model_discovery;
 #[cfg(test)]
@@ -45,11 +49,22 @@ pub fn wire(ui: &AppWindow, store: Arc<JsonSettingsStore>) {
 fn wire_asr(ui: &AppWindow, store: Arc<JsonSettingsStore>) {
     let save_ui = ui.as_weak();
     let save_store = Arc::clone(&store);
-    ui.on_save_asr_config(move |api_key, model| {
+    ui.on_save_asr_config(move |provider, api_key, base_url, model| {
         let Some(ui) = save_ui.upgrade() else {
             return;
         };
-        match save_asr_configuration(&save_store, api_key.as_str(), model.as_str()) {
+        let result = match provider {
+            UiAsrProvider::Volcengine => {
+                save_asr_configuration(&save_store, api_key.as_str(), model.as_str())
+            }
+            UiAsrProvider::Custom => save_custom_asr_configuration(
+                &save_store,
+                api_key.as_str(),
+                base_url.as_str(),
+                model.as_str(),
+            ),
+        };
+        match result {
             Ok(()) => {
                 apply_status(&ui, true, false, "已保存");
                 ui.set_asr_pending_test(true);
@@ -57,11 +72,29 @@ fn wire_asr(ui: &AppWindow, store: Arc<JsonSettingsStore>) {
             Err(AsrConfigError::MissingApiKey) => {
                 apply_status(&ui, false, true, "请输入 API Key");
             }
+            Err(AsrConfigError::InvalidApiKey) => {
+                apply_status(&ui, false, true, "API Key 格式错误");
+            }
+            Err(AsrConfigError::MissingBaseUrl) => {
+                apply_status(&ui, false, true, "请输入服务地址");
+            }
+            Err(AsrConfigError::InvalidBaseUrl) => {
+                apply_status(&ui, false, true, "服务地址格式错误");
+            }
             Err(AsrConfigError::MissingModel) => {
                 apply_status(&ui, false, true, "请输入模型名称");
             }
             Err(AsrConfigError::Store) => apply_status(&ui, false, true, "保存失败"),
         }
+    });
+
+    let select_ui = ui.as_weak();
+    let select_store = Arc::clone(&store);
+    ui.on_select_asr_provider(move |provider| {
+        let Some(ui) = select_ui.upgrade() else {
+            return;
+        };
+        apply_asr_provider_status(&ui, &select_store, provider);
     });
 
     let test_ui = ui.as_weak();
@@ -91,11 +124,29 @@ fn wire_asr(ui: &AppWindow, store: Arc<JsonSettingsStore>) {
 }
 
 fn begin_asr_connection_test(ui: &AppWindow, store: Arc<JsonSettingsStore>) {
-    let api_key = ui.get_asr_api_key().to_string();
-    let model = ui.get_asr_model().to_string();
-    if let Err(error) = save_asr_configuration(&store, &api_key, &model) {
+    let provider = ui.get_asr_provider();
+    let (api_key, base_url, model) = match provider {
+        UiAsrProvider::Volcengine => (
+            ui.get_asr_api_key().to_string(),
+            String::new(),
+            ui.get_asr_model().to_string(),
+        ),
+        UiAsrProvider::Custom => (
+            ui.get_custom_asr_api_key().to_string(),
+            ui.get_custom_asr_base_url().to_string(),
+            ui.get_custom_asr_model().to_string(),
+        ),
+    };
+    let save_result = match provider {
+        UiAsrProvider::Volcengine => save_asr_configuration(&store, &api_key, &model),
+        UiAsrProvider::Custom => save_custom_asr_configuration(&store, &api_key, &base_url, &model),
+    };
+    if let Err(error) = save_result {
         let status = match error {
             AsrConfigError::MissingApiKey => "请输入 API Key",
+            AsrConfigError::InvalidApiKey => "API Key 格式错误",
+            AsrConfigError::MissingBaseUrl => "请输入服务地址",
+            AsrConfigError::InvalidBaseUrl => "服务地址格式错误",
             AsrConfigError::MissingModel => "请输入模型名称",
             AsrConfigError::Store => "保存失败",
         };
@@ -110,7 +161,7 @@ fn begin_asr_connection_test(ui: &AppWindow, store: Arc<JsonSettingsStore>) {
     let spawn_result = std::thread::Builder::new()
         .name("saymore-test-asr".to_owned())
         .spawn(move || {
-            let result = test_asr_connection(api_key);
+            let result = test_asr_connection(provider, api_key, base_url, model);
             if let Err(error) = &result {
                 tracing::warn!(
                     target: "saymore::diagnostics",
@@ -137,6 +188,9 @@ fn begin_asr_connection_test(ui: &AppWindow, store: Arc<JsonSettingsStore>) {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum AsrConfigError {
     MissingApiKey,
+    InvalidApiKey,
+    MissingBaseUrl,
+    InvalidBaseUrl,
     MissingModel,
     Store,
 }
@@ -151,6 +205,9 @@ fn save_asr_configuration(
     if api_key.is_empty() {
         return Err(AsrConfigError::MissingApiKey);
     }
+    if !volcengine_api_key_is_valid(api_key) {
+        return Err(AsrConfigError::InvalidApiKey);
+    }
     if model.is_empty() {
         return Err(AsrConfigError::MissingModel);
     }
@@ -162,25 +219,115 @@ fn save_asr_configuration(
                 api_key: api_key.to_owned(),
                 model: model.to_owned(),
             };
+            settings.asr.openai_compatible.enabled = false;
             store.save(&settings)
         })
         .map_err(|_| AsrConfigError::Store)
 }
 
+fn save_custom_asr_configuration(
+    store: &JsonSettingsStore,
+    api_key: &str,
+    base_url: &str,
+    model: &str,
+) -> Result<(), AsrConfigError> {
+    let api_key = api_key.trim();
+    let base_url = base_url.trim().trim_end_matches('/');
+    let model = model.trim();
+    if api_key.is_empty() {
+        return Err(AsrConfigError::MissingApiKey);
+    }
+    if base_url.is_empty() {
+        return Err(AsrConfigError::MissingBaseUrl);
+    }
+    if model.is_empty() {
+        return Err(AsrConfigError::MissingModel);
+    }
+    let configuration = OpenAiCompatibleAsrSettings {
+        enabled: true,
+        base_url: base_url.to_owned(),
+        api_key: api_key.to_owned(),
+        model: model.to_owned(),
+    };
+    OpenAiCompatibleSpeechRecognizer::new(configuration.clone())
+        .map_err(|_| AsrConfigError::InvalidBaseUrl)?;
+    store
+        .load()
+        .and_then(|mut settings| {
+            settings.asr.volcengine.enabled = false;
+            settings.asr.openai_compatible = configuration;
+            store.save(&settings)
+        })
+        .map_err(|_| AsrConfigError::Store)
+}
+
+fn volcengine_api_key_is_valid(api_key: &str) -> bool {
+    api_key.len() == 36 && Uuid::parse_str(api_key).is_ok()
+}
+
 fn clear_asr_configuration(store: &JsonSettingsStore) -> Result<(), SettingsStoreError> {
-    store.load().and_then(|mut settings| {
-        settings.asr.volcengine = VolcengineAsrSettings::default();
-        store.save(&settings)
+    store.load_catalog().and_then(|mut catalog| {
+        let active = catalog.active.asr.take();
+        catalog
+            .asr_providers
+            .retain(|provider| Some(&provider.id) != active.as_ref());
+        store.save_catalog(&catalog)
     })
 }
 
-fn test_asr_connection(api_key: String) -> Result<(), SpeechRecognitionError> {
-    let recognizer = VolcengineSpeechRecognizer::new(api_key)?;
+fn apply_asr_provider_status(ui: &AppWindow, store: &JsonSettingsStore, provider: UiAsrProvider) {
+    let Ok(settings) = store.load() else {
+        apply_status(ui, false, true, "配置读取失败");
+        return;
+    };
+    let configured = match provider {
+        UiAsrProvider::Volcengine => {
+            let settings = settings.asr.volcengine;
+            !settings.api_key.trim().is_empty()
+                && volcengine_api_key_is_valid(settings.api_key.trim())
+                && !settings.model.trim().is_empty()
+        }
+        UiAsrProvider::Custom => {
+            let settings = settings.asr.openai_compatible;
+            !settings.api_key.trim().is_empty()
+                && !settings.base_url.trim().is_empty()
+                && !settings.model.trim().is_empty()
+        }
+    };
+    apply_status(
+        ui,
+        configured,
+        false,
+        if configured { "已配置" } else { "未配置" },
+    );
+    ui.set_asr_pending_test(configured);
+}
+
+fn test_asr_connection(
+    provider: UiAsrProvider,
+    api_key: String,
+    base_url: String,
+    model: String,
+) -> Result<(), SpeechRecognitionError> {
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .map_err(|error| SpeechRecognitionError::Transport(error.to_string()))?;
-    runtime.block_on(recognizer.test_connection())
+    match provider {
+        UiAsrProvider::Volcengine => {
+            let recognizer = VolcengineSpeechRecognizer::new(api_key)?;
+            runtime.block_on(recognizer.test_connection())
+        }
+        UiAsrProvider::Custom => {
+            let recognizer = OpenAiCompatibleSpeechRecognizer::new(OpenAiCompatibleAsrSettings {
+                enabled: true,
+                base_url,
+                api_key,
+                model,
+            })?;
+            runtime.block_on(recognizer.test_connection())
+        }
+    }
 }
 
 fn asr_test_failure_status(error: &SpeechRecognitionError) -> &'static str {
@@ -432,19 +579,49 @@ fn apply_loaded_settings(ui: &AppWindow, store: &JsonSettingsStore) {
             } else {
                 "请保存当前提供商的 API Key"
             }));
-            let provider = settings.asr.volcengine;
-            let configured = provider.enabled && !provider.api_key.trim().is_empty();
-            ui.set_asr_api_key(SharedString::from(provider.api_key));
-            ui.set_asr_model(SharedString::from(if provider.model.trim().is_empty() {
+            let volcengine = settings.asr.volcengine;
+            let custom = settings.asr.openai_compatible;
+            let volcengine_api_key = volcengine.api_key.trim();
+            let invalid_api_key =
+                !volcengine_api_key.is_empty() && !volcengine_api_key_is_valid(volcengine_api_key);
+            let volcengine_configured = !volcengine_api_key.is_empty()
+                && !invalid_api_key
+                && !volcengine.model.trim().is_empty();
+            let custom_configured = !custom.api_key.trim().is_empty()
+                && !custom.base_url.trim().is_empty()
+                && !custom.model.trim().is_empty();
+            let custom_active = custom.enabled;
+            let configured = if custom_active {
+                custom_configured
+            } else {
+                volcengine.enabled && volcengine_configured
+            };
+            ui.set_asr_provider(if custom_active {
+                UiAsrProvider::Custom
+            } else {
+                UiAsrProvider::Volcengine
+            });
+            ui.set_asr_api_key(SharedString::from(volcengine.api_key));
+            ui.set_asr_model(SharedString::from(if volcengine.model.trim().is_empty() {
                 VOLCENGINE_MODEL
             } else {
-                provider.model.as_str()
+                volcengine.model.as_str()
             }));
+            ui.set_custom_asr_api_key(SharedString::from(custom.api_key));
+            ui.set_custom_asr_base_url(SharedString::from(custom.base_url));
+            ui.set_custom_asr_model(SharedString::from(custom.model));
+            ui.set_custom_asr_configured(custom_configured);
             apply_status(
                 ui,
                 configured,
-                false,
-                if configured { "已配置" } else { "未配置" },
+                !custom_active && invalid_api_key,
+                if !custom_active && invalid_api_key {
+                    "API Key 格式错误"
+                } else if configured {
+                    "已配置"
+                } else {
+                    "未配置"
+                },
             );
             ui.set_asr_testing(false);
             ui.set_asr_pending_test(configured);

@@ -21,6 +21,11 @@ export enum LlmProvider {
     deepseek,
 }
 
+export enum AsrProvider {
+    volcengine,
+    custom,
+}
+
 export component StatusPill inherits Rectangle {
     in property <string> label;
     in property <bool> granted;

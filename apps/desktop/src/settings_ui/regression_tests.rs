@@ -1,16 +1,19 @@
 use std::fs;
 
 use template_app::{
-    LlmProviderPreset, ProviderCatalog, ProviderConfigStore, SaymoreSettings, SettingsStore,
-    SpeechRecognitionError, VolcengineAsrSettings,
+    LlmProviderPreset, OpenAiCompatibleAsrSettings, ProviderCatalog, ProviderConfigStore,
+    SaymoreSettings, SettingsStore, SpeechRecognitionError, VolcengineAsrSettings,
 };
 use template_infra::JsonSettingsStore;
 use uuid::Uuid;
 
 use super::{
     AsrConfigError, asr_test_failure_status, clear_asr_configuration, llm_consent_required,
-    persist_llm_consent, save_asr_configuration,
+    persist_llm_consent, save_asr_configuration, save_custom_asr_configuration,
+    volcengine_api_key_is_valid,
 };
+
+const VALID_ASR_API_KEY: &str = "123e4567-e89b-42d3-a456-426614174000";
 
 #[test]
 fn asr_configuration_rejects_an_empty_model() {
@@ -19,7 +22,7 @@ fn asr_configuration_rejects_an_empty_model() {
 
     assert_eq!(
         Err(AsrConfigError::MissingModel),
-        save_asr_configuration(&store, "test-key", " ")
+        save_asr_configuration(&store, VALID_ASR_API_KEY, " ")
     );
     assert_eq!(Ok(SaymoreSettings::default()), store.load());
     let _ = fs::remove_dir_all(directory);
@@ -32,7 +35,11 @@ fn asr_configuration_round_trips_a_custom_model_and_can_be_deleted() {
 
     assert_eq!(
         Ok(()),
-        save_asr_configuration(&store, "  test-key  ", "  custom-model  ")
+        save_asr_configuration(
+            &store,
+            &format!("  {VALID_ASR_API_KEY}  "),
+            "  custom-model  ",
+        )
     );
     let Ok(settings) = store.load() else {
         panic!("saved ASR settings should be readable");
@@ -40,7 +47,7 @@ fn asr_configuration_round_trips_a_custom_model_and_can_be_deleted() {
     assert_eq!(
         VolcengineAsrSettings {
             enabled: true,
-            api_key: "test-key".to_owned(),
+            api_key: VALID_ASR_API_KEY.to_owned(),
             model: "custom-model".to_owned(),
         },
         settings.asr.volcengine
@@ -48,6 +55,79 @@ fn asr_configuration_round_trips_a_custom_model_and_can_be_deleted() {
 
     assert_eq!(Ok(()), clear_asr_configuration(&store));
     assert_eq!(Ok(SaymoreSettings::default()), store.load());
+    let _ = fs::remove_dir_all(directory);
+}
+
+#[test]
+fn asr_configuration_rejects_a_key_with_an_extra_printable_character() {
+    let directory = std::env::temp_dir().join(format!("saymore-asr-key-format-{}", Uuid::new_v4()));
+    let store = JsonSettingsStore::at_path(directory.join("providers.json"));
+
+    assert_eq!(
+        Err(AsrConfigError::InvalidApiKey),
+        save_asr_configuration(&store, &format!("{VALID_ASR_API_KEY}å"), "bigmodel_async")
+    );
+    assert_eq!(Ok(SaymoreSettings::default()), store.load());
+    let _ = fs::remove_dir_all(directory);
+}
+
+#[test]
+fn volcengine_api_key_validation_matches_the_new_console_format() {
+    assert!(volcengine_api_key_is_valid(VALID_ASR_API_KEY));
+    assert!(!volcengine_api_key_is_valid(&format!(
+        "{VALID_ASR_API_KEY}å"
+    )));
+}
+
+#[test]
+fn custom_asr_configuration_round_trips_and_becomes_active() {
+    let directory = std::env::temp_dir().join(format!("saymore-custom-asr-{}", Uuid::new_v4()));
+    let store = JsonSettingsStore::at_path(directory.join("providers.json"));
+
+    assert_eq!(
+        Ok(()),
+        save_asr_configuration(&store, VALID_ASR_API_KEY, "bigmodel_async")
+    );
+    assert_eq!(
+        Ok(()),
+        save_custom_asr_configuration(
+            &store,
+            " test-key ",
+            " https://asr.example/v1/ ",
+            " whisper-large-v3 "
+        )
+    );
+    let Ok(settings) = store.load() else {
+        panic!("saved custom ASR settings should be readable");
+    };
+    assert!(!settings.asr.volcengine.enabled);
+    assert_eq!(
+        OpenAiCompatibleAsrSettings {
+            enabled: true,
+            base_url: "https://asr.example/v1".to_owned(),
+            api_key: "test-key".to_owned(),
+            model: "whisper-large-v3".to_owned(),
+        },
+        settings.asr.openai_compatible
+    );
+    assert_eq!(
+        2,
+        store
+            .load_catalog()
+            .map(|catalog| catalog.asr_providers.len())
+            .unwrap_or_default()
+    );
+
+    assert_eq!(
+        Ok(()),
+        save_asr_configuration(&store, VALID_ASR_API_KEY, "bigmodel_async")
+    );
+    let Ok(settings) = store.load() else {
+        panic!("switched ASR settings should be readable");
+    };
+    assert!(settings.asr.volcengine.enabled);
+    assert!(!settings.asr.openai_compatible.enabled);
+    assert_eq!("test-key", settings.asr.openai_compatible.api_key);
     let _ = fs::remove_dir_all(directory);
 }
 

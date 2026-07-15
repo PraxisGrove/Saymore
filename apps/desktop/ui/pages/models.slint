@@ -1,4 +1,4 @@
-import { LlmProvider } from "../components.slint";
+import { AsrProvider, LlmProvider } from "../components.slint";
 import { AppColors } from "../color-system.slint";
 import { ScrollView } from "std-widgets.slint";
 
@@ -168,6 +168,11 @@ export component ModelsPage inherits Rectangle {
     in property <bool> focus-asr-config: false;
     in-out property <string> asr-api-key;
     in-out property <string> asr-model: "bigmodel_async";
+    in-out property <AsrProvider> asr-provider: AsrProvider.volcengine;
+    in-out property <string> custom-asr-api-key;
+    in-out property <string> custom-asr-base-url;
+    in-out property <string> custom-asr-model;
+    in property <bool> custom-asr-configured;
     in property <bool> asr-configured;
     in property <bool> asr-config-error;
     in property <string> asr-config-status;
@@ -190,7 +195,8 @@ export component ModelsPage inherits Rectangle {
     in-out property <bool> model-discovery-loading: false;
     in-out property <bool> model-discovery-error: false;
     in-out property <string> model-discovery-status;
-    callback save-asr-config(string, string);
+    callback save-asr-config(AsrProvider, string, string, string);
+    callback select-asr-provider(AsrProvider);
     callback delete-asr-config();
     callback request-llm-enable();
     callback set-llm-enabled(bool, string);
@@ -204,16 +210,17 @@ export component ModelsPage inherits Rectangle {
     private property <bool> advanced-visible: false;
     private property <bool> api-key-visible: false;
     private property <bool> manual-model: false;
-    private property <bool> first-service-selected: root.active-tab == 0 || root.llm-provider == LlmProvider.sensenova;
-    private property <bool> second-service-selected: root.active-tab == 1 && root.llm-provider == LlmProvider.deepseek;
+    private property <bool> first-service-selected: root.active-tab == 0 ? root.asr-provider == AsrProvider.volcengine : root.llm-provider == LlmProvider.sensenova;
+    private property <bool> second-service-selected: root.active-tab == 0 ? root.asr-provider == AsrProvider.custom : root.llm-provider == LlmProvider.deepseek;
     private property <bool> manual-model-selected: root.manual-model;
     private property <string> asr-model-label: "豆包流式语音识别模型 2.0";
-    private property <string> active-api-key: root.active-tab == 0 ? root.asr-api-key : root.llm-provider == LlmProvider.deepseek ? root.deepseek-api-key : root.sensenova-api-key;
-    private property <string> service-name: root.active-tab == 0 ? "火山引擎" : root.llm-provider == LlmProvider.deepseek ? "DeepSeek" : "商汤 SenseNova";
-    private property <string> model-name: root.active-tab == 0 ? root.asr-model : root.llm-provider == LlmProvider.deepseek ? root.deepseek-model : root.sensenova-model;
-    private property <string> configured-model-name: root.active-tab == 0 ? root.asr-configured ? root.asr-model-label : "" : root.llm-provider == LlmProvider.deepseek ? root.deepseek-configured ? root.deepseek-model : "" : root.sensenova-configured ? root.sensenova-model : "";
-    private property <string> first-service-model: root.active-tab == 0 ? root.asr-configured ? root.asr-model-label : "" : root.sensenova-configured ? root.sensenova-model : "";
-    private property <string> second-service-model: root.deepseek-configured ? root.deepseek-model : "";
+    private property <string> active-api-key: root.active-tab == 0 ? root.asr-provider == AsrProvider.custom ? root.custom-asr-api-key : root.asr-api-key : root.llm-provider == LlmProvider.deepseek ? root.deepseek-api-key : root.sensenova-api-key;
+    private property <string> active-base-url: root.asr-provider == AsrProvider.custom ? root.custom-asr-base-url : "https://openspeech.bytedance.com";
+    private property <string> service-name: root.active-tab == 0 ? root.asr-provider == AsrProvider.custom ? "自定义兼容接口" : "火山引擎" : root.llm-provider == LlmProvider.deepseek ? "DeepSeek" : "商汤 SenseNova";
+    private property <string> model-name: root.active-tab == 0 ? root.asr-provider == AsrProvider.custom ? root.custom-asr-model : root.asr-model : root.llm-provider == LlmProvider.deepseek ? root.deepseek-model : root.sensenova-model;
+    private property <string> configured-model-name: root.active-tab == 0 ? root.asr-provider == AsrProvider.custom ? root.custom-asr-configured ? root.custom-asr-model : "" : root.asr-configured ? root.asr-model-label : "" : root.llm-provider == LlmProvider.deepseek ? root.deepseek-configured ? root.deepseek-model : "" : root.sensenova-configured ? root.sensenova-model : "";
+    private property <string> first-service-model: root.active-tab == 0 ? root.asr-api-key.is-empty ? "" : root.asr-model-label : root.sensenova-configured ? root.sensenova-model : "";
+    private property <string> second-service-model: root.active-tab == 0 ? root.custom-asr-configured ? root.custom-asr-model : "" : root.deepseek-configured ? root.deepseek-model : "";
     private property <bool> service-healthy: root.active-tab == 0 ? root.asr-configured && !root.asr-config-error && !root.asr-pending-test && !root.asr-testing : root.llm-enabled;
     private property <string> service-status: root.active-tab == 0 ? root.asr-testing ? "●  正在测试" : root.asr-config-error ? "●  连接失败" : root.asr-pending-test ? "●  已保存" : root.service-healthy ? "●  连接正常" : "●  未配置" : root.service-healthy ? "●  连接正常" : root.llm-config-status;
     private property <length> config-height: root.advanced-visible ? 270px : 228px;
@@ -245,14 +252,20 @@ export component ModelsPage inherits Rectangle {
     Rectangle {
         x: 0px; y: 283px; width: parent.width - 1px; height: root.config-height; border-radius: 12px; background: AppColors.surface;
 
-        Text { x: 18px; y: 17px; text: "API Key"; color: AppColors.text; font-size: 11px; font-weight: 600; }
-        Text { x: parent.width - 88px; y: 17px; text: "获取密钥 ↗"; color: AppColors.brand; font-size: 10px; font-weight: 600; }
+        Text { x: 18px; y: 17px; text: root.active-tab == 0 && root.asr-provider == AsrProvider.custom ? "Access Token / API Key" : "API Key"; color: AppColors.text; font-size: 11px; font-weight: 600; }
+        Text { x: parent.width - 88px; y: 17px; text: root.active-tab == 0 && root.asr-provider == AsrProvider.custom ? "" : "获取密钥 ↗"; color: AppColors.brand; font-size: 10px; font-weight: 600; }
 
         asr-field := ApiKeyField {
-            visible: root.active-tab == 0;
+            visible: root.active-tab == 0 && root.asr-provider == AsrProvider.volcengine;
             x: 18px; y: 39px; width: parent.width - 36px; height: 42px;
             value <=> root.asr-api-key; reveal: root.api-key-visible; error: root.asr-config-error; accessible-name: "火山引擎 API Key";
-            accepted(value) => { root.save-asr-config(value, root.asr-model); }
+            accepted(value) => { root.save-asr-config(AsrProvider.volcengine, value, "", root.asr-model); }
+            toggle-reveal => { root.api-key-visible = !root.api-key-visible; }
+        }
+        if root.active-tab == 0 && root.asr-provider == AsrProvider.custom: ApiKeyField {
+            x: 18px; y: 39px; width: parent.width - 36px; height: 42px;
+            value <=> root.custom-asr-api-key; reveal: root.api-key-visible; error: root.asr-config-error; accessible-name: "自定义语音识别 API Key";
+            accepted(value) => { root.save-asr-config(AsrProvider.custom, value, root.custom-asr-base-url, root.custom-asr-model); }
             toggle-reveal => { root.api-key-visible = !root.api-key-visible; }
         }
         if root.active-tab == 1 && root.llm-provider == LlmProvider.sensenova: ApiKeyField {
@@ -277,10 +290,12 @@ export component ModelsPage inherits Rectangle {
         }
         Rectangle {
             x: 18px; y: 116px; width: parent.width - 36px; height: 42px; border-radius: 8px; background: AppColors.sidebar;
-            if root.active-tab == 0 && root.manual-model: TextInput { x: 15px; width: parent.width - 50px; text <=> root.asr-model; color: AppColors.text; font-size: 12px; vertical-alignment: center; }
+            if root.active-tab == 0 && root.asr-provider == AsrProvider.volcengine && root.manual-model: TextInput { x: 15px; width: parent.width - 50px; text <=> root.asr-model; color: AppColors.text; font-size: 12px; vertical-alignment: center; }
+            if root.active-tab == 0 && root.asr-provider == AsrProvider.custom && root.manual-model && root.custom-asr-model.is-empty: Text { x: 15px; width: parent.width - 50px; text: "输入服务商提供的模型 ID"; color: AppColors.text-muted; font-size: 12px; vertical-alignment: center; }
+            if root.active-tab == 0 && root.asr-provider == AsrProvider.custom && root.manual-model: TextInput { x: 15px; width: parent.width - 50px; text <=> root.custom-asr-model; color: AppColors.text; font-size: 12px; vertical-alignment: center; }
             if root.active-tab == 1 && root.llm-provider == LlmProvider.sensenova && root.manual-model: TextInput { x: 15px; width: parent.width - 50px; text <=> root.sensenova-model; color: AppColors.text; font-size: 12px; vertical-alignment: center; }
             if root.active-tab == 1 && root.llm-provider == LlmProvider.deepseek && root.manual-model: TextInput { x: 15px; width: parent.width - 50px; text <=> root.deepseek-model; color: AppColors.text; font-size: 12px; vertical-alignment: center; }
-            if !root.manual-model: Text { x: 15px; width: parent.width - 50px; text: root.active-tab == 0 ? root.asr-model-label : root.model-name; color: AppColors.text; font-size: 12px; vertical-alignment: center; overflow: elide; }
+            if !root.manual-model: Text { x: 15px; width: parent.width - 50px; text: root.active-tab == 0 && root.asr-provider == AsrProvider.volcengine ? root.asr-model-label : root.model-name; color: AppColors.text; font-size: 12px; vertical-alignment: center; overflow: elide; }
             if !root.manual-model: TouchArea { mouse-cursor: pointer; clicked => { root.model-menu-open = !root.model-menu-open; root.service-menu-open = false; } }
             ChevronButton { x: parent.width - 38px; y: (parent.height - 32px) / 2; open: root.model-menu-open; activated => { root.model-menu-open = !root.model-menu-open; root.service-menu-open = false; } }
         }
@@ -298,14 +313,16 @@ export component ModelsPage inherits Rectangle {
         if root.advanced-visible && root.active-tab == 1: Text { x: parent.width - 119px; y: 209px; text: "+ 自定义请求头"; color: AppColors.brand; font-size: 10px; font-weight: 600; }
         if root.advanced-visible: Rectangle {
             x: 18px; y: 228px; width: parent.width - 36px; height: 36px; border-radius: 8px; background: AppColors.sidebar;
-            Text { x: 15px; text: root.active-tab == 0 ? "https://openspeech.bytedance.com" : root.llm-provider == LlmProvider.deepseek ? "https://api.deepseek.com" : "https://token.sensenova.cn/v1"; color: AppColors.text; font-size: 11px; vertical-alignment: center; }
+            if root.active-tab == 0 && root.asr-provider == AsrProvider.custom && root.custom-asr-base-url.is-empty: Text { x: 15px; width: parent.width - 30px; text: "https://api.example.com/v1"; color: AppColors.text-muted; font-size: 11px; vertical-alignment: center; }
+            if root.active-tab == 0 && root.asr-provider == AsrProvider.custom: TextInput { x: 15px; width: parent.width - 30px; text <=> root.custom-asr-base-url; color: AppColors.text; font-size: 11px; vertical-alignment: center; }
+            if root.active-tab != 0 || root.asr-provider != AsrProvider.custom: Text { x: 15px; text: root.active-tab == 0 ? root.active-base-url : root.llm-provider == LlmProvider.deepseek ? "https://api.deepseek.com" : "https://token.sensenova.cn/v1"; color: AppColors.text; font-size: 11px; vertical-alignment: center; }
         }
     }
 
     ModelActionButton {
         x: 0px; y: root.action-y; label: "保存配置"; primary: true; enabled: !root.active-api-key.is-empty;
         activated => {
-            if root.active-tab == 0 { root.save-asr-config(root.asr-api-key, root.asr-model); }
+            if root.active-tab == 0 { root.save-asr-config(root.asr-provider, root.active-api-key, root.active-base-url, root.model-name); }
             else { root.save-llm-config(root.llm-provider, root.active-api-key, root.model-name); }
         }
     }
@@ -316,22 +333,22 @@ export component ModelsPage inherits Rectangle {
     Text { x: parent.width - 270px; y: root.action-y + 13px; width: 269px; text: root.api-key-visible ? "5 秒后自动隐藏" : root.asr-testing ? "正在测试连接" : root.asr-config-error && root.active-tab == 0 ? root.asr-config-status : root.asr-pending-test && root.active-tab == 0 ? "已保存，等待连接测试" : root.service-status; color: root.asr-config-error && root.active-tab == 0 ? AppColors.danger : root.service-healthy ? AppColors.success : AppColors.text-muted; font-size: 10px; font-weight: 650; horizontal-alignment: right; overflow: elide; }
 
     if root.service-menu-open: Rectangle {
-        x: 0px; y: 242px; width: parent.width - 1px; height: root.active-tab == 0 ? 72px : 124px; border-radius: 12px; background: AppColors.surface; drop-shadow-blur: 18px; drop-shadow-offset-y: 6px; drop-shadow-color: #1f1f1c1a;
+        x: 0px; y: 242px; width: parent.width - 1px; height: 124px; border-radius: 12px; background: AppColors.surface; drop-shadow-blur: 18px; drop-shadow-offset-y: 6px; drop-shadow-color: #1f1f1c1a;
         Rectangle {
             x: 12px; y: 12px; width: parent.width - 24px; height: 48px; border-radius: 8px; background: root.first-service-selected ? AppColors.sidebar : AppColors.surface;
             Image { x: 16px; y: 14px; width: 18px; height: 18px; source: root.active-tab == 0 ? @image-url("../../icons/lucide/audio-lines.svg") : @image-url("../../icons/lucide/sparkles.svg"); colorize: root.first-service-selected ? AppColors.ink : AppColors.text-muted; }
             Text { x: 46px; y: root.first-service-model.is-empty ? 16px : 5px; text: root.active-tab == 0 ? "火山引擎" : "商汤 SenseNova"; color: AppColors.ink; font-size: 12px; font-weight: 650; }
             if !root.first-service-model.is-empty: Text { x: 46px; y: 27px; text: root.first-service-model; color: AppColors.text-muted; font-size: 9px; }
             if root.first-service-selected: Image { x: parent.width - 29px; y: 17px; width: 14px; height: 14px; source: @image-url("../../icons/lucide/check.svg"); colorize: AppColors.success; }
-            TouchArea { mouse-cursor: pointer; clicked => { if root.active-tab == 1 { root.llm-provider = LlmProvider.sensenova; root.select-llm-provider(root.llm-provider); root.api-key-visible = false; root.manual-model = false; } root.service-menu-open = false; } }
+            TouchArea { mouse-cursor: pointer; clicked => { if root.active-tab == 0 { root.asr-provider = AsrProvider.volcengine; root.select-asr-provider(root.asr-provider); } else { root.llm-provider = LlmProvider.sensenova; root.select-llm-provider(root.llm-provider); } root.api-key-visible = false; root.manual-model = false; root.service-menu-open = false; } }
         }
-        if root.active-tab == 1: Rectangle {
+        Rectangle {
             x: 12px; y: 64px; width: parent.width - 24px; height: 48px; border-radius: 8px; background: root.second-service-selected ? AppColors.sidebar : AppColors.surface;
-            Image { x: 16px; y: 14px; width: 18px; height: 18px; source: @image-url("../../icons/lucide/sparkles.svg"); colorize: root.second-service-selected ? AppColors.ink : AppColors.text-muted; }
-            Text { x: 46px; y: root.second-service-model.is-empty ? 16px : 5px; text: "DeepSeek"; color: AppColors.ink; font-size: 12px; font-weight: 650; }
+            Image { x: 16px; y: 14px; width: 18px; height: 18px; source: root.active-tab == 0 ? @image-url("../../icons/lucide/audio-lines.svg") : @image-url("../../icons/lucide/sparkles.svg"); colorize: root.second-service-selected ? AppColors.ink : AppColors.text-muted; }
+            Text { x: 46px; y: root.second-service-model.is-empty ? 16px : 5px; text: root.active-tab == 0 ? "自定义兼容接口" : "DeepSeek"; color: AppColors.ink; font-size: 12px; font-weight: 650; }
             if !root.second-service-model.is-empty: Text { x: 46px; y: 27px; text: root.second-service-model; color: AppColors.text-muted; font-size: 9px; }
             if root.second-service-selected: Image { x: parent.width - 29px; y: 17px; width: 14px; height: 14px; source: @image-url("../../icons/lucide/check.svg"); colorize: AppColors.success; }
-            TouchArea { mouse-cursor: pointer; clicked => { root.llm-provider = LlmProvider.deepseek; root.select-llm-provider(root.llm-provider); root.api-key-visible = false; root.manual-model = false; root.service-menu-open = false; } }
+            TouchArea { mouse-cursor: pointer; clicked => { if root.active-tab == 0 { root.asr-provider = AsrProvider.custom; root.select-asr-provider(root.asr-provider); root.manual-model = root.custom-asr-model.is-empty; root.advanced-visible = true; } else { root.llm-provider = LlmProvider.deepseek; root.select-llm-provider(root.llm-provider); root.manual-model = false; } root.api-key-visible = false; root.service-menu-open = false; } }
         }
     }
 
@@ -353,15 +370,15 @@ export component ModelsPage inherits Rectangle {
                 }
                 for model-id in root.available-models: Rectangle {
                     height: 36px; border-radius: 7px; background: !root.manual-model && model-id == root.model-name ? AppColors.sidebar : AppColors.surface;
-                    Text { x: 14px; width: parent.width - 48px; text: root.active-tab == 0 ? root.asr-model-label : model-id; color: AppColors.text; font-size: 11px; vertical-alignment: center; overflow: elide; }
+                    Text { x: 14px; width: parent.width - 48px; text: root.active-tab == 0 && root.asr-provider == AsrProvider.volcengine ? root.asr-model-label : model-id; color: AppColors.text; font-size: 11px; vertical-alignment: center; overflow: elide; }
                     if !root.manual-model && model-id == root.model-name: Image { x: parent.width - 24px; y: 11px; width: 14px; height: 14px; source: @image-url("../../icons/lucide/check.svg"); colorize: AppColors.success; }
-                    TouchArea { mouse-cursor: pointer; clicked => { root.manual-model = false; if root.active-tab == 0 { root.asr-model = model-id; } else if root.llm-provider == LlmProvider.deepseek { root.deepseek-model = model-id; } else { root.sensenova-model = model-id; } root.model-menu-open = false; } }
+                    TouchArea { mouse-cursor: pointer; clicked => { root.manual-model = false; if root.active-tab == 0 && root.asr-provider == AsrProvider.custom { root.custom-asr-model = model-id; } else if root.active-tab == 0 { root.asr-model = model-id; } else if root.llm-provider == LlmProvider.deepseek { root.deepseek-model = model-id; } else { root.sensenova-model = model-id; } root.model-menu-open = false; } }
                 }
                 Rectangle {
                     height: 36px; border-radius: 7px; background: root.manual-model-selected ? AppColors.sidebar : AppColors.surface;
                     Text { x: 14px; text: "手动输入模型名称"; color: AppColors.text; font-size: 11px; vertical-alignment: center; }
                     if root.manual-model-selected: Image { x: parent.width - 24px; y: 11px; width: 14px; height: 14px; source: @image-url("../../icons/lucide/check.svg"); colorize: AppColors.success; }
-                    TouchArea { mouse-cursor: pointer; clicked => { root.manual-model = true; if root.active-tab == 0 { root.asr-model = ""; } else if root.llm-provider == LlmProvider.deepseek { root.deepseek-model = ""; } else { root.sensenova-model = ""; } root.model-menu-open = false; } }
+                    TouchArea { mouse-cursor: pointer; clicked => { root.manual-model = true; if root.active-tab == 0 && root.asr-provider == AsrProvider.custom { root.custom-asr-model = ""; } else if root.active-tab == 0 { root.asr-model = ""; } else if root.llm-provider == LlmProvider.deepseek { root.deepseek-model = ""; } else { root.sensenova-model = ""; } root.model-menu-open = false; } }
                 }
             }
         }

@@ -4,12 +4,13 @@ import { ModelConsentDialog, ModelsPage } from "pages/models.slint";
 import { HistoryListItem, HistoryPage } from "pages/history.slint";
 import { DictionaryListItem, DictionaryPage } from "pages/dictionary.slint";
 import { SettingsPage } from "pages/settings.slint";
-import { AppPage, LlmProvider, SettingsSection } from "components.slint";
+import { AppPage, AsrProvider, LlmProvider, SettingsSection } from "components.slint";
 import { AppColors } from "color-system.slint";
 export { RecordingOverlay } from "recording-overlay.slint";
 export { ResultOverlay } from "result-overlay.slint";
 export { MicrophoneIntroOverlay, MicrophonePermissionOverlay } from "microphone-access.slint";
 export { LlmProvider } from "components.slint";
+export { AsrProvider } from "components.slint";
 
 export component AppWindow inherits Window {
     title: root.development-environment ? "Saymore Preview" : "Saymore";
@@ -50,6 +51,11 @@ export component AppWindow inherits Window {
     in property <bool> usage-error: false;
     in-out property <string> asr-api-key: "";
     in-out property <string> asr-model: "bigmodel_async";
+    in-out property <AsrProvider> asr-provider: AsrProvider.volcengine;
+    in-out property <string> custom-asr-api-key: "";
+    in-out property <string> custom-asr-base-url: "";
+    in-out property <string> custom-asr-model: "";
+    in property <bool> custom-asr-configured: false;
     in property <bool> asr-configured: false;
     in property <bool> asr-config-error: false;
     in property <string> asr-config-status: "未配置";
@@ -86,7 +92,8 @@ export component AppWindow inherits Window {
     callback open-microphone-settings();
     callback open-accessibility-settings();
     callback refresh-usage();
-    callback save-asr-config(string, string);
+    callback save-asr-config(AsrProvider, string, string, string);
+    callback select-asr-provider(AsrProvider);
     callback delete-asr-config();
     callback request-llm-enable();
     callback set-llm-enabled(bool, string);
@@ -114,6 +121,7 @@ export component AppWindow inherits Window {
         }
     }
     changed model-tab => { root.available-models = []; root.model-discovery-status = ""; root.model-discovery-error = false; }
+    changed asr-provider => { root.available-models = []; root.model-discovery-status = ""; root.model-discovery-error = false; }
     changed llm-provider => { root.available-models = []; root.model-discovery-status = ""; root.model-discovery-error = false; }
 
     if root.current-page != AppPage.settings: HorizontalLayout {
@@ -165,6 +173,11 @@ export component AppWindow inherits Window {
                 focus-asr-config: root.focus-asr-config;
                 asr-api-key <=> root.asr-api-key;
                 asr-model <=> root.asr-model;
+                asr-provider <=> root.asr-provider;
+                custom-asr-api-key <=> root.custom-asr-api-key;
+                custom-asr-base-url <=> root.custom-asr-base-url;
+                custom-asr-model <=> root.custom-asr-model;
+                custom-asr-configured: root.custom-asr-configured;
                 asr-configured: root.asr-configured;
                 asr-config-error: root.asr-config-error;
                 asr-config-status: root.asr-config-status;
@@ -187,7 +200,8 @@ export component AppWindow inherits Window {
                 model-discovery-loading <=> root.model-discovery-loading;
                 model-discovery-error <=> root.model-discovery-error;
                 model-discovery-status <=> root.model-discovery-status;
-                save-asr-config(api-key, model) => { root.save-asr-config(api-key, model); }
+                save-asr-config(provider, api-key, base-url, model) => { root.save-asr-config(provider, api-key, base-url, model); }
+                select-asr-provider(provider) => { root.select-asr-provider(provider); }
                 delete-asr-config => { root.delete-asr-config(); }
                 request-llm-enable => { root.request-llm-enable(); }
                 set-llm-enabled(enabled, base-url) => { root.set-llm-enabled(enabled, base-url); }

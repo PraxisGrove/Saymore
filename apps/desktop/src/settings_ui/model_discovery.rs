@@ -3,7 +3,14 @@ use template_app::LlmProviderPreset;
 use template_infra::{ModelDiscoveryError, discover_models};
 
 use super::{VOLCENGINE_MODEL, provider_preset};
-use crate::ui::{AppWindow, LlmProvider as UiLlmProvider};
+use crate::ui::{AppWindow, AsrProvider as UiAsrProvider, LlmProvider as UiLlmProvider};
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum DiscoveryTarget {
+    Volcengine,
+    CustomAsr,
+    Llm(LlmProviderPreset),
+}
 
 pub(super) fn wire(ui: &AppWindow) {
     let discovery_ui = ui.as_weak();
@@ -13,7 +20,11 @@ pub(super) fn wire(ui: &AppWindow) {
         };
         let tab = ui.get_model_tab();
         let api_key = if tab == 0 {
-            ui.get_asr_api_key()
+            if ui.get_asr_provider() == UiAsrProvider::Custom {
+                ui.get_custom_asr_api_key()
+            } else {
+                ui.get_asr_api_key()
+            }
         } else if ui.get_llm_provider() == UiLlmProvider::Deepseek {
             ui.get_deepseek_api_key()
         } else {
@@ -24,17 +35,42 @@ pub(super) fn wire(ui: &AppWindow) {
             ui.set_model_discovery_error(false);
             return;
         }
+        if tab == 0
+            && ui.get_asr_provider() == UiAsrProvider::Custom
+            && ui.get_custom_asr_base_url().trim().is_empty()
+        {
+            ui.set_model_discovery_status(SharedString::from("请先输入服务地址"));
+            ui.set_model_discovery_error(false);
+            return;
+        }
         ui.set_available_models(ModelRc::default());
         ui.set_model_discovery_loading(true);
         ui.set_model_discovery_error(false);
         ui.set_model_discovery_status(SharedString::from("正在获取"));
-        if tab == 0 {
-            apply_models(&ui, None, vec![VOLCENGINE_MODEL.to_owned()]);
+        if tab == 0 && ui.get_asr_provider() == UiAsrProvider::Volcengine {
+            apply_models(
+                &ui,
+                DiscoveryTarget::Volcengine,
+                vec![VOLCENGINE_MODEL.to_owned()],
+            );
             return;
         }
 
-        let provider = provider_preset(ui.get_llm_provider());
-        let endpoint = provider.model_list_url().to_owned();
+        let target = if tab == 0 {
+            DiscoveryTarget::CustomAsr
+        } else {
+            DiscoveryTarget::Llm(provider_preset(ui.get_llm_provider()))
+        };
+        let endpoint = match target {
+            DiscoveryTarget::Volcengine => return,
+            DiscoveryTarget::CustomAsr => {
+                format!(
+                    "{}/models",
+                    ui.get_custom_asr_base_url().trim().trim_end_matches('/')
+                )
+            }
+            DiscoveryTarget::Llm(provider) => provider.model_list_url().to_owned(),
+        };
         let api_key = api_key.to_string();
         let request_ui = ui.as_weak();
         let spawn_result = std::thread::Builder::new()
@@ -46,12 +82,22 @@ pub(super) fn wire(ui: &AppWindow) {
                     .map_err(|error| ModelDiscoveryError::Transport(error.to_string()))
                     .and_then(|runtime| runtime.block_on(discover_models(&endpoint, &api_key)));
                 let _ = request_ui.upgrade_in_event_loop(move |ui| {
-                    if ui.get_model_tab() != 1 || provider_preset(ui.get_llm_provider()) != provider
-                    {
+                    let target_is_current = match target {
+                        DiscoveryTarget::Volcengine => false,
+                        DiscoveryTarget::CustomAsr => {
+                            ui.get_model_tab() == 0
+                                && ui.get_asr_provider() == UiAsrProvider::Custom
+                        }
+                        DiscoveryTarget::Llm(provider) => {
+                            ui.get_model_tab() == 1
+                                && provider_preset(ui.get_llm_provider()) == provider
+                        }
+                    };
+                    if !target_is_current {
                         return;
                     }
                     match result {
-                        Ok(models) => apply_models(&ui, Some(provider), models),
+                        Ok(models) => apply_models(&ui, target, models),
                         Err(error) => apply_error(&ui, error),
                     }
                 });
@@ -65,21 +111,23 @@ pub(super) fn wire(ui: &AppWindow) {
     });
 }
 
-fn apply_models(ui: &AppWindow, provider: Option<LlmProviderPreset>, models: Vec<String>) {
-    let current = match provider {
-        None => ui.get_asr_model(),
-        Some(LlmProviderPreset::SenseNova) => ui.get_sensenova_model(),
-        Some(LlmProviderPreset::DeepSeek) => ui.get_deepseek_model(),
+fn apply_models(ui: &AppWindow, target: DiscoveryTarget, models: Vec<String>) {
+    let current = match target {
+        DiscoveryTarget::Volcengine => ui.get_asr_model(),
+        DiscoveryTarget::CustomAsr => ui.get_custom_asr_model(),
+        DiscoveryTarget::Llm(LlmProviderPreset::SenseNova) => ui.get_sensenova_model(),
+        DiscoveryTarget::Llm(LlmProviderPreset::DeepSeek) => ui.get_deepseek_model(),
     };
     if !models.iter().any(|model| model == current.as_str())
         && let Some(first) = models.first()
     {
-        match provider {
-            None => ui.set_asr_model(SharedString::from(first)),
-            Some(LlmProviderPreset::SenseNova) => {
+        match target {
+            DiscoveryTarget::Volcengine => ui.set_asr_model(SharedString::from(first)),
+            DiscoveryTarget::CustomAsr => ui.set_custom_asr_model(SharedString::from(first)),
+            DiscoveryTarget::Llm(LlmProviderPreset::SenseNova) => {
                 ui.set_sensenova_model(SharedString::from(first));
             }
-            Some(LlmProviderPreset::DeepSeek) => {
+            DiscoveryTarget::Llm(LlmProviderPreset::DeepSeek) => {
                 ui.set_deepseek_model(SharedString::from(first));
             }
         }
