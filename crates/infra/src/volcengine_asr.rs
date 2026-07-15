@@ -37,6 +37,17 @@ impl VolcengineSpeechRecognizer {
             api_key: api_key.to_owned(),
         })
     }
+
+    pub async fn test_connection(&self) -> Result<(), SpeechRecognitionError> {
+        let _ = rustls::crypto::ring::default_provider().install_default();
+        let request = connection_request(&self.api_key)?;
+        let (mut socket, _) = connect_async(request).await.map_err(handshake_error)?;
+        socket
+            .send(Message::Binary(encode_config_request()?.into()))
+            .await
+            .map_err(transport_error)?;
+        socket.close(None).await.map_err(transport_error)
+    }
 }
 
 impl StreamingSpeechRecognizer for VolcengineSpeechRecognizer {
@@ -116,14 +127,7 @@ async fn run_session(
     on_partial: Arc<dyn Fn(String) + Send + Sync>,
 ) -> Result<String, SpeechRecognitionError> {
     let _ = rustls::crypto::ring::default_provider().install_default();
-    let mut request = ENDPOINT.into_client_request().map_err(protocol_error)?;
-    let headers = request.headers_mut();
-    headers.insert("X-Api-Key", header_value(&api_key)?);
-    headers.insert("X-Api-Resource-Id", header_value(RESOURCE_ID)?);
-    headers.insert(
-        "X-Api-Connect-Id",
-        header_value(&Uuid::new_v4().to_string())?,
-    );
+    let request = connection_request(&api_key)?;
 
     let (mut socket, _) = connect_async(request).await.map_err(handshake_error)?;
     socket
@@ -183,6 +187,20 @@ async fn run_session(
             () = &mut timeout, if finishing => return Err(SpeechRecognitionError::Timeout),
         }
     }
+}
+
+fn connection_request(
+    api_key: &str,
+) -> Result<tokio_tungstenite::tungstenite::http::Request<()>, SpeechRecognitionError> {
+    let mut request = ENDPOINT.into_client_request().map_err(protocol_error)?;
+    let headers = request.headers_mut();
+    headers.insert("X-Api-Key", header_value(api_key)?);
+    headers.insert("X-Api-Resource-Id", header_value(RESOURCE_ID)?);
+    headers.insert(
+        "X-Api-Connect-Id",
+        header_value(&Uuid::new_v4().to_string())?,
+    );
+    Ok(request)
 }
 
 fn encode_config_request() -> Result<Vec<u8>, SpeechRecognitionError> {
@@ -390,6 +408,29 @@ mod tests {
     use std::{env, fs};
 
     use super::*;
+
+    #[test]
+    fn connection_request_contains_volcengine_credentials_and_resource() {
+        let Ok(request) = connection_request("test-key") else {
+            panic!("connection request should be valid");
+        };
+
+        assert_eq!(
+            Some("test-key"),
+            request
+                .headers()
+                .get("X-Api-Key")
+                .and_then(|value| value.to_str().ok())
+        );
+        assert_eq!(
+            Some(RESOURCE_ID),
+            request
+                .headers()
+                .get("X-Api-Resource-Id")
+                .and_then(|value| value.to_str().ok())
+        );
+        assert!(request.headers().contains_key("X-Api-Connect-Id"));
+    }
 
     #[test]
     fn encodes_pcm_audio_as_sequenced_gzip_packet() {

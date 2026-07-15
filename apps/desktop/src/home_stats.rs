@@ -40,6 +40,11 @@ pub fn wire(ui: &AppWindow, storage: Arc<SqliteStorage>) {
 
 fn refresh(ui: slint::Weak<AppWindow>, storage: Arc<SqliteStorage>, generation: Arc<AtomicU64>) {
     let request_generation = generation.fetch_add(1, Ordering::Relaxed).saturating_add(1);
+    if let Some(ui) = ui.upgrade() {
+        ui.set_usage_loading(true);
+        ui.set_usage_error(false);
+    }
+    let failure_ui = ui.clone();
     if thread::Builder::new()
         .name("saymore-load-home-stats".to_owned())
         .spawn(move || {
@@ -54,16 +59,26 @@ fn refresh(ui: slint::Weak<AppWindow>, storage: Arc<SqliteStorage>, generation: 
                 return;
             }
             let _ = ui.upgrade_in_event_loop(move |ui| match result {
-                Ok(summary) => apply_summary(&ui, summary, today),
+                Ok(summary) => {
+                    apply_summary(&ui, summary, today);
+                    ui.set_usage_loading(false);
+                    ui.set_usage_error(false);
+                }
                 Err(error) => {
                     tracing::warn!(event = "home.stats_load_failed", reason = %error);
-                    apply_summary(&ui, UsageSummary::default(), today);
+                    ui.set_usage_loading(false);
+                    ui.set_usage_error(true);
+                    ui.set_usage_trend(ModelRc::default());
                 }
             });
         })
         .is_err()
     {
         tracing::error!(event = "home.stats_worker_spawn_failed");
+        let _ = failure_ui.upgrade_in_event_loop(|ui| {
+            ui.set_usage_loading(false);
+            ui.set_usage_error(true);
+        });
     }
 }
 

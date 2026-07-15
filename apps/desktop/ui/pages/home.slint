@@ -4,6 +4,7 @@ component UsageMetric inherits Rectangle {
     in property <string> value;
     in property <string> unit;
     in property <string> label;
+    in property <bool> show-unit: true;
     background: transparent;
 
     metric-value := Text {
@@ -15,7 +16,7 @@ component UsageMetric inherits Rectangle {
         font-weight: 700;
     }
 
-    Text {
+    if root.show-unit: Text {
         x: metric-value.preferred-width + 11px;
         y: 20px;
         text: root.unit;
@@ -77,26 +78,26 @@ export component HomePage inherits Rectangle {
     in property <[float]> usage-trend;
     in property <[string]> usage-day-labels;
     in property <int> usage-highlighted-day: -1;
+    in property <bool> usage-loading: false;
+    in property <bool> usage-error: false;
     callback open-model-settings();
     callback open-microphone-settings();
     callback open-accessibility-settings();
     callback open-delivery-settings();
+    callback refresh-usage();
 
     private property <bool> microphone-issue: !root.microphone-authorized;
     private property <bool> model-issue: !root.asr-configured || root.asr-config-error;
     private property <bool> accessibility-issue: !root.authorized;
     private property <bool> delivery-issue: !root.delivery-healthy;
     private property <bool> healthy: !root.microphone-issue && !root.model-issue && !root.accessibility-issue && !root.delivery-issue;
-    private property <length> status-height: root.healthy ? 54px : 78px;
-    private property <length> overview-title-y: root.healthy ? 301px : 325px;
-    private property <length> overview-y: root.healthy ? 329px : 353px;
-    private property <string> issue-title: root.microphone-issue ? "需要麦克风权限"
-        : root.model-issue ? (root.asr-config-error ? "语音模型配置错误" : "尚未配置语音模型")
-        : root.accessibility-issue ? "需要辅助功能权限"
+    private property <string> issue-title: root.microphone-issue ? "麦克风权限未开启"
+        : root.model-issue ? (root.asr-config-error ? "语音识别模型配置有误" : "语音识别模型尚未配置")
+        : root.accessibility-issue ? "辅助功能权限未开启"
         : "文本投递需要检查";
-    private property <string> issue-detail: root.microphone-issue ? root.microphone-status
-        : root.model-issue ? root.asr-config-status
-        : root.accessibility-issue ? "未授权时，识别结果无法自动投递到当前输入框。"
+    private property <string> issue-detail: root.microphone-issue ? "语音输入暂时无法开始"
+        : root.model-issue ? (root.asr-config-error ? root.asr-config-status : "完成配置后才能开始使用")
+        : root.accessibility-issue ? "识别结果无法自动输入到当前光标"
         : root.delivery-status;
     private property <string> issue-action: root.model-issue ? "前往模型设置"
         : root.delivery-issue && !root.accessibility-issue ? "检查投递设置"
@@ -153,9 +154,9 @@ export component HomePage inherits Rectangle {
         x: 0px;
         y: 223px;
         width: parent.width - 1px;
-        height: root.status-height;
+        height: 54px;
         border-radius: 10px;
-        background: root.healthy ? AppColors.sidebar : root.model-issue ? AppColors.warning-soft : AppColors.surface-subtle;
+        background: root.healthy ? AppColors.sidebar : AppColors.brand-soft;
 
         if root.healthy: Text {
             x: 20px;
@@ -176,19 +177,24 @@ export component HomePage inherits Rectangle {
             Text { text: "●  全部正常"; color: AppColors.success; font-size: 10px; font-weight: 650; horizontal-alignment: center; vertical-alignment: center; }
         }
 
+        if !root.healthy: Rectangle {
+            x: 16px; y: 15px; width: 24px; height: 24px; border-radius: 12px; border-width: 1px; border-color: AppColors.brand; background: transparent;
+            Text { text: "!"; color: AppColors.brand; font-size: 13px; font-weight: 700; horizontal-alignment: center; vertical-alignment: center; }
+        }
+
         if !root.healthy: VerticalLayout {
-            x: 20px;
-            y: 13px;
-            width: parent.width - 188px;
-            height: 52px;
-            spacing: 4px;
-            Text { text: root.issue-title; color: AppColors.ink; font-size: 13px; font-weight: 650; overflow: elide; }
-            Text { text: root.issue-detail; color: AppColors.text-muted; font-size: 11px; overflow: elide; }
+            x: 50px;
+            y: 8px;
+            width: parent.width - 218px;
+            height: 40px;
+            spacing: 1px;
+            Text { text: root.issue-title; color: AppColors.ink; font-size: 12px; font-weight: 650; overflow: elide; }
+            Text { text: root.issue-detail; color: AppColors.text-muted; font-size: 10px; overflow: elide; }
         }
 
         if !root.healthy: Rectangle {
             x: parent.width - 152px;
-            y: 20px;
+            y: 8px;
             width: 136px;
             height: 38px;
             border-radius: 8px;
@@ -214,22 +220,27 @@ export component HomePage inherits Rectangle {
         }
     }
 
-    Text { x: 0px; y: root.overview-title-y; text: "使用概览"; color: AppColors.text; font-size: 14px; font-weight: 650; }
+    Text { x: 0px; y: 301px; text: "使用概览"; color: AppColors.text; font-size: 14px; font-weight: 650; }
 
     Rectangle {
         x: 0px;
-        y: root.overview-y;
+        y: 329px;
         width: parent.width - 1px;
-        height: max(160px, parent.height - root.overview-y - 3px);
+        height: max(160px, parent.height - 332px);
         border-radius: 12px;
         background: AppColors.surface;
 
-        Text { x: 20px; y: 16px; text: "累计数据"; color: AppColors.text-muted; font-size: 11px; font-weight: 600; }
+        Text { x: 20px; y: 16px; text: root.usage-loading ? "使用概览 · 正在加载" : root.usage-error ? "使用概览 · 加载失败" : "累计数据"; color: AppColors.text-muted; font-size: 11px; font-weight: 600; }
 
         private property <length> metric-step: (self.width - 62px) / 3;
-        UsageMetric { x: 20px; y: 32px; width: parent.metric-step - 30px; height: 78px; value: root.usage-total-minutes; unit: "分钟"; label: "累计口述"; }
-        UsageMetric { x: 20px + parent.metric-step; y: 32px; width: parent.metric-step - 30px; height: 78px; value: root.usage-total-characters; unit: "字"; label: "累计字数"; }
-        UsageMetric { x: 20px + parent.metric-step * 2; y: 32px; width: parent.metric-step - 30px; height: 78px; value: root.usage-average-speed; unit: "字/分"; label: "平均速度"; }
+        UsageMetric { x: 20px; y: 32px; width: parent.metric-step - 30px; height: 78px; value: root.usage-loading ? "•••" : root.usage-error ? "—" : root.usage-total-minutes; unit: "分钟"; show-unit: !root.usage-loading && !root.usage-error; label: root.usage-error ? "本地统计暂时不可用" : "累计口述"; }
+        UsageMetric { x: 20px + parent.metric-step; y: 32px; width: parent.metric-step - 30px; height: 78px; value: root.usage-loading ? "•••" : root.usage-error ? "—" : root.usage-total-characters; unit: "字"; show-unit: !root.usage-loading && !root.usage-error; label: root.usage-error ? "不影响语音输入" : "累计字数"; }
+        UsageMetric { x: 20px + parent.metric-step * 2; y: 32px; width: parent.metric-step - 30px; height: 78px; value: root.usage-loading ? "•••" : root.usage-error ? "—" : root.usage-average-speed; unit: "字/分"; show-unit: !root.usage-loading && !root.usage-error; label: root.usage-error ? "" : "平均速度"; }
+        if root.usage-error: Rectangle {
+            x: 20px + parent.metric-step * 2; y: 69px; width: parent.metric-step - 30px; height: 24px; background: transparent;
+            Text { text: "重新加载 ↗"; color: AppColors.brand; font-size: 10px; font-weight: 600; vertical-alignment: center; }
+            TouchArea { mouse-cursor: pointer; clicked => { root.refresh-usage(); } }
+        }
 
         Text { x: 20px; y: 116px; text: "最近 7 天趋势"; color: AppColors.text-muted; font-size: 11px; font-weight: 600; }
 

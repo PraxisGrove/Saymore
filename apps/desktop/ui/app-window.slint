@@ -46,11 +46,15 @@ export component AppWindow inherits Window {
     in property <[float]> usage-trend;
     in property <[string]> usage-day-labels;
     in property <int> usage-highlighted-day: -1;
+    in property <bool> usage-loading: false;
+    in property <bool> usage-error: false;
     in-out property <string> asr-api-key: "";
     in-out property <string> asr-model: "bigmodel_async";
     in property <bool> asr-configured: false;
     in property <bool> asr-config-error: false;
     in property <string> asr-config-status: "未配置";
+    in-out property <bool> asr-testing: false;
+    in-out property <bool> asr-pending-test: false;
     in-out property <bool> llm-enabled: false;
     in-out property <LlmProvider> llm-provider: LlmProvider.sensenova;
     in-out property <string> sensenova-api-key: "";
@@ -66,6 +70,7 @@ export component AppWindow inherits Window {
     in-out property <int> model-tab: 0;
     in-out property <[string]> available-models;
     in-out property <bool> model-discovery-loading: false;
+    in-out property <bool> model-discovery-error: false;
     in-out property <string> model-discovery-status: "";
     in property <[HistoryListItem]> history-items;
     in property <string> history-status: "";
@@ -88,6 +93,7 @@ export component AppWindow inherits Window {
     callback save-llm-config(LlmProvider, string, string);
     callback select-llm-provider(LlmProvider);
     callback refresh-models();
+    callback request-asr-test();
     callback refresh-history();
     callback load-more-history();
     callback copy-history(string);
@@ -107,8 +113,8 @@ export component AppWindow inherits Window {
             root.refresh-history();
         }
     }
-    changed model-tab => { root.available-models = []; root.model-discovery-status = ""; }
-    changed llm-provider => { root.available-models = []; root.model-discovery-status = ""; }
+    changed model-tab => { root.available-models = []; root.model-discovery-status = ""; root.model-discovery-error = false; }
+    changed llm-provider => { root.available-models = []; root.model-discovery-status = ""; root.model-discovery-error = false; }
 
     if root.current-page != AppPage.settings: HorizontalLayout {
         padding: 10px;
@@ -143,6 +149,9 @@ export component AppWindow inherits Window {
                 usage-trend: root.usage-trend;
                 usage-day-labels: root.usage-day-labels;
                 usage-highlighted-day: root.usage-highlighted-day;
+                usage-loading: root.usage-loading;
+                usage-error: root.usage-error;
+                refresh-usage => { root.refresh-usage(); }
                 open-model-settings => { root.focus-asr-config = true; root.current-page = AppPage.models; }
                 open-microphone-settings => { root.open-microphone-settings(); }
                 open-accessibility-settings => { root.open-accessibility-settings(); }
@@ -158,6 +167,8 @@ export component AppWindow inherits Window {
                 asr-configured: root.asr-configured;
                 asr-config-error: root.asr-config-error;
                 asr-config-status: root.asr-config-status;
+                asr-testing <=> root.asr-testing;
+                asr-pending-test <=> root.asr-pending-test;
                 llm-enabled <=> root.llm-enabled;
                 llm-provider <=> root.llm-provider;
                 sensenova-api-key <=> root.sensenova-api-key;
@@ -173,6 +184,7 @@ export component AppWindow inherits Window {
                 active-tab <=> root.model-tab;
                 available-models <=> root.available-models;
                 model-discovery-loading <=> root.model-discovery-loading;
+                model-discovery-error <=> root.model-discovery-error;
                 model-discovery-status <=> root.model-discovery-status;
                 save-asr-config(api-key, model) => { root.save-asr-config(api-key, model); }
                 delete-asr-config => { root.delete-asr-config(); }
@@ -181,6 +193,7 @@ export component AppWindow inherits Window {
                 save-llm-config(provider, api-key, model) => { root.save-llm-config(provider, api-key, model); }
                 select-llm-provider(provider) => { root.select-llm-provider(provider); }
                 refresh-models => { root.refresh-models(); }
+                request-asr-test => { root.request-asr-test(); }
             }
 
             if root.current-page == AppPage.history: HistoryPage {

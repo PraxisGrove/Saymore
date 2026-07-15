@@ -171,6 +171,8 @@ export component ModelsPage inherits Rectangle {
     in property <bool> asr-configured;
     in property <bool> asr-config-error;
     in property <string> asr-config-status;
+    in-out property <bool> asr-testing: false;
+    in-out property <bool> asr-pending-test: false;
     in-out property <bool> llm-enabled;
     in-out property <LlmProvider> llm-provider: LlmProvider.sensenova;
     in-out property <string> sensenova-api-key;
@@ -186,6 +188,7 @@ export component ModelsPage inherits Rectangle {
     in-out property <int> active-tab: 0;
     in-out property <[string]> available-models;
     in-out property <bool> model-discovery-loading: false;
+    in-out property <bool> model-discovery-error: false;
     in-out property <string> model-discovery-status;
     callback save-asr-config(string, string);
     callback delete-asr-config();
@@ -194,6 +197,7 @@ export component ModelsPage inherits Rectangle {
     callback save-llm-config(LlmProvider, string, string);
     callback select-llm-provider(LlmProvider);
     callback refresh-models();
+    callback request-asr-test();
 
     private property <bool> service-menu-open: false;
     private property <bool> model-menu-open: false;
@@ -203,18 +207,21 @@ export component ModelsPage inherits Rectangle {
     private property <bool> first-service-selected: root.active-tab == 0 || root.llm-provider == LlmProvider.sensenova;
     private property <bool> second-service-selected: root.active-tab == 1 && root.llm-provider == LlmProvider.deepseek;
     private property <bool> manual-model-selected: root.manual-model;
+    private property <string> asr-model-label: "豆包流式语音识别模型 2.0";
     private property <string> active-api-key: root.active-tab == 0 ? root.asr-api-key : root.llm-provider == LlmProvider.deepseek ? root.deepseek-api-key : root.sensenova-api-key;
     private property <string> service-name: root.active-tab == 0 ? "火山引擎" : root.llm-provider == LlmProvider.deepseek ? "DeepSeek" : "商汤 SenseNova";
     private property <string> model-name: root.active-tab == 0 ? root.asr-model : root.llm-provider == LlmProvider.deepseek ? root.deepseek-model : root.sensenova-model;
-    private property <string> configured-model-name: root.active-tab == 0 ? root.asr-configured ? root.asr-model : "" : root.llm-provider == LlmProvider.deepseek ? root.deepseek-configured ? root.deepseek-model : "" : root.sensenova-configured ? root.sensenova-model : "";
-    private property <string> first-service-model: root.active-tab == 0 ? root.asr-configured ? root.asr-model : "" : root.sensenova-configured ? root.sensenova-model : "";
+    private property <string> configured-model-name: root.active-tab == 0 ? root.asr-configured ? root.asr-model-label : "" : root.llm-provider == LlmProvider.deepseek ? root.deepseek-configured ? root.deepseek-model : "" : root.sensenova-configured ? root.sensenova-model : "";
+    private property <string> first-service-model: root.active-tab == 0 ? root.asr-configured ? root.asr-model-label : "" : root.sensenova-configured ? root.sensenova-model : "";
     private property <string> second-service-model: root.deepseek-configured ? root.deepseek-model : "";
-    private property <bool> service-healthy: root.active-tab == 0 ? root.asr-configured && !root.asr-config-error : root.llm-enabled;
-    private property <string> service-status: root.service-healthy ? "●  连接正常" : root.active-tab == 0 ? root.asr-config-status : root.llm-config-status;
+    private property <bool> service-healthy: root.active-tab == 0 ? root.asr-configured && !root.asr-config-error && !root.asr-pending-test && !root.asr-testing : root.llm-enabled;
+    private property <string> service-status: root.active-tab == 0 ? root.asr-testing ? "●  正在测试" : root.asr-config-error ? "●  连接失败" : root.asr-pending-test ? "●  已保存" : root.service-healthy ? "●  连接正常" : "●  未配置" : root.service-healthy ? "●  连接正常" : root.llm-config-status;
     private property <length> config-height: root.advanced-visible ? 270px : 228px;
     private property <length> action-y: root.advanced-visible ? 560px : 525px;
     forward-focus: asr-field;
     init => { if root.focus-asr-config { root.focus(); } }
+    changed model-discovery-error => { if root.model-discovery-error { root.model-menu-open = true; } }
+    Timer { interval: 5s; running: root.api-key-visible; triggered => { root.api-key-visible = false; } }
     background: transparent;
 
     Text { x: 0px; y: 44px; text: "模型"; color: AppColors.ink; font-size: 27px; font-weight: 700; }
@@ -227,7 +234,7 @@ export component ModelsPage inherits Rectangle {
         x: 0px; y: 166px; width: parent.width - 1px;
         icon: root.active-tab == 0 ? @image-url("../../icons/lucide/audio-lines.svg") : @image-url("../../icons/lucide/sparkles.svg");
         name: root.service-name;
-        detail: root.configured-model-name.is-empty ? "" : root.configured-model-name + " · 当前默认";
+        detail: root.active-tab == 0 && !root.asr-configured ? "尚未配置 API Key" : root.configured-model-name.is-empty ? "" : root.configured-model-name + (root.asr-pending-test ? " · 尚未启用" : " · 当前默认");
         status: root.service-status;
         healthy: root.service-healthy;
         open: root.service-menu-open;
@@ -238,7 +245,7 @@ export component ModelsPage inherits Rectangle {
     Rectangle {
         x: 0px; y: 283px; width: parent.width - 1px; height: root.config-height; border-radius: 12px; background: AppColors.surface;
 
-        Text { x: 18px; y: root.advanced-visible ? 11px : 17px; text: "API Key"; color: AppColors.text; font-size: 11px; font-weight: 600; }
+        Text { x: 18px; y: 17px; text: "API Key"; color: AppColors.text; font-size: 11px; font-weight: 600; }
         Text { x: parent.width - 88px; y: 17px; text: "获取密钥 ↗"; color: AppColors.brand; font-size: 10px; font-weight: 600; }
 
         asr-field := ApiKeyField {
@@ -273,7 +280,7 @@ export component ModelsPage inherits Rectangle {
             if root.active-tab == 0 && root.manual-model: TextInput { x: 15px; width: parent.width - 50px; text <=> root.asr-model; color: AppColors.text; font-size: 12px; vertical-alignment: center; }
             if root.active-tab == 1 && root.llm-provider == LlmProvider.sensenova && root.manual-model: TextInput { x: 15px; width: parent.width - 50px; text <=> root.sensenova-model; color: AppColors.text; font-size: 12px; vertical-alignment: center; }
             if root.active-tab == 1 && root.llm-provider == LlmProvider.deepseek && root.manual-model: TextInput { x: 15px; width: parent.width - 50px; text <=> root.deepseek-model; color: AppColors.text; font-size: 12px; vertical-alignment: center; }
-            if !root.manual-model: Text { x: 15px; width: parent.width - 50px; text: root.model-name; color: AppColors.text; font-size: 12px; vertical-alignment: center; overflow: elide; }
+            if !root.manual-model: Text { x: 15px; width: parent.width - 50px; text: root.active-tab == 0 ? root.asr-model-label : root.model-name; color: AppColors.text; font-size: 12px; vertical-alignment: center; overflow: elide; }
             if !root.manual-model: TouchArea { mouse-cursor: pointer; clicked => { root.model-menu-open = !root.model-menu-open; root.service-menu-open = false; } }
             ChevronButton { x: parent.width - 38px; y: (parent.height - 32px) / 2; open: root.model-menu-open; activated => { root.model-menu-open = !root.model-menu-open; root.service-menu-open = false; } }
         }
@@ -303,11 +310,10 @@ export component ModelsPage inherits Rectangle {
         }
     }
     ModelActionButton {
-        x: 120px; y: root.action-y; label: "测试连接"; primary: false; enabled: root.active-tab == 1 && !root.active-api-key.is-empty;
-        activated => { root.request-llm-enable(); }
+        x: 120px; y: root.action-y; label: root.asr-testing ? "正在测试…" : root.asr-config-error && root.active-tab == 0 ? "重新测试" : "测试连接"; primary: root.asr-config-error && root.active-tab == 0; enabled: !root.active-api-key.is-empty && !root.asr-testing;
+        activated => { if root.active-tab == 0 { root.request-asr-test(); } else { root.request-llm-enable(); } }
     }
-    if root.active-tab == 0: ModelActionButton { x: 240px; y: root.action-y; label: "删除配置"; primary: false; enabled: root.asr-configured; activated => { root.delete-asr-config(); } }
-    Text { x: parent.width - 112px; y: root.action-y + 13px; width: 111px; text: root.service-status; color: root.service-healthy ? AppColors.success : AppColors.text-muted; font-size: 10px; font-weight: 650; horizontal-alignment: right; }
+    Text { x: parent.width - 230px; y: root.action-y + 13px; width: 229px; text: root.api-key-visible ? "5 秒后自动隐藏" : root.asr-testing ? "正在测试连接" : root.asr-config-error && root.active-tab == 0 ? "API Key 无效，请检查后重试" : root.asr-pending-test && root.active-tab == 0 ? "已保存，等待连接测试" : root.service-status; color: root.asr-config-error && root.active-tab == 0 ? AppColors.danger : root.service-healthy ? AppColors.success : AppColors.text-muted; font-size: 10px; font-weight: 650; horizontal-alignment: right; }
 
     if root.service-menu-open: Rectangle {
         x: 0px; y: 242px; width: parent.width - 1px; height: root.active-tab == 0 ? 72px : 124px; border-radius: 12px; background: AppColors.surface; drop-shadow-blur: 18px; drop-shadow-offset-y: 6px; drop-shadow-color: #1f1f1c1a;
@@ -330,18 +336,24 @@ export component ModelsPage inherits Rectangle {
     }
 
     if root.model-menu-open: Rectangle {
-        x: 18px; y: 443px; width: parent.width - 37px; height: 164px; border-radius: 10px; background: AppColors.surface; drop-shadow-blur: 18px; drop-shadow-offset-y: 6px; drop-shadow-color: #1f1f1c1a;
+        x: 18px; y: 443px; width: parent.width - 37px; height: 100px; border-radius: 10px; background: AppColors.surface; drop-shadow-blur: 18px; drop-shadow-offset-y: 6px; drop-shadow-color: #1f1f1c1a;
         ScrollView {
             x: 10px; y: 10px; width: parent.width - 20px; height: parent.height - 20px;
             VerticalLayout {
                 spacing: 8px;
-                if root.available-models.length == 0: Rectangle {
+                if root.model-discovery-error: Rectangle {
+                    height: 36px; border-radius: 7px; background: AppColors.danger-soft;
+                    Text { x: 14px; width: parent.width - 48px; text: "模型列表加载失败，请检查网络"; color: AppColors.danger; font-size: 11px; vertical-alignment: center; }
+                    Text { x: parent.width - 27px; text: "↻"; color: AppColors.danger; font-size: 14px; vertical-alignment: center; }
+                    TouchArea { mouse-cursor: pointer; clicked => { root.refresh-models(); } }
+                }
+                if root.available-models.length == 0 && !root.model-discovery-error: Rectangle {
                     height: 36px; border-radius: 7px; background: AppColors.surface;
                     Text { x: 14px; text: root.model-discovery-status.is-empty ? "尚未获取模型" : root.model-discovery-status; color: AppColors.text-muted; font-size: 11px; vertical-alignment: center; }
                 }
                 for model-id in root.available-models: Rectangle {
                     height: 36px; border-radius: 7px; background: !root.manual-model && model-id == root.model-name ? AppColors.sidebar : AppColors.surface;
-                    Text { x: 14px; width: parent.width - 48px; text: model-id; color: AppColors.text; font-size: 11px; vertical-alignment: center; overflow: elide; }
+                    Text { x: 14px; width: parent.width - 48px; text: root.active-tab == 0 ? root.asr-model-label : model-id; color: AppColors.text; font-size: 11px; vertical-alignment: center; overflow: elide; }
                     if !root.manual-model && model-id == root.model-name: Image { x: parent.width - 24px; y: 11px; width: 14px; height: 14px; source: @image-url("../../icons/lucide/check.svg"); colorize: AppColors.success; }
                     TouchArea { mouse-cursor: pointer; clicked => { root.manual-model = false; if root.active-tab == 0 { root.asr-model = model-id; } else if root.llm-provider == LlmProvider.deepseek { root.deepseek-model = model-id; } else { root.sensenova-model = model-id; } root.model-menu-open = false; } }
                 }

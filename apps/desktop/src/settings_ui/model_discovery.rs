@@ -21,10 +21,12 @@ pub(super) fn wire(ui: &AppWindow) {
         };
         if api_key.trim().is_empty() {
             ui.set_model_discovery_status(SharedString::from("请先输入 API Key"));
+            ui.set_model_discovery_error(false);
             return;
         }
         ui.set_available_models(ModelRc::default());
         ui.set_model_discovery_loading(true);
+        ui.set_model_discovery_error(false);
         ui.set_model_discovery_status(SharedString::from("正在获取"));
         if tab == 0 {
             apply_models(&ui, None, vec![VOLCENGINE_MODEL.to_owned()]);
@@ -89,6 +91,7 @@ fn apply_models(ui: &AppWindow, provider: Option<LlmProviderPreset>, models: Vec
         .collect::<Vec<_>>();
     ui.set_available_models(ModelRc::new(VecModel::from(models)));
     ui.set_model_discovery_loading(false);
+    ui.set_model_discovery_error(false);
     ui.set_model_discovery_status(SharedString::from(format!("已获取 {count} 个模型")));
 }
 
@@ -102,5 +105,6 @@ fn apply_error(ui: &AppWindow, error: ModelDiscoveryError) {
         ModelDiscoveryError::Protocol(_) => "模型列表响应异常",
     };
     ui.set_model_discovery_loading(false);
+    ui.set_model_discovery_error(true);
     ui.set_model_discovery_status(SharedString::from(status));
 }

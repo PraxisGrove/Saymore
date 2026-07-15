@@ -9,7 +9,7 @@ use template_app::{
 use template_app::{ProviderCatalog, ProviderInstance, SaymoreSettings};
 #[cfg(test)]
 use template_infra::AppEnvironment;
-use template_infra::{ChatCompletionsLlmProvider, JsonSettingsStore};
+use template_infra::{ChatCompletionsLlmProvider, JsonSettingsStore, VolcengineSpeechRecognizer};
 
 use crate::ui::{AppWindow, LlmProvider as UiLlmProvider};
 
@@ -36,7 +36,11 @@ fn ui_provider(provider: LlmProviderPreset) -> UiLlmProvider {
 pub fn wire(ui: &AppWindow, store: Arc<JsonSettingsStore>) {
     apply_loaded_settings(ui, &store);
     model_discovery::wire(ui);
+    wire_asr(ui, Arc::clone(&store));
+    wire_llm(ui, store);
+}
 
+fn wire_asr(ui: &AppWindow, store: Arc<JsonSettingsStore>) {
     let save_ui = ui.as_weak();
     let save_store = Arc::clone(&store);
     ui.on_save_asr_config(move |api_key, model| {
@@ -44,7 +48,10 @@ pub fn wire(ui: &AppWindow, store: Arc<JsonSettingsStore>) {
             return;
         };
         match save_asr_configuration(&save_store, api_key.as_str(), model.as_str()) {
-            Ok(()) => apply_status(&ui, true, false, "已保存"),
+            Ok(()) => {
+                apply_status(&ui, true, false, "已保存");
+                ui.set_asr_pending_test(true);
+            }
             Err(AsrConfigError::MissingApiKey) => {
                 apply_status(&ui, false, true, "请输入 API Key");
             }
@@ -52,6 +59,47 @@ pub fn wire(ui: &AppWindow, store: Arc<JsonSettingsStore>) {
                 apply_status(&ui, false, true, "请输入模型名称");
             }
             Err(AsrConfigError::Store) => apply_status(&ui, false, true, "保存失败"),
+        }
+    });
+
+    let test_ui = ui.as_weak();
+    let test_store = Arc::clone(&store);
+    ui.on_request_asr_test(move || {
+        let Some(ui) = test_ui.upgrade() else {
+            return;
+        };
+        let api_key = ui.get_asr_api_key().to_string();
+        let model = ui.get_asr_model().to_string();
+        if let Err(error) = save_asr_configuration(&test_store, &api_key, &model) {
+            let status = match error {
+                AsrConfigError::MissingApiKey => "请输入 API Key",
+                AsrConfigError::MissingModel => "请输入模型名称",
+                AsrConfigError::Store => "保存失败",
+            };
+            apply_status(&ui, false, true, status);
+            return;
+        }
+        ui.set_asr_testing(true);
+        ui.set_asr_pending_test(false);
+        ui.set_asr_config_error(false);
+        ui.set_asr_config_status(SharedString::from("正在测试连接"));
+        let result_ui = ui.as_weak();
+        let spawn_result = std::thread::Builder::new()
+            .name("saymore-test-asr".to_owned())
+            .spawn(move || {
+                let result = test_asr_connection(api_key);
+                let _ = result_ui.upgrade_in_event_loop(move |ui| {
+                    ui.set_asr_testing(false);
+                    if result.is_ok() {
+                        apply_status(&ui, true, false, "连接正常");
+                    } else {
+                        apply_status(&ui, true, true, "连接失败");
+                    }
+                });
+            });
+        if spawn_result.is_err() {
+            ui.set_asr_testing(false);
+            apply_status(&ui, true, true, "连接失败");
         }
     });
 
@@ -70,8 +118,6 @@ pub fn wire(ui: &AppWindow, store: Arc<JsonSettingsStore>) {
             Err(_) => apply_status(&ui, true, true, "删除失败"),
         }
     });
-
-    wire_llm(ui, store);
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -112,6 +158,17 @@ fn clear_asr_configuration(store: &JsonSettingsStore) -> Result<(), SettingsStor
         settings.asr.volcengine = VolcengineAsrSettings::default();
         store.save(&settings)
     })
+}
+
+fn test_asr_connection(api_key: String) -> Result<(), String> {
+    let recognizer = VolcengineSpeechRecognizer::new(api_key).map_err(|error| error.to_string())?;
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .map_err(|error| error.to_string())?;
+    runtime
+        .block_on(recognizer.test_connection())
+        .map_err(|error| error.to_string())
 }
 
 fn wire_llm(ui: &AppWindow, store: Arc<JsonSettingsStore>) {
@@ -339,6 +396,8 @@ fn apply_loaded_settings(ui: &AppWindow, store: &JsonSettingsStore) {
                 false,
                 if configured { "已配置" } else { "未配置" },
             );
+            ui.set_asr_testing(false);
+            ui.set_asr_pending_test(false);
         }
         _ => apply_status(ui, false, true, "配置读取失败"),
     }
