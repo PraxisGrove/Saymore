@@ -234,7 +234,7 @@ export component ModelsPage inherits Rectangle {
         x: 0px; y: 166px; width: parent.width - 1px;
         icon: root.active-tab == 0 ? @image-url("../../icons/lucide/audio-lines.svg") : @image-url("../../icons/lucide/sparkles.svg");
         name: root.service-name;
-        detail: root.active-tab == 0 && !root.asr-configured ? "尚未配置 API Key" : root.configured-model-name.is-empty ? "" : root.configured-model-name + (root.asr-pending-test ? " · 尚未启用" : " · 当前默认");
+        detail: root.active-tab == 0 && !root.asr-configured ? "尚未配置 API Key" : root.configured-model-name.is-empty ? "" : root.configured-model-name + (root.active-tab == 0 && root.asr-pending-test ? " · 尚未启用" : " · 当前默认");
         status: root.service-status;
         healthy: root.service-healthy;
         open: root.service-menu-open;

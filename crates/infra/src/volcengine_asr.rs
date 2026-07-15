@@ -393,6 +393,11 @@ fn header_value(
 
 fn handshake_error(error: tokio_tungstenite::tungstenite::Error) -> SpeechRecognitionError {
     if let tokio_tungstenite::tungstenite::Error::Http(response) = &error {
+        tracing::warn!(
+            target: "saymore::diagnostics",
+            event = "asr.handshake_rejected",
+            status = response.status().as_u16()
+        );
         return http_status_error(response.status().as_u16());
     }
     transport_error(error)
@@ -407,6 +412,12 @@ fn http_status_error(status: u16) -> SpeechRecognitionError {
 }
 
 fn provider_error(code: u32, message: &str) -> SpeechRecognitionError {
+    tracing::warn!(
+        target: "saymore::diagnostics",
+        event = "asr.provider_rejected",
+        code,
+        reason = message
+    );
     match code {
         401 | 403 => SpeechRecognitionError::Authentication,
         429 | 55000000..=55999999 => SpeechRecognitionError::Quota,

@@ -83,11 +83,7 @@ impl AsrSessionController {
             .lock()
             .map_err(|_| SpeechRecognitionError::Transport("ASR lock was poisoned".to_owned()))?
             .take();
-        if let Some(error) = stream_error {
-            session.cancel();
-            return Err(error);
-        }
-        session.finish()
+        resolve_session_finish(stream_error, session.finish())
     }
 
     pub fn cancel(&self) {
@@ -99,6 +95,17 @@ impl AsrSessionController {
         if let Ok(mut stream_error) = self.stream_error.lock() {
             *stream_error = None;
         }
+    }
+}
+
+fn resolve_session_finish<T>(
+    stream_error: Option<SpeechRecognitionError>,
+    finish_result: Result<T, SpeechRecognitionError>,
+) -> Result<T, SpeechRecognitionError> {
+    match (stream_error, finish_result) {
+        (_, Err(provider_error)) => Err(provider_error),
+        (Some(stream_error), Ok(_)) => Err(stream_error),
+        (None, Ok(value)) => Ok(value),
     }
 }
 
@@ -119,13 +126,27 @@ pub fn error_message(error: &SpeechRecognitionError) -> &'static str {
 
 #[cfg(test)]
 mod tests {
-    use super::normalize_transcript;
+    use super::{normalize_transcript, resolve_session_finish};
+    use template_app::SpeechRecognitionError;
 
     #[test]
     fn normalizes_surrounding_and_repeated_whitespace() {
         assert_eq!(
             "你好 Saymore。",
             normalize_transcript("  你好   Saymore。\n")
+        );
+    }
+
+    #[test]
+    fn finish_preserves_the_provider_error_after_the_stream_closes() {
+        assert_eq!(
+            Err(SpeechRecognitionError::Authentication),
+            resolve_session_finish::<String>(
+                Some(SpeechRecognitionError::Transport(
+                    "ASR session stopped".to_owned()
+                )),
+                Err(SpeechRecognitionError::Authentication)
+            )
         );
     }
 }

@@ -267,9 +267,18 @@ fn log_asr_finalization<T>(result: &Result<T, FinishError>, duration_ms: u128) {
             event = "asr.finalized",
             duration_ms
         ),
-        Err(_) => tracing::warn!(
+        Err(FinishError::Recording(error)) => tracing::warn!(
             target: "saymore::diagnostics",
             event = "asr.finalization_failed",
+            stage = "recording",
+            reason = %error,
+            duration_ms
+        ),
+        Err(FinishError::Recognition(error)) => tracing::warn!(
+            target: "saymore::diagnostics",
+            event = "asr.finalization_failed",
+            stage = "recognition",
+            reason = %error,
             duration_ms
         ),
     }

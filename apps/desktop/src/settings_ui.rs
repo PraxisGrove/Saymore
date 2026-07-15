@@ -112,7 +112,11 @@ fn begin_asr_connection_test(ui: &AppWindow, store: Arc<JsonSettingsStore>) {
         .spawn(move || {
             let result = test_asr_connection(api_key);
             if let Err(error) = &result {
-                tracing::warn!(event = "asr.connection_test_failed", reason = %error);
+                tracing::warn!(
+                    target: "saymore::diagnostics",
+                    event = "asr.connection_test_failed",
+                    reason = %error
+                );
             }
             let _ = result_ui.upgrade_in_event_loop(move |ui| {
                 ui.set_asr_testing(false);
@@ -443,7 +447,7 @@ fn apply_loaded_settings(ui: &AppWindow, store: &JsonSettingsStore) {
                 if configured { "已配置" } else { "未配置" },
             );
             ui.set_asr_testing(false);
-            ui.set_asr_pending_test(false);
+            ui.set_asr_pending_test(configured);
         }
         _ => apply_status(ui, false, true, "配置读取失败"),
     }

@@ -67,6 +67,7 @@ export component HomePage inherits Rectangle {
     in property <string> microphone-status;
     in property <bool> asr-configured;
     in property <bool> asr-config-error;
+    in property <bool> asr-pending-test;
     in property <string> asr-config-status;
     in property <string> shortcut-label: "右 Command";
     in property <bool> shortcut-enabled: true;
@@ -87,16 +88,16 @@ export component HomePage inherits Rectangle {
     callback refresh-usage();
 
     private property <bool> microphone-issue: !root.microphone-authorized;
-    private property <bool> model-issue: !root.asr-configured || root.asr-config-error;
+    private property <bool> model-issue: !root.asr-configured || root.asr-config-error || root.asr-pending-test;
     private property <bool> accessibility-issue: !root.authorized;
     private property <bool> delivery-issue: !root.delivery-healthy;
     private property <bool> healthy: !root.microphone-issue && !root.model-issue && !root.accessibility-issue && !root.delivery-issue;
     private property <string> issue-title: root.microphone-issue ? "麦克风权限未开启"
-        : root.model-issue ? (root.asr-config-error ? "语音识别模型配置有误" : "语音识别模型尚未配置")
+        : root.model-issue ? (root.asr-config-error ? "语音识别模型配置有误" : root.asr-pending-test ? "语音识别模型尚未验证" : "语音识别模型尚未配置")
         : root.accessibility-issue ? "辅助功能权限未开启"
         : "文本投递需要检查";
     private property <string> issue-detail: root.microphone-issue ? "语音输入暂时无法开始"
-        : root.model-issue ? (root.asr-config-error ? root.asr-config-status : "完成配置后才能开始使用")
+        : root.model-issue ? (root.asr-config-error ? root.asr-config-status : root.asr-pending-test ? "请先在模型页面测试连接" : "完成配置后才能开始使用")
         : root.accessibility-issue ? "识别结果无法自动输入到当前光标"
         : root.delivery-status;
     private property <string> issue-action: root.model-issue ? "前往模型设置"
