@@ -1,5 +1,7 @@
+#[cfg(target_os = "macos")]
 use slint::ComponentHandle;
 
+#[cfg(target_os = "macos")]
 #[allow(
     clippy::panic,
     clippy::todo,
@@ -10,6 +12,7 @@ mod ui {
     slint::include_modules!();
 }
 
+#[cfg(target_os = "macos")]
 fn main() {
     let ui = require(ui::AppWindow::new());
 
@@ -48,6 +51,10 @@ fn main() {
     );
 }
 
+#[cfg(not(target_os = "macos"))]
+fn main() {}
+
+#[cfg(target_os = "macos")]
 fn require<T, E: std::fmt::Display>(result: Result<T, E>) -> T {
     match result {
         Ok(value) => value,
