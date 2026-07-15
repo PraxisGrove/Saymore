@@ -28,12 +28,16 @@ Use this skill when you need to:
 - Keep public APIs small and intentional.
 - Prefer fail-fast validation with explicit errors over production assertions or
   panics.
-- Run `fmt`, `check`, `test`, `clippy -D warnings`, `build`, and size gates.
+- Run focused checks during implementation and the full workspace gate before
+  pushing.
 - Prefer small, reviewable changes over large ambiguous diffs.
 
-## Required Gates
+## Verification Cadence
 
-Run these from the workspace root:
+During implementation, run the smallest relevant checks for the changed crate
+or behavior. Do not run every workspace gate merely because a task is ending.
+
+Immediately before `git push`, run these from the workspace root:
 
 ```bash
 cargo fmt --all --check
@@ -107,7 +111,7 @@ Refactor in coherent stages:
 2. Move logic into the right crate or module.
 3. Add focused tests around behavior.
 4. Delete the old path once migration is complete.
-5. Run all gates.
+5. Run focused checks; reserve the full workspace gate for pre-push verification.
 
 ## Size Gates
 

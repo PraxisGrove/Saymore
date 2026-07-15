@@ -49,7 +49,7 @@ cargo build
 ```
 
 Extra tools such as `just`, `prek`, or release helpers are optional. They can
-improve local workflow, but CI and handoff verification should use the required
+improve local workflow, but CI and pre-push verification should use the required
 gate below.
 
 ## Product Scope
@@ -60,7 +60,8 @@ scope, platform order, provider boundaries, and vertical slices live in
 
 ## Development
 
-Run the full local gate with Cargo:
+Run focused checks while developing. Immediately before `git push`, run the full
+local gate with Cargo:
 
 ```bash
 cargo fmt --all --check

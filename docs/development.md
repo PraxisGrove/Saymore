@@ -4,9 +4,10 @@ The base workflow uses Cargo plus `cargo-nextest` and `cargo-deny`. Optional
 tools can improve local ergonomics, but the mature-project gate should stay
 explicit and reproducible.
 
-## Required Gates
+## Verification Cadence
 
-Run these before handing off a change:
+During implementation, run focused tests and checks for the code being changed.
+Run the complete gate below immediately before `git push`:
 
 ```bash
 cargo fmt --all --check
@@ -20,6 +21,10 @@ cargo run -p xtask -- size
 ```
 
 Use `cargo fmt --all` when you want to apply formatting.
+
+After the gate passes, review the complete change being pushed for both
+repository-standard compliance and fidelity to the originating request or spec.
+Ordinary task completion does not require this full gate or dual-axis review.
 
 ## Desktop Toolchain
 

@@ -28,7 +28,13 @@ AI coding agents. Keep guidance concise, verifiable, and traceable.
 1. Understand the request, current code, and relevant documentation.
 2. Plan the smallest coherent change that solves the request.
 3. Implement serially, keeping unrelated refactors out of scope.
-4. Run the project gates:
+4. Run focused checks for the changed behavior while implementing. Do not run
+   the full workspace gate or dual-axis review only because the task is ending.
+5. Report what changed, how it was verified, and any remaining risk.
+
+## Pre-Push Workflow
+
+Immediately before any `git push`, run the project gates:
 
    ```bash
    cargo fmt --all --check
@@ -39,7 +45,9 @@ AI coding agents. Keep guidance concise, verifiable, and traceable.
    cargo run -p xtask -- size
    ```
 
-5. Report what changed, how it was verified, and any remaining risk.
+Then run a two-axis review of the complete change being pushed: Standards checks
+the repository's documented rules, while Spec checks the originating request,
+issue, PRD, or specification. Resolve blocking findings before pushing.
 
 ## Rust Development Defaults
 

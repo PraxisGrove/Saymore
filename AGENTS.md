@@ -5,9 +5,17 @@ development. It is not an AI application framework. Keep the template useful
 for ordinary Rust projects while making it easy for humans and coding agents to
 understand, modify, verify, and review changes.
 
-## Required Workflow
+## Verification Workflow
 
-Use standard Cargo commands as the source of truth:
+During implementation, run only the checks that are relevant to the code being
+changed, such as a focused test target or `cargo check` for the owning crate.
+Do not run the full workspace gate or a dual-axis code review merely because an
+ordinary task is ending.
+
+## Pre-Push Workflow
+
+Immediately before any `git push`, run the full workspace gate below. Use
+standard Cargo commands as the source of truth:
 
 ```bash
 cargo fmt --all --check
@@ -22,6 +30,14 @@ cargo run -p xtask -- size
 
 `cargo-nextest` and `cargo-deny` are required for the mature-project gate.
 `just`, `prek`, and release helpers are optional conveniences.
+
+After the gate passes, review the complete change being pushed along two axes:
+
+- Standards: conformance with the repository's documented engineering rules.
+- Spec: conformance with the originating request, issue, PRD, or specification.
+
+Resolve blocking findings before pushing. If review fixes materially change the
+code, rerun the affected checks; rerun the full gate when the changes are broad.
 
 ## Architecture Rules
 

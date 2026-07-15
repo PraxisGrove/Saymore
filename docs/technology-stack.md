@@ -87,9 +87,10 @@ The target artifacts are:
 
 There is no Tauri CLI or Node.js packaging step in the target stack.
 
-## Required Quality Gates
+## Pre-Push Quality Gate
 
-The repository gate remains:
+Run focused checks during implementation. Immediately before `git push`, run the
+complete repository gate:
 
 ```bash
 cargo fmt --all --check

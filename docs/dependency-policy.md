@@ -23,9 +23,10 @@ Document:
 
 ## Required Dependency Gate
 
-Run `cargo deny check` before handing off a change. The repository-level
+Run `cargo deny check` as part of the pre-push gate. The repository-level
 `deny.toml` defines the license, advisory, duplicate-version, and wildcard
-dependency policy.
+dependency policy. During implementation, run it early when dependency metadata
+changes.
 
 Required template tasks should be implemented in Rust under `crates/xtask`.
 
