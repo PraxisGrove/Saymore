@@ -71,8 +71,6 @@ export component HomePage inherits Rectangle {
     in property <string> asr-config-status;
     in property <string> shortcut-label: "右 Command";
     in property <bool> shortcut-enabled: true;
-    in property <bool> delivery-healthy: true;
-    in property <string> delivery-status: "文本投递正常";
     in property <string> usage-total-minutes: "0";
     in property <string> usage-total-characters: "0";
     in property <string> usage-average-speed: "0";
@@ -84,24 +82,19 @@ export component HomePage inherits Rectangle {
     callback open-model-settings();
     callback open-microphone-settings();
     callback open-accessibility-settings();
-    callback open-delivery-settings();
     callback refresh-usage();
 
     private property <bool> microphone-issue: !root.microphone-authorized;
     private property <bool> model-issue: !root.asr-configured || root.asr-config-error || root.asr-pending-test;
     private property <bool> accessibility-issue: !root.authorized;
-    private property <bool> delivery-issue: !root.delivery-healthy;
-    private property <bool> healthy: !root.microphone-issue && !root.model-issue && !root.accessibility-issue && !root.delivery-issue;
+    private property <bool> healthy: !root.microphone-issue && !root.model-issue && !root.accessibility-issue;
     private property <string> issue-title: root.microphone-issue ? "麦克风权限未开启"
         : root.model-issue ? (root.asr-config-error ? "语音识别模型配置有误" : root.asr-pending-test ? "语音识别模型尚未验证" : "语音识别模型尚未配置")
-        : root.accessibility-issue ? "辅助功能权限未开启"
-        : "文本投递需要检查";
+        : root.accessibility-issue ? "辅助功能权限未开启" : "";
     private property <string> issue-detail: root.microphone-issue ? "语音输入暂时无法开始"
         : root.model-issue ? (root.asr-config-error ? root.asr-config-status : root.asr-pending-test ? "请先在模型页面测试连接" : "完成配置后才能开始使用")
-        : root.accessibility-issue ? "识别结果无法自动输入到当前光标"
-        : root.delivery-status;
+        : root.accessibility-issue ? "识别结果无法自动输入到当前光标" : "";
     private property <string> issue-action: root.model-issue ? "前往模型设置"
-        : root.delivery-issue && !root.accessibility-issue ? "检查投递设置"
         : "打开系统设置";
 
     background: transparent;
@@ -206,7 +199,6 @@ export component HomePage inherits Rectangle {
                 if root.microphone-issue { root.open-microphone-settings(); }
                 else if root.model-issue { root.open-model-settings(); }
                 else if root.accessibility-issue { root.open-accessibility-settings(); }
-                else { root.open-delivery-settings(); }
             }
             Text { text: root.issue-action; color: #ffffff; font-size: 12px; font-weight: 650; horizontal-alignment: center; vertical-alignment: center; }
             action-area := TouchArea {
@@ -215,7 +207,6 @@ export component HomePage inherits Rectangle {
                     if root.microphone-issue { root.open-microphone-settings(); }
                     else if root.model-issue { root.open-model-settings(); }
                     else if root.accessibility-issue { root.open-accessibility-settings(); }
-                    else { root.open-delivery-settings(); }
                 }
             }
         }

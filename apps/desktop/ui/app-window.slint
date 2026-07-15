@@ -39,8 +39,6 @@ export component AppWindow inherits Window {
     in property <string> recording-detail: "单击右 Command 开始";
     in property <string> shortcut-label: "右 Command";
     in property <bool> shortcut-enabled: true;
-    in property <bool> delivery-healthy: true;
-    in property <string> delivery-status: "文本投递正常";
     in property <string> usage-total-minutes: "0";
     in property <string> usage-total-characters: "0";
     in property <string> usage-average-speed: "0";
@@ -150,8 +148,6 @@ export component AppWindow inherits Window {
                 asr-config-status: root.asr-config-status;
                 shortcut-label: root.shortcut-label;
                 shortcut-enabled: root.shortcut-enabled;
-                delivery-healthy: root.delivery-healthy;
-                delivery-status: root.delivery-status;
                 usage-total-minutes: root.usage-total-minutes;
                 usage-total-characters: root.usage-total-characters;
                 usage-average-speed: root.usage-average-speed;
@@ -164,7 +160,6 @@ export component AppWindow inherits Window {
                 open-model-settings => { root.focus-asr-config = true; root.current-page = AppPage.models; }
                 open-microphone-settings => { root.open-microphone-settings(); }
                 open-accessibility-settings => { root.open-accessibility-settings(); }
-                open-delivery-settings => { root.settings-section = SettingsSection.delivery-permissions; root.current-page = AppPage.settings; }
             }
 
             if root.current-page == AppPage.models: ModelsPage {
