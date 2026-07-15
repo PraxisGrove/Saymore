@@ -179,6 +179,7 @@ export component ModelsPage inherits Rectangle {
     in property <string> llm-config-status;
     in-out property <bool> llm-confirmation-visible: false;
     callback save-asr-config(string, string);
+    callback delete-asr-config();
     callback request-llm-enable();
     callback set-llm-enabled(bool, string);
     callback save-llm-config(LlmProvider, string);
@@ -258,13 +259,13 @@ export component ModelsPage inherits Rectangle {
         Rectangle {
             x: 18px; y: root.advanced-visible ? 142px : 166px; width: parent.width - 36px; height: 34px; background: transparent;
             Text { x: root.advanced-visible ? 0px : 15px; text: "高级设置"; color: AppColors.text; font-size: 11px; font-weight: 600; vertical-alignment: center; }
-            if !root.advanced-visible: Text { x: 81px; text: root.active-tab == 0 ? "服务地址与自定义请求头" : "服务地址、自定义请求头与数据发送说明"; color: AppColors.text-muted; font-size: 10px; vertical-alignment: center; }
+            if !root.advanced-visible: Text { x: 81px; text: root.active-tab == 0 ? "服务地址" : "服务地址、自定义请求头与数据发送说明"; color: AppColors.text-muted; font-size: 10px; vertical-alignment: center; }
             Image { x: parent.width - 24px; y: 10px; width: 14px; height: 14px; source: root.advanced-visible ? @image-url("../../icons/lucide/chevron-up.svg") : @image-url("../../icons/lucide/chevron-right.svg"); colorize: AppColors.text-muted; }
             TouchArea { mouse-cursor: pointer; clicked => { root.advanced-visible = !root.advanced-visible; root.model-menu-open = false; } }
         }
 
         if root.advanced-visible: Text { x: 18px; y: 171px; text: "服务地址"; color: AppColors.text; font-size: 11px; font-weight: 600; }
-        if root.advanced-visible: Text { x: parent.width - 119px; y: 171px; text: "+ 自定义请求头"; color: AppColors.brand; font-size: 10px; font-weight: 600; }
+        if root.advanced-visible && root.active-tab == 1: Text { x: parent.width - 119px; y: 171px; text: "+ 自定义请求头"; color: AppColors.brand; font-size: 10px; font-weight: 600; }
         if root.advanced-visible: Rectangle {
             x: 18px; y: 190px; width: parent.width - 36px; height: 36px; border-radius: 8px; background: AppColors.sidebar;
             Text { x: 15px; text: root.active-tab == 0 ? "https://openspeech.bytedance.com" : root.llm-provider == LlmProvider.deepseek ? "https://api.deepseek.com" : "https://token.sensenova.cn/v1"; color: AppColors.text; font-size: 11px; vertical-alignment: center; }
@@ -279,13 +280,14 @@ export component ModelsPage inherits Rectangle {
         }
     }
     ModelActionButton {
-        x: 120px; y: root.action-y; label: "测试连接"; primary: false; enabled: root.active-tab == 0 ? root.asr-configured : !root.active-api-key.is-empty;
-        activated => { if root.active-tab == 1 { root.request-llm-enable(); } }
+        x: 120px; y: root.action-y; label: "测试连接"; primary: false; enabled: root.active-tab == 1 && !root.active-api-key.is-empty;
+        activated => { root.request-llm-enable(); }
     }
+    if root.active-tab == 0: ModelActionButton { x: 240px; y: root.action-y; label: "删除配置"; primary: false; enabled: root.asr-configured; activated => { root.delete-asr-config(); } }
     Text { x: parent.width - 112px; y: root.action-y + 13px; width: 111px; text: root.service-status; color: root.service-healthy ? AppColors.success : AppColors.text-muted; font-size: 10px; font-weight: 650; horizontal-alignment: right; }
 
     if root.service-menu-open: Rectangle {
-        x: 0px; y: 242px; width: parent.width - 1px; height: 124px; border-radius: 12px; background: AppColors.surface; drop-shadow-blur: 18px; drop-shadow-offset-y: 6px; drop-shadow-color: #1f1f1c1a;
+        x: 0px; y: 242px; width: parent.width - 1px; height: root.active-tab == 0 ? 72px : 124px; border-radius: 12px; background: AppColors.surface; drop-shadow-blur: 18px; drop-shadow-offset-y: 6px; drop-shadow-color: #1f1f1c1a;
         Rectangle {
             x: 12px; y: 12px; width: parent.width - 24px; height: 48px; border-radius: 8px; background: root.first-service-selected ? AppColors.sidebar : AppColors.surface;
             Image { x: 16px; y: 14px; width: 18px; height: 18px; source: root.active-tab == 0 ? @image-url("../../icons/lucide/audio-lines.svg") : @image-url("../../icons/lucide/sparkles.svg"); colorize: root.first-service-selected ? AppColors.ink : AppColors.text-muted; }
@@ -294,13 +296,13 @@ export component ModelsPage inherits Rectangle {
             if root.first-service-selected: Image { x: parent.width - 29px; y: 17px; width: 14px; height: 14px; source: @image-url("../../icons/lucide/check.svg"); colorize: AppColors.success; }
             TouchArea { mouse-cursor: pointer; clicked => { if root.active-tab == 1 { root.llm-provider = LlmProvider.sensenova; root.select-llm-provider(root.llm-provider); root.api-key-visible = false; } root.service-menu-open = false; } }
         }
-        Rectangle {
+        if root.active-tab == 1: Rectangle {
             x: 12px; y: 64px; width: parent.width - 24px; height: 48px; border-radius: 8px; background: root.second-service-selected ? AppColors.sidebar : AppColors.surface;
-            Image { x: 16px; y: 14px; width: 18px; height: 18px; source: root.active-tab == 0 ? @image-url("../../icons/lucide/braces.svg") : @image-url("../../icons/lucide/sparkles.svg"); colorize: root.second-service-selected ? AppColors.ink : AppColors.text-muted; }
-            Text { x: 46px; y: 5px; text: root.active-tab == 0 ? "自定义兼容接口" : "DeepSeek"; color: AppColors.ink; font-size: 12px; font-weight: 650; }
-            Text { x: 46px; y: 27px; text: root.active-tab == 0 ? "手动配置服务地址、模型与请求头" : "deepseek-v4-flash"; color: AppColors.text-muted; font-size: 9px; }
+            Image { x: 16px; y: 14px; width: 18px; height: 18px; source: @image-url("../../icons/lucide/sparkles.svg"); colorize: root.second-service-selected ? AppColors.ink : AppColors.text-muted; }
+            Text { x: 46px; y: 5px; text: "DeepSeek"; color: AppColors.ink; font-size: 12px; font-weight: 650; }
+            Text { x: 46px; y: 27px; text: "deepseek-v4-flash"; color: AppColors.text-muted; font-size: 9px; }
             if root.second-service-selected: Image { x: parent.width - 29px; y: 17px; width: 14px; height: 14px; source: @image-url("../../icons/lucide/check.svg"); colorize: AppColors.success; }
-            TouchArea { mouse-cursor: pointer; clicked => { if root.active-tab == 1 { root.llm-provider = LlmProvider.deepseek; root.select-llm-provider(root.llm-provider); root.api-key-visible = false; } root.service-menu-open = false; } }
+            TouchArea { mouse-cursor: pointer; clicked => { root.llm-provider = LlmProvider.deepseek; root.select-llm-provider(root.llm-provider); root.api-key-visible = false; root.service-menu-open = false; } }
         }
     }
 

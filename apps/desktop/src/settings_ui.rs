@@ -1,9 +1,12 @@
 use std::sync::Arc;
 
 use slint::{ComponentHandle, SharedString};
-use template_app::{LlmProviderPreset, ProviderConfigStore, SettingsStore, VolcengineAsrSettings};
+use template_app::{
+    LlmProviderPreset, ProviderConfigStore, SettingsStore, SettingsStoreError,
+    VolcengineAsrSettings,
+};
 #[cfg(test)]
-use template_app::{ProviderCatalog, ProviderInstance};
+use template_app::{ProviderCatalog, ProviderInstance, SaymoreSettings};
 #[cfg(test)]
 use template_infra::AppEnvironment;
 use template_infra::{ChatCompletionsLlmProvider, JsonSettingsStore};
@@ -37,28 +40,15 @@ pub fn wire(ui: &AppWindow, store: Arc<JsonSettingsStore>) {
         let Some(ui) = save_ui.upgrade() else {
             return;
         };
-        let api_key = api_key.trim();
-        let model = model.trim();
-        if api_key.is_empty() {
-            apply_status(&ui, false, true, "请输入 API Key");
-            return;
-        }
-        if model.is_empty() {
-            apply_status(&ui, false, true, "请输入模型名称");
-            return;
-        }
-
-        let result = save_store.load().and_then(|mut settings| {
-            settings.asr.volcengine = VolcengineAsrSettings {
-                enabled: true,
-                api_key: api_key.to_owned(),
-                model: model.to_owned(),
-            };
-            save_store.save(&settings)
-        });
-        match result {
+        match save_asr_configuration(&save_store, api_key.as_str(), model.as_str()) {
             Ok(()) => apply_status(&ui, true, false, "已保存"),
-            Err(_) => apply_status(&ui, false, true, "保存失败"),
+            Err(AsrConfigError::MissingApiKey) => {
+                apply_status(&ui, false, true, "请输入 API Key");
+            }
+            Err(AsrConfigError::MissingModel) => {
+                apply_status(&ui, false, true, "请输入模型名称");
+            }
+            Err(AsrConfigError::Store) => apply_status(&ui, false, true, "保存失败"),
         }
     });
 
@@ -68,10 +58,7 @@ pub fn wire(ui: &AppWindow, store: Arc<JsonSettingsStore>) {
         let Some(ui) = delete_ui.upgrade() else {
             return;
         };
-        let result = delete_store.load().and_then(|mut settings| {
-            settings.asr.volcengine = VolcengineAsrSettings::default();
-            delete_store.save(&settings)
-        });
+        let result = clear_asr_configuration(&delete_store);
         match result {
             Ok(()) => {
                 ui.set_asr_api_key(SharedString::new());
@@ -82,6 +69,46 @@ pub fn wire(ui: &AppWindow, store: Arc<JsonSettingsStore>) {
     });
 
     wire_llm(ui, store);
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum AsrConfigError {
+    MissingApiKey,
+    MissingModel,
+    Store,
+}
+
+fn save_asr_configuration(
+    store: &JsonSettingsStore,
+    api_key: &str,
+    model: &str,
+) -> Result<(), AsrConfigError> {
+    let api_key = api_key.trim();
+    let model = model.trim();
+    if api_key.is_empty() {
+        return Err(AsrConfigError::MissingApiKey);
+    }
+    if model.is_empty() {
+        return Err(AsrConfigError::MissingModel);
+    }
+    store
+        .load()
+        .and_then(|mut settings| {
+            settings.asr.volcengine = VolcengineAsrSettings {
+                enabled: true,
+                api_key: api_key.to_owned(),
+                model: model.to_owned(),
+            };
+            store.save(&settings)
+        })
+        .map_err(|_| AsrConfigError::Store)
+}
+
+fn clear_asr_configuration(store: &JsonSettingsStore) -> Result<(), SettingsStoreError> {
+    store.load().and_then(|mut settings| {
+        settings.asr.volcengine = VolcengineAsrSettings::default();
+        store.save(&settings)
+    })
 }
 
 fn wire_llm(ui: &AppWindow, store: Arc<JsonSettingsStore>) {
@@ -408,6 +435,47 @@ mod tests {
             Some("legacy-key"),
             catalog.llm_provider_api_key(LlmProviderPreset::SenseNova)
         );
+    }
+
+    #[test]
+    fn asr_configuration_rejects_an_empty_model() {
+        let directory =
+            std::env::temp_dir().join(format!("saymore-asr-validation-{}", Uuid::new_v4()));
+        let store = JsonSettingsStore::at_path(directory.join("providers.json"));
+
+        assert_eq!(
+            Err(AsrConfigError::MissingModel),
+            save_asr_configuration(&store, "test-key", " ")
+        );
+        assert_eq!(Ok(SaymoreSettings::default()), store.load());
+        let _ = fs::remove_dir_all(directory);
+    }
+
+    #[test]
+    fn asr_configuration_round_trips_a_custom_model_and_can_be_deleted() {
+        let directory =
+            std::env::temp_dir().join(format!("saymore-asr-round-trip-{}", Uuid::new_v4()));
+        let store = JsonSettingsStore::at_path(directory.join("providers.json"));
+
+        assert_eq!(
+            Ok(()),
+            save_asr_configuration(&store, "  test-key  ", "  custom-model  ")
+        );
+        let Ok(settings) = store.load() else {
+            panic!("saved ASR settings should be readable");
+        };
+        assert_eq!(
+            VolcengineAsrSettings {
+                enabled: true,
+                api_key: "test-key".to_owned(),
+                model: "custom-model".to_owned(),
+            },
+            settings.asr.volcengine
+        );
+
+        assert_eq!(Ok(()), clear_asr_configuration(&store));
+        assert_eq!(Ok(SaymoreSettings::default()), store.load());
+        let _ = fs::remove_dir_all(directory);
     }
 
     #[test]

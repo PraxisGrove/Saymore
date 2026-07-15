@@ -156,6 +156,7 @@ export component AppWindow inherits Window {
                 llm-config-status: root.llm-config-status;
                 llm-confirmation-visible <=> root.llm-confirmation-visible;
                 save-asr-config(api-key, model) => { root.save-asr-config(api-key, model); }
+                delete-asr-config => { root.delete-asr-config(); }
                 request-llm-enable => { root.request-llm-enable(); }
                 set-llm-enabled(enabled, base-url) => { root.set-llm-enabled(enabled, base-url); }
                 save-llm-config(provider, api-key) => { root.save-llm-config(provider, api-key); }
