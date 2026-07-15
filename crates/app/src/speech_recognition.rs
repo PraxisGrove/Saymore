@@ -2,6 +2,25 @@ use std::sync::Arc;
 
 use thiserror::Error;
 
+/// Provider-independent vocabulary hints for one recognition session.
+///
+/// Implementations may apply provider-specific validation and limits before
+/// sending these terms to a speech-recognition service.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct SpeechRecognitionHints {
+    terms: Vec<String>,
+}
+
+impl SpeechRecognitionHints {
+    pub fn from_terms(terms: Vec<String>) -> Self {
+        Self { terms }
+    }
+
+    pub fn terms(&self) -> &[String] {
+        &self.terms
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
 pub enum SpeechRecognitionError {
     #[error("speech recognition is not configured")]
@@ -38,6 +57,7 @@ pub trait StreamingRecognitionSession: Send {
 pub trait StreamingSpeechRecognizer: Send + Sync {
     fn start(
         &self,
+        hints: SpeechRecognitionHints,
         on_partial: Arc<dyn Fn(String) + Send + Sync>,
     ) -> Result<Box<dyn StreamingRecognitionSession>, SpeechRecognitionError>;
 }

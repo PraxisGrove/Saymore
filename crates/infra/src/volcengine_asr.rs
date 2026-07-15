@@ -1,4 +1,5 @@
 use std::{
+    collections::BTreeSet,
     io::{Read, Write},
     sync::{Arc, mpsc},
     thread,
@@ -9,13 +10,15 @@ use flate2::{Compression, read::GzDecoder, write::GzEncoder};
 use futures_util::{SinkExt, StreamExt};
 use serde_json::{Value, json};
 use template_app::{
-    SpeechRecognitionError, StreamingRecognitionSession, StreamingSpeechRecognizer,
+    SpeechRecognitionError, SpeechRecognitionHints, StreamingRecognitionSession,
+    StreamingSpeechRecognizer,
 };
 use tokio::sync::mpsc as tokio_mpsc;
 use tokio_tungstenite::{
     connect_async,
     tungstenite::{Message, client::IntoClientRequest},
 };
+use unicode_normalization::UnicodeNormalization;
 use uuid::Uuid;
 
 const ENDPOINT: &str = "wss://openspeech.bytedance.com/api/v3/sauc/bigmodel_async";
@@ -23,6 +26,8 @@ const RESOURCE_ID: &str = "volc.seedasr.sauc.duration";
 const FINAL_TIMEOUT: Duration = Duration::from_secs(30);
 const CONNECTION_TEST_TIMEOUT: Duration = Duration::from_secs(8);
 const AUDIO_QUEUE_CAPACITY: usize = 128;
+const MAX_HOTWORDS: usize = 5_000;
+const MAX_HOTWORD_CHARS: usize = 10;
 
 pub struct VolcengineSpeechRecognizer {
     api_key: String,
@@ -34,6 +39,9 @@ impl VolcengineSpeechRecognizer {
         if api_key.is_empty() {
             return Err(SpeechRecognitionError::NotConfigured);
         }
+        if api_key.len() != 36 || Uuid::parse_str(api_key).is_err() {
+            return Err(SpeechRecognitionError::Authentication);
+        }
         Ok(Self {
             api_key: api_key.to_owned(),
         })
@@ -43,8 +51,9 @@ impl VolcengineSpeechRecognizer {
         let _ = rustls::crypto::ring::default_provider().install_default();
         let request = connection_request(&self.api_key)?;
         let (mut socket, _) = connect_async(request).await.map_err(handshake_error)?;
+        let test_hints = SpeechRecognitionHints::from_terms(vec!["Saymore".to_owned()]);
         socket
-            .send(Message::Binary(encode_config_request()?.into()))
+            .send(Message::Binary(encode_config_request(&test_hints)?.into()))
             .await
             .map_err(transport_error)?;
         socket
@@ -72,6 +81,7 @@ impl VolcengineSpeechRecognizer {
 impl StreamingSpeechRecognizer for VolcengineSpeechRecognizer {
     fn start(
         &self,
+        hints: SpeechRecognitionHints,
         on_partial: Arc<dyn Fn(String) + Send + Sync>,
     ) -> Result<Box<dyn StreamingRecognitionSession>, SpeechRecognitionError> {
         let (command_tx, command_rx) = tokio_mpsc::channel(AUDIO_QUEUE_CAPACITY);
@@ -85,7 +95,7 @@ impl StreamingSpeechRecognizer for VolcengineSpeechRecognizer {
                     .build()
                     .map_err(|error| SpeechRecognitionError::Transport(error.to_string()))
                     .and_then(|runtime| {
-                        runtime.block_on(run_session(api_key, command_rx, on_partial))
+                        runtime.block_on(run_session(api_key, hints, command_rx, on_partial))
                     });
                 let _ = result_tx.send(result);
             })
@@ -142,6 +152,7 @@ enum SessionCommand {
 
 async fn run_session(
     api_key: String,
+    hints: SpeechRecognitionHints,
     mut commands: tokio_mpsc::Receiver<SessionCommand>,
     on_partial: Arc<dyn Fn(String) + Send + Sync>,
 ) -> Result<String, SpeechRecognitionError> {
@@ -150,7 +161,7 @@ async fn run_session(
 
     let (mut socket, _) = connect_async(request).await.map_err(handshake_error)?;
     socket
-        .send(Message::Binary(encode_config_request()?.into()))
+        .send(Message::Binary(encode_config_request(&hints)?.into()))
         .await
         .map_err(transport_error)?;
 
@@ -222,7 +233,29 @@ fn connection_request(
     Ok(request)
 }
 
-fn encode_config_request() -> Result<Vec<u8>, SpeechRecognitionError> {
+fn encode_config_request(
+    hints: &SpeechRecognitionHints,
+) -> Result<Vec<u8>, SpeechRecognitionError> {
+    let mut request = json!({
+        "model_name": "bigmodel",
+        "enable_itn": true,
+        "enable_punc": true,
+        "enable_ddc": true,
+        "show_utterances": true,
+        "enable_nonstream": false,
+        "result_type": "full"
+    });
+    let hotwords = volcengine_hotwords(hints);
+    if !hotwords.is_empty() {
+        let context = json!({
+            "hotwords": hotwords
+                .into_iter()
+                .map(|word| json!({ "word": word }))
+                .collect::<Vec<_>>()
+        });
+        request["context"] =
+            Value::String(serde_json::to_string(&context).map_err(protocol_error)?);
+    }
     let payload = json!({
         "user": { "uid": Uuid::new_v4().to_string() },
         "audio": {
@@ -232,15 +265,7 @@ fn encode_config_request() -> Result<Vec<u8>, SpeechRecognitionError> {
             "bits": 16,
             "channel": 1
         },
-        "request": {
-            "model_name": "bigmodel",
-            "enable_itn": true,
-            "enable_punc": true,
-            "enable_ddc": true,
-            "show_utterances": true,
-            "enable_nonstream": false,
-            "result_type": "full"
-        }
+        "request": request
     });
     encode_packet(
         0x1,
@@ -248,6 +273,32 @@ fn encode_config_request() -> Result<Vec<u8>, SpeechRecognitionError> {
         0,
         &serde_json::to_vec(&payload).map_err(protocol_error)?,
     )
+}
+
+fn volcengine_hotwords(hints: &SpeechRecognitionHints) -> Vec<String> {
+    let mut seen = BTreeSet::new();
+    hints
+        .terms()
+        .iter()
+        .filter_map(|term| {
+            let normalized = term.nfkc().collect::<String>();
+            let word = normalized.trim();
+            if word.is_empty()
+                || word.chars().count() > MAX_HOTWORD_CHARS
+                || !word
+                    .chars()
+                    .all(|character| character.is_alphanumeric() || character.is_whitespace())
+            {
+                return None;
+            }
+            let comparison_key = word
+                .chars()
+                .flat_map(char::to_lowercase)
+                .collect::<String>();
+            seen.insert(comparison_key).then(|| word.to_owned())
+        })
+        .take(MAX_HOTWORDS)
+        .collect()
 }
 
 fn encode_audio_request(
@@ -440,6 +491,33 @@ mod tests {
     use super::*;
 
     #[test]
+    fn rejects_an_api_key_with_an_extra_printable_character() {
+        assert!(matches!(
+            VolcengineSpeechRecognizer::new("123e4567-e89b-42d3-a456-426614174000å".to_owned()),
+            Err(SpeechRecognitionError::Authentication)
+        ));
+    }
+
+    #[test]
+    #[ignore = "requires a live Volcengine API key"]
+    fn tests_a_live_connection() {
+        let Ok(api_key) = env::var("SAYMORE_VOLCENGINE_API_KEY") else {
+            panic!("SAYMORE_VOLCENGINE_API_KEY is required");
+        };
+        let Ok(recognizer) = VolcengineSpeechRecognizer::new(api_key) else {
+            panic!("live recognizer should be configured");
+        };
+        let Ok(runtime) = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+        else {
+            panic!("test runtime should start");
+        };
+
+        assert_eq!(Ok(()), runtime.block_on(recognizer.test_connection()));
+    }
+
+    #[test]
     fn connection_request_contains_volcengine_credentials_and_resource() {
         let Ok(request) = connection_request("test-key") else {
             panic!("connection request should be valid");
@@ -474,6 +552,63 @@ mod tests {
             panic!("audio packet should decompress");
         };
         assert_eq!([1, 0, 254, 255], decoded.as_slice());
+    }
+
+    #[test]
+    fn encodes_valid_unique_hotwords_in_config_context() {
+        let hints = SpeechRecognitionHints::from_terms(vec![
+            " DeepSeek ".to_owned(),
+            "deepseek".to_owned(),
+            "Open AI".to_owned(),
+            "C++".to_owned(),
+            "abcdefghijkl".to_owned(),
+            "SQLite".to_owned(),
+        ]);
+        let Ok(packet) = encode_config_request(&hints) else {
+            panic!("config packet should encode");
+        };
+        assert_eq!([0x11, 0x10, 0x11, 0x00], packet[..4]);
+        let size = u32::from_be_bytes([packet[4], packet[5], packet[6], packet[7]]) as usize;
+        let Ok(decoded) = gunzip(&packet[8..8 + size]) else {
+            panic!("config packet should decompress");
+        };
+        let Ok(payload) = serde_json::from_slice::<Value>(&decoded) else {
+            panic!("config packet should contain JSON");
+        };
+        let Some(context) = payload.pointer("/request/context").and_then(Value::as_str) else {
+            panic!("config packet should contain hotword context");
+        };
+        let Ok(context) = serde_json::from_str::<Value>(context) else {
+            panic!("hotword context should contain JSON");
+        };
+
+        assert_eq!(
+            json!({
+                "hotwords": [
+                    { "word": "DeepSeek" },
+                    { "word": "Open AI" },
+                    { "word": "SQLite" }
+                ]
+            }),
+            context
+        );
+    }
+
+    #[test]
+    fn omits_hotword_context_when_no_valid_hints_exist() {
+        let hints = SpeechRecognitionHints::from_terms(vec!["C++".to_owned()]);
+        let Ok(packet) = encode_config_request(&hints) else {
+            panic!("config packet should encode");
+        };
+        let size = u32::from_be_bytes([packet[4], packet[5], packet[6], packet[7]]) as usize;
+        let Ok(decoded) = gunzip(&packet[8..8 + size]) else {
+            panic!("config packet should decompress");
+        };
+        let Ok(payload) = serde_json::from_slice::<Value>(&decoded) else {
+            panic!("config packet should contain JSON");
+        };
+
+        assert!(payload.pointer("/request/context").is_none());
     }
 
     #[test]
@@ -525,7 +660,10 @@ mod tests {
         let Ok(recognizer) = VolcengineSpeechRecognizer::new(api_key) else {
             panic!("live recognizer should be configured");
         };
-        let Ok(session) = recognizer.start(Arc::new(|_| {})) else {
+        let Ok(session) = recognizer.start(
+            SpeechRecognitionHints::from_terms(vec!["Saymore".to_owned()]),
+            Arc::new(|_| {}),
+        ) else {
             panic!("live session should start");
         };
         for chunk in samples.chunks(1_600) {

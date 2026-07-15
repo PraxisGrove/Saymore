@@ -11,9 +11,9 @@ use std::{
 
 use serde::{Deserialize, Serialize};
 use template_app::{
-    ActiveProviders, AsrSettings, ChatCompletionsLlmSettings, LlmSettings, ProviderCatalog,
-    ProviderConfigStore, ProviderDataConsent, ProviderInstance, SaymoreSettings, SettingsStore,
-    SettingsStoreError, VolcengineAsrSettings,
+    ActiveProviders, AsrSettings, ChatCompletionsLlmSettings, LlmSettings,
+    OpenAiCompatibleAsrSettings, ProviderCatalog, ProviderConfigStore, ProviderDataConsent,
+    ProviderInstance, SaymoreSettings, SettingsStore, SettingsStoreError, VolcengineAsrSettings,
 };
 use uuid::Uuid;
 
@@ -21,6 +21,7 @@ use crate::app_paths::{AppEnvironment, AppPaths};
 
 const CONFIG_VERSION: u32 = 3;
 const VOLCENGINE_TYPE: &str = "volcengine";
+const OPENAI_TRANSCRIPTIONS_TYPE: &str = "openai_transcriptions";
 const CHAT_COMPLETIONS_TYPE: &str = "openai_compatible";
 const LLM_DATA_SCOPE: &str = "transcript+confirmed_dictionary_terms+refinement_parameters:v1";
 
@@ -156,7 +157,7 @@ impl SettingsStore for JsonSettingsStore {
         } else {
             ProviderCatalog::default()
         };
-        update_asr_provider(&mut catalog, &settings.asr.volcengine);
+        update_asr_providers(&mut catalog, &settings.asr);
         update_llm_provider(&mut catalog, &settings.llm);
         self.save_catalog_unlocked(&catalog)
     }
@@ -196,6 +197,16 @@ struct StoredVolcengineAsrSettings {
     enabled: bool,
     #[serde(default)]
     auth_mode: StoredAuthMode,
+    #[serde(default)]
+    api_key: String,
+    #[serde(default)]
+    model: String,
+}
+
+#[derive(Debug, Default, Serialize, Deserialize)]
+struct StoredOpenAiCompatibleAsrSettings {
+    #[serde(default)]
+    base_url: String,
     #[serde(default)]
     api_key: String,
     #[serde(default)]
@@ -394,18 +405,39 @@ fn legacy_catalog(legacy: LegacySettings) -> ProviderCatalog {
 
 fn catalog_to_settings(catalog: ProviderCatalog) -> Result<SaymoreSettings, SettingsStoreError> {
     validate_catalog(&catalog)?;
-    let asr_provider = active_provider(&catalog.asr_providers, catalog.active.asr.as_deref());
-    let asr = match asr_provider.filter(|provider| provider.provider_type == VOLCENGINE_TYPE) {
+    let active_asr = catalog.active.asr.as_deref();
+    let volcengine = match catalog
+        .asr_providers
+        .iter()
+        .find(|provider| provider.provider_type == VOLCENGINE_TYPE)
+    {
         Some(provider) => {
             let stored: StoredVolcengineAsrSettings =
                 serde_json::from_value(provider.config.clone()).map_err(json_error)?;
             VolcengineAsrSettings {
-                enabled: true,
+                enabled: active_asr == Some(provider.id.as_str()),
                 api_key: stored.api_key,
                 model: stored.model,
             }
         }
         None => VolcengineAsrSettings::default(),
+    };
+    let openai_compatible = match catalog
+        .asr_providers
+        .iter()
+        .find(|provider| provider.provider_type == OPENAI_TRANSCRIPTIONS_TYPE)
+    {
+        Some(provider) => {
+            let stored: StoredOpenAiCompatibleAsrSettings =
+                serde_json::from_value(provider.config.clone()).map_err(json_error)?;
+            OpenAiCompatibleAsrSettings {
+                enabled: active_asr == Some(provider.id.as_str()),
+                base_url: stored.base_url,
+                api_key: stored.api_key,
+                model: stored.model,
+            }
+        }
+        None => OpenAiCompatibleAsrSettings::default(),
     };
     let active_llm = catalog.active.llm.as_deref();
     let llm_provider = active_provider(&catalog.llm_providers, active_llm).or_else(|| {
@@ -440,7 +472,10 @@ fn catalog_to_settings(catalog: ProviderCatalog) -> Result<SaymoreSettings, Sett
             None => (false, String::new(), ChatCompletionsLlmSettings::default()),
         };
     Ok(SaymoreSettings {
-        asr: AsrSettings { volcengine: asr },
+        asr: AsrSettings {
+            volcengine,
+            openai_compatible,
+        },
         llm: LlmSettings {
             enabled,
             confirmed_base_url,
@@ -449,14 +484,23 @@ fn catalog_to_settings(catalog: ProviderCatalog) -> Result<SaymoreSettings, Sett
     })
 }
 
-fn update_asr_provider(catalog: &mut ProviderCatalog, settings: &VolcengineAsrSettings) {
+fn update_asr_providers(catalog: &mut ProviderCatalog, settings: &AsrSettings) {
+    update_volcengine_asr_provider(catalog, &settings.volcengine);
+    update_openai_asr_provider(catalog, &settings.openai_compatible);
+}
+
+fn update_volcengine_asr_provider(catalog: &mut ProviderCatalog, settings: &VolcengineAsrSettings) {
     let index = provider_index(
         &catalog.asr_providers,
         catalog.active.asr.as_deref(),
         VOLCENGINE_TYPE,
     );
-    if index.is_none() && settings.api_key.is_empty() && settings.model.is_empty() {
-        catalog.active.asr = None;
+    if settings.api_key.is_empty() && settings.model.is_empty() {
+        if index.is_some_and(|index| {
+            catalog.active.asr.as_deref() == Some(&catalog.asr_providers[index].id)
+        }) {
+            catalog.active.asr = None;
+        }
         return;
     }
     let index = index.unwrap_or_else(|| {
@@ -476,6 +520,44 @@ fn update_asr_provider(catalog: &mut ProviderCatalog, settings: &VolcengineAsrSe
         "model": settings.model
     });
     catalog.active.asr = settings.enabled.then(|| provider.id.clone());
+}
+
+fn update_openai_asr_provider(
+    catalog: &mut ProviderCatalog,
+    settings: &OpenAiCompatibleAsrSettings,
+) {
+    let index = provider_index(
+        &catalog.asr_providers,
+        catalog.active.asr.as_deref(),
+        OPENAI_TRANSCRIPTIONS_TYPE,
+    );
+    if settings.base_url.is_empty() && settings.api_key.is_empty() && settings.model.is_empty() {
+        if index.is_some_and(|index| {
+            catalog.active.asr.as_deref() == Some(&catalog.asr_providers[index].id)
+        }) {
+            catalog.active.asr = None;
+        }
+        return;
+    }
+    let index = index.unwrap_or_else(|| {
+        catalog.asr_providers.push(ProviderInstance {
+            id: Uuid::new_v4().to_string(),
+            name: "自定义兼容接口".to_owned(),
+            provider_type: OPENAI_TRANSCRIPTIONS_TYPE.to_owned(),
+            config: serde_json::Value::Null,
+            data_consent: None,
+        });
+        catalog.asr_providers.len() - 1
+    });
+    let provider = &mut catalog.asr_providers[index];
+    provider.config = serde_json::json!({
+        "base_url": settings.base_url,
+        "api_key": settings.api_key,
+        "model": settings.model
+    });
+    if settings.enabled {
+        catalog.active.asr = Some(provider.id.clone());
+    }
 }
 
 fn update_llm_provider(catalog: &mut ProviderCatalog, settings: &LlmSettings) {

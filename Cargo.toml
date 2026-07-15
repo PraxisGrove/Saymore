@@ -30,7 +30,7 @@ predicates = "3"
 rusqlite = { version = "0.37.0", features = ["bundled"] }
 raw-window-handle = "0.6"
 rfd = "0.15"
-reqwest = { version = "0.13.4", default-features = false, features = ["json", "rustls-no-provider", "stream"] }
+reqwest = { version = "0.13.4", default-features = false, features = ["json", "multipart", "rustls-no-provider", "stream"] }
 rustls = { version = "0.23.41", default-features = false, features = ["ring", "std"] }
 rstest = "0.26"
 httpmock = "0.8.3"

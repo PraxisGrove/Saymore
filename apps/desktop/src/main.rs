@@ -16,7 +16,8 @@ use slint::{ComponentHandle, SharedString};
 use slint::{Timer, TimerMode};
 #[cfg(target_os = "macos")]
 use template_app::{
-    AudioRecorder, CancelledRecordingStore, MicrophonePermissionProvider, PcmChunk, RecordingError,
+    AudioRecorder, CancelledRecordingStore, DictionaryStore, MicrophonePermissionProvider,
+    PcmChunk, RecordingError,
 };
 #[cfg(target_os = "macos")]
 use template_app::{FeedbackSound, FeedbackSoundPlayer, TextDeliverer};
@@ -154,7 +155,11 @@ fn run() -> Result<(), Box<dyn Error>> {
     let microphone = MacOsMicrophonePermission;
     let recorder = Arc::new(Mutex::new(MacOsAudioRecorder::default()));
     let recording_active = Arc::new(AtomicBool::new(false));
-    let asr = Arc::new(AsrSessionController::new(Arc::clone(&settings_store)));
+    let dictionary: Arc<dyn DictionaryStore> = local_storage.clone();
+    let asr = Arc::new(AsrSessionController::new(
+        Arc::clone(&settings_store),
+        dictionary,
+    ));
     let refinement = Arc::new(RefinementRuntime::new(Arc::clone(&settings_store))?);
     let processing = TextProcessingServices {
         asr,

@@ -11,11 +11,20 @@ pub struct SaymoreSettings {
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct AsrSettings {
     pub volcengine: VolcengineAsrSettings,
+    pub openai_compatible: OpenAiCompatibleAsrSettings,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct VolcengineAsrSettings {
     pub enabled: bool,
+    pub api_key: String,
+    pub model: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct OpenAiCompatibleAsrSettings {
+    pub enabled: bool,
+    pub base_url: String,
     pub api_key: String,
     pub model: String,
 }

@@ -21,6 +21,7 @@ fn saves_and_loads_volcengine_settings_with_private_permissions() {
                 api_key: "test-key".to_owned(),
                 model: "test-model".to_owned(),
             },
+            ..AsrSettings::default()
         },
         llm: LlmSettings {
             enabled: true,
@@ -74,6 +75,7 @@ fn migrates_version_one_settings_with_default_llm_configuration() {
                     api_key: "existing-key".to_owned(),
                     model: "existing-model".to_owned(),
                 },
+                ..AsrSettings::default()
             },
             llm: LlmSettings::default(),
         }),

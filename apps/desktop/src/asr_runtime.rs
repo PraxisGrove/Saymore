@@ -1,20 +1,25 @@
 use std::sync::{Arc, Mutex};
 
 use template_app::{
-    SettingsStore, SpeechRecognitionError, StreamingRecognitionSession, StreamingSpeechRecognizer,
+    DictionaryStore, SettingsStore, SpeechRecognitionError, SpeechRecognitionHints,
+    StreamingRecognitionSession, StreamingSpeechRecognizer,
 };
-use template_infra::{JsonSettingsStore, VolcengineSpeechRecognizer};
+use template_infra::{
+    JsonSettingsStore, OpenAiCompatibleSpeechRecognizer, VolcengineSpeechRecognizer,
+};
 
 pub struct AsrSessionController {
     settings: Arc<JsonSettingsStore>,
+    dictionary: Arc<dyn DictionaryStore>,
     active: Mutex<Option<Box<dyn StreamingRecognitionSession>>>,
     stream_error: Mutex<Option<SpeechRecognitionError>>,
 }
 
 impl AsrSessionController {
-    pub fn new(settings: Arc<JsonSettingsStore>) -> Self {
+    pub fn new(settings: Arc<JsonSettingsStore>, dictionary: Arc<dyn DictionaryStore>) -> Self {
         Self {
             settings,
+            dictionary,
             active: Mutex::new(None),
             stream_error: Mutex::new(None),
         }
@@ -28,10 +33,22 @@ impl AsrSessionController {
             .settings
             .load()
             .map_err(|error| SpeechRecognitionError::Protocol(error.to_string()))?;
-        let provider = settings.asr.volcengine;
-        if !provider.enabled {
+        if !settings.asr.volcengine.enabled && !settings.asr.openai_compatible.enabled {
             return Err(SpeechRecognitionError::NotConfigured);
         }
+        let hints = match self.dictionary.list_dictionary() {
+            Ok(entries) => SpeechRecognitionHints::from_terms(
+                entries.into_iter().map(|entry| entry.canonical).collect(),
+            ),
+            Err(error) => {
+                tracing::warn!(
+                    target: "saymore::diagnostics",
+                    event = "asr.dictionary_hints_unavailable",
+                    reason = %error
+                );
+                SpeechRecognitionHints::default()
+            }
+        };
         let mut active = self
             .active
             .lock()
@@ -41,8 +58,13 @@ impl AsrSessionController {
                 "ASR session is already active".to_owned(),
             ));
         }
-        let recognizer = VolcengineSpeechRecognizer::new(provider.api_key)?;
-        let session = recognizer.start(on_partial)?;
+        let session = if settings.asr.openai_compatible.enabled {
+            OpenAiCompatibleSpeechRecognizer::new(settings.asr.openai_compatible)?
+                .start(hints, on_partial)?
+        } else {
+            VolcengineSpeechRecognizer::new(settings.asr.volcengine.api_key)?
+                .start(hints, on_partial)?
+        };
         if let Ok(mut stream_error) = self.stream_error.lock() {
             *stream_error = None;
         }

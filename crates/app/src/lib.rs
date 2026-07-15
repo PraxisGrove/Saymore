@@ -31,11 +31,12 @@ pub use refinement_terms::{
 };
 pub use settings::{
     ActiveProviders, AsrSettings, ChatCompletionsLlmSettings, LlmProviderPreset, LlmSettings,
-    ProviderCatalog, ProviderConfigStore, ProviderDataConsent, ProviderInstance, SaymoreSettings,
-    SettingsStore, SettingsStoreError, VolcengineAsrSettings,
+    OpenAiCompatibleAsrSettings, ProviderCatalog, ProviderConfigStore, ProviderDataConsent,
+    ProviderInstance, SaymoreSettings, SettingsStore, SettingsStoreError, VolcengineAsrSettings,
 };
 pub use speech_recognition::{
-    SpeechRecognitionError, StreamingRecognitionSession, StreamingSpeechRecognizer,
+    SpeechRecognitionError, SpeechRecognitionHints, StreamingRecognitionSession,
+    StreamingSpeechRecognizer,
 };
 pub use storage::{
     DictionaryEntry, DictionaryOrigin, DictionaryStore, HistoryCursor, HistoryDelivery,
