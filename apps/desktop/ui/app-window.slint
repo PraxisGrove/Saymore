@@ -55,6 +55,10 @@ export component AppWindow inherits Window {
     in-out property <LlmProvider> llm-provider: LlmProvider.sensenova;
     in-out property <string> sensenova-api-key: "";
     in-out property <string> deepseek-api-key: "";
+    in property <bool> sensenova-configured: false;
+    in property <bool> deepseek-configured: false;
+    in property <string> sensenova-model: "";
+    in property <string> deepseek-model: "";
     in property <string> llm-provider-target: "";
     in property <bool> llm-provider-local: false;
     in property <string> llm-config-status: "未启用";
@@ -151,6 +155,10 @@ export component AppWindow inherits Window {
                 llm-provider <=> root.llm-provider;
                 sensenova-api-key <=> root.sensenova-api-key;
                 deepseek-api-key <=> root.deepseek-api-key;
+                sensenova-configured: root.sensenova-configured;
+                deepseek-configured: root.deepseek-configured;
+                sensenova-model: root.sensenova-model;
+                deepseek-model: root.deepseek-model;
                 llm-provider-target: root.llm-provider-target;
                 llm-provider-local: root.llm-provider-local;
                 llm-config-status: root.llm-config-status;

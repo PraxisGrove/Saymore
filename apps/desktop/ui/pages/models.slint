@@ -174,6 +174,10 @@ export component ModelsPage inherits Rectangle {
     in-out property <LlmProvider> llm-provider: LlmProvider.sensenova;
     in-out property <string> sensenova-api-key;
     in-out property <string> deepseek-api-key;
+    in property <bool> sensenova-configured;
+    in property <bool> deepseek-configured;
+    in property <string> sensenova-model;
+    in property <string> deepseek-model;
     in property <string> llm-provider-target;
     in property <bool> llm-provider-local;
     in property <string> llm-config-status;
@@ -197,7 +201,10 @@ export component ModelsPage inherits Rectangle {
     private property <bool> manual-model-selected: root.active-tab == 0 && root.manual-model;
     private property <string> active-api-key: root.active-tab == 0 ? root.asr-api-key : root.llm-provider == LlmProvider.deepseek ? root.deepseek-api-key : root.sensenova-api-key;
     private property <string> service-name: root.active-tab == 0 ? "火山引擎" : root.llm-provider == LlmProvider.deepseek ? "DeepSeek" : "商汤 SenseNova";
-    private property <string> model-name: root.active-tab == 0 ? root.asr-model : root.llm-provider == LlmProvider.deepseek ? "deepseek-v4-flash" : "sensenova-6.7-flash-lite";
+    private property <string> model-name: root.active-tab == 0 ? root.asr-model : root.llm-provider == LlmProvider.deepseek ? root.deepseek-model : root.sensenova-model;
+    private property <string> configured-model-name: root.active-tab == 0 ? root.asr-configured ? root.asr-model : "" : root.llm-provider == LlmProvider.deepseek ? root.deepseek-configured ? root.deepseek-model : "" : root.sensenova-configured ? root.sensenova-model : "";
+    private property <string> first-service-model: root.active-tab == 0 ? root.asr-configured ? root.asr-model : "" : root.sensenova-configured ? root.sensenova-model : "";
+    private property <string> second-service-model: root.deepseek-configured ? root.deepseek-model : "";
     private property <bool> service-healthy: root.active-tab == 0 ? root.asr-configured && !root.asr-config-error : root.llm-enabled;
     private property <string> service-status: root.service-healthy ? "●  连接正常" : root.active-tab == 0 ? root.asr-config-status : root.llm-config-status;
     private property <length> config-height: root.advanced-visible ? 250px : 228px;
@@ -216,7 +223,7 @@ export component ModelsPage inherits Rectangle {
         x: 0px; y: 166px; width: parent.width - 1px;
         icon: root.active-tab == 0 ? @image-url("../../icons/lucide/audio-lines.svg") : @image-url("../../icons/lucide/sparkles.svg");
         name: root.service-name;
-        detail: root.model-name + " · 当前默认";
+        detail: root.configured-model-name.is-empty ? "" : root.configured-model-name + " · 当前默认";
         status: root.service-status;
         healthy: root.service-healthy;
         open: root.service-menu-open;
@@ -294,16 +301,16 @@ export component ModelsPage inherits Rectangle {
         Rectangle {
             x: 12px; y: 12px; width: parent.width - 24px; height: 48px; border-radius: 8px; background: root.first-service-selected ? AppColors.sidebar : AppColors.surface;
             Image { x: 16px; y: 14px; width: 18px; height: 18px; source: root.active-tab == 0 ? @image-url("../../icons/lucide/audio-lines.svg") : @image-url("../../icons/lucide/sparkles.svg"); colorize: root.first-service-selected ? AppColors.ink : AppColors.text-muted; }
-            Text { x: 46px; y: 5px; text: root.active-tab == 0 ? "火山引擎" : "商汤 SenseNova"; color: AppColors.ink; font-size: 12px; font-weight: 650; }
-            Text { x: 46px; y: 27px; text: root.active-tab == 0 ? "豆包流式语音识别模型 2.0" : "sensenova-6.7-flash-lite"; color: AppColors.text-muted; font-size: 9px; }
+            Text { x: 46px; y: root.first-service-model.is-empty ? 16px : 5px; text: root.active-tab == 0 ? "火山引擎" : "商汤 SenseNova"; color: AppColors.ink; font-size: 12px; font-weight: 650; }
+            if !root.first-service-model.is-empty: Text { x: 46px; y: 27px; text: root.first-service-model; color: AppColors.text-muted; font-size: 9px; }
             if root.first-service-selected: Image { x: parent.width - 29px; y: 17px; width: 14px; height: 14px; source: @image-url("../../icons/lucide/check.svg"); colorize: AppColors.success; }
             TouchArea { mouse-cursor: pointer; clicked => { if root.active-tab == 1 { root.llm-provider = LlmProvider.sensenova; root.select-llm-provider(root.llm-provider); root.api-key-visible = false; } root.service-menu-open = false; } }
         }
         if root.active-tab == 1: Rectangle {
             x: 12px; y: 64px; width: parent.width - 24px; height: 48px; border-radius: 8px; background: root.second-service-selected ? AppColors.sidebar : AppColors.surface;
             Image { x: 16px; y: 14px; width: 18px; height: 18px; source: @image-url("../../icons/lucide/sparkles.svg"); colorize: root.second-service-selected ? AppColors.ink : AppColors.text-muted; }
-            Text { x: 46px; y: 5px; text: "DeepSeek"; color: AppColors.ink; font-size: 12px; font-weight: 650; }
-            Text { x: 46px; y: 27px; text: "deepseek-v4-flash"; color: AppColors.text-muted; font-size: 9px; }
+            Text { x: 46px; y: root.second-service-model.is-empty ? 16px : 5px; text: "DeepSeek"; color: AppColors.ink; font-size: 12px; font-weight: 650; }
+            if !root.second-service-model.is-empty: Text { x: 46px; y: 27px; text: root.second-service-model; color: AppColors.text-muted; font-size: 9px; }
             if root.second-service-selected: Image { x: parent.width - 29px; y: 17px; width: 14px; height: 14px; source: @image-url("../../icons/lucide/check.svg"); colorize: AppColors.success; }
             TouchArea { mouse-cursor: pointer; clicked => { root.llm-provider = LlmProvider.deepseek; root.select-llm-provider(root.llm-provider); root.api-key-visible = false; root.service-menu-open = false; } }
         }

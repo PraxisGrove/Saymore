@@ -158,6 +158,15 @@ impl ProviderCatalog {
         })
     }
 
+    /// Returns the saved model only when the provider has a complete user configuration.
+    pub fn configured_llm_provider_model(&self, preset: LlmProviderPreset) -> Option<&str> {
+        let index = self.llm_provider_index(preset)?;
+        let config = &self.llm_providers[index].config;
+        let api_key = config.get("api_key")?.as_str()?.trim();
+        let model = config.get("model")?.as_str()?.trim();
+        (!api_key.is_empty() && !model.is_empty()).then_some(model)
+    }
+
     pub fn active_llm_provider(&self) -> Option<LlmProviderPreset> {
         let active = self.active.llm.as_deref()?;
         [LlmProviderPreset::SenseNova, LlmProviderPreset::DeepSeek]
@@ -206,4 +215,31 @@ pub trait SettingsStore {
 pub trait ProviderConfigStore: Send + Sync {
     fn load_catalog(&self) -> Result<ProviderCatalog, SettingsStoreError>;
     fn save_catalog(&self, catalog: &ProviderCatalog) -> Result<(), SettingsStoreError>;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{LlmProviderPreset, ProviderCatalog};
+
+    #[test]
+    fn exposes_a_provider_model_only_after_configuration_is_saved() {
+        let mut catalog = ProviderCatalog::default();
+
+        assert_eq!(
+            None,
+            catalog.configured_llm_provider_model(LlmProviderPreset::DeepSeek)
+        );
+
+        catalog.select_llm_provider(LlmProviderPreset::DeepSeek);
+        assert_eq!(
+            None,
+            catalog.configured_llm_provider_model(LlmProviderPreset::DeepSeek)
+        );
+
+        catalog.save_llm_provider_config(LlmProviderPreset::DeepSeek, "saved-key");
+        assert_eq!(
+            Some("deepseek-v4-flash"),
+            catalog.configured_llm_provider_model(LlmProviderPreset::DeepSeek)
+        );
+    }
 }

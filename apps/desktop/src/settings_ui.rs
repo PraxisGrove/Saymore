@@ -292,6 +292,17 @@ fn apply_loaded_settings(ui: &AppWindow, store: &JsonSettingsStore) {
                     .llm_provider_api_key(LlmProviderPreset::DeepSeek)
                     .unwrap_or_default(),
             ));
+            let sensenova_model =
+                catalog.configured_llm_provider_model(LlmProviderPreset::SenseNova);
+            let deepseek_model = catalog.configured_llm_provider_model(LlmProviderPreset::DeepSeek);
+            ui.set_sensenova_configured(sensenova_model.is_some());
+            ui.set_deepseek_configured(deepseek_model.is_some());
+            ui.set_sensenova_model(SharedString::from(
+                sensenova_model.unwrap_or_else(|| LlmProviderPreset::SenseNova.model()),
+            ));
+            ui.set_deepseek_model(SharedString::from(
+                deepseek_model.unwrap_or_else(|| LlmProviderPreset::DeepSeek.model()),
+            ));
             let llm_configured = !settings.llm.chat_completions.api_key.trim().is_empty();
             let llm_base_url = selected.base_url();
             let llm_enabled = settings.llm.enabled
