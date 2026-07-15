@@ -1,12 +1,22 @@
-use std::{env, process::ExitCode};
+#[cfg(target_os = "macos")]
+use std::env;
+use std::process::ExitCode;
 
-use anyhow::{Context, Result, bail};
+#[cfg(target_os = "macos")]
+use anyhow::Context;
+use anyhow::{Result, bail};
+#[cfg(target_os = "macos")]
 use template_infra::AppEnvironment;
 
+#[cfg(target_os = "macos")]
 mod local_correction;
+#[cfg(target_os = "macos")]
 mod metrics;
+#[cfg(target_os = "macos")]
 mod rules;
+#[cfg(target_os = "macos")]
 mod runner;
+#[cfg(target_os = "macos")]
 mod wav;
 
 fn main() -> ExitCode {
@@ -19,6 +29,7 @@ fn main() -> ExitCode {
     }
 }
 
+#[cfg(target_os = "macos")]
 fn run() -> Result<()> {
     let arguments = env::args().skip(1).collect::<Vec<_>>();
     let Some(command) = arguments.first().map(String::as_str) else {
@@ -40,6 +51,12 @@ fn run() -> Result<()> {
     }
 }
 
+#[cfg(not(target_os = "macos"))]
+fn run() -> Result<()> {
+    bail!("saymore-eval is supported only on macOS")
+}
+
+#[cfg(target_os = "macos")]
 fn environment_option(arguments: &[String]) -> Result<AppEnvironment> {
     match option(arguments, "--environment").unwrap_or("development") {
         "development" => Ok(AppEnvironment::Development),
@@ -48,12 +65,14 @@ fn environment_option(arguments: &[String]) -> Result<AppEnvironment> {
     }
 }
 
+#[cfg(target_os = "macos")]
 fn required_path(arguments: &[String], name: &str) -> Result<std::path::PathBuf> {
     option(arguments, name)
         .map(std::path::PathBuf::from)
         .with_context(|| format!("{name} is required"))
 }
 
+#[cfg(target_os = "macos")]
 fn option<'a>(arguments: &'a [String], name: &str) -> Option<&'a str> {
     arguments
         .windows(2)
