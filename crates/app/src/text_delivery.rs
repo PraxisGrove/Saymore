@@ -22,6 +22,14 @@ pub enum TextDeliveryOutcome {
     SecureClipboardAttempted,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ObservedTextEdit {
+    pub original: String,
+    pub edited: String,
+}
+
+pub type TextEditObserver = Box<dyn FnOnce(ObservedTextEdit) + Send + 'static>;
+
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
 pub enum TextDeliveryError {
     #[error("accessibility permission is required")]
@@ -62,4 +70,16 @@ pub trait TextDeliverer: Send + Sync {
     fn target_privacy(&self) -> DeliveryTargetPrivacy;
 
     fn deliver(&self, text: &str) -> Result<TextDeliveryOutcome, TextDeliveryError>;
+}
+
+/// Delivers text and, when the target exposes a safe text range, observes one local edit.
+///
+/// Implementations must keep native control handles and surrounding text transient, stop at
+/// sensitive or unsupported controls, and invoke the observer at most once.
+pub trait CorrectionObservingTextDeliverer: TextDeliverer {
+    fn deliver_and_observe(
+        &self,
+        text: &str,
+        observer: TextEditObserver,
+    ) -> Result<TextDeliveryOutcome, TextDeliveryError>;
 }

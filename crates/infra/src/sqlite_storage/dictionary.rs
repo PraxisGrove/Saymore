@@ -35,9 +35,8 @@ pub(super) fn upsert(
     entry: NewDictionaryEntry,
     now_ms: i64,
 ) -> Result<DictionaryEntry, StorageError> {
-    let normalized = NormalizedEntry::new(entry)?;
     let transaction = connection.transaction().map_err(unavailable)?;
-    let id = upsert_in_transaction(&transaction, &normalized, now_ms)?;
+    let id = upsert_in_transaction(&transaction, entry, now_ms)?;
     transaction.commit().map_err(unavailable)?;
     find_by_id(connection, &id)?.ok_or_else(|| {
         StorageError::Invalid("dictionary upsert did not create an entry".to_owned())
@@ -92,11 +91,12 @@ impl NormalizedEntry {
     }
 }
 
-fn upsert_in_transaction(
+pub(super) fn upsert_in_transaction(
     transaction: &rusqlite::Transaction<'_>,
-    entry: &NormalizedEntry,
+    entry: NewDictionaryEntry,
     now_ms: i64,
 ) -> Result<String, StorageError> {
+    let entry = NormalizedEntry::new(entry)?;
     let existing = transaction
         .query_row(
             "SELECT id, origin FROM dictionary_entries
@@ -154,7 +154,10 @@ fn upsert_in_transaction(
     Ok(id)
 }
 
-fn find_by_id(connection: &Connection, id: &str) -> Result<Option<DictionaryEntry>, StorageError> {
+pub(super) fn find_by_id(
+    connection: &Connection,
+    id: &str,
+) -> Result<Option<DictionaryEntry>, StorageError> {
     let entry = connection
         .query_row(
             "SELECT id, canonical, language, origin, created_at_ms, updated_at_ms

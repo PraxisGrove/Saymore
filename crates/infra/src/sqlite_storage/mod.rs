@@ -10,12 +10,14 @@ use std::{
 
 use rusqlite::Connection;
 use template_app::{
-    DictionaryEntry, DictionaryStore, HistoryCursor, HistoryPage, HistoryStore, InstalledModel,
-    InstalledModelStore, LocalSettings, LocalSettingsStore, NewDictionaryEntry, NewHistoryRecord,
+    DictionaryEntry, DictionaryLearningOutcome, DictionaryLearningStore, DictionaryStore,
+    HistoryCursor, HistoryPage, HistoryStore, InstalledModel, InstalledModelStore, LocalSettings,
+    LocalSettingsStore, NewDictionaryEntry, NewDictionaryObservation, NewHistoryRecord,
     SecretStore, StorageError,
 };
 
 mod dictionary;
+mod dictionary_learning;
 mod history;
 mod migrations;
 mod models;
@@ -146,6 +148,18 @@ impl DictionaryStore for SqliteStorage {
     }
 }
 
+impl DictionaryLearningStore for SqliteStorage {
+    fn record_dictionary_observation(
+        &self,
+        observation: NewDictionaryObservation,
+    ) -> Result<DictionaryLearningOutcome, StorageError> {
+        self.request(|response| Command::RecordDictionaryObservation {
+            observation,
+            response,
+        })
+    }
+}
+
 impl InstalledModelStore for SqliteStorage {
     fn list_installed_models(&self) -> Result<Vec<InstalledModel>, StorageError> {
         self.request(Command::ListInstalledModels)
@@ -206,6 +220,10 @@ enum Command {
     DeleteDictionary {
         id: String,
         response: SyncSender<Result<(), StorageError>>,
+    },
+    RecordDictionaryObservation {
+        observation: NewDictionaryObservation,
+        response: SyncSender<Result<DictionaryLearningOutcome, StorageError>>,
     },
     ListInstalledModels(SyncSender<Result<Vec<InstalledModel>, StorageError>>),
     SaveInstalledModel {
@@ -290,6 +308,15 @@ fn run_worker(
             }
             Command::DeleteDictionary { id, response } => {
                 let _ = response.send(dictionary::delete(&mut database.connection, &id));
+            }
+            Command::RecordDictionaryObservation {
+                observation,
+                response,
+            } => {
+                let _ = response.send(dictionary_learning::record(
+                    &mut database.connection,
+                    observation,
+                ));
             }
             Command::ListInstalledModels(response) => {
                 let _ = response.send(models::list(&database.connection));

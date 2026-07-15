@@ -1,12 +1,18 @@
-use std::{sync::Arc, thread, time::Duration};
+use std::{
+    sync::Arc,
+    thread,
+    time::{Duration, SystemTime, UNIX_EPOCH},
+};
 
 use slint::{ComponentHandle, SharedString, Timer};
 use template_app::{
-    DeliveryTargetPrivacy, FeedbackSound, HistoryDelivery, HistoryStore, NewHistoryRecord,
-    PcmRecording, ProcessedText, RefinementStatus, TextDeliverer, TextDeliveryError,
-    TextDeliveryOutcome,
+    CorrectionObservingTextDeliverer, DeliveryTargetPrivacy, DictionaryLearningOutcome,
+    DictionaryLearningStore, FeedbackSound, HistoryDelivery, HistoryStore,
+    NewDictionaryObservation, NewHistoryRecord, PcmRecording, ProcessedText, RefinementStatus,
+    TextDeliverer, TextDeliveryError, TextDeliveryOutcome, correction_from_edit,
 };
 use template_infra::{MacOsTextDeliverer, SqliteStorage, copy_text_to_clipboard};
+use uuid::Uuid;
 
 use crate::{
     overlay_window, play_feedback_sound,
@@ -143,7 +149,39 @@ fn schedule_ready_delivery(request: ReadyDeliveryRequest) {
 }
 
 fn complete_delivery(pending: ReadyDeliveryRequest) {
-    let delivery = MacOsTextDeliverer.deliver(&pending.processed.text);
+    let learning_storage = Arc::clone(&pending.storage);
+    let learning_ui = pending.ui.clone();
+    let dictation_id = Uuid::new_v4().to_string();
+    let delivery = MacOsTextDeliverer.deliver_and_observe(
+        &pending.processed.text,
+        Box::new(move |edit| {
+            let Some(correction) = correction_from_edit(&edit.original, &edit.edited) else {
+                return;
+            };
+            let result = learning_storage.record_dictionary_observation(NewDictionaryObservation {
+                dictation_id,
+                language: "und".to_owned(),
+                correction,
+                observed_at_ms: now_ms(),
+            });
+            let _ = learning_ui.upgrade_in_event_loop(move |ui| match result {
+                Ok(DictionaryLearningOutcome::Added(entry)) => {
+                    ui.set_dictionary_status(SharedString::from(format!(
+                        "已自动添加 {}",
+                        entry.canonical
+                    )));
+                    ui.invoke_refresh_dictionary();
+                }
+                Ok(
+                    DictionaryLearningOutcome::Pending { .. }
+                    | DictionaryLearningOutcome::Suppressed,
+                ) => {}
+                Err(error) => {
+                    tracing::warn!(event = "dictionary.learning_failed", reason = %error);
+                }
+            });
+        }),
+    );
     let requires_recovery = delivery_requires_copy_recovery(&delivery);
     tracing::info!(
         target: "saymore::diagnostics",
@@ -168,6 +206,13 @@ fn complete_delivery(pending: ReadyDeliveryRequest) {
     if let Some(history_id) = pending.history_id {
         persist_delivery_outcome(pending.ui, pending.storage, history_id, history_action);
     }
+}
+
+fn now_ms() -> i64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|duration| duration.as_millis().min(i64::MAX as u128) as i64)
+        .unwrap_or_default()
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

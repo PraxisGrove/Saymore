@@ -22,18 +22,26 @@ use core_foundation::{
 };
 use core_foundation_sys::{
     base::{CFGetTypeID, CFRange, CFRelease, CFTypeRef},
+    number::{
+        CFBooleanGetTypeID, CFBooleanGetValue, CFBooleanRef, CFNumberGetTypeID, CFNumberGetValue,
+        CFNumberRef, kCFNumberSInt64Type,
+    },
     string::{CFStringGetTypeID, CFStringRef},
 };
 use objc2_app_kit::{NSRunningApplication, NSWorkspace};
 use template_app::{
-    AccessibilityAuthorization, DeliveryTargetPrivacy, TextDeliverer, TextDeliveryError,
-    TextDeliveryOutcome,
+    AccessibilityAuthorization, CorrectionObservingTextDeliverer, DeliveryTargetPrivacy,
+    TextDeliverer, TextDeliveryError, TextDeliveryOutcome, TextEditObserver,
 };
 
 mod clipboard;
 mod keyboard;
+mod observation;
 
 use clipboard::TemporaryPasteboard;
+use observation::CorrectionObservationTarget;
+#[cfg(test)]
+use observation::text_between_anchors;
 
 const VERIFICATION_POLL_INTERVAL: Duration = Duration::from_millis(20);
 const ACCESSIBILITY_VERIFICATION_TIMEOUT: Duration = Duration::from_millis(180);
@@ -103,84 +111,149 @@ impl TextDeliverer for MacOsTextDeliverer {
     }
 
     fn deliver(&self, text: &str) -> Result<TextDeliveryOutcome, TextDeliveryError> {
-        let secure_input = secure_event_input_enabled();
-        if self.authorization() == AccessibilityAuthorization::Denied && !secure_input {
-            return Err(TextDeliveryError::PermissionDenied);
+        deliver_attempt(text).map(|attempt| attempt.outcome)
+    }
+}
+
+impl CorrectionObservingTextDeliverer for MacOsTextDeliverer {
+    fn deliver_and_observe(
+        &self,
+        text: &str,
+        observer: TextEditObserver,
+    ) -> Result<TextDeliveryOutcome, TextDeliveryError> {
+        let attempt = deliver_attempt(text)?;
+        if let Some(target) = attempt.observation {
+            let _ = thread::Builder::new()
+                .name("saymore-correction-observer".to_owned())
+                .spawn(move || target.observe(observer));
         }
+        Ok(attempt.outcome)
+    }
+}
 
-        let target = current_delivery_target();
-        let focused = target.focused;
+struct DeliveryAttempt {
+    outcome: TextDeliveryOutcome,
+    observation: Option<CorrectionObservationTarget>,
+}
 
-        match delivery_target_action(DeliveryTargetState {
-            external_target: target.external_target,
-            secure_input,
-            focused_control: focused.is_some(),
-        }) {
-            DeliveryTargetAction::PasteWithoutVerification => {
-                return paste_with_clipboard(PasteVerification::Unobservable, text);
-            }
-            DeliveryTargetAction::PasteSecurely => {
-                return paste_securely(text);
-            }
-            DeliveryTargetAction::RejectNoTarget => {
-                return if secure_input {
-                    Err(TextDeliveryError::SecureDeliveryFailed(
-                        "no external delivery target was found".to_owned(),
-                    ))
-                } else {
-                    Err(TextDeliveryError::NoFocusedControl)
-                };
-            }
-            DeliveryTargetAction::UseFocusedControl => {}
-        }
+fn deliver_attempt(text: &str) -> Result<DeliveryAttempt, TextDeliveryError> {
+    let secure_input = secure_event_input_enabled();
+    if authorization_from(unsafe { AXIsProcessTrusted() }) == AccessibilityAuthorization::Denied
+        && !secure_input
+    {
+        return Err(TextDeliveryError::PermissionDenied);
+    }
 
-        let Some(focused) = focused else {
-            return Err(TextDeliveryError::NoFocusedControl);
-        };
+    let target = current_delivery_target();
+    let focused = target.focused;
 
-        match focused.attribute_string(kAXSubroleAttribute) {
-            Ok(Some(subrole)) if subrole == kAXSecureTextFieldSubrole => {
-                return paste_securely(text);
-            }
-            Err(_) | Ok(None) => return paste_securely(text),
-            Ok(Some(_)) => {}
-        }
-
-        let initial_range = focused.selected_text_range().ok().flatten();
-        let Some(initial_range) = initial_range else {
-            return paste_with_clipboard(PasteVerification::Unobservable, text);
-        };
-
-        match focused.replace_selection(text) {
-            Ok(()) => match verify_insertion(
-                &focused,
-                initial_range,
-                text,
-                ACCESSIBILITY_VERIFICATION_TIMEOUT,
-            ) {
-                InsertionVerification::Verified => Ok(TextDeliveryOutcome::AccessibilityVerified),
-                InsertionVerification::Unchanged => paste_with_clipboard(
-                    PasteVerification::Observable {
-                        focused: &focused,
-                        initial_range,
-                    },
-                    text,
-                ),
-                InsertionVerification::Unverified => {
-                    Err(TextDeliveryError::AccessibilityUnverified)
+    match delivery_target_action(DeliveryTargetState {
+        external_target: target.external_target,
+        secure_input,
+        focused_control: focused.is_some(),
+    }) {
+        DeliveryTargetAction::PasteWithoutVerification => {
+            return paste_with_clipboard(PasteVerification::Unobservable, text).map(|outcome| {
+                DeliveryAttempt {
+                    outcome,
+                    observation: None,
                 }
-            },
-            Err(TextDeliveryError::UnsupportedControl | TextDeliveryError::System(_)) => {
-                paste_with_clipboard(
+            });
+        }
+        DeliveryTargetAction::PasteSecurely => {
+            return paste_securely(text).map(|outcome| DeliveryAttempt {
+                outcome,
+                observation: None,
+            });
+        }
+        DeliveryTargetAction::RejectNoTarget => {
+            return if secure_input {
+                Err(TextDeliveryError::SecureDeliveryFailed(
+                    "no external delivery target was found".to_owned(),
+                ))
+            } else {
+                Err(TextDeliveryError::NoFocusedControl)
+            };
+        }
+        DeliveryTargetAction::UseFocusedControl => {}
+    }
+
+    let Some(focused) = focused else {
+        return Err(TextDeliveryError::NoFocusedControl);
+    };
+
+    match focused.attribute_string(kAXSubroleAttribute) {
+        Ok(Some(subrole)) if subrole == kAXSecureTextFieldSubrole => {
+            return paste_securely(text).map(|outcome| DeliveryAttempt {
+                outcome,
+                observation: None,
+            });
+        }
+        Err(_) | Ok(None) => {
+            return paste_securely(text).map(|outcome| DeliveryAttempt {
+                outcome,
+                observation: None,
+            });
+        }
+        Ok(Some(_)) => {}
+    }
+
+    let initial_range = focused.selected_text_range().ok().flatten();
+    let Some(initial_range) = initial_range else {
+        return paste_with_clipboard(PasteVerification::Unobservable, text).map(|outcome| {
+            DeliveryAttempt {
+                outcome,
+                observation: None,
+            }
+        });
+    };
+
+    match focused.replace_selection(text) {
+        Ok(()) => match verify_insertion(
+            &focused,
+            initial_range,
+            text,
+            ACCESSIBILITY_VERIFICATION_TIMEOUT,
+        ) {
+            InsertionVerification::Verified => Ok(DeliveryAttempt {
+                outcome: TextDeliveryOutcome::AccessibilityVerified,
+                observation: CorrectionObservationTarget::capture(focused, initial_range, text),
+            }),
+            InsertionVerification::Unchanged => {
+                let outcome = paste_with_clipboard(
                     PasteVerification::Observable {
                         focused: &focused,
                         initial_range,
                     },
                     text,
-                )
+                )?;
+                let observation = (outcome == TextDeliveryOutcome::ClipboardVerified)
+                    .then(|| CorrectionObservationTarget::capture(focused, initial_range, text))
+                    .flatten();
+                Ok(DeliveryAttempt {
+                    outcome,
+                    observation,
+                })
             }
-            Err(error) => Err(error),
+            InsertionVerification::Unverified => Err(TextDeliveryError::AccessibilityUnverified),
+        },
+        Err(TextDeliveryError::UnsupportedControl | TextDeliveryError::System(_)) => {
+            let outcome = paste_with_clipboard(
+                PasteVerification::Observable {
+                    focused: &focused,
+                    initial_range,
+                },
+                text,
+            )?;
+            let observation = (outcome == TextDeliveryOutcome::ClipboardVerified)
+                .then(|| CorrectionObservationTarget::capture(focused, initial_range, text))
+                .flatten();
+            Ok(DeliveryAttempt {
+                outcome,
+                observation,
+            })
         }
+        Err(error) => Err(error),
     }
 }
 
@@ -328,6 +401,10 @@ fn authorization_from(trusted: bool) -> AccessibilityAuthorization {
 
 struct OwnedAxElement(AXUIElementRef);
 
+// SAFETY: AXUIElementRef is an immutable Core Foundation handle. Its documented operations
+// message the owning process and may be called from a worker thread; ownership remains unique.
+unsafe impl Send for OwnedAxElement {}
+
 impl OwnedAxElement {
     fn system_wide() -> Result<Self, TextDeliveryError> {
         let element = unsafe { AXUIElementCreateSystemWide() };
@@ -399,6 +476,60 @@ impl OwnedAxElement {
 
         let value = unsafe { CFString::wrap_under_create_rule(value.cast::<_>() as CFStringRef) };
         Ok(Some(value.to_string()))
+    }
+
+    fn attribute_bool(&self, name: &str) -> Result<Option<bool>, TextDeliveryError> {
+        let value = self.copy_attribute(name)?;
+        let Some(value) = value else {
+            return Ok(None);
+        };
+        if unsafe { CFGetTypeID(value) } != unsafe { CFBooleanGetTypeID() } {
+            unsafe { CFRelease(value) };
+            return Ok(None);
+        }
+        let result = unsafe { CFBooleanGetValue(value.cast::<_>() as CFBooleanRef) };
+        unsafe { CFRelease(value) };
+        Ok(Some(result))
+    }
+
+    fn attribute_usize(&self, name: &str) -> Result<Option<usize>, TextDeliveryError> {
+        let value = self.copy_attribute(name)?;
+        let Some(value) = value else {
+            return Ok(None);
+        };
+        if unsafe { CFGetTypeID(value) } != unsafe { CFNumberGetTypeID() } {
+            unsafe { CFRelease(value) };
+            return Ok(None);
+        }
+        let mut number: i64 = 0;
+        let read = unsafe {
+            CFNumberGetValue(
+                value.cast::<_>() as CFNumberRef,
+                kCFNumberSInt64Type,
+                ptr::from_mut(&mut number).cast::<c_void>(),
+            )
+        };
+        unsafe { CFRelease(value) };
+        if read && number >= 0 {
+            Ok(usize::try_from(number).ok())
+        } else {
+            Ok(None)
+        }
+    }
+
+    fn copy_attribute(&self, name: &str) -> Result<Option<CFTypeRef>, TextDeliveryError> {
+        let attribute = CFString::new(name);
+        let mut value: CFTypeRef = ptr::null();
+        let error = unsafe {
+            AXUIElementCopyAttributeValue(self.0, attribute.as_concrete_TypeRef(), &mut value)
+        };
+        if error == kAXErrorAttributeUnsupported || error == kAXErrorNoValue || value.is_null() {
+            Ok(None)
+        } else if error == kAXErrorSuccess {
+            Ok(Some(value))
+        } else {
+            Err(system_error("read control attribute", error))
+        }
     }
 
     fn replace_selection(&self, text: &str) -> Result<(), TextDeliveryError> {

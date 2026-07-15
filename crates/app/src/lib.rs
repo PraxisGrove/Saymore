@@ -4,6 +4,7 @@ use template_domain::Greeting;
 
 mod audio_recording;
 mod cancelled_recording;
+mod dictionary_learning;
 mod feedback_sound;
 mod final_text_processing;
 mod refinement_policy;
@@ -20,6 +21,10 @@ pub use audio_recording::{
     convert_interleaved_f32_to_pcm16,
 };
 pub use cancelled_recording::CancelledRecordingStore;
+pub use dictionary_learning::{
+    DictionaryCorrection, DictionaryLearningOutcome, DictionaryLearningStore,
+    NewDictionaryObservation, correction_from_edit,
+};
 pub use feedback_sound::{FeedbackSound, FeedbackSoundError, FeedbackSoundPlayer};
 pub use final_text_processing::{
     FinalTextProcessingError, FinalTextProcessor, FinalTextRequest, LlmProvider, LlmProviderError,
@@ -46,8 +51,8 @@ pub use storage::{
     normalize_language_tag,
 };
 pub use text_delivery::{
-    AccessibilityAuthorization, DeliveryTargetPrivacy, TextDeliverer, TextDeliveryError,
-    TextDeliveryOutcome,
+    AccessibilityAuthorization, CorrectionObservingTextDeliverer, DeliveryTargetPrivacy,
+    ObservedTextEdit, TextDeliverer, TextDeliveryError, TextDeliveryOutcome, TextEditObserver,
 };
 pub use usage_summary::{USAGE_TREND_DAYS, UsageSummary, load_usage_summary};
 
