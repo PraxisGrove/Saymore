@@ -8,6 +8,7 @@ use std::{
         Arc, Mutex,
         atomic::{AtomicBool, Ordering},
     },
+    thread,
     time::{Duration, Instant},
 };
 
@@ -16,8 +17,8 @@ use slint::{ComponentHandle, SharedString};
 use slint::{Timer, TimerMode};
 #[cfg(target_os = "macos")]
 use template_app::{
-    AudioRecorder, CancelledRecordingStore, DictionaryStore, MicrophonePermissionProvider,
-    PcmChunk, RecordingError,
+    AudioRecorder, CancelledRecordingStore, DictionaryStore, LocalSettingsStore,
+    MicrophonePermissionProvider, PcmChunk, RecordingError,
 };
 #[cfg(target_os = "macos")]
 use template_app::{FeedbackSound, FeedbackSoundPlayer, TextDeliverer};
@@ -40,7 +41,7 @@ mod ui {
     slint::include_modules!();
 }
 
-use ui::AppWindow;
+use ui::{AppWindow, Translations};
 #[cfg(target_os = "macos")]
 use ui::{MicrophoneIntroOverlay, MicrophonePermissionOverlay, RecordingOverlay, ResultOverlay};
 
@@ -57,6 +58,8 @@ mod dictation_finish;
 #[cfg(target_os = "macos")]
 mod home_stats;
 #[cfg(target_os = "macos")]
+mod i18n;
+#[cfg(target_os = "macos")]
 mod local_data_ui;
 #[cfg(target_os = "macos")]
 mod main_window;
@@ -69,9 +72,15 @@ mod recording_metrics;
 #[cfg(target_os = "macos")]
 mod refinement_runtime;
 #[cfg(target_os = "macos")]
+mod regional_format;
+#[cfg(target_os = "macos")]
+mod settings_actions;
+#[cfg(target_os = "macos")]
 mod settings_ui;
 #[cfg(target_os = "macos")]
 mod ui_status;
+#[cfg(target_os = "macos")]
+mod update_check;
 
 #[cfg(target_os = "macos")]
 use asr_runtime::AsrSessionController;
@@ -84,6 +93,8 @@ use ui_status::*;
 const AUTHORIZATION_POLL_INTERVAL: Duration = Duration::from_secs(1);
 #[cfg(target_os = "macos")]
 const CANCEL_UNDO_WINDOW: Duration = Duration::from_secs(2);
+#[cfg(target_os = "macos")]
+const OVERLAY_PRERENDER_DELAY: Duration = Duration::from_millis(17);
 
 #[cfg(target_os = "macos")]
 #[derive(Clone)]
@@ -117,6 +128,7 @@ struct ShortcutRuntime {
     microphone_access: microphone_access::MicrophoneAccess,
     first_recording: Arc<AtomicBool>,
     recording_active: Arc<AtomicBool>,
+    recording_starting: Arc<AtomicBool>,
     cancelled: Arc<Mutex<CancelledRecordingStore>>,
     processing: TextProcessingServices,
 }
@@ -135,17 +147,34 @@ fn main() -> ExitCode {
 fn run() -> Result<(), Box<dyn Error>> {
     let environment = app_environment::resolve()?;
     let paths = AppPaths::for_current_user(environment)?;
-    if let Err(error) = diagnostics::init(paths.data_directory().join("logs")) {
-        eprintln!("failed to initialize local diagnostics: {error}");
-    }
     let _instance_guard = AppInstanceGuard::acquire(&paths.instance_lock())?;
     let settings_store = Arc::new(JsonSettingsStore::at_path(paths.provider_config()));
     settings_store.ensure_exists()?;
     let local_storage = Arc::new(SqliteStorage::start(
         paths.database(),
-        Arc::new(PlatformSecretStore::new(environment)),
+        Arc::new(PlatformSecretStore::new(environment)?),
     )?);
+    let local_settings = match local_storage.load_settings() {
+        Ok(settings) => settings,
+        Err(error) => {
+            eprintln!("failed to load local settings: {error}");
+            template_app::LocalSettings::default()
+        }
+    };
+    let diagnostics_directory = paths.data_directory().join("logs");
+    let diagnostics_enabled = local_settings.diagnostics_logging_enabled;
+    let diagnostics = match diagnostics::init(diagnostics_directory.clone(), diagnostics_enabled) {
+        Ok(controller) => controller,
+        Err(error) => {
+            eprintln!("failed to initialize local diagnostics: {error}");
+            diagnostics::DiagnosticsController::without_logger(
+                diagnostics_directory,
+                diagnostics_enabled,
+            )
+        }
+    };
     let ui = AppWindow::new()?;
+    let language_context = i18n::initialize(&ui, local_settings.ui_language)?;
     ui.set_development_environment(environment == AppEnvironment::Development);
     let overlay = RecordingOverlay::new()?;
     let result_overlay = ResultOverlay::new()?;
@@ -153,8 +182,31 @@ fn run() -> Result<(), Box<dyn Error>> {
     let microphone_permission_overlay = MicrophonePermissionOverlay::new()?;
     let deliverer = MacOsTextDeliverer;
     let microphone = MacOsMicrophonePermission;
-    let recorder = Arc::new(Mutex::new(MacOsAudioRecorder::default()));
+    let preferred_microphone_id = local_settings.preferred_microphone_id;
+    let recorder = Arc::new(Mutex::new(
+        MacOsAudioRecorder::with_preferred_input_device_id(preferred_microphone_id),
+    ));
+    let prewarm_recorder = Arc::clone(&recorder);
+    let _ = thread::Builder::new()
+        .name("saymore-audio-prewarm".to_owned())
+        .spawn(move || match prewarm_recorder.lock() {
+            Ok(mut recorder) => {
+                if let Err(error) = recorder.prepare()
+                    && error != RecordingError::PermissionDenied
+                {
+                    tracing::warn!(event = "recording.audio_preload_failed", reason = %error);
+                }
+            }
+            Err(_) => tracing::warn!(
+                event = "recording.audio_preload_failed",
+                reason = "recorder lock was poisoned"
+            ),
+        });
     let recording_active = Arc::new(AtomicBool::new(false));
+    let recording_starting = Arc::new(AtomicBool::new(false));
+    if let Err(error) = MacOsFeedbackSoundPlayer.preload() {
+        tracing::warn!(event = "feedback.preload_failed", reason = %error);
+    }
     let dictionary: Arc<dyn DictionaryStore> = local_storage.clone();
     let asr = Arc::new(AsrSessionController::new(
         Arc::clone(&settings_store),
@@ -176,8 +228,32 @@ fn run() -> Result<(), Box<dyn Error>> {
         microphone,
     );
     settings_ui::wire(&ui, Arc::clone(&settings_store));
-    home_stats::wire(&ui, Arc::clone(&local_storage));
-    local_data_ui::wire(&ui, Arc::clone(&local_storage));
+    let local_settings_guard = Arc::new(Mutex::new(()));
+    i18n::wire(
+        &ui,
+        Arc::clone(&local_storage),
+        Arc::clone(&local_settings_guard),
+        language_context,
+    );
+    home_stats::wire(
+        &ui,
+        Arc::clone(&local_storage),
+        paths.data_directory().to_path_buf(),
+    );
+    local_data_ui::wire(
+        &ui,
+        Arc::clone(&local_storage),
+        Arc::clone(&recorder),
+        Arc::clone(&local_settings_guard),
+    );
+    settings_actions::wire(
+        &ui,
+        Arc::clone(&local_storage),
+        local_settings_guard,
+        diagnostics,
+        paths.data_directory().to_path_buf(),
+    );
+    update_check::wire(&ui);
 
     let request_accessibility_ui = ui.as_weak();
     ui.on_request_authorization(move || {
@@ -218,6 +294,7 @@ fn run() -> Result<(), Box<dyn Error>> {
             microphone_access,
             first_recording,
             recording_active,
+            recording_starting,
             cancelled,
             processing,
         },
@@ -250,16 +327,30 @@ fn start_recording_shortcut(ui: &AppWindow, overlays: DictationOverlays, runtime
             );
         }
         DictationShortcutAction::Toggle => {
-            if runtime.microphone_access.allows_recording() {
-                begin_recording(
-                    &shortcut_ui,
-                    &shortcut_overlays,
-                    &runtime.recorder,
-                    &runtime.first_recording,
-                    &runtime.recording_active,
-                    &runtime.cancelled,
-                    &runtime.processing.asr,
+            if runtime
+                .recording_starting
+                .compare_exchange(false, true, Ordering::AcqRel, Ordering::Relaxed)
+                .is_err()
+            {
+                tracing::info!(
+                    target: "saymore::diagnostics",
+                    event = "recording.startup_ignored",
+                    reason = "already_starting"
                 );
+                return;
+            }
+            let shortcut_started = Instant::now();
+            let permission_started = Instant::now();
+            let allows_recording = runtime.microphone_access.allows_recording();
+            tracing::info!(
+                target: "saymore::diagnostics",
+                event = "recording.permission_checked",
+                duration_ms = permission_started.elapsed().as_millis()
+            );
+            if allows_recording {
+                begin_recording(&shortcut_ui, &shortcut_overlays, &runtime, shortcut_started);
+            } else {
+                runtime.recording_starting.store(false, Ordering::Release);
             }
         }
         DictationShortcutAction::Cancel => cancel_recording(
@@ -277,16 +368,13 @@ fn start_recording_shortcut(ui: &AppWindow, overlays: DictationOverlays, runtime
 fn begin_recording(
     ui: &slint::Weak<AppWindow>,
     overlays: &DictationOverlays,
-    recorder: &Mutex<MacOsAudioRecorder>,
-    first_recording: &Arc<AtomicBool>,
-    recording_active: &Arc<AtomicBool>,
-    cancelled: &Mutex<CancelledRecordingStore>,
-    asr: &Arc<AsrSessionController>,
+    runtime: &ShortcutRuntime,
+    startup_started: Instant,
 ) {
     if let Some(result_overlay) = overlays.result.upgrade() {
         let _ = result_overlay.hide();
     }
-    if let Ok(mut cancelled) = cancelled.lock() {
+    if let Ok(mut cancelled) = runtime.cancelled.lock() {
         cancelled.clear();
     }
     let metrics_ui = ui.clone();
@@ -300,9 +388,17 @@ fn begin_recording(
             ui.set_recording_detail(SharedString::from(text));
         });
     });
-    match asr.start(on_partial) {
+    let asr_started = Instant::now();
+    match runtime.processing.asr.start(on_partial) {
         Ok(()) => {}
         Err(error) => {
+            runtime.recording_starting.store(false, Ordering::Release);
+            tracing::warn!(
+                target: "saymore::diagnostics",
+                event = "recording.startup_failed",
+                stage = "asr",
+                duration_ms = startup_started.elapsed().as_millis()
+            );
             let event_ui = ui.clone();
             let _ = event_ui.upgrade_in_event_loop(move |ui| {
                 apply_asr_error(&ui, &error);
@@ -310,46 +406,110 @@ fn begin_recording(
             return;
         }
     }
-    let streaming_asr = Arc::clone(asr);
+    let asr_ms = asr_started.elapsed().as_millis();
+    let streaming_asr = Arc::clone(&runtime.processing.asr);
     let on_audio_chunk = Arc::new(move |chunk: PcmChunk| {
         let _ = streaming_asr.push_audio(chunk.samples);
     });
-    let result = recorder
+    let recorder_started = Instant::now();
+    let result = runtime
+        .recorder
         .lock()
         .map_err(|_| RecordingError::Capture("recorder lock was poisoned".to_owned()))
         .and_then(|mut recorder| recorder.start(on_metrics, on_audio_chunk));
+    let recorder_ms = recorder_started.elapsed().as_millis();
 
     let event_ui = ui.clone();
     let event_overlay = overlays.status.clone();
-    let first_recording = Arc::clone(first_recording);
-    let recording_active = Arc::clone(recording_active);
+    let first_recording = Arc::clone(&runtime.first_recording);
+    let recording_active = Arc::clone(&runtime.recording_active);
+    let recording_starting = Arc::clone(&runtime.recording_starting);
     let show_device = first_recording.load(Ordering::Relaxed);
-    let failed_asr = Arc::clone(asr);
-    let _ = event_ui.upgrade_in_event_loop(move |ui| match result {
-        Ok(started) => {
-            play_feedback_sound(FeedbackSound::Start);
-            recording_active.store(true, Ordering::Relaxed);
-            first_recording.store(false, Ordering::Relaxed);
-            apply_recording_started(&ui);
-            if let Some(overlay) = event_overlay.upgrade() {
-                first_recording_overlay(&overlay, &started.input_device_name, show_device);
+    let failed_asr = Arc::clone(&runtime.processing.asr);
+    let ui_queued = Instant::now();
+    let _ = event_ui.upgrade_in_event_loop(move |ui| {
+        let outcome = if result.is_ok() { "ready" } else { "failed" };
+        tracing::info!(
+            target: "saymore::diagnostics",
+            event = "recording.startup",
+            outcome,
+            asr_ms,
+            recorder_ms,
+            ui_queue_ms = ui_queued.elapsed().as_millis(),
+            total_ms = startup_started.elapsed().as_millis()
+        );
+        match result {
+            Ok(started) => {
+                let feedback_started = Instant::now();
+                play_feedback_sound(FeedbackSound::Start);
+                tracing::info!(
+                    target: "saymore::diagnostics",
+                    event = "recording.feedback_started",
+                    duration_ms = feedback_started.elapsed().as_millis()
+                );
+                recording_active.store(true, Ordering::Relaxed);
+                recording_starting.store(false, Ordering::Release);
+                first_recording.store(false, Ordering::Relaxed);
+                apply_recording_started(&ui);
+                if started.used_system_fallback {
+                    ui.set_microphone_selection_status(
+                        ui.global::<Translations>().get_microphone_system_fallback(),
+                    );
+                }
+                if let Some(overlay) = event_overlay.upgrade() {
+                    first_recording_overlay(
+                        &overlay,
+                        &started.input_device_name,
+                        show_device,
+                        startup_started,
+                    );
+                }
             }
-        }
-        Err(error) => {
-            failed_asr.cancel();
-            apply_recording_error(&ui, &error);
+            Err(error) => {
+                recording_starting.store(false, Ordering::Release);
+                failed_asr.cancel();
+                apply_recording_error(&ui, &error);
+            }
         }
     });
 }
 
 #[cfg(target_os = "macos")]
-fn first_recording_overlay(overlay: &RecordingOverlay, device_name: &str, show_device: bool) {
+fn first_recording_overlay(
+    overlay: &RecordingOverlay,
+    device_name: &str,
+    show_device: bool,
+    startup_started: Instant,
+) {
     let _ = (device_name, show_device);
+    let generation = overlay.get_session_generation().wrapping_add(1);
+    overlay.set_session_generation(generation);
     overlay.set_mode(0);
     overlay.set_recording_level(0.0);
-    if let Err(error) = overlay_window::present(overlay.window()) {
-        tracing::warn!(event = "recording.overlay_present_failed", reason = %error);
-    }
+    overlay.window().request_redraw();
+    let overlay = overlay.as_weak();
+    Timer::single_shot(OVERLAY_PRERENDER_DELAY, move || {
+        if let Some(overlay) = overlay.upgrade()
+            && overlay_generation_matches(generation, overlay.get_session_generation())
+        {
+            let present_started = Instant::now();
+            let result = overlay_window::present(overlay.window());
+            tracing::info!(
+                target: "saymore::diagnostics",
+                event = "recording.overlay_presented",
+                present_ms = present_started.elapsed().as_millis(),
+                total_ms = startup_started.elapsed().as_millis()
+            );
+            if let Err(error) = result {
+                tracing::warn!(event = "recording.overlay_present_failed", reason = %error);
+            }
+        }
+    });
+}
+
+#[cfg(target_os = "macos")]
+pub(crate) fn overlay_generation_matches(scheduled: i32, current: i32) -> bool {
+    scheduled == current
 }
 
 #[cfg(target_os = "macos")]
@@ -361,8 +521,14 @@ fn prepare_overlay_window(window: &slint::Window) {
 
 #[cfg(target_os = "macos")]
 pub(crate) fn hide_overlay_after_delay(overlay: slint::Weak<RecordingOverlay>) {
+    let generation = overlay
+        .upgrade()
+        .map(|overlay| overlay.get_session_generation())
+        .unwrap_or_default();
     Timer::single_shot(Duration::from_millis(700), move || {
-        if let Some(overlay) = overlay.upgrade() {
+        if let Some(overlay) = overlay.upgrade()
+            && overlay_generation_matches(generation, overlay.get_session_generation())
+        {
             let _ = overlay.hide();
         }
     });
@@ -462,8 +628,9 @@ fn cancel_recording(
             ui.set_recording_failed(false);
             ui.set_recording_attempted(false);
             ui.set_recording_level(0.0);
-            ui.set_recording_status(SharedString::from("录音已取消"));
-            ui.set_recording_detail(SharedString::from("2 秒内可以撤销"));
+            let translations = ui.global::<Translations>();
+            ui.set_recording_status(translations.get_recording_cancelled());
+            ui.set_recording_detail(translations.get_recording_cancel_undo_hint());
             if let Some(overlay) = cancel_overlay.upgrade() {
                 overlay.set_mode(2);
             }
@@ -489,12 +656,19 @@ fn schedule_cancel_expiration(
     cancelled: Arc<Mutex<CancelledRecordingStore>>,
     generation: u64,
 ) {
+    let overlay_generation = overlay
+        .upgrade()
+        .map(|overlay| overlay.get_session_generation())
+        .unwrap_or_default();
     Timer::single_shot(CANCEL_UNDO_WINDOW, move || {
         let expired = match cancelled.lock() {
             Ok(mut cancelled) => cancelled.expire(generation, Instant::now()),
             Err(_) => false,
         };
-        if expired && let Some(overlay) = overlay.upgrade() {
+        if expired
+            && let Some(overlay) = overlay.upgrade()
+            && overlay_generation_matches(overlay_generation, overlay.get_session_generation())
+        {
             let _ = overlay.hide();
         }
     });
@@ -509,6 +683,10 @@ fn undo_cancelled_recording(
     recording_active: Arc<AtomicBool>,
     processing: TextProcessingServices,
 ) {
+    let overlay_generation = overlay
+        .upgrade()
+        .map(|overlay| overlay.get_session_generation())
+        .unwrap_or_default();
     let recording = cancelled
         .lock()
         .ok()
@@ -519,14 +697,15 @@ fn undo_cancelled_recording(
 
     recording_active.store(true, Ordering::Relaxed);
     let plan = processing.refinement.plan();
-    let processing_label = refinement_runtime::ProcessingActivity::Transcribing.label();
-    if let Some(overlay) = overlay.upgrade() {
-        overlay.set_mode(1);
-        overlay.set_processing_label(SharedString::from(processing_label));
-    }
     if let Some(ui) = ui.upgrade() {
-        ui.set_recording_status(SharedString::from(processing_label));
-        ui.set_recording_detail(SharedString::from(processing_label));
+        let processing_label =
+            refinement_runtime::ProcessingActivity::Transcribing.localized_label(&ui);
+        ui.set_recording_status(processing_label.clone());
+        ui.set_recording_detail(processing_label.clone());
+        if let Some(overlay) = overlay.upgrade() {
+            overlay.set_mode(1);
+            overlay.set_processing_label(processing_label);
+        }
     }
     let event_ui = ui.clone();
     let event_overlay = overlay.clone();
@@ -572,12 +751,15 @@ fn undo_cancelled_recording(
             recording_active.store(false, Ordering::Relaxed);
             let _ = event_ui.upgrade_in_event_loop(move |ui| match result {
                 Ok((_transcript, processed, history)) => {
+                    settings_ui::mark_asr_runtime_healthy(&ui);
                     if let Some(error) = history.error {
-                        ui.set_history_status(SharedString::from(error));
+                        tracing::warn!(event = "history.prepare_failed", reason = %error);
+                        ui.set_history_status(ui.global::<Translations>().get_storage_error());
                     }
                     delivery_runtime::schedule_delivery(delivery_runtime::DeliveryRequest {
                         ui: ui.as_weak(),
                         status_overlay: event_overlay,
+                        overlay_generation,
                         result_overlay,
                         recording,
                         processed,
@@ -603,11 +785,25 @@ fn undo_cancelled_recording(
     }
 }
 
+#[cfg(all(test, target_os = "macos"))]
+mod overlay_lifecycle_tests {
+    use super::overlay_generation_matches;
+
+    #[test]
+    fn stale_overlay_work_cannot_affect_a_new_session() {
+        assert!(overlay_generation_matches(7, 7));
+        assert!(!overlay_generation_matches(7, 8));
+    }
+}
+
 #[cfg(not(target_os = "macos"))]
 fn run() -> Result<(), Box<dyn Error>> {
     let ui = AppWindow::new()?;
-    ui.set_authorization_status(SharedString::from("暂不支持当前平台"));
-    ui.set_microphone_status(SharedString::from("暂不支持当前平台"));
+    let unsupported = ui
+        .global::<Translations>()
+        .get_common_not_supported_platform();
+    ui.set_authorization_status(unsupported.clone());
+    ui.set_microphone_status(unsupported);
     ui.run()?;
     Ok(())
 }

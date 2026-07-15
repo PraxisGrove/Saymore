@@ -51,7 +51,7 @@ fn csv_import_accepts_standard_spellings_with_optional_languages()
     assert!(
         entries
             .iter()
-            .all(|entry| entry.origin == DictionaryOrigin::Manual && entry.variants.is_empty())
+            .all(|entry| entry.origin == DictionaryOrigin::Manual)
     );
     assert!(
         entries
@@ -73,7 +73,6 @@ fn csv_duplicate_preserves_the_existing_manual_spelling() -> Result<(), Box<dyn 
         NewDictionaryEntry {
             canonical: "OpenAI".to_owned(),
             language: "en".to_owned(),
-            variants: Vec::new(),
             origin: DictionaryOrigin::Manual,
         },
         1_000,
@@ -88,7 +87,6 @@ fn csv_duplicate_preserves_the_existing_manual_spelling() -> Result<(), Box<dyn 
     let entries = store.list_dictionary()?;
     assert_eq!(1, entries.len());
     assert_eq!("OpenAI", entries[0].canonical);
-    assert!(entries[0].variants.is_empty());
     Ok(())
 }
 

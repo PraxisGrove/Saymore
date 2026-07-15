@@ -1,4 +1,5 @@
 use std::{
+    path::PathBuf,
     sync::{
         Arc,
         atomic::{AtomicU64, Ordering},
@@ -6,22 +7,27 @@ use std::{
     thread,
 };
 
-use chrono::{Datelike, Duration, Local, NaiveDate, TimeZone, Weekday};
+use chrono::{Duration, Local, NaiveDate, TimeZone};
 use slint::{ComponentHandle, ModelRc, SharedString, VecModel};
 use template_app::{USAGE_TREND_DAYS, UsageSummary, load_usage_summary};
 use template_infra::{
-    SqliteStorage, open_accessibility_privacy_settings, open_microphone_privacy_settings,
+    SqliteStorage, directory_usage_bytes, open_accessibility_privacy_settings,
+    open_microphone_privacy_settings,
 };
 
-use crate::ui::AppWindow;
+use crate::{
+    regional_format,
+    ui::{AppWindow, Translations},
+};
 
-pub fn wire(ui: &AppWindow, storage: Arc<SqliteStorage>) {
+pub fn wire(ui: &AppWindow, storage: Arc<SqliteStorage>, data_directory: PathBuf) {
     let generation = Arc::new(AtomicU64::new(0));
     let refresh_ui = ui.as_weak();
     ui.on_refresh_usage(move || {
         refresh(
             refresh_ui.clone(),
             Arc::clone(&storage),
+            data_directory.clone(),
             Arc::clone(&generation),
         );
     });
@@ -38,7 +44,12 @@ pub fn wire(ui: &AppWindow, storage: Arc<SqliteStorage>) {
     ui.invoke_refresh_usage();
 }
 
-fn refresh(ui: slint::Weak<AppWindow>, storage: Arc<SqliteStorage>, generation: Arc<AtomicU64>) {
+fn refresh(
+    ui: slint::Weak<AppWindow>,
+    storage: Arc<SqliteStorage>,
+    data_directory: PathBuf,
+    generation: Arc<AtomicU64>,
+) {
     let request_generation = generation.fetch_add(1, Ordering::Relaxed).saturating_add(1);
     if let Some(ui) = ui.upgrade() {
         ui.set_usage_loading(true);
@@ -49,26 +60,40 @@ fn refresh(ui: slint::Weak<AppWindow>, storage: Arc<SqliteStorage>, generation: 
         .name("saymore-load-home-stats".to_owned())
         .spawn(move || {
             let today = Local::now().date_naive();
+            let system_locale = regional_format::system_locale();
             let result = load_usage_summary(storage.as_ref(), today, |timestamp_ms| {
                 Local
                     .timestamp_millis_opt(timestamp_ms)
                     .single()
                     .map(|timestamp| timestamp.date_naive())
             });
+            let storage_usage = directory_usage_bytes(&data_directory);
             if generation.load(Ordering::Relaxed) != request_generation {
                 return;
             }
-            let _ = ui.upgrade_in_event_loop(move |ui| match result {
-                Ok(summary) => {
-                    apply_summary(&ui, summary, today);
-                    ui.set_usage_loading(false);
-                    ui.set_usage_error(false);
+            let _ = ui.upgrade_in_event_loop(move |ui| {
+                match storage_usage {
+                    Ok(bytes) => ui.set_storage_usage(SharedString::from(format_storage_usage(
+                        bytes,
+                        system_locale.as_deref(),
+                    ))),
+                    Err(error) => {
+                        tracing::warn!(event = "storage.usage_load_failed", reason = %error);
+                        ui.set_storage_usage(ui.global::<Translations>().get_storage_unavailable());
+                    }
                 }
-                Err(error) => {
-                    tracing::warn!(event = "home.stats_load_failed", reason = %error);
-                    ui.set_usage_loading(false);
-                    ui.set_usage_error(true);
-                    ui.set_usage_trend(ModelRc::default());
+                match result {
+                    Ok(summary) => {
+                        apply_summary(&ui, summary, today, system_locale.as_deref());
+                        ui.set_usage_loading(false);
+                        ui.set_usage_error(false);
+                    }
+                    Err(error) => {
+                        tracing::warn!(event = "home.stats_load_failed", reason = %error);
+                        ui.set_usage_loading(false);
+                        ui.set_usage_error(true);
+                        ui.set_usage_trend(ModelRc::default());
+                    }
                 }
             });
         })
@@ -82,7 +107,12 @@ fn refresh(ui: slint::Weak<AppWindow>, storage: Arc<SqliteStorage>, generation: 
     }
 }
 
-fn apply_summary(ui: &AppWindow, summary: UsageSummary, today: NaiveDate) {
+fn apply_summary(
+    ui: &AppWindow,
+    summary: UsageSummary,
+    today: NaiveDate,
+    system_locale: Option<&str>,
+) {
     let total_minutes = summary.total_duration_ms.saturating_add(30_000) / 60_000;
     let average_speed = if summary.total_duration_ms == 0 {
         0
@@ -106,44 +136,59 @@ fn apply_summary(ui: &AppWindow, summary: UsageSummary, today: NaiveDate) {
             duration as f32 / maximum as f32
         }
     });
-    let labels = day_labels(today)
+    let labels = day_labels(today, system_locale)
         .into_iter()
         .map(SharedString::from)
         .collect::<Vec<_>>();
 
-    ui.set_usage_total_minutes(SharedString::from(format_integer(total_minutes)));
-    ui.set_usage_total_characters(SharedString::from(format_integer(summary.total_characters)));
-    ui.set_usage_average_speed(SharedString::from(format_integer(average_speed)));
+    ui.set_usage_total_minutes(SharedString::from(regional_format::format_integer(
+        total_minutes,
+        system_locale,
+    )));
+    ui.set_usage_total_characters(SharedString::from(regional_format::format_integer(
+        summary.total_characters,
+        system_locale,
+    )));
+    ui.set_usage_average_speed(SharedString::from(regional_format::format_integer(
+        average_speed,
+        system_locale,
+    )));
     ui.set_usage_trend(ModelRc::new(VecModel::from(trend.to_vec())));
     ui.set_usage_day_labels(ModelRc::new(VecModel::from(labels)));
     ui.set_usage_highlighted_day(summary.highlighted_day.map_or(-1, |index| index as i32));
 }
 
-fn day_labels(today: NaiveDate) -> [&'static str; USAGE_TREND_DAYS] {
+fn day_labels(today: NaiveDate, system_locale: Option<&str>) -> [String; USAGE_TREND_DAYS] {
+    let locale = regional_format::date_locale(system_locale);
     std::array::from_fn(|index| {
         let days_ago = (USAGE_TREND_DAYS - index - 1) as i64;
-        match (today - Duration::days(days_ago)).weekday() {
-            Weekday::Mon => "一",
-            Weekday::Tue => "二",
-            Weekday::Wed => "三",
-            Weekday::Thu => "四",
-            Weekday::Fri => "五",
-            Weekday::Sat => "六",
-            Weekday::Sun => "日",
-        }
+        (today - Duration::days(days_ago))
+            .format_localized("%a", locale)
+            .to_string()
     })
 }
 
-fn format_integer(value: u64) -> String {
-    let digits = value.to_string();
-    let mut formatted = String::with_capacity(digits.len() + digits.len() / 3);
-    for (index, digit) in digits.chars().enumerate() {
-        if index > 0 && (digits.len() - index).is_multiple_of(3) {
-            formatted.push(',');
-        }
-        formatted.push(digit);
+fn format_storage_usage(bytes: u64, system_locale: Option<&str>) -> String {
+    const KIB: u64 = 1_024;
+    const MIB: u64 = KIB * 1_024;
+    const GIB: u64 = MIB * 1_024;
+
+    if bytes == 0 {
+        return "0 MB".to_owned();
     }
-    formatted
+    if bytes < MIB {
+        return format_decimal(bytes as f64 / KIB as f64, "KB", system_locale);
+    }
+    if bytes < GIB {
+        return format_decimal(bytes as f64 / MIB as f64, "MB", system_locale);
+    }
+    format_decimal(bytes as f64 / GIB as f64, "GB", system_locale)
+}
+
+fn format_decimal(value: f64, unit: &str, system_locale: Option<&str>) -> String {
+    let value =
+        format!("{value:.1}").replace('.', regional_format::decimal_separator(system_locale));
+    format!("{value} {unit}")
 }
 
 #[cfg(test)]
@@ -154,15 +199,24 @@ mod tests {
     fn labels_cover_the_rolling_seven_day_window() {
         assert_eq!(
             ["四", "五", "六", "日", "一", "二", "三"],
-            day_labels(NaiveDate::from_ymd_opt(2026, 7, 15).unwrap_or_default())
+            day_labels(
+                NaiveDate::from_ymd_opt(2026, 7, 15).unwrap_or_default(),
+                Some("zh-CN")
+            )
+        );
+        assert_eq!(
+            ["Thu", "Fri", "Sat", "Sun", "Mon", "Tue", "Wed"],
+            day_labels(
+                NaiveDate::from_ymd_opt(2026, 7, 15).unwrap_or_default(),
+                Some("en-US")
+            )
         );
     }
 
     #[test]
-    fn integer_formatting_uses_group_separators() {
-        assert_eq!("0", format_integer(0));
-        assert_eq!("999", format_integer(999));
-        assert_eq!("6,240", format_integer(6_240));
-        assert_eq!("1,000,000", format_integer(1_000_000));
+    fn storage_usage_uses_readable_units() {
+        assert_eq!("0 MB", format_storage_usage(0, Some("en-US")));
+        assert_eq!("1.5 KB", format_storage_usage(1_536, Some("en-US")));
+        assert_eq!("1,5 MB", format_storage_usage(1_572_864, Some("de-DE")));
     }
 }

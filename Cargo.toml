@@ -21,7 +21,7 @@ async-trait = "0.1"
 aes-gcm = "0.10.3"
 assert_cmd = "2"
 cpal = "0.18.1"
-chrono = { version = "0.4", default-features = false, features = ["clock"] }
+chrono = { version = "0.4", default-features = false, features = ["clock", "unstable-locales"] }
 csv = "1"
 flate2 = "1.1.9"
 fs2 = "0.4"
@@ -34,11 +34,14 @@ reqwest = { version = "0.13.4", default-features = false, features = ["json", "m
 rustls = { version = "0.23.41", default-features = false, features = ["ring", "std"] }
 rstest = "0.26"
 httpmock = "0.8.3"
+num-format = "0.4.4"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sherpa-onnx = "1.13.4"
 slint = { version = "1.17.1", default-features = false, features = ["accessibility", "backend-winit", "compat-1-2", "image-default-formats", "raw-window-handle-06", "renderer-femtovg", "std"] }
 slint-build = "1.17.1"
+sys-locale = "0.3.2"
+rspolib = "0.1.2"
 template-app = { path = "crates/app", version = "0.1.0" }
 template-domain = { path = "crates/domain", version = "0.1.0" }
 template-infra = { path = "crates/infra", version = "0.1.0" }

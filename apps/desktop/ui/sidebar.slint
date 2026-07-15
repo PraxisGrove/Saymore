@@ -3,6 +3,8 @@ import { AppColors } from "color-system.slint";
 
 export component AppSidebar inherits Rectangle {
     in-out property <AppPage> current-page: AppPage.home;
+    in property <string> storage-usage: @tr("storage.usage.calculating" => "Calculating…");
+    callback manage-storage();
     width: 205px;
     background: AppColors.sidebar;
     border-radius: 18px;
@@ -26,11 +28,11 @@ export component AppSidebar inherits Rectangle {
         font-weight: 700;
     }
 
-    NavItem { x: 26px; y: 109px; width: 146px; label: "首页"; icon: @image-url("../icons/lucide/house.svg"); selected: root.current-page == AppPage.home; activated => { root.current-page = AppPage.home; } }
-    NavItem { x: 26px; y: 151px; width: 146px; label: "模型"; icon: @image-url("../icons/lucide/sparkles.svg"); selected: root.current-page == AppPage.models; activated => { root.current-page = AppPage.models; } }
-    NavItem { x: 26px; y: 193px; width: 146px; label: "历史"; icon: @image-url("../icons/lucide/history.svg"); selected: root.current-page == AppPage.history; activated => { root.current-page = AppPage.history; } }
-    NavItem { x: 26px; y: 235px; width: 146px; label: "词典"; icon: @image-url("../icons/lucide/book-open.svg"); selected: root.current-page == AppPage.dictionary; activated => { root.current-page = AppPage.dictionary; } }
-    NavItem { x: 26px; y: 277px; width: 146px; label: "设置"; icon: @image-url("../icons/lucide/settings.svg"); selected: root.current-page == AppPage.settings; activated => { root.current-page = AppPage.settings; } }
+    NavItem { x: 26px; y: 109px; width: 146px; label: @tr("navigation.home" => "Home"); icon: @image-url("../icons/lucide/house.svg"); selected: root.current-page == AppPage.home; activated => { root.current-page = AppPage.home; } }
+    NavItem { x: 26px; y: 151px; width: 146px; label: @tr("navigation.models" => "Models"); icon: @image-url("../icons/lucide/sparkles.svg"); selected: root.current-page == AppPage.models; activated => { root.current-page = AppPage.models; } }
+    NavItem { x: 26px; y: 193px; width: 146px; label: @tr("navigation.history" => "History"); icon: @image-url("../icons/lucide/history.svg"); selected: root.current-page == AppPage.history; activated => { root.current-page = AppPage.history; } }
+    NavItem { x: 26px; y: 235px; width: 146px; label: @tr("navigation.dictionary" => "Dictionary"); icon: @image-url("../icons/lucide/book-open.svg"); selected: root.current-page == AppPage.dictionary; activated => { root.current-page = AppPage.dictionary; } }
+    NavItem { x: 26px; y: 277px; width: 146px; label: @tr("navigation.settings" => "Settings"); icon: @image-url("../icons/lucide/settings.svg"); selected: root.current-page == AppPage.settings; activated => { root.current-page = AppPage.settings; } }
 
     Rectangle {
         x: 9px;
@@ -40,18 +42,21 @@ export component AppSidebar inherits Rectangle {
         border-radius: 14px;
         background: AppColors.surface;
 
-        Text { x: 12px; y: 11px; text: "本地存储"; color: AppColors.text-muted; font-size: 11px; font-weight: 600; }
-        Text { x: 12px; y: 35px; text: "0 MB"; color: AppColors.ink; font-size: 15px; font-weight: 700; }
-        Text { x: 57px; y: 40px; text: "/ 2 GB"; color: AppColors.text-muted; font-size: 10px; }
-        Rectangle { x: 12px; y: 67px; width: parent.width - 24px; height: 4px; border-radius: 2px; background: AppColors.progress-track; Rectangle { width: 4px; height: 4px; border-radius: 2px; background: AppColors.brand; } }
+        Text { x: 12px; y: 11px; text: @tr("storage.local.title" => "Local storage"); color: AppColors.text-muted; font-size: 11px; font-weight: 600; }
+        Text { x: 12px; y: 35px; text: root.storage-usage; color: AppColors.ink; font-size: 15px; font-weight: 700; }
         Rectangle {
             x: 12px;
-            y: 79px;
+            y: 72px;
             width: parent.width - 24px;
             height: 28px;
             border-radius: 7px;
-            background: AppColors.surface-subtle;
-            Text { text: "管理空间"; color: AppColors.text; font-size: 10px; font-weight: 600; horizontal-alignment: center; vertical-alignment: center; }
+            background: manage-touch.pressed ? AppColors.chart-neutral : manage-touch.has-hover ? AppColors.selected : AppColors.surface-subtle;
+            animate background { duration: 100ms; easing: ease-out; }
+            accessible-role: button;
+            accessible-label: @tr("storage.manage.accessible-label" => "Manage local storage");
+            accessible-action-default => { root.manage-storage(); }
+            Text { text: @tr("storage.manage.action" => "Manage storage"); color: AppColors.text; font-size: 10px; font-weight: 600; horizontal-alignment: center; vertical-alignment: center; }
+            manage-touch := TouchArea { mouse-cursor: pointer; clicked => { root.manage-storage(); } }
         }
     }
 
@@ -59,7 +64,7 @@ export component AppSidebar inherits Rectangle {
         x: 0px;
         y: parent.height - 22px;
         width: parent.width;
-        text: "本地优先 · 隐私保护";
+        text: @tr("sidebar.privacy-tagline" => "Local-first · Privacy protected");
         color: AppColors.text-muted;
         font-size: 9px;
         horizontal-alignment: center;

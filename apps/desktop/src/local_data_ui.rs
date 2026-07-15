@@ -4,15 +4,23 @@ use std::{
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
-use chrono::{Local, TimeZone};
 use slint::{ComponentHandle, ModelRc, SharedString, Timer, VecModel};
 use template_app::{
-    DictionaryOrigin, DictionaryStore, HistoryCursor, HistoryDelivery, HistoryRecord,
-    HistoryRefinement, HistoryRetention, HistoryStore, LocalSettingsStore, NewDictionaryEntry,
+    HistoryCursor, HistoryRecord, HistoryRetention, HistoryStore, LocalSettingsStore,
 };
-use template_infra::{DictionaryFiles, SqliteStorage, copy_text_to_clipboard};
+use template_infra::{MacOsAudioRecorder, SqliteStorage, copy_text_to_clipboard};
 
-use crate::ui::{AppWindow, DictionaryListItem, HistoryListItem};
+use crate::ui::{
+    AppWindow, AudioInputDevice as UiAudioInputDevice,
+    HistoryRetentionOption as UiHistoryRetention, Translations,
+};
+
+mod dictionary_ui;
+mod history_query;
+
+use history_query::{
+    apply_history_error, load_more_history_async, refresh_history_async, set_history_model,
+};
 
 #[derive(Default)]
 struct UiDataState {
@@ -22,23 +30,35 @@ struct UiDataState {
     load_more_in_flight: bool,
     pending_history_delete: Option<(u64, String)>,
     delete_generation: u64,
+    history_query: String,
 }
 
-pub fn wire(ui: &AppWindow, storage: Arc<SqliteStorage>) {
+pub fn wire(
+    ui: &AppWindow,
+    storage: Arc<SqliteStorage>,
+    recorder: Arc<Mutex<MacOsAudioRecorder>>,
+    settings_guard: Arc<Mutex<()>>,
+) {
     let state = Arc::new(Mutex::new(UiDataState::default()));
-    let settings_guard = Arc::new(Mutex::new(()));
+    let dictionary_state = Arc::new(Mutex::new(dictionary_ui::DictionaryUiState::default()));
     if let Err(error) = storage.cleanup_history(now_ms()) {
-        ui.set_history_status(SharedString::from(error.to_string()));
+        tracing::warn!(event = "history.cleanup_failed", reason = %error);
+        ui.set_history_status(ui.global::<Translations>().get_storage_error());
     }
-    load_initial(ui, &storage);
+    load_initial(ui, &storage, &dictionary_state);
     wire_history(ui, Arc::clone(&storage), Arc::clone(&state));
-    wire_dictionary(ui, Arc::clone(&storage));
-    wire_local_settings(ui, Arc::clone(&storage), settings_guard);
+    dictionary_ui::wire(ui, Arc::clone(&storage), dictionary_state);
+    wire_local_settings(ui, Arc::clone(&storage), settings_guard, recorder);
+    refresh_microphone_devices_async(ui.as_weak(), Arc::clone(&storage));
     schedule_history_cleanup(ui.as_weak(), storage, state);
 }
 
-fn load_initial(ui: &AppWindow, storage: &SqliteStorage) {
-    refresh_dictionary(ui, storage);
+fn load_initial(
+    ui: &AppWindow,
+    storage: &SqliteStorage,
+    dictionary_state: &Arc<Mutex<dictionary_ui::DictionaryUiState>>,
+) {
+    dictionary_ui::load_initial(ui, storage, dictionary_state);
     if let Ok(settings) = storage.load_settings() {
         apply_settings(ui, &settings);
     }
@@ -53,6 +73,20 @@ fn wire_history(ui: &AppWindow, storage: Arc<SqliteStorage>, state: Arc<Mutex<Ui
             refresh_ui.clone(),
             Arc::clone(&refresh_store),
             Arc::clone(&refresh_state),
+        );
+    });
+
+    let search_ui = ui.as_weak();
+    let search_store = Arc::clone(&storage);
+    let search_state = Arc::clone(&state);
+    ui.on_search_history(move |query| {
+        if let Ok(mut state) = search_state.lock() {
+            state.history_query = query.to_string();
+        }
+        refresh_history_async(
+            search_ui.clone(),
+            Arc::clone(&search_store),
+            Arc::clone(&search_state),
         );
     });
 
@@ -127,7 +161,10 @@ fn wire_history(ui: &AppWindow, storage: Arc<SqliteStorage>, state: Arc<Mutex<Ui
                     }
                     ui.invoke_refresh_usage();
                 }
-                Err(error) => ui.set_history_status(SharedString::from(error.to_string())),
+                Err(error) => {
+                    tracing::warn!(event = "history.clear_failed", reason = %error);
+                    ui.set_history_status(ui.global::<Translations>().get_storage_error());
+                }
             });
         });
     });
@@ -152,7 +189,7 @@ fn wire_history(ui: &AppWindow, storage: Arc<SqliteStorage>, state: Arc<Mutex<Ui
                     ui.set_history_locked(false);
                     ui.set_history_has_more(false);
                     ui.set_history_undo_visible(false);
-                    ui.set_history_status(SharedString::from("历史已重新初始化"));
+                    ui.set_history_status(ui.global::<Translations>().get_history_reset_complete());
                     ui.invoke_refresh_usage();
                 }
                 Err(error) => apply_history_error(&ui, error),
@@ -233,271 +270,11 @@ fn commit_history_delete(
     });
 }
 
-fn refresh_history_async(
-    ui: slint::Weak<AppWindow>,
-    storage: Arc<SqliteStorage>,
-    state: Arc<Mutex<UiDataState>>,
-) {
-    let generation = if let Ok(mut state) = state.lock() {
-        state.history_generation = state.history_generation.saturating_add(1);
-        state.load_more_in_flight = false;
-        state.history_generation
-    } else {
-        return;
-    };
-    spawn_named("saymore-load-history", move || {
-        let result = storage.history_page(None, 50);
-        let _ = ui.upgrade_in_event_loop(move |ui| match result {
-            Ok(page) => {
-                if let Ok(mut state) = state.lock() {
-                    if state.history_generation != generation {
-                        return;
-                    }
-                    state.history = page.records;
-                    state.next_history_cursor = page.next_cursor;
-                    set_history_model(&ui, &state);
-                    ui.set_history_has_more(state.next_history_cursor.is_some());
-                    ui.set_history_locked(false);
-                    ui.set_history_status(SharedString::new());
-                }
-            }
-            Err(error) => apply_history_error(&ui, error),
-        });
-    });
-}
-
-fn load_more_history_async(
-    ui: slint::Weak<AppWindow>,
-    storage: Arc<SqliteStorage>,
-    state: Arc<Mutex<UiDataState>>,
-) {
-    let (cursor, generation) = if let Ok(mut state) = state.lock() {
-        if state.load_more_in_flight {
-            return;
-        }
-        let Some(cursor) = state.next_history_cursor.clone() else {
-            return;
-        };
-        state.load_more_in_flight = true;
-        (cursor, state.history_generation)
-    } else {
-        return;
-    };
-    spawn_named("saymore-load-more-history", move || {
-        let result = storage.history_page(Some(cursor), 50);
-        let _ = ui.upgrade_in_event_loop(move |ui| match result {
-            Ok(page) => {
-                if let Ok(mut state) = state.lock() {
-                    if state.history_generation != generation {
-                        return;
-                    }
-                    state.load_more_in_flight = false;
-                    state.history.extend(page.records);
-                    state.next_history_cursor = page.next_cursor;
-                    set_history_model(&ui, &state);
-                    ui.set_history_has_more(state.next_history_cursor.is_some());
-                    ui.set_history_status(SharedString::new());
-                }
-            }
-            Err(error) => {
-                if let Ok(mut state) = state.lock()
-                    && state.history_generation == generation
-                {
-                    state.load_more_in_flight = false;
-                }
-                apply_history_error(&ui, error);
-            }
-        });
-    });
-}
-
-fn apply_history_error(ui: &AppWindow, error: template_app::StorageError) {
-    ui.set_history_locked(matches!(
-        &error,
-        template_app::StorageError::HistoryLocked | template_app::StorageError::Invalid(_)
-    ));
-    ui.set_history_status(SharedString::from(error.to_string()));
-}
-
-fn set_history_model(ui: &AppWindow, state: &UiDataState) {
-    let pending = state
-        .pending_history_delete
-        .as_ref()
-        .map(|(_, id)| id.as_str());
-    let items = state
-        .history
-        .iter()
-        .filter(|record| Some(record.id.as_str()) != pending)
-        .map(history_item)
-        .collect::<Vec<_>>();
-    ui.set_history_items(ModelRc::new(VecModel::from(items)));
-}
-
-fn history_item(record: &HistoryRecord) -> HistoryListItem {
-    let time = Local
-        .timestamp_millis_opt(record.created_at_ms)
-        .single()
-        .map(|value| value.format("%Y-%m-%d %H:%M").to_string())
-        .unwrap_or_else(|| record.created_at_ms.to_string());
-    let delivery = match record.delivery {
-        HistoryDelivery::Delivered => "已输入",
-        HistoryDelivery::NotDelivered => "未输入到目标应用",
-    };
-    let refinement = match record.refinement {
-        HistoryRefinement::NotUsed => "未使用精炼",
-        HistoryRefinement::Completed => "精炼完成",
-        HistoryRefinement::TimedOut => "精炼超时",
-        HistoryRefinement::ProviderUnavailable => "精炼服务不可用",
-        HistoryRefinement::OutputRejected => "精炼结果已拒绝",
-    };
-    HistoryListItem {
-        id: SharedString::from(&record.id),
-        text: SharedString::from(&record.final_text),
-        raw_asr_text: SharedString::from(record.raw_asr_text.as_deref().unwrap_or_default()),
-        has_raw_asr_text: record.raw_asr_text.is_some(),
-        refined_text: SharedString::from(record.llm_refined_text.as_deref().unwrap_or_default()),
-        has_refined_text: record.llm_refined_text.is_some(),
-        time: SharedString::from(time),
-        detail: SharedString::from(format!(
-            "{:.1} 秒 · {refinement} · {delivery}",
-            record.audio_duration_ms as f64 / 1_000.0
-        )),
-        delivered: record.delivery == HistoryDelivery::Delivered,
-    }
-}
-
-fn wire_dictionary(ui: &AppWindow, storage: Arc<SqliteStorage>) {
-    let refresh_ui = ui.as_weak();
-    let refresh_store = Arc::clone(&storage);
-    ui.on_refresh_dictionary(move || {
-        refresh_dictionary_async(refresh_ui.clone(), Arc::clone(&refresh_store));
-    });
-    wire_dictionary_entry_actions(ui, Arc::clone(&storage));
-    wire_dictionary_file_actions(ui, storage);
-}
-
-fn refresh_dictionary_async(ui: slint::Weak<AppWindow>, storage: Arc<SqliteStorage>) {
-    spawn_named("saymore-refresh-dictionary", move || {
-        let entries = storage.list_dictionary();
-        let _ = ui.upgrade_in_event_loop(move |ui| match entries {
-            Ok(entries) => set_dictionary_model(&ui, entries),
-            Err(error) => ui.set_dictionary_status(SharedString::from(error.to_string())),
-        });
-    });
-}
-
-fn wire_dictionary_entry_actions(ui: &AppWindow, storage: Arc<SqliteStorage>) {
-    let add_ui = ui.as_weak();
-    let add_store = Arc::clone(&storage);
-    ui.on_add_dictionary_word(move |word, language| {
-        let ui = add_ui.clone();
-        let store = Arc::clone(&add_store);
-        spawn_named("saymore-add-dictionary", move || {
-            let result = store.upsert_dictionary(
-                NewDictionaryEntry {
-                    canonical: word.to_string(),
-                    language: language.to_string(),
-                    variants: Vec::new(),
-                    origin: DictionaryOrigin::Manual,
-                },
-                now_ms(),
-            );
-            refresh_dictionary_after(
-                ui,
-                store,
-                result
-                    .map(|_| "已添加".to_owned())
-                    .map_err(|error| error.to_string()),
-            );
-        });
-    });
-
-    let delete_ui = ui.as_weak();
-    let delete_store = Arc::clone(&storage);
-    ui.on_delete_dictionary_word(move |id| {
-        let ui = delete_ui.clone();
-        let store = Arc::clone(&delete_store);
-        spawn_named("saymore-delete-dictionary", move || {
-            let result = store.delete_dictionary(id.as_str());
-            refresh_dictionary_after(
-                ui,
-                store,
-                result
-                    .map(|()| "已删除".to_owned())
-                    .map_err(|error| error.to_string()),
-            );
-        });
-    });
-}
-
-fn wire_dictionary_file_actions(ui: &AppWindow, storage: Arc<SqliteStorage>) {
-    let import_ui = ui.as_weak();
-    let import_store = Arc::clone(&storage);
-    ui.on_import_dictionary_csv(move || {
-        let Some(path) = rfd::FileDialog::new()
-            .add_filter("CSV", &["csv"])
-            .pick_file()
-        else {
-            return;
-        };
-        let ui = import_ui.clone();
-        let store = Arc::clone(&import_store);
-        spawn_named("saymore-import-dictionary", move || {
-            let dictionary_store: Arc<dyn DictionaryStore> = store.clone();
-            let result = DictionaryFiles::new(dictionary_store)
-                .import_csv(&path, "zh-Hans", now_ms())
-                .map(|report| format!("已导入 {} 个词条", report.added));
-            refresh_dictionary_after(ui, store, result.map_err(|error| error.to_string()));
-        });
-    });
-}
-
-fn refresh_dictionary_after(
-    ui: slint::Weak<AppWindow>,
-    store: Arc<SqliteStorage>,
-    result: Result<String, String>,
-) {
-    let entries = store.list_dictionary();
-    let status = match result {
-        Ok(message) => message,
-        Err(error) => error,
-    };
-    let _ = ui.upgrade_in_event_loop(move |ui| {
-        match entries {
-            Ok(entries) => set_dictionary_model(&ui, entries),
-            Err(error) => ui.set_dictionary_status(SharedString::from(error.to_string())),
-        }
-        ui.set_dictionary_status(SharedString::from(status));
-    });
-}
-
-fn refresh_dictionary(ui: &AppWindow, storage: &SqliteStorage) {
-    match storage.list_dictionary() {
-        Ok(entries) => set_dictionary_model(ui, entries),
-        Err(error) => ui.set_dictionary_status(SharedString::from(error.to_string())),
-    }
-}
-
-fn set_dictionary_model(ui: &AppWindow, entries: Vec<template_app::DictionaryEntry>) {
-    let items = entries
-        .into_iter()
-        .map(|entry| DictionaryListItem {
-            id: SharedString::from(entry.id),
-            canonical: SharedString::from(entry.canonical),
-            language: SharedString::from(entry.language),
-            origin: SharedString::from(match entry.origin {
-                DictionaryOrigin::Manual => "手动添加",
-                DictionaryOrigin::Automatic => "自动学习",
-            }),
-        })
-        .collect::<Vec<_>>();
-    ui.set_dictionary_items(ModelRc::new(VecModel::from(items)));
-}
-
 fn wire_local_settings(
     ui: &AppWindow,
     storage: Arc<SqliteStorage>,
     settings_guard: Arc<Mutex<()>>,
+    recorder: Arc<Mutex<MacOsAudioRecorder>>,
 ) {
     let history_ui = ui.as_weak();
     let history_store = Arc::clone(&storage);
@@ -513,20 +290,126 @@ fn wire_local_settings(
     let retention_ui = ui.as_weak();
     let retention_store = Arc::clone(&storage);
     let retention_guard = Arc::clone(&settings_guard);
-    ui.on_set_history_retention(move |label| {
-        let retention = match label.as_str() {
-            "1 天" => HistoryRetention::OneDay,
-            "30 天" => HistoryRetention::ThirtyDays,
-            "永久" => HistoryRetention::Forever,
-            "7 天" => HistoryRetention::SevenDays,
-            _ => HistoryRetention::SevenDays,
+    ui.on_set_history_retention(move |selection| {
+        let (enabled, retention) = match selection {
+            UiHistoryRetention::Never => (false, HistoryRetention::SevenDays),
+            UiHistoryRetention::OneDay => (true, HistoryRetention::OneDay),
+            UiHistoryRetention::SevenDays => (true, HistoryRetention::SevenDays),
+            UiHistoryRetention::ThirtyDays => (true, HistoryRetention::ThirtyDays),
+            UiHistoryRetention::Forever => (true, HistoryRetention::Forever),
         };
         update_settings(
             retention_ui.clone(),
             Arc::clone(&retention_store),
             Arc::clone(&retention_guard),
-            move |settings| settings.history_retention = retention,
+            move |settings| {
+                settings.history_enabled = enabled;
+                settings.history_retention = retention;
+            },
         );
+    });
+
+    let microphone_ui = ui.as_weak();
+    let microphone_store = Arc::clone(&storage);
+    let microphone_guard = Arc::clone(&settings_guard);
+    let microphone_recorder = Arc::clone(&recorder);
+    ui.on_select_microphone(move |id, name| {
+        save_microphone_selection_async(
+            microphone_ui.clone(),
+            Arc::clone(&microphone_store),
+            Arc::clone(&microphone_guard),
+            Arc::clone(&microphone_recorder),
+            (!id.is_empty()).then(|| id.to_string()),
+            (!name.is_empty()).then(|| name.to_string()),
+        );
+    });
+
+    let refresh_microphone_ui = ui.as_weak();
+    let refresh_microphone_store = Arc::clone(&storage);
+    ui.on_refresh_microphones(move || {
+        refresh_microphone_devices_async(
+            refresh_microphone_ui.clone(),
+            Arc::clone(&refresh_microphone_store),
+        );
+    });
+}
+
+fn save_microphone_selection_async(
+    ui: slint::Weak<AppWindow>,
+    storage: Arc<SqliteStorage>,
+    guard: Arc<Mutex<()>>,
+    recorder: Arc<Mutex<MacOsAudioRecorder>>,
+    preferred_id: Option<String>,
+    preferred_name: Option<String>,
+) {
+    spawn_named("saymore-save-microphone-selection", move || {
+        let saved_id = preferred_id.clone();
+        let result = guard
+            .lock()
+            .map_err(|_| "settings update lock was poisoned".to_owned())
+            .and_then(|_guard| {
+                let mut settings = storage.load_settings().map_err(|error| error.to_string())?;
+                settings.preferred_microphone_id = preferred_id;
+                settings.preferred_microphone_name = preferred_name;
+                storage
+                    .save_settings(settings.clone())
+                    .map(|()| settings)
+                    .map_err(|error| error.to_string())
+            });
+        if result.is_ok() {
+            if let Ok(mut recorder) = recorder.lock() {
+                recorder.set_preferred_input_device_id(saved_id);
+            } else {
+                tracing::error!(
+                    event = "microphone.selection_update_failed",
+                    reason = "recorder lock was poisoned"
+                );
+            }
+        }
+        let refresh_ui = ui.clone();
+        let refresh_storage = Arc::clone(&storage);
+        let _ = ui.upgrade_in_event_loop(move |ui| match result {
+            Ok(settings) => {
+                apply_settings(&ui, &settings);
+                apply_microphone_devices(&ui, &settings, Vec::new());
+                ui.set_microphone_selection_status(SharedString::new());
+                refresh_microphone_devices_async(refresh_ui, refresh_storage);
+            }
+            Err(error) => {
+                tracing::warn!(event = "microphone.selection_save_failed", reason = %error);
+                ui.set_microphone_selection_status(
+                    ui.global::<Translations>().get_settings_save_failed(),
+                );
+            }
+        });
+    });
+}
+
+fn refresh_microphone_devices_async(ui: slint::Weak<AppWindow>, storage: Arc<SqliteStorage>) {
+    if let Some(window) = ui.upgrade() {
+        window.set_microphone_devices_loading(true);
+    }
+    spawn_named("saymore-list-microphones", move || {
+        let result = storage
+            .load_settings()
+            .map_err(|error| error.to_string())
+            .and_then(|settings| {
+                MacOsAudioRecorder::input_devices()
+                    .map(|devices| (settings, devices))
+                    .map_err(|error| error.to_string())
+            });
+        let _ = ui.upgrade_in_event_loop(move |ui| {
+            ui.set_microphone_devices_loading(false);
+            match result {
+                Ok((settings, devices)) => apply_microphone_devices(&ui, &settings, devices),
+                Err(error) => {
+                    tracing::warn!(event = "microphone.list_failed", reason = %error);
+                    ui.set_microphone_selection_status(
+                        ui.global::<Translations>().get_microphone_load_failed(),
+                    );
+                }
+            }
+        });
     });
 }
 
@@ -549,8 +432,14 @@ fn update_settings(
                     .map_err(|error| error.to_string())
             });
         let _ = ui.upgrade_in_event_loop(move |ui| match result {
-            Ok(settings) => apply_settings(&ui, &settings),
-            Err(error) => ui.set_history_status(SharedString::from(error)),
+            Ok(settings) => {
+                apply_settings(&ui, &settings);
+                ui.invoke_refresh_history();
+            }
+            Err(error) => {
+                tracing::warn!(event = "history.settings_save_failed", reason = %error);
+                ui.set_history_status(ui.global::<Translations>().get_settings_save_failed());
+            }
         });
     });
 }
@@ -583,7 +472,8 @@ fn refresh_history_after_cleanup(
             Err(error) => {
                 let message = error.to_string();
                 let _ = ui.upgrade_in_event_loop(move |ui| {
-                    ui.set_history_status(SharedString::from(message));
+                    tracing::warn!(event = "history.scheduled_cleanup_failed", reason = %message);
+                    ui.set_history_status(ui.global::<Translations>().get_storage_error());
                 });
             }
         }
@@ -592,12 +482,81 @@ fn refresh_history_after_cleanup(
 
 fn apply_settings(ui: &AppWindow, settings: &template_app::LocalSettings) {
     ui.set_history_enabled(settings.history_enabled);
-    ui.set_history_retention(SharedString::from(match settings.history_retention {
-        HistoryRetention::OneDay => "1 天",
-        HistoryRetention::SevenDays => "7 天",
-        HistoryRetention::ThirtyDays => "30 天",
-        HistoryRetention::Forever => "永久",
-    }));
+    ui.set_history_retention(if !settings.history_enabled {
+        UiHistoryRetention::Never
+    } else {
+        match settings.history_retention {
+            HistoryRetention::OneDay => UiHistoryRetention::OneDay,
+            HistoryRetention::SevenDays => UiHistoryRetention::SevenDays,
+            HistoryRetention::ThirtyDays => UiHistoryRetention::ThirtyDays,
+            HistoryRetention::Forever => UiHistoryRetention::Forever,
+        }
+    });
+    ui.set_diagnostics_enabled(settings.diagnostics_logging_enabled);
+}
+
+fn apply_microphone_devices(
+    ui: &AppWindow,
+    settings: &template_app::LocalSettings,
+    devices: Vec<template_app::AudioInputDevice>,
+) {
+    let default_name = devices
+        .iter()
+        .find(|device| device.is_system_default)
+        .map(|device| device.name.as_str());
+    let default_label = default_name.map_or_else(
+        || {
+            ui.global::<Translations>()
+                .get_microphone_system_default()
+                .to_string()
+        },
+        |name| {
+            ui.global::<Translations>()
+                .invoke_microphone_system_default_named(name.into())
+                .to_string()
+        },
+    );
+    let selected_available = settings
+        .preferred_microphone_id
+        .as_deref()
+        .is_some_and(|id| devices.iter().any(|device| device.id == id));
+    let selection_label = settings
+        .preferred_microphone_id
+        .as_deref()
+        .and_then(|id| {
+            devices
+                .iter()
+                .find(|device| device.id == id)
+                .map(|device| device.name.clone())
+        })
+        .or_else(|| {
+            settings.preferred_microphone_name.as_deref().map(|name| {
+                ui.global::<Translations>()
+                    .invoke_microphone_disconnected(name.into())
+                    .to_string()
+            })
+        })
+        .unwrap_or_else(|| default_label.clone());
+    let devices = devices
+        .into_iter()
+        .map(|device| UiAudioInputDevice {
+            id: SharedString::from(device.id),
+            name: SharedString::from(device.name),
+        })
+        .collect::<Vec<_>>();
+
+    ui.set_microphone_devices(ModelRc::new(VecModel::from(devices)));
+    ui.set_microphone_selection_id(SharedString::from(
+        settings
+            .preferred_microphone_id
+            .as_deref()
+            .unwrap_or_default(),
+    ));
+    ui.set_microphone_default_label(SharedString::from(default_label));
+    ui.set_microphone_selection_label(SharedString::from(selection_label));
+    if settings.preferred_microphone_id.is_none() || selected_available {
+        ui.set_microphone_selection_status(SharedString::new());
+    }
 }
 
 fn now_ms() -> i64 {
@@ -607,7 +566,7 @@ fn now_ms() -> i64 {
         .unwrap_or_default()
 }
 
-fn spawn_named(name: &str, task: impl FnOnce() + Send + 'static) {
+pub(super) fn spawn_named(name: &str, task: impl FnOnce() + Send + 'static) {
     if thread::Builder::new()
         .name(name.to_owned())
         .spawn(task)

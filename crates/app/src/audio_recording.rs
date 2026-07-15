@@ -22,6 +22,18 @@ pub struct RecordingMetrics {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RecordingStarted {
     pub input_device_name: String,
+    pub used_system_fallback: bool,
+}
+
+/// An input-capable microphone exposed by the operating system.
+///
+/// `id` is a platform-provided stable identifier suitable for persistence. `name`
+/// is presentation-only and may change when the device is renamed by the system.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AudioInputDevice {
+    pub id: String,
+    pub name: String,
+    pub is_system_default: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -1,9 +1,9 @@
-use rusqlite::Connection;
+use rusqlite::{Connection, Transaction};
 use template_app::{StorageError, dictionary_comparison_key};
 
 use super::unavailable;
 
-const CURRENT_SCHEMA_VERSION: u32 = 4;
+const CURRENT_SCHEMA_VERSION: u32 = 8;
 
 pub(super) fn apply(connection: &mut Connection) -> Result<(), StorageError> {
     let version: u32 = connection
@@ -24,7 +24,137 @@ pub(super) fn apply(connection: &mut Connection) -> Result<(), StorageError> {
     if version < 4 {
         preserve_dictionary_token_boundaries(connection)?;
     }
+    if version < 5 {
+        remove_dictionary_variant_mappings(connection)?;
+    }
+    if version < 6 {
+        add_preferred_microphone(connection)?;
+    }
+    if version < 7 {
+        add_diagnostics_logging_setting(connection)?;
+    }
+    if version < 8 {
+        add_ui_language_setting(connection)?;
+    }
     Ok(())
+}
+
+fn add_ui_language_setting(connection: &mut Connection) -> Result<(), StorageError> {
+    let transaction = connection.transaction().map_err(unavailable)?;
+    if !app_settings_has_column(&transaction, "ui_language")? {
+        transaction
+            .execute_batch(
+                "ALTER TABLE app_settings
+                 ADD COLUMN ui_language TEXT NOT NULL DEFAULT 'system'
+                 CHECK (ui_language IN ('system', 'en', 'zh-Hans'));",
+            )
+            .map_err(unavailable)?;
+    }
+    transaction
+        .execute_batch("PRAGMA user_version = 8;")
+        .map_err(unavailable)?;
+    transaction.commit().map_err(unavailable)
+}
+
+fn add_preferred_microphone(connection: &mut Connection) -> Result<(), StorageError> {
+    let transaction = connection.transaction().map_err(unavailable)?;
+    if !app_settings_has_column(&transaction, "preferred_microphone_id")? {
+        transaction
+            .execute_batch("ALTER TABLE app_settings ADD COLUMN preferred_microphone_id TEXT;")
+            .map_err(unavailable)?;
+    }
+    if !app_settings_has_column(&transaction, "preferred_microphone_name")? {
+        transaction
+            .execute_batch("ALTER TABLE app_settings ADD COLUMN preferred_microphone_name TEXT;")
+            .map_err(unavailable)?;
+    }
+    transaction
+        .execute_batch("PRAGMA user_version = 6;")
+        .map_err(unavailable)?;
+    transaction.commit().map_err(unavailable)
+}
+
+fn add_diagnostics_logging_setting(connection: &mut Connection) -> Result<(), StorageError> {
+    let transaction = connection.transaction().map_err(unavailable)?;
+    if !app_settings_has_column(&transaction, "diagnostics_logging_enabled")? {
+        transaction
+            .execute_batch(
+                "ALTER TABLE app_settings
+                 ADD COLUMN diagnostics_logging_enabled INTEGER NOT NULL DEFAULT 0
+                 CHECK (diagnostics_logging_enabled IN (0, 1));",
+            )
+            .map_err(unavailable)?;
+    }
+    transaction
+        .execute_batch("PRAGMA user_version = 7;")
+        .map_err(unavailable)?;
+    transaction.commit().map_err(unavailable)
+}
+
+fn app_settings_has_column(
+    transaction: &Transaction<'_>,
+    column: &str,
+) -> Result<bool, StorageError> {
+    transaction
+        .query_row(
+            "SELECT EXISTS(
+                SELECT 1 FROM pragma_table_info('app_settings') WHERE name = ?1
+             )",
+            [column],
+            |row| row.get(0),
+        )
+        .map_err(unavailable)
+}
+
+fn remove_dictionary_variant_mappings(connection: &mut Connection) -> Result<(), StorageError> {
+    let transaction = connection.transaction().map_err(unavailable)?;
+    transaction
+        .execute_batch(
+            "ALTER TABLE term_observations RENAME TO term_observations_with_variants;
+             ALTER TABLE dictionary_candidates RENAME TO dictionary_candidates_with_variants;
+             DROP INDEX term_observations_candidate;
+             CREATE TABLE term_observations (
+                dictation_id TEXT NOT NULL,
+                language TEXT NOT NULL,
+                canonical TEXT NOT NULL,
+                canonical_key TEXT NOT NULL,
+                occurrence_count INTEGER NOT NULL CHECK (occurrence_count > 0),
+                observed_at_ms INTEGER NOT NULL,
+                PRIMARY KEY(dictation_id, language, canonical_key)
+             );
+             CREATE INDEX term_observations_candidate
+                ON term_observations(language, canonical_key, observed_at_ms);
+             INSERT INTO term_observations(
+                dictation_id, language, canonical, canonical_key,
+                occurrence_count, observed_at_ms
+             )
+             SELECT dictation_id, language, MAX(canonical), canonical_key,
+                    SUM(occurrence_count), MAX(observed_at_ms)
+             FROM term_observations_with_variants
+             GROUP BY dictation_id, language, canonical_key;
+             CREATE TABLE dictionary_candidates (
+                language TEXT NOT NULL,
+                canonical_key TEXT NOT NULL,
+                occurrence_count INTEGER NOT NULL,
+                dictation_count INTEGER NOT NULL,
+                last_observed_at_ms INTEGER NOT NULL,
+                PRIMARY KEY(language, canonical_key)
+             );
+             INSERT INTO dictionary_candidates(
+                language, canonical_key, occurrence_count,
+                dictation_count, last_observed_at_ms
+             )
+             SELECT language, canonical_key, SUM(occurrence_count),
+                    COUNT(DISTINCT dictation_id), MAX(observed_at_ms)
+             FROM term_observations
+             GROUP BY language, canonical_key;
+             DROP TABLE term_observations_with_variants;
+             DROP TABLE dictionary_candidates_with_variants;
+             DROP TABLE IF EXISTS dictionary_variants;
+             PRAGMA user_version = 5;",
+        )
+        .map_err(unavailable)?;
+    transaction.commit().map_err(unavailable)
 }
 
 fn preserve_dictionary_token_boundaries(connection: &mut Connection) -> Result<(), StorageError> {

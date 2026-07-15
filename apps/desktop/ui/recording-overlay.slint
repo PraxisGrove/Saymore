@@ -4,18 +4,19 @@ export component RecordingOverlay inherits Window {
     title: "Saymore Recording";
     default-font-family: "Inter";
     preferred-width: 120px;
-    preferred-height: 32px;
+    preferred-height: 35px;
     min-width: 120px;
-    min-height: 32px;
+    min-height: 35px;
     max-width: 120px;
-    max-height: 32px;
+    max-height: 35px;
     no-frame: true;
     always-on-top: true;
     background: transparent;
 
     in property <float> recording-level: 0;
-    in property <string> processing-label: "正在转写";
-    // 0 = recording, 1 = processing, 2 = cancelled, 3 = delivered, 4 = refinement failed
+    in property <string> processing-label: @tr("recording.processing.transcribing" => "Transcribing");
+    in-out property <int> session-generation: 0;
+    // 0 = recording, 1 = processing, 2 = cancelled, 3 = refinement failed
     in property <int> mode: 0;
     callback cancel();
     callback finish();
@@ -23,49 +24,50 @@ export component RecordingOverlay inherits Window {
 
     capsule := Rectangle {
         width: 120px;
-        height: 32px;
-        border-radius: 16px;
+        height: 35px;
+        border-radius: 17.5px;
         background: #11110f;
         border-width: 1px;
-        border-color: root.mode == 3 ? #5b9e00 : root.mode == 4 ? #c98200 : #454543;
+        border-color: root.mode == 3 ? #c98200 : #454543;
         if root.mode == 0: recording-state := Rectangle {
-            private property <float> wave-scale: 0.45 + root.recording-level * 0.55;
-            animate wave-scale { duration: 90ms; easing: ease-out; }
+            private property <float> wave-energy: 0.22 + root.recording-level * 0.78;
 
             Rectangle {
                 x: 3px;
                 y: 3px;
-                width: 26px;
-                height: 26px;
-                border-radius: 13px;
-                background: cancel-area.has-hover ? #4a4946 : #353537;
-                border-width: 1px;
-                border-color: #535357;
+                width: 29px;
+                height: 29px;
+                border-radius: 14.5px;
+                background: cancel-area.pressed ? #5a5956 : cancel-area.has-hover ? #4a4946 : #353537;
                 accessible-role: button;
-                accessible-label: "取消录音";
+                accessible-label: @tr("recording.cancel.accessible-label" => "Cancel recording");
                 accessible-action-default => { root.cancel(); }
 
                 Text { text: "×"; color: #d1cfc5; font-size: 18px; horizontal-alignment: center; vertical-alignment: center; }
                 cancel-area := TouchArea { mouse-cursor: pointer; clicked => { root.cancel(); } }
             }
 
-            Rectangle { x: 39px; width: 3px; height: 6px * recording-state.wave-scale; y: (parent.height - self.height) / 2; border-radius: 2px; background: #faf9f5; }
-            Rectangle { x: 46px; width: 3px; height: 10px * recording-state.wave-scale; y: (parent.height - self.height) / 2; border-radius: 2px; background: #faf9f5; }
-            Rectangle { x: 53px; width: 3px; height: 15px * recording-state.wave-scale; y: (parent.height - self.height) / 2; border-radius: 2px; background: #faf9f5; }
-            Rectangle { x: 60px; width: 3px; height: 20px * recording-state.wave-scale; y: (parent.height - self.height) / 2; border-radius: 2px; background: #e97858; }
-            Rectangle { x: 67px; width: 3px; height: 15px * recording-state.wave-scale; y: (parent.height - self.height) / 2; border-radius: 2px; background: #faf9f5; }
-            Rectangle { x: 74px; width: 3px; height: 10px * recording-state.wave-scale; y: (parent.height - self.height) / 2; border-radius: 2px; background: #faf9f5; }
-            Rectangle { x: 81px; width: 3px; height: 6px * recording-state.wave-scale; y: (parent.height - self.height) / 2; border-radius: 2px; background: #faf9f5; }
+            for amplitude[index] in [0.38, 0.56, 0.74, 0.90, 1.0, 0.90, 0.74, 0.56, 0.38]: wave-bar := Rectangle {
+                private property <float> phase: mod(animation-tick(), 880ms) / 880ms;
+                private property <float> pulse: 0.52 + 0.48 * abs(sin((wave-bar.phase + index * 0.13) * 360deg));
+                x: 36px + index * 5.75px;
+                width: 3px;
+                height: max(3px, 3px + 17px * amplitude * recording-state.wave-energy * wave-bar.pulse);
+                y: (parent.height - self.height) / 2;
+                border-radius: 2px;
+                background: index == 4 ? #e97858 : #faf9f5;
+                animate height { duration: 65ms; easing: ease-out; }
+            }
 
             Rectangle {
-                x: 91px;
+                x: 88px;
                 y: 3px;
-                width: 26px;
-                height: 26px;
-                border-radius: 13px;
-                background: finish-area.has-hover ? #ffffff : #faf9f5;
+                width: 29px;
+                height: 29px;
+                border-radius: 14.5px;
+                background: finish-area.pressed ? #deddd8 : finish-area.has-hover ? #ffffff : #faf9f5;
                 accessible-role: button;
-                accessible-label: "完成录音";
+                accessible-label: @tr("recording.finish.accessible-label" => "Finish recording");
                 accessible-action-default => { root.finish(); }
 
                 Text { text: "✓"; color: #141413; font-size: 17px; font-weight: 700; horizontal-alignment: center; vertical-alignment: center; }
@@ -74,77 +76,58 @@ export component RecordingOverlay inherits Window {
         }
 
         if root.mode == 1: Rectangle {
-            Rectangle {
+            spinner := Rectangle {
+                private property <float> turn: mod(animation-tick(), 900ms) / 900ms;
+                private property <angle> angle: spinner.turn * 360deg;
                 x: 4px;
-                y: 4px;
+                y: 5.5px;
                 width: 24px;
                 height: 24px;
                 border-radius: 12px;
-                background: transparent;
-                border-width: 3px;
-                border-color: #5e5d59;
-            }
-            spinner := Path {
-                private property <float> start: mod(animation-tick(), 900ms) / 900ms;
-                private property <float> sweep: 0.24;
-                x: 4px;
-                y: 4px;
-                width: 24px;
-                height: 24px;
-                viewbox-width: 100;
-                viewbox-height: 100;
-                fill: transparent;
-                stroke: #e97858;
-                stroke-width: 3px;
-                stroke-line-cap: round;
+                background: @conic-gradient(from spinner.angle, #e97858 0deg, #e97858 90deg, #6b6b6f 90deg, #6b6b6f 360deg);
 
-                MoveTo {
-                    x: 50 - 38 * sin(-spinner.start * 360deg);
-                    y: 50 - 38 * cos(-spinner.start * 360deg);
+                Rectangle { x: 3px; y: 3px; width: 18px; height: 18px; border-radius: 9px; background: #11110f; }
+                Rectangle {
+                    x: 10.5px + 10.5px * sin(spinner.angle);
+                    y: 10.5px - 10.5px * cos(spinner.angle);
+                    width: 3px; height: 3px; border-radius: 1.5px; background: #e97858;
                 }
-                ArcTo {
-                    radius-x: 38;
-                    radius-y: 38;
-                    x: 50 - 38 * sin(-(spinner.start + spinner.sweep) * 360deg);
-                    y: 50 - 38 * cos(-(spinner.start + spinner.sweep) * 360deg);
-                    sweep: true;
-                    large-arc: false;
+                Rectangle {
+                    x: 10.5px + 10.5px * sin(spinner.angle + 90deg);
+                    y: 10.5px - 10.5px * cos(spinner.angle + 90deg);
+                    width: 3px; height: 3px; border-radius: 1.5px; background: #e97858;
                 }
             }
             Text { x: 32px; width: 88px; text: root.processing-label; color: #faf9f5; font-size: 12px; font-weight: 650; horizontal-alignment: center; vertical-alignment: center; }
         }
 
         if root.mode == 2: Rectangle {
-            Rectangle {
-                x: 3px; y: 3px; width: 26px; height: 26px; border-radius: 13px;
-                background: #353537; border-width: 1px; border-color: #535357;
-                Text { text: "×"; color: #d1cfc5; font-size: 17px; horizontal-alignment: center; vertical-alignment: center; }
+            Text {
+                x: 9px;
+                width: 50px;
+                text: @tr("recording.cancelled" => "Cancelled");
+                color: #a7a7a2;
+                font-size: 12px;
+                font-weight: 650;
+                horizontal-alignment: center;
+                vertical-alignment: center;
             }
-            Text { x: 31px; width: 38px; text: "已取消"; color: #faf9f5; font-size: 12px; font-weight: 650; horizontal-alignment: center; vertical-alignment: center; }
-            Rectangle { x: 72px; y: 8px; width: 1px; height: 16px; background: #5e5d59; }
+            Rectangle { x: 63.5px; y: 10.5px; width: 1px; height: 14px; background: #3d3d3f; }
             Rectangle {
-                x: 74px; width: 43px; height: parent.height; background: transparent;
-                accessible-role: button; accessible-label: "撤销取消";
+                x: 69px; width: 41px; height: parent.height; border-radius: 13px; background: undo-area.pressed ? #ffffff33 : undo-area.has-hover ? #ffffff1a : transparent;
+                accessible-role: button; accessible-label: @tr("recording.undo-cancel.accessible-label" => "Undo cancellation");
                 accessible-action-default => { root.undo-cancel(); }
-                Text { text: "撤销"; color: #faf9f5; font-size: 12px; font-weight: 650; horizontal-alignment: center; vertical-alignment: center; }
-                TouchArea { mouse-cursor: pointer; clicked => { root.undo-cancel(); } }
+                Text { text: @tr("common.undo" => "Undo"); color: #faf9f8; font-size: 11px; font-weight: 650; horizontal-alignment: center; vertical-alignment: center; }
+                undo-area := TouchArea { mouse-cursor: pointer; clicked => { root.undo-cancel(); } }
             }
         }
 
         if root.mode == 3: Rectangle {
             Rectangle {
-                x: 3px; y: 3px; width: 26px; height: 26px; border-radius: 13px; background: #5b9e00;
-                Text { text: "✓"; color: #ffffff; font-size: 16px; font-weight: 700; horizontal-alignment: center; vertical-alignment: center; }
-            }
-            Text { x: 32px; width: 88px; text: "已粘贴"; color: #faf9f5; font-size: 12px; font-weight: 650; horizontal-alignment: center; vertical-alignment: center; }
-        }
-
-        if root.mode == 4: Rectangle {
-            Rectangle {
-                x: 3px; y: 3px; width: 26px; height: 26px; border-radius: 13px; background: #c98200;
+                x: 3px; y: 3px; width: 29px; height: 29px; border-radius: 14.5px; background: #c98200;
                 Text { text: "!"; color: #ffffff; font-size: 16px; font-weight: 700; horizontal-alignment: center; vertical-alignment: center; }
             }
-            Text { x: 32px; width: 88px; text: "润色失败"; color: #faf9f5; font-size: 12px; font-weight: 650; horizontal-alignment: center; vertical-alignment: center; }
+            Text { x: 32px; width: 88px; text: @tr("recording.refinement-failed" => "Polishing failed"); color: #faf9f5; font-size: 12px; font-weight: 650; horizontal-alignment: center; vertical-alignment: center; }
         }
     }
 }

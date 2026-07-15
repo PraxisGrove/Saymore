@@ -1,25 +1,54 @@
 use rusqlite::{Connection, OptionalExtension, params};
-use template_app::{HistoryRetention, LocalSettings, StorageError};
+use template_app::{HistoryRetention, LocalSettings, StorageError, UiLanguagePreference};
 
 use super::unavailable;
 
 pub(super) fn load(connection: &Connection) -> Result<LocalSettings, StorageError> {
     connection
         .query_row(
-            "SELECT history_enabled, history_retention_days
+            "SELECT history_enabled, history_retention_days,
+                    preferred_microphone_id, preferred_microphone_name,
+                    diagnostics_logging_enabled, ui_language
              FROM app_settings WHERE singleton = 1",
             [],
-            |row| Ok((row.get::<_, bool>(0)?, row.get::<_, Option<u16>>(1)?)),
+            |row| {
+                Ok((
+                    row.get::<_, bool>(0)?,
+                    row.get::<_, Option<u16>>(1)?,
+                    row.get::<_, Option<String>>(2)?,
+                    row.get::<_, Option<String>>(3)?,
+                    row.get::<_, bool>(4)?,
+                    row.get::<_, String>(5)?,
+                ))
+            },
         )
         .optional()
         .map_err(unavailable)?
         .ok_or_else(|| StorageError::Invalid("app settings row is missing".to_owned()))
-        .and_then(|(history_enabled, retention_days)| {
-            Ok(LocalSettings {
+        .and_then(
+            |(
                 history_enabled,
-                history_retention: retention_from_days(retention_days)?,
-            })
-        })
+                retention_days,
+                microphone_id,
+                microphone_name,
+                diagnostics_logging_enabled,
+                ui_language,
+            )| {
+                Ok(LocalSettings {
+                    history_enabled,
+                    history_retention: retention_from_days(retention_days)?,
+                    preferred_microphone_id: microphone_id,
+                    preferred_microphone_name: microphone_name,
+                    diagnostics_logging_enabled,
+                    ui_language: UiLanguagePreference::from_storage_value(&ui_language)
+                        .ok_or_else(|| {
+                            StorageError::Invalid(format!(
+                                "unsupported UI language preference: {ui_language}"
+                            ))
+                        })?,
+                })
+            },
+        )
 }
 
 pub(super) fn save(
@@ -30,9 +59,20 @@ pub(super) fn save(
         .execute(
             "UPDATE app_settings SET
                 history_enabled = ?1,
-                history_retention_days = ?2
+                history_retention_days = ?2,
+                preferred_microphone_id = ?3,
+                preferred_microphone_name = ?4,
+                diagnostics_logging_enabled = ?5,
+                ui_language = ?6
              WHERE singleton = 1",
-            params![settings.history_enabled, settings.history_retention.days()],
+            params![
+                settings.history_enabled,
+                settings.history_retention.days(),
+                settings.preferred_microphone_id,
+                settings.preferred_microphone_name,
+                settings.diagnostics_logging_enabled,
+                settings.ui_language.storage_value(),
+            ],
         )
         .map_err(unavailable)?;
     Ok(())

@@ -10,7 +10,7 @@ use crate::refinement_policy::{REFINEMENT_INSTRUCTIONS, accepts_refinement};
 const REFINEMENT_TIMEOUT: Duration = Duration::from_secs(8);
 const FAILURE_PAUSE: Duration = Duration::from_secs(5 * 60);
 const FAILURE_THRESHOLD: u8 = 3;
-const MIN_CJK_REFINEMENT_UNITS: usize = 20;
+const MIN_CJK_REFINEMENT_UNITS: usize = 12;
 const MIN_ENGLISH_REFINEMENT_WORDS: usize = 8;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -55,6 +55,22 @@ pub struct RefinementTerm {
 pub struct ProcessedText {
     pub text: String,
     pub refinement: RefinementStatus,
+}
+
+/// Captures both the production-safe result and the raw provider candidate.
+///
+/// Evaluation callers may inspect `provider_output`; production delivery must
+/// continue to use `processed` so rejected model output is never delivered.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RefinementEvaluation {
+    pub processed: ProcessedText,
+    pub provider_output: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RefinementEvaluationMode {
+    ProductionPolicy,
+    ForceProvider,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -154,35 +170,66 @@ impl FinalTextProcessor {
     where
         F: FnOnce(),
     {
+        self.execute(
+            request,
+            cancellation,
+            RefinementEvaluationMode::ProductionPolicy,
+            on_provider_attempt,
+        )
+        .await
+        .map(|evaluation| evaluation.processed)
+    }
+
+    pub async fn evaluate(
+        &self,
+        request: FinalTextRequest,
+        cancellation: CancellationToken,
+        mode: RefinementEvaluationMode,
+    ) -> Result<RefinementEvaluation, FinalTextProcessingError> {
+        self.execute(request, cancellation, mode, || {}).await
+    }
+
+    async fn execute<F>(
+        &self,
+        request: FinalTextRequest,
+        cancellation: CancellationToken,
+        mode: RefinementEvaluationMode,
+        on_provider_attempt: F,
+    ) -> Result<RefinementEvaluation, FinalTextProcessingError>
+    where
+        F: FnOnce(),
+    {
         reject_cancelled(&cancellation)?;
         let text = clean_transcript(&request.transcript);
         let RefinementMode::Enabled = request.refinement else {
             reject_cancelled(&cancellation)?;
-            return Ok(ProcessedText {
+            return Ok(evaluation_without_provider(ProcessedText {
                 text,
                 refinement: RefinementStatus::Disabled,
-            });
+            }));
         };
-        if !refinement_needed(&text, &RefinementMode::Enabled) {
+        if mode == RefinementEvaluationMode::ProductionPolicy
+            && !refinement_needed(&text, &RefinementMode::Enabled)
+        {
             reject_cancelled(&cancellation)?;
-            return Ok(ProcessedText {
+            return Ok(evaluation_without_provider(ProcessedText {
                 text,
                 refinement: RefinementStatus::Skipped(RefinementSkipReason::ShortTranscript),
-            });
+            }));
         }
         let Some(provider) = &self.provider else {
             reject_cancelled(&cancellation)?;
-            return Ok(ProcessedText {
+            return Ok(evaluation_without_provider(ProcessedText {
                 text,
                 refinement: RefinementStatus::FellBack(RefinementFallbackReason::NotConfigured),
-            });
+            }));
         };
         if let Some(reason) = self.circuit.lock().await.bypass_reason(Instant::now()) {
             reject_cancelled(&cancellation)?;
-            return Ok(ProcessedText {
+            return Ok(evaluation_without_provider(ProcessedText {
                 text,
                 refinement: RefinementStatus::FellBack(reason),
-            });
+            }));
         }
         let fallback_text = text.clone();
         let relevant_terms = request.relevant_terms;
@@ -210,23 +257,30 @@ impl FinalTextProcessor {
         fallback_text: String,
         relevant_terms: &[RefinementTerm],
         cancellation: &CancellationToken,
-    ) -> Result<ProcessedText, FinalTextProcessingError> {
+    ) -> Result<RefinementEvaluation, FinalTextProcessingError> {
         match refined {
             Ok(Ok(text)) if accepts_refinement(&fallback_text, &text, relevant_terms) => {
                 reject_cancelled(cancellation)?;
                 self.circuit.lock().await.record_success();
-                Ok(ProcessedText {
-                    text: text.trim().to_owned(),
-                    refinement: RefinementStatus::Completed,
+                let provider_output = text.trim().to_owned();
+                Ok(RefinementEvaluation {
+                    processed: ProcessedText {
+                        text: provider_output.clone(),
+                        refinement: RefinementStatus::Completed,
+                    },
+                    provider_output: Some(provider_output),
                 })
             }
-            Ok(Ok(_)) => {
+            Ok(Ok(text)) => {
                 reject_cancelled(cancellation)?;
-                Ok(ProcessedText {
-                    text: fallback_text,
-                    refinement: RefinementStatus::FellBack(
-                        RefinementFallbackReason::OutputRejected,
-                    ),
+                Ok(RefinementEvaluation {
+                    processed: ProcessedText {
+                        text: fallback_text,
+                        refinement: RefinementStatus::FellBack(
+                            RefinementFallbackReason::OutputRejected,
+                        ),
+                    },
+                    provider_output: Some(text.trim().to_owned()),
                 })
             }
             Ok(Err(error)) => {
@@ -236,20 +290,27 @@ impl FinalTextProcessor {
                     .lock()
                     .await
                     .record_failure(&error, Instant::now());
-                Ok(ProcessedText {
+                Ok(evaluation_without_provider(ProcessedText {
                     text: fallback_text,
                     refinement: RefinementStatus::FellBack(reason),
-                })
+                }))
             }
             Err(_) => {
                 reject_cancelled(cancellation)?;
                 self.circuit.lock().await.record_timeout(Instant::now());
-                Ok(ProcessedText {
+                Ok(evaluation_without_provider(ProcessedText {
                     text: fallback_text,
                     refinement: RefinementStatus::FellBack(RefinementFallbackReason::Timeout),
-                })
+                }))
             }
         }
+    }
+}
+
+fn evaluation_without_provider(processed: ProcessedText) -> RefinementEvaluation {
+    RefinementEvaluation {
+        processed,
+        provider_output: None,
     }
 }
 

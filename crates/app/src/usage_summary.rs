@@ -207,6 +207,8 @@ mod tests {
             refinement: HistoryRefinement::NotUsed,
             asr_provider_id: None,
             llm_provider_id: None,
+            asr_model: None,
+            llm_model: None,
         }
     }
 
@@ -243,6 +245,15 @@ mod tests {
                 .map_err(|_| StorageError::Unavailable("test history lock failed".to_owned()))?
                 .pop_front()
                 .unwrap_or_else(Self::unused)
+        }
+
+        fn search_history_page(
+            &self,
+            _cursor: Option<HistoryCursor>,
+            _limit: u16,
+            _query: &str,
+        ) -> Result<HistoryPage, StorageError> {
+            Self::unused()
         }
 
         fn update_history_delivery(

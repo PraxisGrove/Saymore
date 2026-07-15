@@ -15,8 +15,8 @@ use template_infra::{MacOsTextDeliverer, SqliteStorage, copy_text_to_clipboard};
 use uuid::Uuid;
 
 use crate::{
-    overlay_window, play_feedback_sound,
-    ui::{AppWindow, RecordingOverlay, ResultOverlay},
+    overlay_generation_matches, overlay_window, play_feedback_sound,
+    ui::{AppWindow, RecordingOverlay, ResultOverlay, Translations},
     ui_status::{apply_transcription_completed, delivery_requires_copy_recovery},
 };
 
@@ -44,6 +44,7 @@ pub fn wire_result_actions(overlay: &ResultOverlay) {
 pub(crate) struct DeliveryRequest {
     pub ui: slint::Weak<AppWindow>,
     pub status_overlay: slint::Weak<RecordingOverlay>,
+    pub overlay_generation: i32,
     pub result_overlay: slint::Weak<ResultOverlay>,
     pub recording: PcmRecording,
     pub processed: ProcessedText,
@@ -55,6 +56,7 @@ pub(crate) struct DeliveryRequest {
 struct ReadyDeliveryRequest {
     ui: slint::Weak<AppWindow>,
     status_overlay: slint::Weak<RecordingOverlay>,
+    overlay_generation: i32,
     result_overlay: slint::Weak<ResultOverlay>,
     recording: PcmRecording,
     processed: ProcessedText,
@@ -67,6 +69,7 @@ impl DeliveryRequest {
         ReadyDeliveryRequest {
             ui: self.ui,
             status_overlay: self.status_overlay,
+            overlay_generation: self.overlay_generation,
             result_overlay: self.result_overlay,
             recording: self.recording,
             processed: self.processed,
@@ -102,7 +105,8 @@ pub fn schedule_delivery(mut request: DeliveryRequest) {
                 match result {
                     Ok(()) => ui.invoke_refresh_usage(),
                     Err(error) => {
-                        ui.set_history_status(SharedString::from(error.to_string()));
+                        tracing::warn!(event = "history.create_failed", reason = %error);
+                        ui.set_history_status(ui.global::<Translations>().get_storage_error());
                     }
                 }
                 schedule_ready_delivery(ready);
@@ -110,7 +114,7 @@ pub fn schedule_delivery(mut request: DeliveryRequest) {
         });
     if spawn.is_err() {
         if let Some(ui) = fallback.ui.upgrade() {
-            ui.set_history_status(SharedString::from("无法创建本地历史"));
+            ui.set_history_status(ui.global::<Translations>().get_storage_error());
         }
         schedule_ready_delivery(fallback);
     }
@@ -127,9 +131,11 @@ fn schedule_ready_delivery(request: ReadyDeliveryRequest) {
             None
         }
     };
-    if let Some(overlay) = request.status_overlay.upgrade() {
+    if let Some(overlay) = request.status_overlay.upgrade()
+        && overlay_generation_matches(request.overlay_generation, overlay.get_session_generation())
+    {
         if fallback.is_some() {
-            overlay.set_mode(4);
+            overlay.set_mode(3);
         } else {
             overlay.set_mode(1);
         }
@@ -141,7 +147,12 @@ fn schedule_ready_delivery(request: ReadyDeliveryRequest) {
         Duration::ZERO
     };
     Timer::single_shot(notice_delay, move || {
-        if let Some(overlay) = request.status_overlay.upgrade() {
+        if let Some(overlay) = request.status_overlay.upgrade()
+            && overlay_generation_matches(
+                request.overlay_generation,
+                overlay.get_session_generation(),
+            )
+        {
             let _ = overlay.hide();
         }
         Timer::single_shot(FOCUS_SETTLE_DELAY, move || complete_delivery(request));
@@ -166,10 +177,10 @@ fn complete_delivery(pending: ReadyDeliveryRequest) {
             });
             let _ = learning_ui.upgrade_in_event_loop(move |ui| match result {
                 Ok(DictionaryLearningOutcome::Added(entry)) => {
-                    ui.set_dictionary_status(SharedString::from(format!(
-                        "已自动添加 {}",
-                        entry.canonical
-                    )));
+                    ui.set_dictionary_status(
+                        ui.global::<Translations>()
+                            .invoke_dictionary_automatically_added(entry.canonical.into()),
+                    );
                     ui.invoke_refresh_dictionary();
                 }
                 Ok(
@@ -190,11 +201,12 @@ fn complete_delivery(pending: ReadyDeliveryRequest) {
         requires_recovery
     );
     let history_action = history_delivery_action(&delivery);
-    let verified = history_action == HistoryDeliveryAction::MarkDelivered;
-    if verified {
+    if delivery.is_ok() {
         play_feedback_sound(FeedbackSound::Finish);
-        show_delivery_success(pending.status_overlay.clone());
-    } else if let Some(overlay) = pending.status_overlay.upgrade() {
+    }
+    if let Some(overlay) = pending.status_overlay.upgrade()
+        && overlay_generation_matches(pending.overlay_generation, overlay.get_session_generation())
+    {
         let _ = overlay.hide();
     }
     if let Some(ui) = pending.ui.upgrade() {
@@ -237,21 +249,6 @@ fn history_delivery_action(
     }
 }
 
-fn show_delivery_success(overlay: slint::Weak<RecordingOverlay>) {
-    let Some(status) = overlay.upgrade() else {
-        return;
-    };
-    status.set_mode(3);
-    if let Err(error) = overlay_window::present(status.window()) {
-        tracing::warn!(event = "delivery.overlay_present_failed", reason = %error);
-    }
-    Timer::single_shot(Duration::from_millis(700), move || {
-        if let Some(status) = overlay.upgrade() {
-            let _ = status.hide();
-        }
-    });
-}
-
 fn persist_delivery_outcome(
     ui: slint::Weak<AppWindow>,
     storage: Arc<SqliteStorage>,
@@ -282,7 +279,8 @@ fn persist_delivery_outcome(
                     Ok(()) if refresh_usage => ui.invoke_refresh_usage(),
                     Ok(()) => {}
                     Err(error) => {
-                        ui.set_history_status(SharedString::from(error.to_string()));
+                        tracing::warn!(event = "history.delivery_update_failed", reason = %error);
+                        ui.set_history_status(ui.global::<Translations>().get_storage_error());
                     }
                 }
                 ui.invoke_refresh_history();
@@ -291,7 +289,7 @@ fn persist_delivery_outcome(
     if spawn.is_err()
         && let Some(ui) = failure_ui.upgrade()
     {
-        ui.set_history_status(SharedString::from("无法更新历史状态"));
+        ui.set_history_status(ui.global::<Translations>().get_storage_error());
     }
 }
 

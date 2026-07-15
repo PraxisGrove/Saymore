@@ -16,6 +16,12 @@ export enum SettingsSection {
     about-updates,
 }
 
+export enum UiLanguage {
+    system,
+    english,
+    simplified-chinese,
+}
+
 export enum LlmProvider {
     sensenova,
     deepseek,
@@ -65,7 +71,11 @@ export component NavItem inherits Rectangle {
     callback activated();
     height: 38px;
     border-radius: 6px;
-    background: root.selected ? AppColors.selected : transparent;
+    background: root.selected ? AppColors.selected
+        : nav-touch.has-hover ? AppColors.surface-subtle : transparent;
+    opacity: nav-touch.pressed ? 0.82 : 1;
+    animate background { duration: 120ms; easing: ease-out; }
+    animate opacity { duration: 70ms; easing: ease-out; }
     accessible-role: button;
     accessible-label: root.label;
     accessible-action-default => { root.activated(); }
@@ -91,7 +101,7 @@ export component NavItem inherits Rectangle {
         vertical-alignment: center;
     }
 
-    TouchArea { clicked => { root.activated(); } }
+    nav-touch := TouchArea { mouse-cursor: pointer; clicked => { root.activated(); } }
 }
 
 export component PageHeading inherits Text {
@@ -248,7 +258,7 @@ export component AppSelect inherits Rectangle {
     border-color: AppColors.border;
     background: select-touch.has-hover ? AppColors.surface-muted : AppColors.surface;
     accessible-role: combobox;
-    accessible-label: "选择 " + root.current-value;
+    accessible-label: @tr("common.select-value.accessible-label" => "Select {}", root.current-value);
     accessible-value: root.current-value;
     accessible-expandable: true;
     accessible-action-expand => { select-popup.show(); }

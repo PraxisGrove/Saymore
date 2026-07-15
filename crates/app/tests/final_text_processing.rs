@@ -226,14 +226,97 @@ async fn enabled_refinement_skips_short_transcripts_without_calling_provider() {
     assert_eq!(0, provider.calls.load(Ordering::Relaxed));
 }
 
+#[tokio::test]
+async fn twelve_cjk_units_are_refined_when_llm_is_enabled() {
+    let provider = Arc::new(CountingProvider {
+        calls: AtomicUsize::new(0),
+        result: Ok("咱们接下来就先完成这个吧？".to_owned()),
+    });
+    let processor = FinalTextProcessor::configured(provider.clone());
+
+    let result = processor
+        .process(
+            enabled_request("咱们接下来就完成这个吧先？"),
+            CancellationToken::new(),
+        )
+        .await;
+
+    assert_eq!(
+        Ok(ProcessedText {
+            text: "咱们接下来就先完成这个吧？".to_owned(),
+            refinement: RefinementStatus::Completed,
+        }),
+        result
+    );
+    assert_eq!(1, provider.calls.load(Ordering::Relaxed));
+}
+
+#[tokio::test]
+async fn evaluation_can_force_a_short_transcript_through_the_provider() {
+    let provider = Arc::new(CountingProvider {
+        calls: AtomicUsize::new(0),
+        result: Ok("好的，我知道了。".to_owned()),
+    });
+    let processor = FinalTextProcessor::configured(provider.clone());
+
+    let result = processor
+        .evaluate(
+            enabled_request("好的我知道了"),
+            CancellationToken::new(),
+            template_app::RefinementEvaluationMode::ForceProvider,
+        )
+        .await;
+
+    assert_eq!(1, provider.calls.load(Ordering::Relaxed));
+    assert_eq!(
+        Ok(template_app::RefinementEvaluation {
+            processed: ProcessedText {
+                text: "好的，我知道了。".to_owned(),
+                refinement: RefinementStatus::Completed,
+            },
+            provider_output: Some("好的，我知道了。".to_owned()),
+        }),
+        result
+    );
+}
+
+#[tokio::test]
+async fn evaluation_preserves_a_candidate_rejected_by_the_output_guard() {
+    let transcript = eligible_transcript("会议安排在三点。");
+    let candidate = eligible_candidate("会议安排在四点。");
+    let processor = FinalTextProcessor::configured(Arc::new(CountingProvider {
+        calls: AtomicUsize::new(0),
+        result: Ok(candidate.clone()),
+    }));
+
+    let result = processor
+        .evaluate(
+            enabled_request(&transcript),
+            CancellationToken::new(),
+            template_app::RefinementEvaluationMode::ProductionPolicy,
+        )
+        .await;
+
+    assert_eq!(
+        Ok(template_app::RefinementEvaluation {
+            processed: ProcessedText {
+                text: transcript,
+                refinement: RefinementStatus::FellBack(RefinementFallbackReason::OutputRejected,),
+            },
+            provider_output: Some(candidate),
+        }),
+        result
+    );
+}
+
 #[test]
 fn refinement_threshold_uses_cjk_units_and_english_words() {
     assert!(!template_app::refinement_needed(
-        "一二三四五六七八九十一二三四五六七八九",
+        "一二三四五六七八九十甲",
         &RefinementMode::Enabled,
     ));
     assert!(template_app::refinement_needed(
-        "一二三四五六七八九十一二三四五六七八九十",
+        "一二三四五六七八九十甲乙",
         &RefinementMode::Enabled,
     ));
     assert!(!template_app::refinement_needed(
@@ -285,6 +368,13 @@ async fn provider_receives_the_fixed_conservative_policy_and_relevant_context()
         || captured.transcript != source
         || captured.language != Some("zh-CN".to_owned())
         || captured.relevant_terms != expected_terms
+        || !captured
+            .instructions
+            .contains("The original sentence does not need to be incomprehensible")
+        || !captured
+            .instructions
+            .contains("does not by itself justify a paragraph break")
+        || !captured.instructions.contains("two ASCII spaces")
     {
         return Err("provider did not receive the expected refinement context".into());
     }
@@ -298,6 +388,10 @@ async fn conservative_transformations_pass_the_output_guard() {
             "会议安排在周三，不对，周四下午三点。",
             "会议安排在周四下午三点。",
         ),
+        (
+            "我准备下午三点，不对，下午五点左右去公园玩。",
+            "我准备下午五点左右去公园玩。",
+        ),
         ("不要周三，改成周四。", "周四。"),
         ("会议安排在下午三点。", "会议安排在下午 3 点。"),
         ("版本二零二六。", "版本 2026。"),
@@ -310,6 +404,10 @@ async fn conservative_transformations_pass_the_output_guard() {
         (
             "要做两步，第一打开设置，第二选择模型。",
             "要做两步：\n1. 打开设置\n2. 选择模型。",
+        ),
+        (
+            "模型返回以后，我们再把结果如果检查通过的话保存到历史里面。",
+            "模型返回以后，如果检查通过的话，我们再把结果保存到历史里面。",
         ),
         (
             "我现在用的是 table 这个语音输入软件。",
@@ -344,18 +442,27 @@ async fn conservative_transformations_pass_the_output_guard() {
 
 #[tokio::test]
 async fn standard_spelling_terms_allow_exact_format_corrections() {
-    let cases = [(
-        "请在 github 仓库里运行 cargo test --workspace，然后把结果贴到 notion。",
-        "请在 GitHub 仓库里运行 cargo test --workspace，然后把结果贴到 Notion。",
-        vec![
-            RefinementTerm {
+    let cases = [
+        (
+            "请在 github 仓库里运行 cargo test --workspace，然后把结果贴到 notion。",
+            "请在 GitHub 仓库里运行 cargo test --workspace，然后把结果贴到 Notion。",
+            vec![
+                RefinementTerm {
+                    canonical: "GitHub".to_owned(),
+                },
+                RefinementTerm {
+                    canonical: "Notion".to_owned(),
+                },
+            ],
+        ),
+        (
+            "请把代码放到 Git Hub。",
+            "请把代码放到 GitHub。",
+            vec![RefinementTerm {
                 canonical: "GitHub".to_owned(),
-            },
-            RefinementTerm {
-                canonical: "Notion".to_owned(),
-            },
-        ],
-    )];
+            }],
+        ),
+    ];
 
     for (source, refined, relevant_terms) in cases {
         let source = eligible_transcript(source);
@@ -433,6 +540,14 @@ async fn unsafe_provider_outputs_fall_back_to_the_cleaned_transcript() {
         ("会议安排在 3 点。", "会议安排在 3 点，提醒 4 点。"),
         ("会议安排在 3 点。", "会议安排在 3 点，提醒四点。"),
         ("会议安排在三点。", "会议安排在四点。"),
+        (
+            "我准备下午三点去，准备下午五点左右去公园玩。",
+            "我准备下午五点左右去公园玩。",
+        ),
+        (
+            "预算三十元，会议下午三点，不对，下午五点开始。",
+            "会议下午五点开始。",
+        ),
         ("会议在三小时后开始。", "会议在四小时后开始。"),
         ("万一失败怎么办？", "10001 失败怎么办？"),
         ("有一点担心。", "有 1 点担心。"),

@@ -10,6 +10,7 @@ mod app_paths;
 mod dictionary_files;
 mod model_discovery;
 mod openai_transcriptions_asr;
+mod storage_usage;
 
 #[cfg(any(target_os = "macos", target_os = "windows"))]
 mod platform_secret_store;
@@ -76,7 +77,8 @@ pub use model_discovery::{ModelDiscoveryError, discover_models};
 pub use openai_transcriptions_asr::OpenAiCompatibleSpeechRecognizer;
 #[cfg(any(target_os = "macos", target_os = "windows"))]
 pub use platform_secret_store::PlatformSecretStore;
-pub use sqlite_storage::SqliteStorage;
+pub use sqlite_storage::{SqliteStorage, read_dictionary_snapshot};
+pub use storage_usage::directory_usage_bytes;
 pub use volcengine_asr::VolcengineSpeechRecognizer;
 
 #[derive(Debug, Clone, PartialEq, Eq)]

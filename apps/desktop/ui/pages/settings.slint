@@ -1,96 +1,311 @@
-import { AppButton, AppCheckBox, AppSelect, NavItem, SettingsSection, StatusPill } from "../components.slint";
+import { NavItem, SettingsSection, UiLanguage } from "../components.slint";
 import { AppColors } from "../color-system.slint";
+import { ScrollView } from "std-widgets.slint";
 
-component SettingsRow inherits Rectangle {
-    in property <string> title;
-    in property <string> detail;
-    height: 58px;
-    background: transparent;
+export struct AudioInputDevice {
+    id: string,
+    name: string,
+}
 
-    HorizontalLayout {
-        padding-left: 2px;
-        padding-right: 2px;
-        alignment: space-between;
-        cross-axis-alignment: center;
-        Text { text: root.title; color: AppColors.text; font-size: 13px; font-weight: 550; }
-        Text { text: root.detail; color: AppColors.text-muted; font-size: 12px; }
+component SettingsActionButton inherits Rectangle {
+    in property <string> label;
+    in property <image> icon;
+    in property <bool> enabled: true;
+    in property <bool> primary: false;
+    in property <string> state: "default";
+    callback activated();
+
+    width: 144px;
+    height: 40px;
+    border-radius: 8px;
+    background: !root.enabled ? AppColors.surface-muted
+        : root.state == "success" ? AppColors.success-soft
+        : root.state == "failure" ? AppColors.danger-soft
+        : root.primary ? (action-touch.has-hover ? AppColors.brand-strong : AppColors.brand)
+        : action-touch.has-hover ? AppColors.surface-subtle : AppColors.sidebar;
+    opacity: root.enabled ? (action-touch.pressed ? 0.84 : 1) : 0.62;
+    animate background { duration: 120ms; easing: ease-out; }
+    animate opacity { duration: 70ms; easing: ease-out; }
+    accessible-role: button;
+    accessible-label: root.label;
+    accessible-enabled: root.enabled;
+    accessible-action-default => { if root.enabled { root.activated(); } }
+
+    Image { x: 17px; y: 12px; width: 16px; height: 16px; source: root.icon; colorize: !root.enabled ? AppColors.text-muted : root.state == "success" ? AppColors.success : root.state == "failure" ? AppColors.danger : root.primary ? #ffffff : AppColors.text; }
+    Text {
+        x: 42px;
+        width: parent.width - 54px;
+        text: root.label;
+        color: !root.enabled ? AppColors.text-muted : root.state == "success" ? AppColors.success : root.state == "failure" ? AppColors.danger : root.primary ? #ffffff : AppColors.text;
+        font-size: 12px;
+        font-weight: 650;
+        vertical-alignment: center;
+        overflow: elide;
     }
-
-    Rectangle { y: parent.height - 1px; height: 1px; background: AppColors.border; }
+    action-touch := TouchArea { enabled: root.enabled; mouse-cursor: root.enabled ? pointer : default; clicked => { root.activated(); } }
 }
 
 component SettingSwitch inherits Rectangle {
     in-out property <bool> checked;
+    in property <bool> enabled: true;
+    callback toggled(bool);
+
     width: 42px;
     height: 24px;
     border-radius: 12px;
-    background: root.checked ? AppColors.success : AppColors.border;
+    background: !root.enabled ? AppColors.progress-track
+        : root.checked ? AppColors.brand
+        : switch-touch.has-hover ? AppColors.selected : AppColors.border;
+    opacity: root.enabled ? (switch-touch.pressed ? 0.84 : 1) : 0.72;
+    animate background { duration: 140ms; easing: ease-out; }
+    animate opacity { duration: 70ms; easing: ease-out; }
     accessible-role: checkbox;
-    accessible-label: root.checked ? "已开启" : "已关闭";
+    accessible-label: root.checked ? @tr("common.enabled" => "Enabled") : @tr("common.disabled" => "Disabled");
+    accessible-enabled: root.enabled;
     accessible-checked: root.checked;
-    accessible-action-default => { root.checked = !root.checked; }
+    accessible-action-default => {
+        if root.enabled {
+            root.checked = !root.checked;
+            root.toggled(root.checked);
+        }
+    }
 
     Rectangle {
-        width: 18px;
-        height: 18px;
         x: root.checked ? parent.width - self.width - 3px : 3px;
         y: 3px;
+        width: 18px;
+        height: 18px;
         border-radius: 9px;
         background: AppColors.surface;
         drop-shadow-blur: 4px;
         drop-shadow-offset-y: 1px;
         drop-shadow-color: #17130e2b;
+        animate x { duration: 160ms; easing: ease-out; }
     }
-
-    TouchArea { clicked => { root.checked = !root.checked; } }
+    switch-touch := TouchArea {
+        enabled: root.enabled;
+        mouse-cursor: root.enabled ? pointer : default;
+        clicked => {
+            root.checked = !root.checked;
+            root.toggled(root.checked);
+        }
+    }
 }
 
-component AudioToggleRow inherits Rectangle {
+component StatusLabel inherits Rectangle {
+    in property <string> label;
+    in property <bool> granted;
+    in property <string> tone: root.granted ? "success" : "danger";
+
+    width: 76px;
+    height: 24px;
+    background: transparent;
+    Rectangle { x: 0px; y: 8px; width: 8px; height: 8px; border-radius: 4px; background: root.tone == "success" ? AppColors.success : root.tone == "warning" ? AppColors.brand : root.tone == "danger" ? AppColors.danger : AppColors.text-muted; }
+    Text { x: 15px; width: parent.width - 15px; text: root.label; color: root.tone == "success" ? AppColors.success : root.tone == "warning" ? AppColors.brand : root.tone == "danger" ? AppColors.danger : AppColors.text-muted; font-size: 11px; font-weight: 650; vertical-alignment: center; }
+}
+
+component SettingsIcon inherits Rectangle {
+    in property <image> source;
+    in property <color> icon-color: AppColors.text;
+
+    width: 38px;
+    height: 38px;
+    border-radius: 9px;
+    background: AppColors.sidebar;
+    Image { x: 11px; y: 11px; width: 16px; height: 16px; source: root.source; colorize: root.icon-color; }
+}
+
+component MicrophoneSelect inherits Rectangle {
+    in property <[AudioInputDevice]> devices;
+    in property <string> selected-id;
+    in property <string> selection-label;
+    in property <string> default-label;
+    in property <bool> loading;
+    callback selected(string, string);
+    callback refresh();
+
+    width: 196px;
+    height: 40px;
+    border-radius: 8px;
+    background: select-touch.has-hover ? AppColors.surface-subtle : AppColors.sidebar;
+    accessible-role: combobox;
+    accessible-label: @tr("settings.microphone.select-accessible" => "Select microphone: {}", root.selection-label);
+    accessible-value: root.selection-label;
+    accessible-expandable: true;
+    accessible-action-expand => { microphone-popup.show(); }
+
+    Text { x: 14px; width: parent.width - 46px; text: root.loading ? @tr("settings.microphone.loading" => "Loading microphones…") : root.selection-label; color: AppColors.text; font-size: 11px; vertical-alignment: center; overflow: elide; }
+    Image { x: parent.width - 28px; y: 13px; width: 14px; height: 14px; source: @image-url("../../icons/lucide/chevron-down.svg"); colorize: AppColors.text-muted; }
+    select-touch := TouchArea { mouse-cursor: pointer; clicked => { root.refresh(); microphone-popup.show(); } }
+
+    microphone-popup := PopupWindow {
+        x: root.width - 280px;
+        y: root.height + 4px;
+        width: 280px;
+        height: min(244px, 48px + root.devices.length * 38px);
+        close-policy: close-on-click-outside;
+
+        Rectangle {
+            border-radius: 8px;
+            background: AppColors.surface;
+            drop-shadow-blur: 14px;
+            drop-shadow-offset-y: 4px;
+            drop-shadow-color: #1f1f1c1f;
+            ScrollView {
+                x: 4px;
+                y: 4px;
+                width: parent.width - 8px;
+                height: parent.height - 8px;
+                vertical-scrollbar-policy: ScrollBarPolicy.always-off;
+                horizontal-scrollbar-policy: ScrollBarPolicy.always-off;
+                VerticalLayout {
+                    spacing: 2px;
+                    Rectangle {
+                        height: 36px;
+                        border-radius: 6px;
+                        background: default-touch.has-hover || root.selected-id == "" ? AppColors.sidebar : transparent;
+                        Text { x: 10px; width: parent.width - 38px; text: root.default-label; color: AppColors.text; font-size: 12px; vertical-alignment: center; overflow: elide; }
+                        if root.selected-id == "": Image { x: parent.width - 25px; y: 11px; width: 14px; height: 14px; source: @image-url("../../icons/lucide/check.svg"); colorize: AppColors.success; }
+                        default-touch := TouchArea { mouse-cursor: pointer; clicked => { root.selected("", ""); microphone-popup.close(); } }
+                    }
+                    for device in root.devices: Rectangle {
+                        height: 36px;
+                        border-radius: 6px;
+                        background: device-touch.has-hover || root.selected-id == device.id ? AppColors.sidebar : transparent;
+                        Text { x: 10px; width: parent.width - 38px; text: device.name; color: AppColors.text; font-size: 12px; vertical-alignment: center; overflow: elide; }
+                        if root.selected-id == device.id: Image { x: parent.width - 25px; y: 11px; width: 14px; height: 14px; source: @image-url("../../icons/lucide/check.svg"); colorize: AppColors.success; }
+                        device-touch := TouchArea { mouse-cursor: pointer; clicked => { root.selected(device.id, device.name); microphone-popup.close(); } }
+                    }
+                }
+            }
+        }
+    }
+}
+
+component LanguageSelect inherits Rectangle {
+    in property <UiLanguage> current;
+    in property <UiLanguage> system-language;
+    in property <bool> saving;
+    callback selected(UiLanguage);
+
+    private property <string> system-label: root.system-language == UiLanguage.simplified-chinese
+        ? @tr("settings.language.follow-system-zh" => "Follow System (Simplified Chinese)")
+        : @tr("settings.language.follow-system-en" => "Follow System (English)");
+    private property <string> current-label: root.current == UiLanguage.system
+        ? root.system-label
+        : root.current == UiLanguage.english
+            ? @tr("settings.language.english" => "English")
+            : @tr("settings.language.simplified-chinese" => "Simplified Chinese");
+
+    width: 200px;
+    height: 40px;
+    border-radius: 8px;
+    background: language-touch.has-hover && !root.saving ? AppColors.surface-subtle : AppColors.sidebar;
+    opacity: root.saving ? 0.64 : 1;
+    accessible-role: combobox;
+    accessible-label: @tr("settings.language.accessible-label" => "Interface language: {}", root.current-label);
+    accessible-value: root.current-label;
+    accessible-enabled: !root.saving;
+    accessible-expandable: true;
+    accessible-action-expand => { if !root.saving { language-popup.show(); } }
+
+    Text { x: 14px; width: parent.width - 46px; text: root.saving ? @tr("settings.language.saving" => "Saving…") : root.current-label; color: AppColors.text; font-size: 11px; vertical-alignment: center; overflow: elide; }
+    Image { x: parent.width - 28px; y: 13px; width: 14px; height: 14px; source: @image-url("../../icons/lucide/chevron-down.svg"); colorize: AppColors.text-muted; }
+    language-touch := TouchArea { enabled: !root.saving; mouse-cursor: root.saving ? default : pointer; clicked => { language-popup.show(); } }
+
+    language-popup := PopupWindow {
+        x: root.width - 250px;
+        y: root.height + 4px;
+        width: 250px;
+        height: 116px;
+        close-policy: close-on-click-outside;
+
+        Rectangle {
+            border-radius: 8px;
+            background: AppColors.surface;
+            drop-shadow-blur: 14px;
+            drop-shadow-offset-y: 4px;
+            drop-shadow-color: #1f1f1c1f;
+            VerticalLayout {
+                padding: 4px;
+                spacing: 2px;
+                for option[index] in [root.system-label, @tr("settings.language.english" => "English"), @tr("settings.language.simplified-chinese" => "Simplified Chinese")]: Rectangle {
+                    height: 34px;
+                    border-radius: 6px;
+                    property <UiLanguage> value: index == 0 ? UiLanguage.system : index == 1 ? UiLanguage.english : UiLanguage.simplified-chinese;
+                    background: option-touch.has-hover || root.current == self.value ? AppColors.sidebar : transparent;
+                    Text { x: 10px; width: parent.width - 38px; text: option; color: AppColors.text; font-size: 12px; vertical-alignment: center; overflow: elide; }
+                    if root.current == self.value: Image { x: parent.width - 25px; y: 10px; width: 14px; height: 14px; source: @image-url("../../icons/lucide/check.svg"); colorize: AppColors.success; }
+                    option-touch := TouchArea { mouse-cursor: pointer; clicked => { root.selected(parent.value); language-popup.close(); } }
+                }
+            }
+        }
+    }
+}
+
+component PermissionCard inherits Rectangle {
+    in property <image> icon;
     in property <string> title;
     in property <string> detail;
-    in-out property <bool> checked;
-    height: 76px;
-    background: transparent;
-
-    HorizontalLayout {
-        padding-left: 2px;
-        padding-right: 2px;
-        spacing: 18px;
-        cross-axis-alignment: center;
-
-        VerticalLayout {
-            spacing: 5px;
-            Text { text: root.title; color: AppColors.ink; font-size: 14px; font-weight: 650; }
-            Text { text: root.detail; color: AppColors.text-muted; font-size: 12px; }
-        }
-        Rectangle { horizontal-stretch: 1; background: transparent; }
-        SettingSwitch { checked <=> root.checked; }
-    }
-
-    Rectangle { y: parent.height - 1px; height: 1px; background: AppColors.border; }
-}
-
-component PermissionRow inherits Rectangle {
-    in property <string> title;
     in property <string> status;
     in property <bool> granted;
-    in property <string> action-label;
-    in property <bool> action-visible;
-    callback action();
-    height: 72px;
-    border-width: 0px;
-    border-radius: 8px;
+    callback open-system-settings();
+
+    height: 130px;
+    border-radius: 10px;
     background: AppColors.surface;
 
-    HorizontalLayout {
-        padding-left: 16px;
-        padding-right: 14px;
-        spacing: 12px;
-        cross-axis-alignment: center;
-        Text { text: root.title; color: AppColors.text; font-size: 13px; font-weight: 650; }
-        Rectangle { horizontal-stretch: 1; background: transparent; }
-        StatusPill { label: root.status; granted: root.granted; }
-        AppButton { visible: root.action-visible; text: root.action-label; clicked => { root.action(); } }
+    SettingsIcon { x: 20px; y: 20px; source: root.icon; icon-color: root.granted ? AppColors.text : AppColors.danger; }
+    Text { x: 70px; y: 21px; width: parent.width - 168px; text: root.title; color: AppColors.ink; font-size: 14px; font-weight: 650; overflow: elide; }
+    StatusLabel { x: parent.width - 94px; y: 20px; label: root.status; granted: root.granted; }
+    Text { x: 20px; y: 72px; width: parent.width - 40px; text: root.detail; color: AppColors.text-muted; font-size: 11px; }
+    if !root.granted: SettingsActionButton {
+        x: parent.width - 164px;
+        y: parent.height - 52px;
+        width: 144px;
+        height: 32px;
+        label: @tr("common.open-system-settings" => "Open System Settings");
+        icon: @image-url("../../icons/lucide/settings.svg");
+        activated => { root.open-system-settings(); }
+    }
+}
+
+component SettingsSidebar inherits Rectangle {
+    in-out property <SettingsSection> current-section;
+    in property <bool> compact;
+    in property <bool> wide;
+    callback back-to-app();
+
+    width: root.compact ? 176px : root.wide ? 225px : 205px;
+    border-radius: 12px;
+    background: AppColors.surface-warm;
+
+    VerticalLayout {
+        padding-left: root.compact ? 16px : 26px;
+        padding-right: root.compact ? 16px : 26px;
+        padding-top: 48px;
+        padding-bottom: 18px;
+        spacing: 4px;
+        Text { height: 30px; text: @tr("settings.title" => "Settings"); color: AppColors.ink; font-size: 20px; font-weight: 700; vertical-alignment: center; }
+        Rectangle {
+            height: 36px;
+            border-radius: 6px;
+            background: back-touch.has-hover ? AppColors.sidebar : transparent;
+            accessible-role: button;
+            accessible-label: @tr("settings.back-home" => "Back to Home");
+            accessible-action-default => { root.back-to-app(); }
+            Image { x: 10px; y: 10px; width: 14px; height: 14px; source: @image-url("../../icons/lucide/chevron-right.svg"); colorize: AppColors.text-muted; transform-rotation: 180deg; }
+            Text { x: 32px; width: parent.width - 38px; text: @tr("settings.back-home" => "Back to Home"); color: AppColors.text-muted; font-size: 11px; vertical-alignment: center; }
+            back-touch := TouchArea { mouse-cursor: pointer; clicked => { root.back-to-app(); } }
+        }
+        Rectangle { height: 16px; background: transparent; }
+        NavItem { icon: @image-url("../../icons/lucide/settings.svg"); label: @tr("settings.nav.general" => "General"); selected: root.current-section == SettingsSection.general; activated => { root.current-section = SettingsSection.general; } }
+        NavItem { icon: @image-url("../../icons/lucide/audio-lines.svg"); label: @tr("settings.nav.shortcuts" => "Shortcuts"); selected: root.current-section == SettingsSection.shortcuts-audio; activated => { root.current-section = SettingsSection.shortcuts-audio; } }
+        NavItem { icon: @image-url("../../icons/lucide/check.svg"); label: @tr("settings.nav.permissions" => "Permissions"); selected: root.current-section == SettingsSection.delivery-permissions; activated => { root.current-section = SettingsSection.delivery-permissions; } }
+        NavItem { icon: @image-url("../../icons/lucide/lock-keyhole.svg"); label: @tr("settings.nav.privacy" => "Privacy"); selected: root.current-section == SettingsSection.privacy-history; activated => { root.current-section = SettingsSection.privacy-history; } }
+        NavItem { icon: @image-url("../../icons/lucide/folder-open.svg"); label: @tr("settings.nav.about" => "About"); selected: root.current-section == SettingsSection.about-updates; activated => { root.current-section = SettingsSection.about-updates; } }
+        Rectangle { vertical-stretch: 1; background: transparent; }
+        Text { height: 20px; text: "Saymore  v0.1.0"; color: AppColors.text-muted; font-size: 9px; horizontal-alignment: center; }
     }
 }
 
@@ -99,208 +314,265 @@ export component SettingsPage inherits Rectangle {
     in property <string> authorization-status;
     in property <bool> microphone-authorized;
     in property <string> microphone-status;
-    in-out property <bool> history-enabled: true;
-    in-out property <string> history-retention: "7 天";
-    in-out property <bool> interaction-sounds-enabled: true;
-    in-out property <bool> mute-other-audio-enabled: true;
-    callback back-to-app();
-    callback request-authorization();
-    callback request-microphone-authorization();
-    callback set-history-enabled(bool);
-    callback set-history-retention(string);
+    in property <[AudioInputDevice]> microphone-devices;
+    in property <string> microphone-selection-id;
+    in property <string> microphone-selection-label;
+    in property <string> microphone-default-label;
+    in property <string> microphone-selection-status;
+    in property <bool> microphone-devices-loading;
+    in property <UiLanguage> ui-language: UiLanguage.system;
+    in property <UiLanguage> system-ui-language: UiLanguage.english;
+    in property <bool> ui-language-saving: false;
+    in property <string> ui-language-status: "";
+    in-out property <bool> diagnostics-enabled: false;
+    in property <string> diagnostics-status: "";
+    in property <string> storage-usage: @tr("storage.usage.calculating" => "Calculating…");
+    in property <string> diagnostics-export-status: "idle";
+    in property <string> diagnostics-export-detail: "";
+    in property <string> update-status: "idle";
+    in property <string> update-version: "";
+    in property <string> update-detail: "";
     in-out property <SettingsSection> current-section: SettingsSection.general;
-    background: AppColors.surface-muted;
+    callback back-to-app();
+    callback open-microphone-settings();
+    callback open-accessibility-settings();
+    callback select-microphone(string, string);
+    callback refresh-microphones();
+    callback set-ui-language(UiLanguage);
+    callback set-diagnostics-enabled(bool);
+    callback export-diagnostics-report();
+    callback open-data-directory();
+    callback check-for-updates();
+    callback download-update();
+
+    private property <bool> compact: root.width < 820px;
+    private property <bool> wide: root.width >= 1120px;
+    private property <string> section-title: root.current-section == SettingsSection.general ? @tr("settings.section.general" => "General") : root.current-section == SettingsSection.shortcuts-audio ? @tr("settings.section.shortcuts-audio" => "Shortcuts & Audio") : root.current-section == SettingsSection.delivery-permissions ? @tr("settings.section.delivery-permissions" => "Delivery & Permissions") : root.current-section == SettingsSection.privacy-history ? @tr("settings.section.privacy-data" => "Privacy & Data") : @tr("settings.section.about-updates" => "About & Updates");
+    private property <string> section-detail: root.current-section == SettingsSection.general ? @tr("settings.general.detail" => "Control how Saymore starts, appears, and looks on this device.") : root.current-section == SettingsSection.shortcuts-audio ? @tr("settings.shortcuts-audio.detail" => "Choose how voice input starts and how audio feedback works.") : root.current-section == SettingsSection.delivery-permissions ? @tr("settings.delivery-permissions.detail" => "Choose how recognized text is delivered and review system permissions.") : root.current-section == SettingsSection.privacy-history ? @tr("settings.privacy-data.detail" => "Review local data storage and manage diagnostics.") : @tr("settings.about-updates.detail" => "View version information, update status, and product links.");
+    private property <length> content-height: root.current-section == SettingsSection.general ? (root.compact ? 930px : 650px) : root.current-section == SettingsSection.shortcuts-audio ? (root.compact ? 840px : 570px) : root.current-section == SettingsSection.delivery-permissions ? (root.compact ? 790px : 570px) : root.current-section == SettingsSection.privacy-history ? (root.compact ? 900px : 630px) : (root.compact ? 790px : 600px);
+    private property <string> export-button-label: root.diagnostics-export-status == "exporting" ? @tr("settings.diagnostics.exporting" => "Exporting…") : root.diagnostics-export-status == "success" ? @tr("settings.diagnostics.exported" => "Exported") : root.diagnostics-export-status == "failed" ? @tr("settings.diagnostics.export-again" => "Export again") : @tr("settings.diagnostics.export-report" => "Export report");
+    private property <string> update-button-label: root.update-status == "checking" ? @tr("settings.update.checking" => "Checking…") : root.update-status == "failed" ? @tr("settings.update.check-again" => "Check again") : @tr("settings.update.check" => "Check for updates");
+    private property <string> update-message: root.update-status == "checking" ? @tr("settings.update.checking-detail" => "Checking for updates…") : root.update-status == "latest" ? @tr("settings.update.latest" => "You’re up to date") : root.update-status == "available" ? @tr("settings.update.available" => "Saymore {} is available", root.update-version) : root.update-status == "failed" ? root.update-detail : @tr("settings.update.not-checked" => "Updates have not been checked yet");
+    changed current-section => { settings-scroll.viewport-y = 0px; }
+    background: AppColors.canvas;
 
     HorizontalLayout {
         padding: 10px;
-        spacing: 12px;
-
+        spacing: root.compact ? 12px : 20px;
+        SettingsSidebar { current-section <=> root.current-section; compact: root.compact; wide: root.wide; back-to-app => { root.back-to-app(); } }
         Rectangle {
-            width: 220px;
-            border-width: 0px;
-            border-radius: 8px;
-            background: AppColors.surface-warm;
-
-            VerticalLayout {
-                padding-left: 14px;
-                padding-right: 14px;
-                padding-top: 46px;
-                padding-bottom: 18px;
-                spacing: 5px;
-
-                Rectangle {
-                    height: 40px;
-                    border-radius: 6px;
-                    background: back-touch.has-hover ? AppColors.surface-muted : transparent;
-                    accessible-role: button;
-                    accessible-label: "返回首页";
-                    accessible-action-default => { root.back-to-app(); }
-
-                    HorizontalLayout {
-                        padding-left: 10px;
-                        padding-right: 10px;
-                        spacing: 9px;
-                        cross-axis-alignment: center;
-                        Text { text: "‹"; color: AppColors.text-muted; font-size: 22px; font-weight: 450; vertical-alignment: center; }
-                        Text { text: "返回首页"; color: AppColors.text; font-size: 13px; font-weight: 550; vertical-alignment: center; }
-                    }
-                    back-touch := TouchArea { clicked => { root.back-to-app(); } }
-                }
-
-                Rectangle { height: 18px; background: transparent; }
-                Text { height: 30px; text: "设置"; color: AppColors.ink; font-size: 20px; font-weight: 700; vertical-alignment: center; }
-                Rectangle { height: 8px; background: transparent; }
-                NavItem { icon: @image-url("../../icons/lucide/settings.svg"); label: "通用"; selected: root.current-section == SettingsSection.general; activated => { root.current-section = SettingsSection.general; } }
-                NavItem { icon: @image-url("../../icons/lucide/settings.svg"); label: "快捷键与音频"; selected: root.current-section == SettingsSection.shortcuts-audio; activated => { root.current-section = SettingsSection.shortcuts-audio; } }
-                NavItem { icon: @image-url("../../icons/lucide/check.svg"); label: "投递与权限"; selected: root.current-section == SettingsSection.delivery-permissions; activated => { root.current-section = SettingsSection.delivery-permissions; } }
-                NavItem { icon: @image-url("../../icons/lucide/history.svg"); label: "隐私与历史"; selected: root.current-section == SettingsSection.privacy-history; activated => { root.current-section = SettingsSection.privacy-history; } }
-                NavItem { icon: @image-url("../../icons/lucide/folder-open.svg"); label: "关于与更新"; selected: root.current-section == SettingsSection.about-updates; activated => { root.current-section = SettingsSection.about-updates; } }
-                Rectangle { vertical-stretch: 1; background: transparent; }
-                Text { height: 20px; text: "Saymore  v0.1.0"; color: AppColors.text-muted; font-size: 10px; horizontal-alignment: center; }
-            }
-        }
-
-        Rectangle {
-            border-width: 0px;
-            border-radius: 8px;
+            horizontal-stretch: 1;
+            border-radius: 12px;
             background: AppColors.canvas;
-
-            VerticalLayout {
-                padding-left: 30px;
-                padding-right: 30px;
-                padding-top: 44px;
-                padding-bottom: 26px;
-                spacing: 16px;
-
-                Text { height: 36px; text: "设置"; color: AppColors.ink; font-size: 24px; font-weight: 700; vertical-alignment: center; }
-
+            settings-scroll := ScrollView {
+                width: parent.width;
+                height: parent.height;
+                horizontal-scrollbar-policy: ScrollBarPolicy.always-off;
                 Rectangle {
-                    border-width: 0px;
-                    border-radius: 8px;
-                    background: AppColors.surface;
-                    drop-shadow-blur: 12px;
-                    drop-shadow-offset-y: 2px;
-                    drop-shadow-color: #1f29370a;
+                    x: (parent.width - self.width) / 2;
+                    width: root.compact ? max(0px, parent.width - 40px) : min(parent.width, 880px);
+                    height: root.content-height;
+                    background: transparent;
+                    VerticalLayout {
+                        padding-top: 40px;
+                        padding-bottom: 24px;
+                        spacing: 16px;
+                        Text { height: 34px; text: root.section-title; color: AppColors.ink; font-size: 25px; font-weight: 700; vertical-alignment: center; }
+                        Text { height: 20px; text: root.section-detail; color: AppColors.text-muted; font-size: 12px; vertical-alignment: center; }
 
-                if root.current-section == SettingsSection.general: VerticalLayout {
-                    padding: 22px;
-                    spacing: 0px;
-                    Text { height: 38px; text: "通用"; color: AppColors.ink; font-size: 18px; font-weight: 650; }
-                    SettingsRow { title: "登录时启动"; detail: "尚未开放"; }
-                    SettingsRow { title: "在 Dock 中显示"; detail: "当前显示"; }
-                    SettingsRow { title: "界面语言"; detail: "简体中文"; }
-                    SettingsRow { title: "主题"; detail: "跟随系统"; }
-                    SettingsRow { title: "自动检查更新"; detail: "尚未开放"; }
-                    Rectangle { vertical-stretch: 1; background: transparent; }
-                }
-
-                if root.current-section == SettingsSection.shortcuts-audio: VerticalLayout {
-                    padding: 22px;
-                    spacing: 0px;
-                    Text { height: 38px; text: "快捷键与音频"; color: AppColors.ink; font-size: 18px; font-weight: 650; }
-                    SettingsRow { title: "主触发器"; detail: "右 Command"; }
-                    Rectangle { height: 22px; background: transparent; }
-                    Text { height: 30px; text: "音频"; color: AppColors.text-muted; font-size: 13px; font-weight: 650; vertical-alignment: center; }
-                    Rectangle {
-                        height: 82px;
-                        background: transparent;
-
-                        HorizontalLayout {
-                            padding-left: 2px;
-                            padding-right: 2px;
-                            spacing: 18px;
-                            cross-axis-alignment: center;
-
-                            VerticalLayout {
-                                spacing: 5px;
-                                Text { text: "麦克风"; color: AppColors.ink; font-size: 14px; font-weight: 650; }
-                                Text { text: "选择首选麦克风，以便 Saymore 捕捉您的声音。"; color: AppColors.text-muted; font-size: 12px; }
-                            }
-                            Rectangle { horizontal-stretch: 1; background: transparent; }
-                            Rectangle {
-                                width: 238px;
-                                height: 42px;
-                                border-width: 1px;
-                                border-color: AppColors.border;
-                                border-radius: 7px;
-                                background: microphone-touch.has-hover ? AppColors.surface-subtle : AppColors.surface;
-                                accessible-role: button;
-                                accessible-label: "选择麦克风";
-
-                                HorizontalLayout {
-                                    padding-left: 13px;
-                                    padding-right: 12px;
-                                    spacing: 8px;
-                                    cross-axis-alignment: center;
-                                    Text { text: "自动检测（MacBook 麦克风）"; color: AppColors.text; font-size: 12px; overflow: elide; vertical-alignment: center; }
-                                    Rectangle { horizontal-stretch: 1; background: transparent; }
-                                    Text { text: "›"; color: AppColors.text-muted; font-size: 20px; vertical-alignment: center; }
+                        if root.current-section == SettingsSection.general: VerticalLayout {
+                            spacing: 16px;
+                            Text { height: 20px; text: @tr("settings.startup-display.title" => "Startup & Display"); color: AppColors.text; font-size: 13px; font-weight: 650; vertical-alignment: center; }
+                            if !root.compact: HorizontalLayout {
+                                height: 132px;
+                                spacing: 16px;
+                                Rectangle {
+                                    horizontal-stretch: 1; border-radius: 10px; background: AppColors.surface;
+                                    SettingsIcon { x: 20px; y: 20px; source: @image-url("../../icons/lucide/settings.svg"); }
+                                    Text { x: 20px; y: 72px; text: @tr("settings.launch-at-login.title" => "Launch at login"); color: AppColors.ink; font-size: 13px; font-weight: 650; }
+                                    Text { x: 20px; y: 96px; width: parent.width - 40px; text: @tr("settings.launch-at-login.detail" => "Prepare voice input in the background after you sign in."); color: AppColors.text-muted; font-size: 11px; overflow: elide; }
+                                    SettingSwitch { x: parent.width - 62px; y: 20px; checked: false; enabled: false; }
+                                    Text { x: parent.width - 62px; y: 52px; width: 42px; text: @tr("common.off" => "Off"); color: AppColors.text-muted; font-size: 10px; horizontal-alignment: center; }
                                 }
-                                microphone-touch := TouchArea { }
+                                Rectangle {
+                                    horizontal-stretch: 1; border-radius: 10px; background: AppColors.surface;
+                                    SettingsIcon { x: 20px; y: 20px; source: @image-url("../../icons/lucide/folder-open.svg"); }
+                                    Text { x: 20px; y: 72px; text: @tr("settings.show-in-dock.title" => "Show in Dock"); color: AppColors.ink; font-size: 13px; font-weight: 650; }
+                                    Text { x: 20px; y: 96px; width: parent.width - 40px; text: @tr("settings.show-in-dock.detail" => "Keep the Dock icon visible for quick access."); color: AppColors.text-muted; font-size: 11px; overflow: elide; }
+                                    SettingSwitch { x: parent.width - 62px; y: 20px; checked: true; enabled: false; }
+                                    Text { x: parent.width - 62px; y: 52px; width: 42px; text: @tr("common.show" => "Show"); color: AppColors.text-muted; font-size: 10px; horizontal-alignment: center; }
+                                }
+                            }
+                            if root.compact: VerticalLayout {
+                                height: 280px;
+                                spacing: 16px;
+                                Rectangle {
+                                    height: 132px; border-radius: 10px; background: AppColors.surface;
+                                    SettingsIcon { x: 20px; y: 20px; source: @image-url("../../icons/lucide/settings.svg"); }
+                                    Text { x: 20px; y: 72px; text: @tr("settings.launch-at-login.title" => "Launch at login"); color: AppColors.ink; font-size: 13px; font-weight: 650; }
+                                    Text { x: 20px; y: 96px; width: parent.width - 40px; text: @tr("settings.launch-at-login.detail" => "Prepare voice input in the background after you sign in."); color: AppColors.text-muted; font-size: 11px; overflow: elide; }
+                                    SettingSwitch { x: parent.width - 62px; y: 20px; checked: false; enabled: false; }
+                                }
+                                Rectangle {
+                                    height: 132px; border-radius: 10px; background: AppColors.surface;
+                                    SettingsIcon { x: 20px; y: 20px; source: @image-url("../../icons/lucide/folder-open.svg"); }
+                                    Text { x: 20px; y: 72px; text: @tr("settings.show-in-dock.title" => "Show in Dock"); color: AppColors.ink; font-size: 13px; font-weight: 650; }
+                                    Text { x: 20px; y: 96px; width: parent.width - 40px; text: @tr("settings.show-in-dock.detail" => "Keep the Dock icon visible for quick access."); color: AppColors.text-muted; font-size: 11px; overflow: elide; }
+                                    SettingSwitch { x: parent.width - 62px; y: 20px; checked: true; enabled: false; }
+                                }
+                            }
+                            Text { height: 20px; text: @tr("settings.appearance.title" => "Appearance"); color: AppColors.text; font-size: 13px; font-weight: 650; vertical-alignment: center; }
+                            Rectangle {
+                                height: 116px; border-radius: 10px; background: AppColors.surface;
+                                Image { x: 24px; y: 24px; width: 16px; height: 16px; source: @image-url("../../icons/lucide/settings.svg"); colorize: AppColors.text-muted; }
+                                Text { x: 54px; y: 18px; text: @tr("settings.language.title" => "Interface language"); color: AppColors.ink; font-size: 13px; font-weight: 650; }
+                                Text { x: 54px; y: 42px; text: root.ui-language-status.is-empty ? @tr("settings.language.detail" => "Language used by the application interface") : root.ui-language-status; color: root.ui-language-status.is-empty ? AppColors.text-muted : AppColors.danger; font-size: 11px; }
+                                LanguageSelect { x: parent.width - self.width - 20px; y: 16px; current: root.ui-language; system-language: root.system-ui-language; saving: root.ui-language-saving; selected(language) => { root.set-ui-language(language); } }
+                                Image { x: 24px; y: 72px; width: 16px; height: 16px; source: @image-url("../../icons/lucide/settings.svg"); colorize: AppColors.text-muted; }
+                                Text { x: 54px; y: 66px; text: @tr("settings.theme.title" => "Theme"); color: AppColors.ink; font-size: 13px; font-weight: 650; }
+                                Text { x: 54px; y: 90px; text: @tr("settings.theme.detail" => "Match this device’s appearance setting"); color: AppColors.text-muted; font-size: 11px; }
+                                Text { x: parent.width - 126px; y: 77px; width: 106px; text: @tr("common.follow-system" => "Follow System"); color: AppColors.text-muted; font-size: 11px; horizontal-alignment: right; }
+                            }
+                            Text { height: 20px; text: @tr("settings.software.title" => "Software"); color: AppColors.text; font-size: 13px; font-weight: 650; vertical-alignment: center; }
+                            Rectangle {
+                                height: 67px; border-radius: 10px; background: AppColors.surface;
+                                Image { x: 24px; y: 25px; width: 16px; height: 16px; source: @image-url("../../icons/lucide/refresh-cw.svg"); colorize: AppColors.text-muted; }
+                                Text { x: 54px; y: 15px; text: @tr("settings.auto-update.title" => "Automatically check for updates"); color: AppColors.ink; font-size: 13px; font-weight: 650; }
+                                Text { x: 54px; y: 37px; text: @tr("settings.auto-update.detail" => "Notify you when a new version is available."); color: AppColors.text-muted; font-size: 10px; }
+                                SettingSwitch { x: parent.width - 62px; y: 21px; checked: false; enabled: false; }
                             }
                         }
-                        Rectangle { y: parent.height - 1px; height: 1px; background: AppColors.border; }
-                    }
-                    AudioToggleRow {
-                        title: "交互声音";
-                        detail: "为开始、停止等关键操作播放声音。";
-                        checked <=> root.interaction-sounds-enabled;
-                    }
-                    AudioToggleRow {
-                        title: "语音输入时静音";
-                        detail: "在语音输入时自动静音其他活动音频。";
-                        checked <=> root.mute-other-audio-enabled;
-                    }
-                    Rectangle { vertical-stretch: 1; background: transparent; }
-                }
 
-                if root.current-section == SettingsSection.delivery-permissions: VerticalLayout {
-                    padding: 22px;
-                    spacing: 12px;
-                    Text { height: 38px; text: "投递与权限"; color: AppColors.ink; font-size: 18px; font-weight: 650; }
-                    PermissionRow { title: "麦克风"; status: root.microphone-status; granted: root.microphone-authorized; action-label: "授权"; action-visible: !root.microphone-authorized; action => { root.request-microphone-authorization(); } }
-                    PermissionRow { title: "辅助功能"; status: root.authorization-status; granted: root.authorized; action-label: "授权"; action-visible: !root.authorized; action => { root.request-authorization(); } }
-                    Rectangle { vertical-stretch: 1; background: transparent; }
-                }
+                        if root.current-section == SettingsSection.shortcuts-audio: VerticalLayout {
+                            spacing: 16px;
+                            Text { height: 20px; text: @tr("settings.shortcuts.title" => "Shortcuts"); color: AppColors.text; font-size: 13px; font-weight: 650; vertical-alignment: center; }
+                            Rectangle {
+                                height: 108px; border-radius: 10px; background: AppColors.surface;
+                                SettingsIcon { x: 20px; y: 25px; source: @image-url("../../icons/lucide/settings.svg"); }
+                                Text { x: 70px; y: 20px; text: @tr("settings.shortcut.global.title" => "Global voice input shortcut"); color: AppColors.ink; font-size: 14px; font-weight: 650; }
+                                Text { x: 70px; y: 45px; text: @tr("settings.shortcut.global.detail" => "Press to start or finish voice input."); color: AppColors.text-muted; font-size: 11px; }
+                                Rectangle { x: parent.width - 178px; y: 21px; width: 158px; height: 40px; border-radius: 8px; background: AppColors.sidebar; Text { x: 14px; width: parent.width - 28px; text: @tr("shortcut.right-command" => "Right Command"); color: AppColors.text; font-size: 12px; vertical-alignment: center; horizontal-alignment: center; } }
+                                Text { x: 70px; y: 77px; text: @tr("settings.shortcut.cancel" => "Esc to cancel"); color: AppColors.text-muted; font-size: 10px; }
+                            }
+                            Text { height: 20px; text: @tr("settings.audio.title" => "Audio"); color: AppColors.text; font-size: 13px; font-weight: 650; vertical-alignment: center; }
+                            Rectangle {
+                                height: root.compact ? 132px : 70px; border-radius: 10px; background: AppColors.surface;
+                                Image { x: 24px; y: root.compact ? 24px : 26px; width: 16px; height: 16px; source: @image-url("../../icons/lucide/audio-lines.svg"); colorize: AppColors.text-muted; }
+                                Text { x: 54px; y: root.compact ? 18px : 16px; text: @tr("settings.microphone.input-device" => "Input device"); color: AppColors.ink; font-size: 13px; font-weight: 650; }
+                                Text { x: 54px; y: root.compact ? 42px : 39px; width: root.compact ? parent.width - 78px : parent.width - 280px; text: @tr("settings.microphone.input-device-detail" => "Use the system default microphone or choose another device."); color: AppColors.text-muted; font-size: 11px; }
+                                MicrophoneSelect {
+                                    x: root.compact ? 20px : parent.width - self.width - 20px;
+                                    y: root.compact ? 72px : 15px;
+                                    width: root.compact ? parent.width - 40px : 196px;
+                                    devices: root.microphone-devices;
+                                    selected-id: root.microphone-selection-id;
+                                    selection-label: root.microphone-selection-label;
+                                    default-label: root.microphone-default-label;
+                                    loading: root.microphone-devices-loading;
+                                    selected(id, name) => { root.select-microphone(id, name); }
+                                    refresh => { root.refresh-microphones(); }
+                                }
+                            }
+                            if root.microphone-selection-status != "": Text { height: 18px; text: root.microphone-selection-status; color: AppColors.text-muted; font-size: 10px; }
+                            if !root.compact: HorizontalLayout {
+                                height: 128px; spacing: 16px;
+                                Rectangle { horizontal-stretch: 1; border-radius: 10px; background: AppColors.surface; SettingsIcon { x: 20px; y: 20px; source: @image-url("../../icons/lucide/audio-lines.svg"); } Text { x: 20px; y: 72px; text: @tr("settings.audio.cue.title" => "Voice input sounds"); color: AppColors.ink; font-size: 13px; font-weight: 650; } Text { x: 20px; y: 96px; text: @tr("settings.audio.cue.detail" => "Play a short sound when voice input starts and finishes."); color: AppColors.text-muted; font-size: 10px; } SettingSwitch { x: parent.width - 62px; y: 20px; checked: true; enabled: false; } }
+                                Rectangle { horizontal-stretch: 1; border-radius: 10px; background: AppColors.surface; SettingsIcon { x: 20px; y: 20px; source: @image-url("../../icons/lucide/audio-lines.svg"); } Text { x: 20px; y: 72px; text: @tr("settings.audio.mute-system.title" => "Mute system audio during voice input"); color: AppColors.ink; font-size: 13px; font-weight: 650; } Text { x: 20px; y: 96px; text: @tr("settings.audio.mute-system.detail" => "Temporarily mute system audio only while listening."); color: AppColors.text-muted; font-size: 10px; } SettingSwitch { x: parent.width - 62px; y: 20px; checked: false; enabled: false; } }
+                            }
+                            if root.compact: VerticalLayout {
+                                height: 272px; spacing: 16px;
+                                Rectangle { height: 128px; border-radius: 10px; background: AppColors.surface; SettingsIcon { x: 20px; y: 20px; source: @image-url("../../icons/lucide/audio-lines.svg"); } Text { x: 20px; y: 72px; text: @tr("settings.audio.cue.title" => "Voice input sounds"); color: AppColors.ink; font-size: 13px; font-weight: 650; } Text { x: 20px; y: 96px; text: @tr("settings.audio.cue.detail" => "Play a short sound when voice input starts and finishes."); color: AppColors.text-muted; font-size: 10px; } SettingSwitch { x: parent.width - 62px; y: 20px; checked: true; enabled: false; } }
+                                Rectangle { height: 128px; border-radius: 10px; background: AppColors.surface; SettingsIcon { x: 20px; y: 20px; source: @image-url("../../icons/lucide/audio-lines.svg"); } Text { x: 20px; y: 72px; text: @tr("settings.audio.mute-system.title" => "Mute system audio during voice input"); color: AppColors.ink; font-size: 13px; font-weight: 650; } Text { x: 20px; y: 96px; text: @tr("settings.audio.mute-system.detail" => "Temporarily mute system audio only while listening."); color: AppColors.text-muted; font-size: 10px; } SettingSwitch { x: parent.width - 62px; y: 20px; checked: false; enabled: false; } }
+                            }
+                        }
 
-                if root.current-section == SettingsSection.privacy-history: VerticalLayout {
-                    padding: 22px;
-                    spacing: 0px;
-                    Text { height: 38px; text: "隐私与历史"; color: AppColors.ink; font-size: 18px; font-weight: 650; }
-                    HorizontalLayout {
-                        height: 58px; cross-axis-alignment: center;
-                        Text { text: "本地历史"; color: #3b3f45; font-size: 13px; font-weight: 550; }
-                        Rectangle { horizontal-stretch: 1; background: transparent; }
-                        AppCheckBox { checked <=> root.history-enabled; toggled => { root.set-history-enabled(self.checked); } }
-                    }
-                    HorizontalLayout {
-                        height: 58px; cross-axis-alignment: center;
-                        Text { text: "保留期限"; color: #3b3f45; font-size: 13px; font-weight: 550; }
-                        Rectangle { horizontal-stretch: 1; background: transparent; }
-                        AppSelect {
-                            width: 132px;
-                            model: ["1 天", "7 天", "30 天", "永久"];
-                            current-value <=> root.history-retention;
-                            selected(value) => { root.set-history-retention(value); }
+                        if root.current-section == SettingsSection.delivery-permissions: VerticalLayout {
+                            spacing: 16px;
+                            Text { height: 20px; text: @tr("settings.delivery.title" => "Delivery"); color: AppColors.text; font-size: 13px; font-weight: 650; vertical-alignment: center; }
+                            Rectangle {
+                                height: 146px; border-radius: 10px; background: AppColors.surface;
+                                SettingsIcon { x: 20px; y: 20px; source: @image-url("../../icons/lucide/check.svg"); }
+                                Text { x: 70px; y: 20px; text: @tr("settings.delivery.auto-insert.title" => "Automatically insert recognized text"); color: AppColors.ink; font-size: 14px; font-weight: 650; }
+                                Text { x: 70px; y: 45px; width: parent.width - 150px; text: @tr("settings.delivery.auto-insert.detail" => "Insert completed text into the app you are currently using."); color: AppColors.text-muted; font-size: 11px; }
+                                SettingSwitch { x: parent.width - 62px; y: 21px; checked: root.authorized; enabled: false; }
+                                Text { x: 20px; y: 87px; text: @tr("settings.delivery.copy.title" => "Also copy to clipboard"); color: AppColors.ink; font-size: 13px; font-weight: 650; }
+                                Text { x: 20px; y: 112px; text: @tr("settings.delivery.copy.detail" => "Keep a copy so you can paste it manually when needed."); color: AppColors.text-muted; font-size: 11px; }
+                                SettingSwitch { x: parent.width - 62px; y: 93px; checked: true; enabled: false; }
+                            }
+                            Text { height: 20px; text: @tr("settings.permissions.title" => "System Permissions"); color: AppColors.text; font-size: 13px; font-weight: 650; vertical-alignment: center; }
+                            if !root.compact: HorizontalLayout {
+                                height: 130px; spacing: 16px;
+                                PermissionCard { horizontal-stretch: 1; icon: @image-url("../../icons/lucide/audio-lines.svg"); title: @tr("settings.permissions.microphone.title" => "Microphone"); detail: root.microphone-authorized ? @tr("settings.permissions.microphone.granted-detail" => "Captures your voice only while voice input is active.") : @tr("settings.permissions.microphone.required-detail" => "Allow microphone access to start voice input."); status: root.microphone-status; granted: root.microphone-authorized; open-system-settings => { root.open-microphone-settings(); } }
+                                PermissionCard { horizontal-stretch: 1; icon: @image-url("../../icons/lucide/check.svg"); title: @tr("settings.permissions.accessibility.title" => "Accessibility"); detail: root.authorized ? @tr("settings.permissions.accessibility.granted-detail" => "Inserts recognized text into the app you are using.") : @tr("settings.permissions.accessibility.required-detail" => "Allow Accessibility access to insert recognized text automatically."); status: root.authorization-status; granted: root.authorized; open-system-settings => { root.open-accessibility-settings(); } }
+                            }
+                            if root.compact: VerticalLayout {
+                                height: 276px; spacing: 16px;
+                                PermissionCard { height: 130px; icon: @image-url("../../icons/lucide/audio-lines.svg"); title: @tr("settings.permissions.microphone.title" => "Microphone"); detail: root.microphone-authorized ? @tr("settings.permissions.microphone.granted-detail" => "Captures your voice only while voice input is active.") : @tr("settings.permissions.microphone.required-detail" => "Allow microphone access to start voice input."); status: root.microphone-status; granted: root.microphone-authorized; open-system-settings => { root.open-microphone-settings(); } }
+                                PermissionCard { height: 130px; icon: @image-url("../../icons/lucide/check.svg"); title: @tr("settings.permissions.accessibility.title" => "Accessibility"); detail: root.authorized ? @tr("settings.permissions.accessibility.granted-detail" => "Inserts recognized text into the app you are using.") : @tr("settings.permissions.accessibility.required-detail" => "Allow Accessibility access to insert recognized text automatically."); status: root.authorization-status; granted: root.authorized; open-system-settings => { root.open-accessibility-settings(); } }
+                            }
+                            Text { height: 18px; text: @tr("settings.permissions.system-managed" => "Permission status is managed by the system and refreshes automatically."); color: AppColors.text-muted; font-size: 10px; }
+                        }
+
+                        if root.current-section == SettingsSection.privacy-history: VerticalLayout {
+                            spacing: 16px;
+                            Text { height: 20px; text: @tr("settings.local-data.title" => "Local Data"); color: AppColors.text; font-size: 13px; font-weight: 650; vertical-alignment: center; }
+                            Rectangle {
+                                height: 128px; border-radius: 10px; background: AppColors.surface;
+                                SettingsIcon { x: 20px; y: 20px; source: @image-url("../../icons/lucide/lock-keyhole.svg"); }
+                                Text { x: 70px; y: 20px; text: @tr("settings.local-data.device-only.title" => "Data stays on this device"); color: AppColors.ink; font-size: 14px; font-weight: 650; }
+                                Text { x: 70px; y: 45px; width: parent.width - 250px; text: @tr("settings.local-data.device-only.detail" => "History, dictionary entries, and configuration are stored only on this device by default."); color: AppColors.text-muted; font-size: 11px; }
+                                Text { x: 70px; y: 69px; text: @tr("settings.local-data.usage" => "Currently using {}", root.storage-usage); color: AppColors.text-muted; font-size: 10px; }
+                                SettingsActionButton { x: parent.width - 164px; y: 20px; label: @tr("settings.local-data.open-folder" => "Open data folder"); icon: @image-url("../../icons/lucide/folder-open.svg"); activated => { root.open-data-directory(); } }
+                                Text { x: 20px; y: 96px; text: @tr("settings.local-data.no-cloud-sync" => "Saymore does not sync this content to the cloud."); color: AppColors.text-muted; font-size: 10px; }
+                            }
+                            Text { height: 20px; text: @tr("settings.diagnostics.title" => "Diagnostics & Support"); color: AppColors.text; font-size: 13px; font-weight: 650; vertical-alignment: center; }
+                            if !root.compact: HorizontalLayout {
+                                height: 140px; spacing: 16px;
+                                Rectangle {
+                                    horizontal-stretch: 1; border-radius: 10px; background: AppColors.surface;
+                                    SettingsIcon { x: 20px; y: 20px; source: @image-url("../../icons/lucide/settings.svg"); }
+                                    Text { x: 70px; y: 20px; text: @tr("settings.diagnostics.logging.title" => "Diagnostic logging"); color: AppColors.ink; font-size: 14px; font-weight: 650; }
+                                    SettingSwitch { x: parent.width - 62px; y: 20px; checked <=> root.diagnostics-enabled; toggled(value) => { root.set-diagnostics-enabled(value); } }
+                                    Text { x: 20px; y: 82px; width: parent.width - 40px; text: root.diagnostics-status.is-empty ? @tr("settings.diagnostics.logging.detail" => "Records runtime status and errors, never recognized text.") : root.diagnostics-status; color: root.diagnostics-status.is-empty ? AppColors.text-muted : AppColors.danger; font-size: 10px; }
+                                }
+                                Rectangle {
+                                    horizontal-stretch: 1; border-radius: 10px; background: AppColors.surface;
+                                    SettingsIcon { x: 20px; y: 20px; source: @image-url("../../icons/lucide/folder-open.svg"); }
+                                    Text { x: 70px; y: 20px; text: @tr("settings.diagnostics.report.title" => "Diagnostic report"); color: AppColors.ink; font-size: 14px; font-weight: 650; }
+                                    SettingsActionButton { x: parent.width - 142px; y: 20px; width: 122px; label: root.export-button-label; icon: root.diagnostics-export-status == "success" ? @image-url("../../icons/lucide/check.svg") : root.diagnostics-export-status == "failed" ? @image-url("../../icons/lucide/circle-alert.svg") : @image-url("../../icons/lucide/download.svg"); enabled: root.diagnostics-export-status != "exporting"; state: root.diagnostics-export-status == "success" ? "success" : root.diagnostics-export-status == "failed" ? "failure" : "default"; activated => { root.export-diagnostics-report(); } }
+                                    Text { x: 20px; y: 82px; width: parent.width - 40px; text: root.diagnostics-export-detail.is-empty ? @tr("settings.diagnostics.report.detail" => "Export a report without sensitive content when you need support.") : root.diagnostics-export-detail; color: root.diagnostics-export-status == "failed" ? AppColors.danger : AppColors.text-muted; font-size: 10px; }
+                                }
+                            }
+                            if root.compact: VerticalLayout {
+                                height: 296px; spacing: 16px;
+                                Rectangle { height: 140px; border-radius: 10px; background: AppColors.surface; SettingsIcon { x: 20px; y: 20px; source: @image-url("../../icons/lucide/settings.svg"); } Text { x: 70px; y: 20px; text: @tr("settings.diagnostics.logging.title" => "Diagnostic logging"); color: AppColors.ink; font-size: 14px; font-weight: 650; } SettingSwitch { x: parent.width - 62px; y: 20px; checked <=> root.diagnostics-enabled; toggled(value) => { root.set-diagnostics-enabled(value); } } Text { x: 20px; y: 82px; width: parent.width - 40px; text: root.diagnostics-status.is-empty ? @tr("settings.diagnostics.logging.detail" => "Records runtime status and errors, never recognized text.") : root.diagnostics-status; color: root.diagnostics-status.is-empty ? AppColors.text-muted : AppColors.danger; font-size: 10px; } }
+                                Rectangle { height: 140px; border-radius: 10px; background: AppColors.surface; SettingsIcon { x: 20px; y: 20px; source: @image-url("../../icons/lucide/folder-open.svg"); } Text { x: 70px; y: 20px; text: @tr("settings.diagnostics.report.title" => "Diagnostic report"); color: AppColors.ink; font-size: 14px; font-weight: 650; } SettingsActionButton { x: parent.width - 142px; y: 20px; width: 122px; label: root.export-button-label; icon: root.diagnostics-export-status == "success" ? @image-url("../../icons/lucide/check.svg") : root.diagnostics-export-status == "failed" ? @image-url("../../icons/lucide/circle-alert.svg") : @image-url("../../icons/lucide/download.svg"); enabled: root.diagnostics-export-status != "exporting"; state: root.diagnostics-export-status == "success" ? "success" : root.diagnostics-export-status == "failed" ? "failure" : "default"; activated => { root.export-diagnostics-report(); } } Text { x: 20px; y: 82px; width: parent.width - 40px; text: root.diagnostics-export-detail.is-empty ? @tr("settings.diagnostics.report.detail" => "Export a report without sensitive content when you need support.") : root.diagnostics-export-detail; color: root.diagnostics-export-status == "failed" ? AppColors.danger : AppColors.text-muted; font-size: 10px; } }
+                            }
+                            Text { height: 20px; text: @tr("settings.policy.title" => "Policy"); color: AppColors.text; font-size: 13px; font-weight: 650; vertical-alignment: center; }
+                            Rectangle { height: 62px; border-radius: 10px; background: AppColors.surface; Image { x: 24px; y: 22px; width: 18px; height: 18px; source: @image-url("../../icons/lucide/lock-keyhole.svg"); colorize: AppColors.text-muted; } Text { x: 54px; y: 13px; text: @tr("settings.privacy-policy.title" => "Privacy Policy"); color: AppColors.ink; font-size: 13px; font-weight: 650; } Text { x: 54px; y: 35px; text: @tr("settings.privacy-policy.detail" => "Learn how Saymore handles and protects your data."); color: AppColors.text-muted; font-size: 10px; } Image { x: parent.width - 34px; y: 23px; width: 14px; height: 14px; source: @image-url("../../icons/lucide/chevron-right.svg"); colorize: AppColors.text-muted; } }
+                        }
+
+                        if root.current-section == SettingsSection.about-updates: VerticalLayout {
+                            spacing: 16px;
+                            Text { height: 20px; text: @tr("settings.product.title" => "Product"); color: AppColors.text; font-size: 13px; font-weight: 650; vertical-alignment: center; }
+                            Rectangle {
+                                height: 170px; border-radius: 10px; background: AppColors.surface;
+                                Image { x: 32px; y: 38px; width: 58px; height: 58px; source: @image-url("../../icons/saymore-mark-3d-136.png"); image-fit: contain; }
+                                Text { x: 114px; y: 28px; text: "Saymore"; color: AppColors.ink; font-size: 22px; font-weight: 700; }
+                                Text { x: 114px; y: 62px; text: @tr("settings.product.tagline" => "Speak your mind, hands-free."); color: AppColors.text-muted; font-size: 12px; }
+                                Rectangle { x: 114px; y: 96px; width: 74px; height: 30px; border-radius: 7px; background: AppColors.sidebar; Text { text: "v0.1.0"; color: AppColors.text; font-size: 11px; horizontal-alignment: center; vertical-alignment: center; } }
+                                StatusLabel { x: 204px; y: 99px; width: parent.width - 390px; label: root.update-message; granted: root.update-status == "latest"; tone: root.update-status == "latest" ? "success" : root.update-status == "available" ? "warning" : root.update-status == "failed" ? "danger" : "neutral"; }
+                                if root.update-status == "available": SettingsActionButton { x: parent.width - 174px; y: 94px; width: 154px; label: @tr("settings.update.download-install" => "Download and install"); icon: @image-url("../../icons/lucide/download.svg"); primary: true; activated => { root.download-update(); } }
+                                if root.update-status != "available": SettingsActionButton { x: parent.width - 174px; y: 94px; width: 154px; label: root.update-button-label; icon: @image-url("../../icons/lucide/refresh-cw.svg"); enabled: root.update-status != "checking"; activated => { root.check-for-updates(); } }
+                            }
+                            Text { height: 20px; text: @tr("settings.update.title" => "Updates"); color: AppColors.text; font-size: 13px; font-weight: 650; vertical-alignment: center; }
+                            Rectangle { height: 92px; border-radius: 10px; background: AppColors.surface; SettingsIcon { x: 24px; y: 26px; source: @image-url("../../icons/lucide/folder-open.svg"); } Text { x: 78px; y: 20px; text: @tr("settings.release-notes.title" => "Release notes"); color: AppColors.ink; font-size: 13px; font-weight: 650; } Text { x: 78px; y: 45px; text: @tr("settings.release-notes.detail" => "See what changed in this release."); color: AppColors.text-muted; font-size: 11px; } Text { x: parent.width - 142px; y: 37px; width: 122px; text: @tr("settings.release-notes.view" => "View release notes"); color: AppColors.text-muted; font-size: 11px; horizontal-alignment: right; } }
+                            Text { height: 20px; text: @tr("settings.links-support.title" => "Links & Support"); color: AppColors.text; font-size: 13px; font-weight: 650; vertical-alignment: center; }
+                            Rectangle { height: 70px; border-radius: 10px; background: AppColors.surface; Text { x: 24px; width: 100px; text: @tr("settings.link.website" => "Website"); color: AppColors.text; font-size: 12px; vertical-alignment: center; } Text { x: parent.width / 4; width: 100px; text: @tr("settings.link.feedback" => "Feedback"); color: AppColors.text; font-size: 12px; vertical-alignment: center; } Text { x: parent.width / 2; width: 100px; text: @tr("settings.link.terms" => "Terms of Service"); color: AppColors.text; font-size: 12px; vertical-alignment: center; } Text { x: parent.width * 3 / 4; width: 100px; text: @tr("settings.privacy-policy.title" => "Privacy Policy"); color: AppColors.text; font-size: 12px; vertical-alignment: center; } }
                         }
                     }
-                    SettingsRow { title: "匿名使用统计"; detail: "关闭"; }
-                    SettingsRow { title: "崩溃报告"; detail: "关闭"; }
-                    Rectangle { vertical-stretch: 1; background: transparent; }
-                }
-
-                if root.current-section == SettingsSection.about-updates: VerticalLayout {
-                    padding: 22px;
-                    spacing: 0px;
-                    Text { height: 38px; text: "关于与更新"; color: AppColors.ink; font-size: 18px; font-weight: 650; }
-                    SettingsRow { title: "Saymore"; detail: "0.1.0"; }
-                    SettingsRow { title: "许可证"; detail: "MIT OR Apache-2.0"; }
-                    SettingsRow { title: "界面技术"; detail: "Made with Slint"; }
-                    Rectangle { vertical-stretch: 1; background: transparent; }
                 }
             }
         }
     }
-    }
-
 }

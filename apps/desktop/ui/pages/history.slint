@@ -1,239 +1,477 @@
 import { ScrollView } from "std-widgets.slint";
-import { AppButton, EmptyState, PageHeading } from "../components.slint";
 import { AppColors } from "../color-system.slint";
+
+export enum HistoryRetentionOption { never, one-day, seven-days, thirty-days, forever }
 
 export struct HistoryListItem {
     id: string,
     text: string,
-    raw-asr-text: string,
-    has-raw-asr-text: bool,
-    refined-text: string,
-    has-refined-text: bool,
     time: string,
-    detail: string,
-    delivered: bool,
+    duration: string,
+    input-status: string,
+    polish-status: string,
+    asr-model: string,
+    llm-model: string,
+}
+
+export struct HistoryGroup {
+    title: string,
+    items: [HistoryListItem],
+}
+
+component RetentionOptionButton inherits Rectangle {
+    in property <string> label;
+    in property <bool> selected;
+    callback activated();
+    height: 38px;
+    border-radius: 7px;
+    background: root.selected ? AppColors.selected : (option-touch.has-hover ? AppColors.surface-warm : transparent);
+    Text {
+        x: 8px;
+        width: parent.width - 16px;
+        text: root.label;
+        color: AppColors.ink;
+        font-size: 12px;
+        font-weight: root.selected ? 700 : 400;
+        vertical-alignment: center;
+    }
+    option-touch := TouchArea { mouse-cursor: pointer; clicked => { root.activated(); } }
 }
 
 component HistoryIconButton inherits Rectangle {
     in property <image> icon;
     in property <string> label;
     in property <bool> danger: false;
+    in property <bool> enabled: true;
+    in property <bool> success: false;
+    out property <bool> has-hover: touch.has-hover;
     callback activated();
     width: 34px;
     height: 34px;
-    border-radius: 6px;
-    background: touch.has-hover ? (root.danger ? AppColors.danger-soft : AppColors.surface-subtle) : transparent;
+    border-radius: 7px;
+    background: root.success ? AppColors.success-soft : (touch.has-hover ? (root.danger ? AppColors.danger-soft : AppColors.surface-subtle) : transparent);
+    animate background { duration: 140ms; easing: ease-out; }
     accessible-role: button;
     accessible-label: root.label;
-    accessible-action-default => { root.activated(); }
-    Image { width: 17px; height: 17px; source: root.icon; x: 8px; y: 8px; }
-    touch := TouchArea { mouse-cursor: pointer; clicked => { root.activated(); } }
-    if touch.has-hover: Rectangle {
-        x: (parent.width - self.width) / 2;
-        y: parent.height + 4px;
-        width: tip-text.preferred-width + 14px;
-        height: 25px;
-        border-radius: 5px;
-        background: AppColors.ink;
-        z: 10;
-        tip-text := Text { text: root.label; color: #ffffff; font-size: 11px; horizontal-alignment: center; vertical-alignment: center; }
+    accessible-action-default => { if root.enabled { root.activated(); } }
+    Image {
+        width: 16px;
+        height: 16px;
+        x: 9px;
+        y: 9px;
+        source: root.icon;
+        colorize: root.danger ? AppColors.danger : AppColors.text-muted;
+        opacity: root.success ? 0 : 1;
+        animate opacity { duration: 120ms; easing: ease-out; }
     }
+    Image {
+        width: 16px;
+        height: 16px;
+        x: 9px;
+        y: 9px;
+        source: @image-url("../../icons/lucide/check.svg");
+        colorize: AppColors.success;
+        opacity: root.success ? 1 : 0;
+        animate opacity { duration: 120ms; easing: ease-out; }
+    }
+    touch := TouchArea { enabled: root.enabled; mouse-cursor: root.enabled ? pointer : default; clicked => { root.activated(); } }
 }
 
-export component HistoryPage inherits Rectangle {
-    in property <[HistoryListItem]> items;
-    in property <string> status-text: "";
-    in property <bool> undo-visible: false;
-    in property <bool> has-more: false;
-    in property <bool> locked: false;
-    callback refresh();
-    callback load-more();
+component QuietButton inherits Rectangle {
+    in property <string> label;
+    in property <bool> primary: false;
+    in property <bool> danger: false;
+    in property <bool> success: false;
+    callback activated();
+    height: 36px;
+    border-radius: 7px;
+    background: root.success ? AppColors.success : root.primary
+        ? (root.danger ? (touch.has-hover ? AppColors.danger-strong : AppColors.danger) : (touch.has-hover ? AppColors.brand-strong : AppColors.brand))
+        : (touch.has-hover ? AppColors.selected : AppColors.surface-subtle);
+    animate background { duration: 140ms; easing: ease-out; }
+    if root.success: Image { x: 28px; y: 10px; width: 16px; height: 16px; source: @image-url("../../icons/lucide/check.svg"); colorize: #ffffff; }
+    Text { x: root.success ? 48px : 0px; width: root.success ? parent.width - 48px : parent.width; text: root.label; color: root.success || root.primary ? #ffffff : (root.danger ? AppColors.danger : AppColors.text); font-size: 12px; font-weight: 650; horizontal-alignment: root.success ? left : center; vertical-alignment: center; }
+    touch := TouchArea { mouse-cursor: pointer; clicked => { root.activated(); } }
+}
+
+component StateIcon inherits Rectangle {
+    in property <image> source;
+    in property <length> size: 30px;
+    height: root.size;
+    background: transparent;
+    Image { x: (parent.width - self.width) / 2; y: (parent.height - self.height) / 2; width: root.size; height: root.size; source: root.source; }
+}
+
+export component HistoryDialog inherits Rectangle {
+    in-out property <bool> detail-visible: false;
+    in-out property <bool> clear-confirmation-visible: false;
+    in-out property <bool> reset-confirmation-visible: false;
+    in property <string> selected-id: "";
+    in property <string> selected-text: "";
+    in property <string> selected-time: "";
+    in property <string> selected-duration: "";
+    in property <string> selected-input: "";
+    in property <string> selected-polish: "";
+    in property <string> selected-asr: "";
+    in property <string> selected-llm: "";
     callback copy(string);
     callback delete-record(string);
     callback clear-all();
     callback reset();
-    callback undo-delete();
-    property <bool> clear-confirmation-visible: false;
-    property <bool> detail-visible: false;
-    property <string> detail-text: "";
-    property <string> detail-raw-asr-text: "";
-    property <bool> detail-has-raw-asr-text: false;
-    property <string> detail-refined-text: "";
-    property <bool> detail-has-refined-text: false;
-    property <string> detail-meta: "";
-    background: AppColors.canvas;
 
-    VerticalLayout {
-        padding-left: 32px;
-        padding-right: 32px;
-        padding-top: 48px;
-        padding-bottom: 28px;
-        spacing: 18px;
+    property <bool> active: root.detail-visible || root.clear-confirmation-visible || root.reset-confirmation-visible;
+    property <bool> detail-copied: false;
+    background: #1f1f1c66;
+    z: 100;
+    opacity: self.active ? 1 : 0;
+    animate opacity { duration: 160ms; easing: ease-out; }
+    TouchArea {
+        enabled: root.active;
+        clicked => {
+            root.detail-visible = false;
+            root.clear-confirmation-visible = false;
+            root.reset-confirmation-visible = false;
+        }
+    }
+    Timer { interval: 1500ms; running: root.detail-copied; triggered => { root.detail-copied = false; } }
+    Rectangle {
+        width: root.detail-visible ? min(560px, parent.width - 32px) : (root.reset-confirmation-visible ? min(500px, parent.width - 32px) : 350px);
+        height: root.detail-visible ? min(440px, parent.height - 32px) : (root.reset-confirmation-visible ? 250px : 210px);
+        x: (parent.width - self.width) / 2;
+        y: (parent.height - self.height) / 2;
+        border-radius: 8px;
+        background: AppColors.surface;
 
-        HorizontalLayout {
-            height: 38px;
-            cross-axis-alignment: center;
-            PageHeading { label: "历史记录"; }
-            Rectangle { horizontal-stretch: 1; background: transparent; }
-            if !root.locked: HistoryIconButton {
-                icon: @image-url("../../icons/lucide/trash-2.svg");
-                label: "清空全部历史";
-                danger: true;
-                activated => { root.clear-confirmation-visible = true; }
+        if root.clear-confirmation-visible: VerticalLayout {
+            padding: 24px;
+            spacing: 16px;
+            Text { text: @tr("history.clear.title" => "Clear all history?"); color: AppColors.ink; font-size: 18px; font-weight: 700; }
+            Text { text: @tr("history.clear.detail" => "All records will be permanently deleted from this device. This cannot be undone."); color: AppColors.text-muted; font-size: 12px; wrap: word-wrap; }
+            HorizontalLayout {
+                alignment: end;
+                spacing: 10px;
+                QuietButton { width: 78px; label: @tr("common.cancel" => "Cancel"); activated => { root.clear-confirmation-visible = false; } }
+                QuietButton { width: 92px; label: @tr("history.clear.action" => "Clear"); primary: true; danger: true; activated => { root.clear-confirmation-visible = false; root.clear-all(); } }
             }
         }
 
-        if !root.status-text.is-empty: Text {
-            height: 28px;
-            text: root.status-text;
-            color: AppColors.danger;
-            font-size: 12px;
-            vertical-alignment: center;
-        }
-
-        if root.items.length == 0 && !root.locked: EmptyState {
-            vertical-stretch: 1;
-            title: "暂无历史记录";
-            detail: "识别成功的最终文本会安全地保存在这里";
-        }
-
-        if root.locked: VerticalLayout {
-            vertical-stretch: 1;
-            alignment: center;
-            spacing: 14px;
-            Text { text: "历史已锁定"; color: #25282d; font-size: 18px; font-weight: 700; horizontal-alignment: center; }
-            Text { text: "历史密钥不可用。设置和词典仍可正常使用。"; color: #777d86; font-size: 12px; horizontal-alignment: center; }
-            AppButton { text: "删除旧历史并重新初始化"; danger: true; clicked => { root.reset-confirmation-visible = true; } }
-        }
-
-        if root.items.length > 0: ScrollView {
-            vertical-stretch: 1;
-            VerticalLayout {
+        if root.reset-confirmation-visible: VerticalLayout {
+            padding: 24px;
+            spacing: 15px;
+            Text { text: @tr("history.reset.title" => "Reset history?"); color: AppColors.ink; font-size: 18px; font-weight: 700; }
+            Text { text: @tr("history.reset.detail" => "Existing history will be permanently deleted and cannot be recovered."); color: AppColors.text; font-size: 12px; }
+            Text { text: @tr("history.reset.unaffected" => "Your dictionary, model configuration, and other settings will not be affected."); color: AppColors.text-muted; font-size: 11px; }
+            HorizontalLayout {
+                alignment: end;
                 spacing: 10px;
-                for item in root.items: Rectangle {
-                    height: 88px;
-                    border-width: 1px;
-                    border-color: AppColors.border;
-                    border-radius: 7px;
-                    background: row-touch.has-hover ? AppColors.surface-warm : AppColors.surface;
-                    row-touch := TouchArea {
-                        mouse-cursor: pointer;
-                        clicked => {
-                            root.detail-text = item.text;
-                            root.detail-raw-asr-text = item.raw-asr-text;
-                            root.detail-has-raw-asr-text = item.has-raw-asr-text;
-                            root.detail-refined-text = item.refined-text;
-                            root.detail-has-refined-text = item.has-refined-text;
-                            root.detail-meta = item.time + "  ·  " + item.detail;
-                            root.detail-visible = true;
-                        }
-                    }
-                    HorizontalLayout {
-                        padding-left: 18px;
-                        padding-right: 12px;
-                        spacing: 12px;
-                        cross-axis-alignment: center;
-                        VerticalLayout {
-                            spacing: 7px;
-                            Text { text: item.text; color: AppColors.ink; font-size: 14px; overflow: elide; }
-                            Text { text: item.time + "  ·  " + item.detail; color: item.delivered ? AppColors.text-muted : AppColors.danger; font-size: 11px; }
-                        }
-                        Rectangle { horizontal-stretch: 1; background: transparent; }
-                        HistoryIconButton { icon: @image-url("../../icons/lucide/copy.svg"); label: "复制文本"; activated => { root.copy(item.id); } }
-                        HistoryIconButton { icon: @image-url("../../icons/lucide/trash-2.svg"); label: "删除记录"; danger: true; activated => { root.delete-record(item.id); } }
+                QuietButton { width: 86px; label: @tr("common.cancel" => "Cancel"); activated => { root.reset-confirmation-visible = false; } }
+                QuietButton { width: 108px; label: @tr("history.reset.action" => "Delete and reset"); primary: true; danger: true; activated => { root.reset-confirmation-visible = false; root.reset(); } }
+            }
+        }
+
+        if root.detail-visible: Rectangle {
+            x: 24px;
+            y: 20px;
+            width: parent.width - 48px;
+            height: parent.height - 40px;
+            Text { x: 0px; y: 0px; text: @tr("history.detail.title" => "Record details"); color: AppColors.ink; font-size: 18px; font-weight: 700; }
+            HistoryIconButton { x: parent.width - 34px; y: -5px; icon: @image-url("../../icons/lucide/x.svg"); label: @tr("common.close" => "Close"); activated => { root.detail-visible = false; } }
+            Text { x: 0px; y: 36px; text: root.selected-time; color: AppColors.text-muted; font-size: 10px; }
+            Text { x: 0px; y: 68px; text: @tr("history.detail.content" => "Content"); color: AppColors.text; font-size: 11px; font-weight: 650; }
+            Rectangle {
+                x: 0px;
+                y: 90px;
+                width: parent.width;
+                height: 105px;
+                border-radius: 7px;
+                background: AppColors.surface-warm;
+                detail-scroll := ScrollView {
+                    x: 16px;
+                    y: 14px;
+                    width: parent.width - 32px;
+                    height: parent.height - 28px;
+                    viewport-width: self.width;
+                    viewport-height: max(self.height, detail-copy.preferred-height);
+                    vertical-scrollbar-policy: ScrollBarPolicy.always-off;
+                    horizontal-scrollbar-policy: ScrollBarPolicy.always-off;
+                    detail-copy := Text {
+                        width: detail-scroll.viewport-width;
+                        height: self.preferred-height;
+                        text: root.selected-text;
+                        color: AppColors.ink;
+                        font-size: 13px;
+                        wrap: word-wrap;
                     }
                 }
-                if root.has-more: Rectangle {
-                    height: 40px;
-                    background: transparent;
-                    Text { text: "加载更多"; color: #176b4c; font-size: 12px; horizontal-alignment: center; vertical-alignment: center; }
-                    TouchArea { mouse-cursor: pointer; clicked => { root.load-more(); } }
+            }
+            Text { x: 0px; y: 216px; text: @tr("history.detail.record-info" => "Record information"); color: AppColors.text; font-size: 11px; font-weight: 650; }
+            Rectangle {
+                x: 0px;
+                y: 238px;
+                width: parent.width;
+                height: 96px;
+                border-radius: 7px;
+                background: AppColors.surface-warm;
+                Text { x: 16px; y: 13px; text: @tr("history.detail.summary" => "{}  ·  {}  ·  {}", root.selected-duration, root.selected-input, root.selected-polish); color: AppColors.text; font-size: 10px; }
+                Text { x: 16px; y: 40px; text: @tr("history.detail.asr-model" => "Speech model"); color: AppColors.text-muted; font-size: 10px; }
+                Text { x: 100px; y: 40px; width: parent.width - 116px; text: root.selected-asr; color: AppColors.text; font-size: 10px; overflow: elide; }
+                Text { x: 16px; y: 66px; text: @tr("history.detail.llm-model" => "Polishing model"); color: AppColors.text-muted; font-size: 10px; }
+                Text { x: 100px; y: 66px; width: parent.width - 116px; text: root.selected-llm; color: AppColors.text; font-size: 10px; overflow: elide; }
+            }
+            Rectangle {
+                x: 0px;
+                y: parent.height - 36px;
+                width: 88px;
+                height: 36px;
+                background: detail-delete-touch.has-hover ? AppColors.danger-soft : transparent;
+                border-radius: 7px;
+                Text { text: @tr("history.delete-record" => "Delete record"); color: AppColors.danger; font-size: 11px; font-weight: 650; horizontal-alignment: center; vertical-alignment: center; }
+                detail-delete-touch := TouchArea { mouse-cursor: pointer; clicked => { root.detail-visible = false; root.delete-record(root.selected-id); } }
+            }
+            QuietButton { x: parent.width - 110px; y: parent.height - 36px; width: 110px; label: root.detail-copied ? @tr("common.copied" => "Copied") : @tr("history.copy-content" => "Copy content"); primary: true; success: root.detail-copied; activated => { root.detail-copied = true; root.copy(root.selected-id); } }
+        }
+    }
+}
+
+export component HistoryPage inherits Rectangle {
+    in property <[HistoryGroup]> groups;
+    in property <string> status-text: "";
+    in property <bool> undo-visible: false;
+    in property <bool> has-more: false;
+    in property <bool> locked: false;
+    in property <bool> loading: false;
+    in property <bool> load-failed: false;
+    in property <HistoryRetentionOption> retention: HistoryRetentionOption.seven-days;
+    callback refresh();
+    callback search(string);
+    callback load-more();
+    callback copy(string);
+    callback delete-record(string);
+    callback undo-delete();
+    callback retention-selected(HistoryRetentionOption);
+    callback show-detail(HistoryListItem);
+    callback show-clear-confirmation();
+    callback show-reset-confirmation();
+
+    property <bool> compact: root.width < 650px;
+    property <length> controls-y: root.compact ? 66px : 43px;
+    property <length> state-y: root.compact ? 130px : 94px;
+    property <length> list-y: root.compact ? 138px : 112px;
+    property <bool> retention-open: false;
+    property <bool> more-open: false;
+    property <string> query: "";
+    property <string> copied-id: "";
+    property <bool> search-active: search-input.has-focus || !root.query.is-empty;
+    property <length> search-width: root.search-active ? min(280px, root.width - 208px) : 38px;
+    property <bool> status-visible: !root.status-text.is-empty;
+    property <string> retention-label: root.retention == HistoryRetentionOption.never ? @tr("history.retention.never" => "Never save")
+        : root.retention == HistoryRetentionOption.one-day ? @tr("history.retention.one-day" => "Keep for 24 hours")
+        : root.retention == HistoryRetentionOption.thirty-days ? @tr("history.retention.thirty-days" => "Keep for 1 month")
+        : root.retention == HistoryRetentionOption.forever ? @tr("history.retention.forever" => "Keep forever")
+        : @tr("history.retention.seven-days" => "Keep for 1 week");
+
+    background: AppColors.canvas;
+    page-focus := FocusScope { width: 0px; height: 0px; }
+    TouchArea { mouse-cursor: default; clicked => { page-focus.focus(); root.retention-open = false; root.more-open = false; } }
+    changed status-text => { root.status-visible = !root.status-text.is-empty; }
+    Timer { interval: 4s; running: root.status-visible; triggered => { root.status-visible = false; } }
+    Timer { interval: 1500ms; running: !root.copied-id.is-empty; triggered => { root.copied-id = ""; } }
+
+    Text {
+        x: 0px;
+        y: root.compact ? 22px : 42px;
+        text: @tr("history.title" => "History");
+        color: AppColors.ink;
+        font-size: 27px;
+        font-weight: 700;
+        letter-spacing: 0px;
+    }
+
+    search-box := Rectangle {
+        x: root.width - 38px - 8px - 146px - 8px - self.width;
+        y: root.controls-y;
+        width: root.search-width;
+        height: 38px;
+        border-radius: 8px;
+        border-width: root.search-active ? 1px : 0px;
+        border-color: AppColors.brand;
+        background: root.search-active ? AppColors.surface : AppColors.surface-subtle;
+        animate width { duration: 200ms; easing: ease-out; }
+        Image { x: 11px; y: 10px; width: 18px; height: 18px; source: @image-url("../../icons/lucide/search.svg"); }
+        if root.search-active && root.query.is-empty: Text {
+            x: 40px; width: parent.width - 50px; text: @tr("history.search.placeholder" => "Search history"); color: AppColors.text-muted; font-size: 12px; vertical-alignment: center;
+        }
+        search-input := TextInput {
+            x: 38px; width: max(0px, parent.width - 48px); text <=> root.query; color: AppColors.text; font-size: 12px; vertical-alignment: center;
+            changed text => { root.search(root.query); }
+        }
+        TouchArea { width: root.search-active ? 34px : parent.width; mouse-cursor: pointer; clicked => { search-input.focus(); } }
+    }
+
+    retention-button := Rectangle {
+        x: root.width - 38px - 8px - 146px;
+        y: root.controls-y;
+        width: 146px;
+        height: 38px;
+        border-radius: 8px;
+        background: retention-touch.has-hover ? AppColors.selected : AppColors.surface-subtle;
+        Text { x: 18px; width: parent.width - 48px; text: root.retention-label; color: AppColors.text; font-size: 12px; font-weight: 650; vertical-alignment: center; }
+        Image { x: parent.width - 27px; y: 13px; width: 12px; height: 12px; source: root.retention-open ? @image-url("../../icons/lucide/chevron-up.svg") : @image-url("../../icons/lucide/chevron-down.svg"); }
+        retention-touch := TouchArea { mouse-cursor: pointer; clicked => { root.retention-open = !root.retention-open; root.more-open = false; } }
+    }
+
+    if root.groups.length > 0 && !root.loading && !root.load-failed && !root.locked: HistoryIconButton {
+        x: root.width - 38px;
+        y: root.controls-y + 2px;
+        icon: @image-url("../../icons/lucide/ellipsis.svg");
+        label: @tr("common.more-actions" => "More actions");
+        activated => { root.more-open = !root.more-open; root.retention-open = false; }
+    }
+
+    if !root.compact && !root.loading && !root.load-failed && !root.locked && root.query.is-empty && root.groups.length > 0: HorizontalLayout {
+        x: 0px; y: 88px; height: 20px; spacing: 7px; cross-axis-alignment: center;
+        Image { width: 14px; height: 14px; source: @image-url("../../icons/lucide/lock-keyhole.svg"); }
+        Text { text: @tr("history.local-only" => "History is stored only on this device"); color: AppColors.text-muted; font-size: 10px; vertical-alignment: center; }
+    }
+
+    if !root.loading && !root.load-failed && !root.locked && root.groups.length > 0: ScrollView {
+        x: 0px;
+        y: root.list-y;
+        width: parent.width;
+        height: parent.height - root.list-y - 8px;
+        vertical-scrollbar-policy: ScrollBarPolicy.always-off;
+        horizontal-scrollbar-policy: ScrollBarPolicy.always-off;
+        VerticalLayout {
+            spacing: 12px;
+            for group in root.groups: VerticalLayout {
+                spacing: 6px;
+                Text { height: 18px; text: group.title; color: AppColors.text; font-size: 12px; vertical-alignment: center; }
+                Rectangle {
+                    height: group.items.length * 58px;
+                    border-radius: 8px;
+                    background: AppColors.surface;
+                    VerticalLayout {
+                        spacing: 0px;
+                        for item[index] in group.items: history-row := Rectangle {
+                            property <bool> hovered: row-touch.has-hover || copy-button.has-hover || delete-button.has-hover;
+                            property <bool> copied: root.copied-id == item.id;
+                            height: 58px;
+                            background: self.hovered ? AppColors.brand-soft : transparent;
+                            animate background { duration: 120ms; easing: ease-out; }
+                            Rectangle {
+                                x: 0px;
+                                y: 0px;
+                                width: 3px;
+                                height: parent.height;
+                                background: AppColors.brand;
+                                opacity: parent.hovered ? 1 : 0;
+                                animate opacity { duration: 120ms; easing: ease-out; }
+                            }
+                            if index > 0: Rectangle { x: 18px; y: 0px; width: parent.width - 36px; height: 1px; background: AppColors.border; }
+                            row-touch := TouchArea {
+                                mouse-cursor: pointer;
+                                clicked => { root.show-detail(item); }
+                            }
+                            Text { x: 18px; width: 72px; text: item.time; color: AppColors.text-muted; font-size: 10px; font-weight: 650; vertical-alignment: center; }
+                            Text { x: 90px; y: 10px; width: parent.width - 108px - (parent.hovered ? 78px : 0px); height: 20px; text: item.text; color: AppColors.ink; font-size: 12px; font-weight: 650; overflow: elide; vertical-alignment: center; }
+                            Text { x: 90px; y: 32px; width: parent.width - 108px; height: 16px; text: @tr("history.item.summary" => "{}  ·  {}  ·  {}", item.duration, item.input-status, item.polish-status); color: AppColors.text-muted; font-size: 9px; vertical-alignment: center; }
+                            HorizontalLayout {
+                                x: parent.width - 82px; y: 12px; width: 68px; height: 34px; spacing: 0px;
+                                opacity: parent.hovered ? 1 : 0;
+                                animate opacity { duration: 140ms; easing: ease-out; }
+                                copy-button := HistoryIconButton { icon: @image-url("../../icons/lucide/copy.svg"); label: history-row.copied ? @tr("common.copied" => "Copied") : @tr("history.copy-content" => "Copy content"); success: history-row.copied; activated => { root.copied-id = item.id; root.copy(item.id); } }
+                                delete-button := HistoryIconButton { icon: @image-url("../../icons/lucide/trash-2.svg"); label: @tr("history.delete-record" => "Delete record"); danger: true; activated => { root.delete-record(item.id); } }
+                            }
+                        }
+                    }
                 }
+            }
+            if root.has-more: Rectangle {
+                height: 36px; background: transparent;
+                Text { text: @tr("history.load-more" => "Load more"); color: AppColors.brand; font-size: 11px; font-weight: 650; horizontal-alignment: center; vertical-alignment: center; }
+                TouchArea { mouse-cursor: pointer; clicked => { root.load-more(); } }
             }
         }
     }
 
-    if root.undo-visible: Rectangle {
-        x: (parent.width - self.width) / 2;
-        y: parent.height - self.height - 18px;
-        width: 230px;
-        height: 48px;
+    if root.loading || root.load-failed || root.locked || (!root.loading && root.groups.length == 0): Rectangle {
+        x: 0px; y: root.state-y; width: parent.width; height: parent.height - root.state-y; border-radius: 8px; background: AppColors.surface;
+        VerticalLayout {
+            x: 24px; y: 0px; width: parent.width - 48px; height: parent.height; alignment: center; spacing: 13px;
+            if root.loading: StateIcon { size: 28px; source: @image-url("../../icons/lucide/refresh-cw.svg"); }
+            if root.loading: Text { text: @tr("history.loading.title" => "Loading history"); color: AppColors.ink; font-size: 16px; horizontal-alignment: center; }
+            if root.loading: Text { text: @tr("history.loading.detail" => "Reading content saved on this device"); color: AppColors.text-muted; font-size: 11px; horizontal-alignment: center; }
+            if root.load-failed: StateIcon { size: 28px; source: @image-url("../../icons/lucide/circle-alert.svg"); }
+            if root.load-failed: Text { text: @tr("history.load-failed.title" => "Local history is unavailable"); color: AppColors.ink; font-size: 16px; horizontal-alignment: center; }
+            if root.load-failed: Rectangle { width: 84px; height: 28px; background: transparent; Text { text: @tr("common.reload" => "Reload ↗"); color: AppColors.brand; font-size: 11px; font-weight: 650; horizontal-alignment: center; vertical-alignment: center; } TouchArea { mouse-cursor: pointer; clicked => { root.refresh(); } } }
+            if root.locked: StateIcon { source: @image-url("../../icons/lucide/lock-keyhole.svg"); }
+            if root.locked: Text { text: @tr("history.locked.title" => "History is locked"); color: AppColors.ink; font-size: 16px; font-weight: 650; horizontal-alignment: center; }
+            if root.locked: Text { text: @tr("history.locked.detail" => "The history key is unavailable. Settings and dictionary remain available."); color: AppColors.text-muted; font-size: 11px; horizontal-alignment: center; }
+            if root.locked: QuietButton { width: 230px; label: @tr("history.locked.reset-action" => "Delete old history and reset"); primary: true; danger: true; activated => { root.show-reset-confirmation(); } }
+            if !root.loading && !root.load-failed && !root.locked && root.query.is-empty: StateIcon { source: @image-url("../../icons/lucide/history.svg"); }
+            if !root.loading && !root.load-failed && !root.locked && root.query.is-empty: Text { text: @tr("history.empty.title" => "No history yet"); color: AppColors.ink; font-size: 16px; horizontal-alignment: center; }
+            if !root.loading && !root.load-failed && !root.locked && root.query.is-empty: Text { text: @tr("history.empty.detail" => "Completed voice input will be saved here securely"); color: AppColors.text-muted; font-size: 11px; horizontal-alignment: center; }
+            if !root.loading && !root.load-failed && !root.locked && !root.query.is-empty: StateIcon { source: @image-url("../../icons/lucide/search.svg"); }
+            if !root.loading && !root.load-failed && !root.locked && !root.query.is-empty: Text { text: @tr("history.no-results.title" => "No results for “{}”", root.query); color: AppColors.ink; font-size: 16px; horizontal-alignment: center; }
+            if !root.loading && !root.load-failed && !root.locked && !root.query.is-empty: Text { text: @tr("history.no-results.detail" => "Try a shorter search term or check your spelling"); color: AppColors.text-muted; font-size: 11px; horizontal-alignment: center; }
+        }
+    }
+
+    if root.retention-open || root.more-open: Rectangle {
+        x: 0px; y: 0px; width: parent.width; height: parent.height; background: transparent; z: 35;
+        TouchArea { mouse-cursor: default; clicked => { root.retention-open = false; root.more-open = false; } }
+    }
+
+    if root.retention-open: Rectangle {
+        x: root.width - 38px - 8px - 146px; y: root.controls-y + 46px; width: 146px; height: 206px; border-radius: 8px; background: AppColors.surface; z: 40;
+        drop-shadow-blur: 18px; drop-shadow-offset-y: 5px; drop-shadow-color: #1f1f1c1f;
+        VerticalLayout { padding: 8px; spacing: 0px;
+            RetentionOptionButton { label: @tr("history.retention.option.never" => "Never"); selected: root.retention == HistoryRetentionOption.never; activated => { root.retention-open = false; root.retention-selected(HistoryRetentionOption.never); } }
+            RetentionOptionButton { label: @tr("history.retention.option.one-day" => "24 hours"); selected: root.retention == HistoryRetentionOption.one-day; activated => { root.retention-open = false; root.retention-selected(HistoryRetentionOption.one-day); } }
+            RetentionOptionButton { label: @tr("history.retention.option.seven-days" => "1 week"); selected: root.retention == HistoryRetentionOption.seven-days; activated => { root.retention-open = false; root.retention-selected(HistoryRetentionOption.seven-days); } }
+            RetentionOptionButton { label: @tr("history.retention.option.thirty-days" => "1 month"); selected: root.retention == HistoryRetentionOption.thirty-days; activated => { root.retention-open = false; root.retention-selected(HistoryRetentionOption.thirty-days); } }
+            RetentionOptionButton { label: @tr("history.retention.option.forever" => "Forever"); selected: root.retention == HistoryRetentionOption.forever; activated => { root.retention-open = false; root.retention-selected(HistoryRetentionOption.forever); } }
+        }
+    }
+
+    if root.more-open: Rectangle {
+        x: root.width - 160px; y: root.controls-y + 46px; width: 160px; height: 86px; border-radius: 8px; background: AppColors.surface; z: 40;
+        drop-shadow-blur: 18px; drop-shadow-offset-y: 5px; drop-shadow-color: #1f1f1c1f;
+        VerticalLayout { padding: 8px; spacing: 0px;
+            Rectangle { height: 35px; border-radius: 6px; background: refresh-touch.has-hover ? AppColors.surface-warm : transparent; Image { x: 8px; y: 9px; width: 16px; height: 16px; source: @image-url("../../icons/lucide/refresh-cw.svg"); } Text { x: 34px; text: @tr("history.refresh" => "Refresh history"); color: AppColors.text; font-size: 12px; vertical-alignment: center; } refresh-touch := TouchArea { mouse-cursor: pointer; clicked => { root.more-open = false; root.refresh(); } } }
+            Rectangle { height: 35px; border-radius: 6px; background: clear-touch.has-hover ? AppColors.danger-soft : transparent; Image { x: 8px; y: 9px; width: 16px; height: 16px; source: @image-url("../../icons/lucide/trash-2.svg"); } Text { x: 34px; text: @tr("history.clear-all" => "Clear all history"); color: AppColors.danger; font-size: 12px; vertical-alignment: center; } clear-touch := TouchArea { mouse-cursor: pointer; clicked => { root.more-open = false; root.show-clear-confirmation(); } } }
+        }
+    }
+
+    Rectangle {
+        x: root.width - self.width - 8px;
+        y: root.status-visible ? (root.undo-visible ? root.height - 108px : root.height - 50px) : root.height + 4px;
+        width: min(320px, root.width - 16px);
+        height: 40px;
         border-radius: 7px;
         background: AppColors.ink;
-        drop-shadow-blur: 12px;
-        drop-shadow-offset-y: 2px;
-        drop-shadow-color: #17130e30;
-        HorizontalLayout {
-            padding-left: 16px;
-            padding-right: 10px;
-            cross-axis-alignment: center;
-            Text { text: "已删除"; color: #ffffff; font-size: 12px; }
-            Rectangle { horizontal-stretch: 1; background: transparent; }
-            Rectangle {
-                width: 58px; height: 32px; border-radius: 5px; background: undo-touch.has-hover ? #4d5158 : #3b3f45;
-                Text { text: "撤销"; color: #ffffff; font-size: 12px; font-weight: 650; horizontal-alignment: center; vertical-alignment: center; }
-                undo-touch := TouchArea { mouse-cursor: pointer; clicked => { root.undo-delete(); } }
-            }
+        z: 60;
+        opacity: root.status-visible ? 1 : 0;
+        animate y { duration: 180ms; easing: ease-out; }
+        animate opacity { duration: 160ms; easing: ease-out; }
+        drop-shadow-blur: 12px; drop-shadow-offset-y: 3px; drop-shadow-color: #1f1f1c33;
+        Image { x: 12px; y: 12px; width: 16px; height: 16px; source: @image-url("../../icons/lucide/circle-alert.svg"); colorize: #ffffff; }
+        Text { x: 36px; width: parent.width - 72px; text: root.status-text; color: #ffffff; font-size: 11px; vertical-alignment: center; overflow: elide; }
+        Rectangle { x: parent.width - 34px; y: 3px; width: 34px; height: 34px; border-radius: 7px; background: close-touch.has-hover ? #ffffff22 : transparent;
+            Image { x: 9px; y: 9px; width: 16px; height: 16px; source: @image-url("../../icons/lucide/x.svg"); colorize: #ffffff; }
+            close-touch := TouchArea { mouse-cursor: pointer; clicked => { root.status-visible = false; } }
         }
     }
 
-    property <bool> reset-confirmation-visible: false;
-    if root.detail-visible || root.clear-confirmation-visible || root.reset-confirmation-visible: Rectangle {
-        background: #17130e66;
-        TouchArea { clicked => { root.detail-visible = false; root.clear-confirmation-visible = false; root.reset-confirmation-visible = false; } }
-        Rectangle {
-            width: min(parent.width - 64px, 560px);
-            height: root.clear-confirmation-visible || root.reset-confirmation-visible ? 190px : min(parent.height - 96px, 420px);
-            x: (parent.width - self.width) / 2;
-            y: (parent.height - self.height) / 2;
-            border-radius: 8px;
-            background: AppColors.surface;
-            if root.clear-confirmation-visible: VerticalLayout {
-                padding: 24px; spacing: 18px;
-                Text { text: "清空全部历史？"; color: AppColors.ink; font-size: 18px; font-weight: 700; }
-                Text { text: "此操作无法撤销。"; color: AppColors.text-muted; font-size: 13px; }
-                HorizontalLayout {
-                    alignment: end; spacing: 10px;
-                    Rectangle { width: 78px; height: 36px; border-radius: 6px; background: #f0f1f3; Text { text: "取消"; horizontal-alignment: center; vertical-alignment: center; } TouchArea { clicked => { root.clear-confirmation-visible = false; } } }
-                    Rectangle { width: 92px; height: 36px; border-radius: 6px; background: AppColors.danger; Text { text: "清空"; color: #ffffff; horizontal-alignment: center; vertical-alignment: center; } TouchArea { clicked => { root.clear-confirmation-visible = false; root.clear-all(); } } }
-                }
-            }
-            if root.reset-confirmation-visible: VerticalLayout {
-                padding: 24px; spacing: 18px;
-                Text { text: "重新初始化历史？"; color: #25282d; font-size: 18px; font-weight: 700; }
-                Text { text: "旧历史将永久删除，词典和设置不会受影响。"; color: #777d86; font-size: 13px; }
-                HorizontalLayout {
-                    alignment: end; spacing: 10px;
-                    AppButton { text: "取消"; clicked => { root.reset-confirmation-visible = false; } }
-                    AppButton { text: "删除并重置"; danger: true; clicked => { root.reset-confirmation-visible = false; root.reset(); } }
-                }
-            }
-            if root.detail-visible && !root.clear-confirmation-visible && !root.reset-confirmation-visible: VerticalLayout {
-                padding: 24px; spacing: 16px;
-                HorizontalLayout {
-                    Text { text: "听写详情"; color: AppColors.ink; font-size: 18px; font-weight: 700; }
-                    Rectangle { horizontal-stretch: 1; background: transparent; }
-                    HistoryIconButton { icon: @image-url("../../icons/lucide/x.svg"); label: "关闭"; activated => { root.detail-visible = false; } }
-                }
-                Text { text: root.detail-meta; color: AppColors.text-muted; font-size: 12px; }
-                if root.detail-has-raw-asr-text: Text { text: "ASR 原始结果"; color: AppColors.text-muted; font-size: 11px; font-weight: 650; }
-                if root.detail-has-raw-asr-text: ScrollView {
-                    vertical-stretch: 1;
-                    Text { width: parent.width; text: root.detail-raw-asr-text; color: AppColors.ink; font-size: 14px; wrap: word-wrap; }
-                }
-                if root.detail-has-raw-asr-text: Rectangle { height: 1px; background: AppColors.border; }
-                if root.detail-has-refined-text: Text { text: "LLM 润色结果"; color: AppColors.text-muted; font-size: 11px; font-weight: 650; }
-                if root.detail-has-refined-text: ScrollView {
-                    vertical-stretch: 1;
-                    Text { width: parent.width; text: root.detail-refined-text; color: AppColors.ink; font-size: 14px; wrap: word-wrap; }
-                }
-                if root.detail-has-refined-text: Rectangle { height: 1px; background: AppColors.border; }
-                Text { text: root.detail-has-raw-asr-text || root.detail-has-refined-text ? "最终交付结果" : "识别结果"; color: AppColors.text-muted; font-size: 11px; font-weight: 650; }
-                ScrollView {
-                    vertical-stretch: 1;
-                    Text { width: parent.width; text: root.detail-text; color: AppColors.ink; font-size: 14px; wrap: word-wrap; }
-                }
-            }
-        }
+    Rectangle {
+        x: (parent.width - 240px) / 2; y: root.undo-visible ? parent.height - 58px : parent.height + 4px; width: 240px; height: 48px; border-radius: 7px; background: AppColors.ink; z: 60;
+        opacity: root.undo-visible ? 1 : 0;
+        animate y { duration: 180ms; easing: ease-out; }
+        animate opacity { duration: 160ms; easing: ease-out; }
+        drop-shadow-blur: 12px; drop-shadow-offset-y: 3px; drop-shadow-color: #1f1f1c33;
+        Text { x: 16px; width: 130px; text: @tr("history.deleted-one" => "1 record deleted"); color: #ffffff; font-size: 11px; vertical-alignment: center; }
+        Rectangle { x: 158px; y: 11px; width: 1px; height: 26px; background: #ffffff33; }
+        Rectangle { x: 160px; width: 80px; height: 48px; background: transparent; Text { text: @tr("common.undo" => "Undo"); color: #ffffff; font-size: 11px; font-weight: 650; horizontal-alignment: center; vertical-alignment: center; } TouchArea { enabled: root.undo-visible; mouse-cursor: root.undo-visible ? pointer : default; clicked => { root.undo-delete(); } } }
     }
+
 }

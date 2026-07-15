@@ -1,0 +1,197 @@
+[
+  {
+    "id": "word-order-preserve-topic-01",
+    "transcript": "这个方案我觉得可以继续用。",
+    "expected": "这个方案我觉得可以继续用。",
+    "language": "zh-CN"
+  },
+  {
+    "id": "word-order-preserve-topic-02",
+    "transcript": "登录问题我们今天先处理。",
+    "expected": "登录问题我们今天先处理。",
+    "language": "zh-CN"
+  },
+  {
+    "id": "word-order-preserve-topic-03",
+    "transcript": "这份文档你明天再看吧。",
+    "expected": "这份文档你明天再看吧。",
+    "language": "zh-CN"
+  },
+  {
+    "id": "word-order-preserve-topic-04",
+    "transcript": "这个按钮我不建议现在删除。",
+    "expected": "这个按钮我不建议现在删除。",
+    "language": "zh-CN"
+  },
+  {
+    "id": "word-order-preserve-topic-05",
+    "transcript": "数据迁移这件事我们发布前再确认。",
+    "expected": "数据迁移这件事我们发布前再确认。",
+    "language": "zh-CN"
+  },
+  {
+    "id": "word-order-preserve-stance-01",
+    "transcript": "这件事不好办，我觉得。",
+    "expected": "这件事不好办，我觉得。",
+    "language": "zh-CN"
+  },
+  {
+    "id": "word-order-preserve-stance-02",
+    "transcript": "现在上线风险有点高，在我看来。",
+    "expected": "现在上线风险有点高，在我看来。",
+    "language": "zh-CN"
+  },
+  {
+    "id": "word-order-preserve-stance-03",
+    "transcript": "这个版本可以先保留，我个人觉得。",
+    "expected": "这个版本可以先保留，我个人觉得。",
+    "language": "zh-CN"
+  },
+  {
+    "id": "word-order-preserve-condition-01",
+    "transcript": "我们先不发布，如果回归测试还没通过的话。",
+    "expected": "我们先不发布，如果回归测试还没通过的话。",
+    "language": "zh-CN"
+  },
+  {
+    "id": "word-order-preserve-condition-02",
+    "transcript": "这个方案也能用，要是时间来不及的话。",
+    "expected": "这个方案也能用，要是时间来不及的话。",
+    "language": "zh-CN"
+  },
+  {
+    "id": "word-order-preserve-emphasis-01",
+    "transcript": "真好看啊，这个页面！",
+    "expected": "真好看啊，这个页面！",
+    "language": "zh-CN"
+  },
+  {
+    "id": "word-order-preserve-emphasis-02",
+    "transcript": "谁愿意改啊，这么多配置！",
+    "expected": "谁愿意改啊，这么多配置！",
+    "language": "zh-CN"
+  },
+  {
+    "id": "word-order-preserve-emphasis-03",
+    "transcript": "我现在确实处理不了，这个问题。",
+    "expected": "我现在确实处理不了，这个问题。",
+    "acceptable": ["我现在确实处理不了这个问题。"],
+    "language": "zh-CN"
+  },
+  {
+    "id": "word-order-preserve-scope-01",
+    "transcript": "这个功能现在不改也可以。",
+    "expected": "这个功能现在不改也可以。",
+    "language": "zh-CN"
+  },
+  {
+    "id": "word-order-preserve-scope-02",
+    "transcript": "今天可能我们不发布。",
+    "expected": "今天可能我们不发布。",
+    "language": "zh-CN"
+  },
+  {
+    "id": "word-order-reorder-adverb-01",
+    "transcript": "咱们接下来就完成这个吧先？",
+    "expected": "咱们接下来就先完成这个吧？",
+    "language": "zh-CN"
+  },
+  {
+    "id": "word-order-reorder-adverb-02",
+    "transcript": "这个问题我们处理吧先。",
+    "expected": "这个问题我们先处理吧。",
+    "language": "zh-CN"
+  },
+  {
+    "id": "word-order-reorder-adverb-03",
+    "transcript": "我们把旧配置备份一下先。",
+    "expected": "我们先把旧配置备份一下。",
+    "acceptable": [
+      "我们把旧配置先备份一下。",
+      "我们先备份一下旧配置。"
+    ],
+    "language": "zh-CN"
+  },
+  {
+    "id": "word-order-reorder-adverb-04",
+    "transcript": "这个页面打开一下马上。",
+    "expected": "这个页面马上打开一下。",
+    "acceptable": ["马上打开一下这个页面。"],
+    "language": "zh-CN"
+  },
+  {
+    "id": "word-order-reorder-adverb-05",
+    "transcript": "发布计划确认一下尽快。",
+    "expected": "尽快确认一下发布计划。",
+    "acceptable": ["发布计划尽快确认一下。"],
+    "language": "zh-CN"
+  },
+  {
+    "id": "word-order-reorder-ba-01",
+    "transcript": "模型返回以后，我们再把结果如果检查通过的话保存到历史里面。",
+    "expected": "模型返回以后，如果检查通过的话，我们再把结果保存到历史里面。",
+    "language": "zh-CN"
+  },
+  {
+    "id": "word-order-reorder-ba-02",
+    "transcript": "我们把这个功能等测试完成以后再发布。",
+    "expected": "我们等测试完成以后再发布这个功能。",
+    "acceptable": ["我们等测试完成以后再把这个功能发布。"],
+    "language": "zh-CN"
+  },
+  {
+    "id": "word-order-preserve-ba-03",
+    "transcript": "你把这个文件确认没有问题以后再上传。",
+    "expected": "你把这个文件确认没有问题以后再上传。",
+    "acceptable": ["你确认这个文件没有问题以后再上传。"],
+    "language": "zh-CN"
+  },
+  {
+    "id": "word-order-reorder-ba-04",
+    "transcript": "我们把结果如果验证通过就写入数据库。",
+    "expected": "如果验证通过，我们就把结果写入数据库。",
+    "language": "zh-CN"
+  },
+  {
+    "id": "word-order-reorder-condition-01",
+    "transcript": "我们先不发布今天如果测试没通过的话。",
+    "expected": "我们先不发布，如果今天测试没通过的话。",
+    "acceptable": [
+      "如果今天测试没通过，我们先不发布。",
+      "我们先不发布，如果测试今天没通过的话。"
+    ],
+    "language": "zh-CN"
+  },
+  {
+    "id": "word-order-reorder-condition-02",
+    "transcript": "这个改动可以合并等检查都通过以后。",
+    "expected": "这个改动可以合并，等检查都通过以后。",
+    "acceptable": ["等检查都通过以后，这个改动可以合并。"],
+    "language": "zh-CN"
+  },
+  {
+    "id": "word-order-reorder-condition-03",
+    "transcript": "我们再上线如果监控数据正常的话。",
+    "expected": "我们再上线，如果监控数据正常的话。",
+    "acceptable": ["如果监控数据正常，我们再上线。"],
+    "language": "zh-CN"
+  },
+  {
+    "id": "word-order-reorder-modifier-01",
+    "transcript": "我需要一个可以在后台运行稳定的服务。",
+    "expected": "我需要一个可以在后台稳定运行的服务。",
+    "language": "zh-CN"
+  },
+  {
+    "id": "word-order-preserve-modifier-02",
+    "transcript": "这是一个用来记录本地安全历史的工具。",
+    "expected": "这是一个用来记录本地安全历史的工具。",
+    "language": "zh-CN"
+  },
+  {
+    "id": "word-order-preserve-modifier-03",
+    "transcript": "我们需要把失败以后产生的临时文件清理掉。",
+    "expected": "我们需要把失败以后产生的临时文件清理掉。",
+    "language": "zh-CN"
+  }
+]

@@ -4,8 +4,8 @@ use std::{
 };
 
 use accessibility_sys::{
-    kAXFocusedAttribute, kAXNumberOfCharactersAttribute, kAXSecureTextFieldSubrole,
-    kAXSubroleAttribute,
+    kAXComboBoxRole, kAXFocusedAttribute, kAXNumberOfCharactersAttribute, kAXRoleAttribute,
+    kAXSecureTextFieldSubrole, kAXSubroleAttribute, kAXTextAreaRole, kAXTextFieldRole,
 };
 use template_app::{ObservedTextEdit, TextEditObserver};
 
@@ -37,9 +37,10 @@ impl CorrectionObservationTarget {
         {
             return None;
         }
-        match focused.attribute_string(kAXSubroleAttribute) {
-            Ok(Some(subrole)) if subrole != kAXSecureTextFieldSubrole => {}
-            Ok(Some(_)) | Ok(None) | Err(_) => return None,
+        let role = focused.attribute_string(kAXRoleAttribute).ok().flatten();
+        let subrole = focused.attribute_string(kAXSubroleAttribute).ok().flatten();
+        if !observable_text_control(role.as_deref(), subrole.as_deref()) {
+            return None;
         }
         let initial_character_count = focused
             .attribute_usize(kAXNumberOfCharactersAttribute)
@@ -150,6 +151,15 @@ impl CorrectionObservationTarget {
             .flatten()?;
         text_between_anchors(&window, &self.prefix, &self.suffix)
     }
+}
+
+pub(super) fn observable_text_control(role: Option<&str>, subrole: Option<&str>) -> bool {
+    if subrole == Some(kAXSecureTextFieldSubrole) {
+        return false;
+    }
+    role.is_some_and(|role| {
+        role == kAXTextAreaRole || role == kAXTextFieldRole || role == kAXComboBoxRole
+    })
 }
 
 pub(super) fn text_between_anchors(window: &str, prefix: &str, suffix: &str) -> Option<String> {

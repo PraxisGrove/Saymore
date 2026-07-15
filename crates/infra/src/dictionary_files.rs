@@ -91,7 +91,6 @@ impl DictionaryFiles {
                 NewDictionaryEntry {
                     canonical,
                     language,
-                    variants: Vec::new(),
                     origin: DictionaryOrigin::Manual,
                 },
                 now_ms,

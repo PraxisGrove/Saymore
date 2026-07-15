@@ -63,6 +63,10 @@ impl AppPaths {
         self.data_directory.join("config.json")
     }
 
+    pub(crate) fn development_history_key(&self) -> PathBuf {
+        self.data_directory.join("history-data-key")
+    }
+
     pub fn instance_lock(&self) -> PathBuf {
         self.data_directory.join("saymore.instance.lock")
     }

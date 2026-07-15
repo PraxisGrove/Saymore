@@ -24,6 +24,42 @@
     "language": "zh-CN"
   },
   {
+    "id": "explicit-time-correction",
+    "transcript": "我准备下午三点，不对，下午五点左右去公园玩。",
+    "expected": "我准备下午五点左右去公园玩。",
+    "language": "zh-CN"
+  },
+  {
+    "id": "implicit-time-conflict",
+    "transcript": "我准备下午三点去，准备下午五点左右去公园玩。",
+    "expected": "我准备下午三点去，准备下午五点左右去公园玩。",
+    "language": "zh-CN"
+  },
+  {
+    "id": "filler-time-conflict",
+    "transcript": "我准备下午三点去，呃，准备下午五点左右去公园玩。",
+    "expected": "我准备下午三点去，准备下午五点左右去公园玩。",
+    "language": "zh-CN"
+  },
+  {
+    "id": "explicit-place-correction",
+    "transcript": "我想去上海闵行，我是说上海崇明岛，下午出发。",
+    "expected": "我想去上海崇明岛，下午出发。",
+    "language": "zh-CN"
+  },
+  {
+    "id": "implicit-place-conflict",
+    "transcript": "我想下午去上海闵行，上海崇明岛。",
+    "expected": "我想下午去上海闵行，上海崇明岛。",
+    "language": "zh-CN"
+  },
+  {
+    "id": "implicit-quantity-conflict",
+    "transcript": "这批先准备三十份，准备五十份材料交给活动现场。",
+    "expected": "这批先准备三十份，准备五十份材料交给活动现场。",
+    "language": "zh-CN"
+  },
+  {
     "id": "conservative-casual-wording",
     "transcript": "这个事情就是他们那边还没给，然后我们这边现在就弄不了，只能等他们给了以后再继续。",
     "expected": "这个事情他们那边还没给，我们这边现在就弄不了，只能等他们给了以后再继续。",
@@ -36,9 +72,9 @@
     "language": "zh-CN"
   },
   {
-    "id": "time-based-semantic-paragraphs",
+    "id": "time-stages-light-separation",
     "transcript": "今天先把登录问题修好并完成测试。明天再处理设置页面的样式。发布之前还需要检查一次配置迁移，避免老用户的数据丢失。",
-    "expected": "今天先把登录问题修好并完成测试。\n\n明天再处理设置页面的样式。\n\n发布之前还需要检查一次配置迁移，避免老用户的数据丢失。",
+    "expected": "今天先把登录问题修好并完成测试。  明天再处理设置页面的样式。  发布之前还需要检查一次配置迁移，避免老用户的数据丢失。",
     "language": "zh-CN"
   },
   {
@@ -56,7 +92,25 @@
   {
     "id": "unfinished-final-semantic-unit",
     "transcript": "今天先完成登录测试。明天处理设置页面。然后发布之前我还想要",
-    "expected": "今天先完成登录测试。\n\n明天处理设置页面。\n\n然后发布之前我还想要",
+    "expected": "今天先完成登录测试。  明天处理设置页面。  然后发布之前我还想要",
+    "language": "zh-CN"
+  },
+  {
+    "id": "clear-conversational-topic-fronting",
+    "transcript": "这个功能我觉得在当前版本里面其实是可以先做的。",
+    "expected": "这个功能我觉得在当前版本里面其实是可以先做的。",
+    "language": "zh-CN"
+  },
+  {
+    "id": "clear-trailing-condition",
+    "transcript": "我们先不发布，如果回归测试今天没有全部通过的话。",
+    "expected": "我们先不发布，如果回归测试今天没有全部通过的话。",
+    "language": "zh-CN"
+  },
+  {
+    "id": "interrupted-ba-construction",
+    "transcript": "模型返回以后，我们再把结果如果检查通过的话保存到历史里面。",
+    "expected": "模型返回以后，如果检查通过的话，我们再把结果保存到历史里面。",
     "language": "zh-CN"
   },
   {

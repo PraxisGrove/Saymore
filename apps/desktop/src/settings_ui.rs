@@ -15,13 +15,18 @@ use template_infra::{
 };
 use uuid::Uuid;
 
-use crate::ui::{AppWindow, AsrProvider as UiAsrProvider, LlmProvider as UiLlmProvider};
+use crate::ui::{
+    AppWindow, AsrProvider as UiAsrProvider, LlmProvider as UiLlmProvider, Translations,
+};
 
 mod model_discovery;
 #[cfg(test)]
 mod regression_tests;
 
-const VOLCENGINE_MODEL: &str = "bigmodel_async";
+const VOLCENGINE_ASR_1_MODEL: &str = "volc.bigasr.sauc.duration";
+const VOLCENGINE_ASR_2_MODEL: &str = "volc.seedasr.sauc.duration";
+const VOLCENGINE_LEGACY_MODEL: &str = "bigmodel_async";
+const VOLCENGINE_MODELS: [&str; 2] = [VOLCENGINE_ASR_2_MODEL, VOLCENGINE_ASR_1_MODEL];
 #[cfg(test)]
 const CHAT_COMPLETIONS_TYPE: &str = "openai_compatible";
 
@@ -41,6 +46,13 @@ fn ui_provider(provider: LlmProviderPreset) -> UiLlmProvider {
 
 pub fn wire(ui: &AppWindow, store: Arc<JsonSettingsStore>) {
     apply_loaded_settings(ui, &store);
+    let refresh_ui = ui.as_weak();
+    let refresh_store = Arc::clone(&store);
+    ui.on_refresh_localized_state(move || {
+        if let Some(ui) = refresh_ui.upgrade() {
+            apply_loaded_settings(&ui, &refresh_store);
+        }
+    });
     model_discovery::wire(ui);
     wire_asr(ui, Arc::clone(&store));
     wire_llm(ui, store);
@@ -66,25 +78,16 @@ fn wire_asr(ui: &AppWindow, store: Arc<JsonSettingsStore>) {
         };
         match result {
             Ok(()) => {
-                apply_status(&ui, true, false, "已保存");
-                ui.set_asr_pending_test(true);
+                apply_status(
+                    &ui,
+                    true,
+                    false,
+                    ui.global::<Translations>().get_common_saved(),
+                );
+                apply_pending_test(&ui, true);
+                ui.set_asr_config_dirty(false);
             }
-            Err(AsrConfigError::MissingApiKey) => {
-                apply_status(&ui, false, true, "请输入 API Key");
-            }
-            Err(AsrConfigError::InvalidApiKey) => {
-                apply_status(&ui, false, true, "API Key 格式错误");
-            }
-            Err(AsrConfigError::MissingBaseUrl) => {
-                apply_status(&ui, false, true, "请输入服务地址");
-            }
-            Err(AsrConfigError::InvalidBaseUrl) => {
-                apply_status(&ui, false, true, "服务地址格式错误");
-            }
-            Err(AsrConfigError::MissingModel) => {
-                apply_status(&ui, false, true, "请输入模型名称");
-            }
-            Err(AsrConfigError::Store) => apply_status(&ui, false, true, "保存失败"),
+            Err(error) => apply_status(&ui, false, true, asr_config_error_text(&ui, error)),
         }
     });
 
@@ -116,9 +119,21 @@ fn wire_asr(ui: &AppWindow, store: Arc<JsonSettingsStore>) {
         match result {
             Ok(()) => {
                 ui.set_asr_api_key(SharedString::new());
-                apply_status(&ui, false, false, "未配置");
+                apply_status(
+                    &ui,
+                    false,
+                    false,
+                    ui.global::<Translations>().get_models_not_configured(),
+                );
+                apply_pending_test(&ui, false);
+                ui.set_asr_config_dirty(false);
             }
-            Err(_) => apply_status(&ui, true, true, "删除失败"),
+            Err(_) => apply_status(
+                &ui,
+                true,
+                true,
+                ui.global::<Translations>().get_common_delete_failed(),
+            ),
         }
     });
 }
@@ -142,21 +157,13 @@ fn begin_asr_connection_test(ui: &AppWindow, store: Arc<JsonSettingsStore>) {
         UiAsrProvider::Custom => save_custom_asr_configuration(&store, &api_key, &base_url, &model),
     };
     if let Err(error) = save_result {
-        let status = match error {
-            AsrConfigError::MissingApiKey => "请输入 API Key",
-            AsrConfigError::InvalidApiKey => "API Key 格式错误",
-            AsrConfigError::MissingBaseUrl => "请输入服务地址",
-            AsrConfigError::InvalidBaseUrl => "服务地址格式错误",
-            AsrConfigError::MissingModel => "请输入模型名称",
-            AsrConfigError::Store => "保存失败",
-        };
-        apply_status(ui, false, true, status);
+        apply_status(ui, false, true, asr_config_error_text(ui, error));
         return;
     }
     ui.set_asr_testing(true);
-    ui.set_asr_pending_test(false);
+    apply_pending_test(ui, false);
     ui.set_asr_config_error(false);
-    ui.set_asr_config_status(SharedString::from("正在测试连接"));
+    ui.set_asr_config_status(ui.global::<Translations>().get_models_testing_connection());
     let result_ui = ui.as_weak();
     let spawn_result = std::thread::Builder::new()
         .name("saymore-test-asr".to_owned())
@@ -172,16 +179,26 @@ fn begin_asr_connection_test(ui: &AppWindow, store: Arc<JsonSettingsStore>) {
             let _ = result_ui.upgrade_in_event_loop(move |ui| {
                 ui.set_asr_testing(false);
                 match result {
-                    Ok(()) => apply_status(&ui, true, false, "连接正常"),
+                    Ok(()) => apply_status(
+                        &ui,
+                        true,
+                        false,
+                        ui.global::<Translations>().get_models_connected(),
+                    ),
                     Err(error) => {
-                        apply_status(&ui, true, true, asr_test_failure_status(&error));
+                        apply_status(&ui, true, true, asr_test_failure_status(&ui, &error));
                     }
                 }
             });
         });
     if spawn_result.is_err() {
         ui.set_asr_testing(false);
-        apply_status(ui, true, true, "连接失败");
+        apply_status(
+            ui,
+            true,
+            true,
+            ui.global::<Translations>().get_models_connection_failed(),
+        );
     }
 }
 
@@ -192,6 +209,7 @@ enum AsrConfigError {
     MissingBaseUrl,
     InvalidBaseUrl,
     MissingModel,
+    UnsupportedModel,
     Store,
 }
 
@@ -201,15 +219,12 @@ fn save_asr_configuration(
     model: &str,
 ) -> Result<(), AsrConfigError> {
     let api_key = api_key.trim();
-    let model = model.trim();
+    let model = volcengine_model_id(model)?;
     if api_key.is_empty() {
         return Err(AsrConfigError::MissingApiKey);
     }
     if !volcengine_api_key_is_valid(api_key) {
         return Err(AsrConfigError::InvalidApiKey);
-    }
-    if model.is_empty() {
-        return Err(AsrConfigError::MissingModel);
     }
     store
         .load()
@@ -223,6 +238,15 @@ fn save_asr_configuration(
             store.save(&settings)
         })
         .map_err(|_| AsrConfigError::Store)
+}
+
+fn volcengine_model_id(model: &str) -> Result<&'static str, AsrConfigError> {
+    match model.trim() {
+        "" => Err(AsrConfigError::MissingModel),
+        VOLCENGINE_ASR_1_MODEL => Ok(VOLCENGINE_ASR_1_MODEL),
+        VOLCENGINE_ASR_2_MODEL | VOLCENGINE_LEGACY_MODEL => Ok(VOLCENGINE_ASR_2_MODEL),
+        _ => Err(AsrConfigError::UnsupportedModel),
+    }
 }
 
 fn save_custom_asr_configuration(
@@ -277,7 +301,13 @@ fn clear_asr_configuration(store: &JsonSettingsStore) -> Result<(), SettingsStor
 
 fn apply_asr_provider_status(ui: &AppWindow, store: &JsonSettingsStore, provider: UiAsrProvider) {
     let Ok(settings) = store.load() else {
-        apply_status(ui, false, true, "配置读取失败");
+        apply_status(
+            ui,
+            false,
+            true,
+            ui.global::<Translations>()
+                .get_common_configuration_load_failed(),
+        );
         return;
     };
     let configured = match provider {
@@ -298,9 +328,13 @@ fn apply_asr_provider_status(ui: &AppWindow, store: &JsonSettingsStore, provider
         ui,
         configured,
         false,
-        if configured { "已配置" } else { "未配置" },
+        if configured {
+            ui.global::<Translations>().get_models_configured()
+        } else {
+            ui.global::<Translations>().get_models_not_configured()
+        },
     );
-    ui.set_asr_pending_test(configured);
+    apply_pending_test(ui, configured);
 }
 
 fn test_asr_connection(
@@ -315,7 +349,11 @@ fn test_asr_connection(
         .map_err(|error| SpeechRecognitionError::Transport(error.to_string()))?;
     match provider {
         UiAsrProvider::Volcengine => {
-            let recognizer = VolcengineSpeechRecognizer::new(api_key)?;
+            let recognizer = VolcengineSpeechRecognizer::new(VolcengineAsrSettings {
+                enabled: true,
+                api_key,
+                model,
+            })?;
             runtime.block_on(recognizer.test_connection())
         }
         UiAsrProvider::Custom => {
@@ -330,14 +368,28 @@ fn test_asr_connection(
     }
 }
 
-fn asr_test_failure_status(error: &SpeechRecognitionError) -> &'static str {
+fn asr_test_failure_status(ui: &AppWindow, error: &SpeechRecognitionError) -> SharedString {
+    let translations = ui.global::<Translations>();
     match error {
-        SpeechRecognitionError::NotConfigured => "请先填写 API Key",
-        SpeechRecognitionError::Authentication => "API Key 无效，请检查后重试",
-        SpeechRecognitionError::Quota => "当前语音服务额度不可用",
-        SpeechRecognitionError::Transport(_) => "无法连接语音服务，请检查网络后重试",
-        SpeechRecognitionError::Protocol(_) => "语音服务响应异常，请稍后重试",
-        SpeechRecognitionError::Timeout => "连接测试超时，请稍后重试",
+        SpeechRecognitionError::NotConfigured => translations.get_models_enter_api_key(),
+        SpeechRecognitionError::Authentication => translations.get_models_test_authentication(),
+        SpeechRecognitionError::Quota => translations.get_models_test_quota(),
+        SpeechRecognitionError::Transport(_) => translations.get_models_test_transport(),
+        SpeechRecognitionError::Protocol(_) => translations.get_models_test_protocol(),
+        SpeechRecognitionError::Timeout => translations.get_models_test_timeout(),
+    }
+}
+
+fn asr_config_error_text(ui: &AppWindow, error: AsrConfigError) -> SharedString {
+    let translations = ui.global::<Translations>();
+    match error {
+        AsrConfigError::MissingApiKey => translations.get_models_enter_api_key(),
+        AsrConfigError::InvalidApiKey => translations.get_models_invalid_api_key(),
+        AsrConfigError::MissingBaseUrl => translations.get_models_enter_service_url(),
+        AsrConfigError::InvalidBaseUrl => translations.get_models_invalid_service_url(),
+        AsrConfigError::MissingModel => translations.get_models_enter_model_name(),
+        AsrConfigError::UnsupportedModel => translations.get_models_unsupported_volcengine_model(),
+        AsrConfigError::Store => translations.get_common_save_failed(),
     }
 }
 
@@ -355,11 +407,11 @@ fn wire_llm_config_actions(ui: &AppWindow, store: Arc<JsonSettingsStore>) {
         };
         let provider = provider_preset(provider);
         if api_key.trim().is_empty() {
-            ui.set_llm_config_status(SharedString::from("请输入 API Key"));
+            ui.set_llm_config_status(ui.global::<Translations>().get_models_enter_api_key());
             return;
         }
         if model.trim().is_empty() {
-            ui.set_llm_config_status(SharedString::from("请选择模型"));
+            ui.set_llm_config_status(ui.global::<Translations>().get_models_choose_model());
             return;
         }
         let result = save_store.load_catalog().and_then(|mut catalog| {
@@ -368,9 +420,10 @@ fn wire_llm_config_actions(ui: &AppWindow, store: Arc<JsonSettingsStore>) {
         });
         if result.is_ok() {
             apply_loaded_settings(&ui, &save_store);
-            ui.set_llm_config_status(SharedString::from("已保存，请启用并测试连接"));
+            ui.set_llm_config_status(ui.global::<Translations>().get_models_saved_enable_test());
+            ui.set_llm_config_dirty(false);
         } else {
-            ui.set_llm_config_status(SharedString::from("保存失败"));
+            ui.set_llm_config_status(ui.global::<Translations>().get_common_save_failed());
         }
     });
 
@@ -389,7 +442,7 @@ fn wire_llm_config_actions(ui: &AppWindow, store: Arc<JsonSettingsStore>) {
             apply_loaded_settings(&ui, &select_store);
             ui.set_llm_provider_target(SharedString::from(provider.base_url()));
         } else {
-            ui.set_llm_config_status(SharedString::from("切换失败"));
+            ui.set_llm_config_status(ui.global::<Translations>().get_models_switch_failed());
         }
     });
 }
@@ -403,14 +456,17 @@ fn wire_llm_enablement(ui: &AppWindow, store: Arc<JsonSettingsStore>) {
         };
         let provider = provider_preset(ui.get_llm_provider());
         let Ok(catalog) = prepare_store.load_catalog() else {
-            ui.set_llm_config_status(SharedString::from("配置读取失败"));
+            ui.set_llm_config_status(
+                ui.global::<Translations>()
+                    .get_common_configuration_load_failed(),
+            );
             return;
         };
         if catalog
             .llm_provider_api_key(provider)
             .is_none_or(str::is_empty)
         {
-            ui.set_llm_config_status(SharedString::from("请先保存 API Key"));
+            ui.set_llm_config_status(ui.global::<Translations>().get_models_save_api_key_first());
             return;
         }
         let base_url = provider.base_url().to_owned();
@@ -418,7 +474,10 @@ fn wire_llm_enablement(ui: &AppWindow, store: Arc<JsonSettingsStore>) {
         ui.set_llm_provider_target(SharedString::from(&base_url));
         ui.set_llm_provider_local(local);
         let Ok(settings) = prepare_store.load() else {
-            ui.set_llm_config_status(SharedString::from("配置读取失败"));
+            ui.set_llm_config_status(
+                ui.global::<Translations>()
+                    .get_common_configuration_load_failed(),
+            );
             return;
         };
         if llm_consent_required(&settings, &base_url) {
@@ -439,20 +498,24 @@ fn wire_llm_enablement(ui: &AppWindow, store: Arc<JsonSettingsStore>) {
                 store.save(&settings)
             });
             ui.set_llm_enabled(result.is_err());
-            ui.set_llm_config_status(SharedString::from(if result.is_ok() {
-                "未启用"
+            let translations = ui.global::<Translations>();
+            ui.set_llm_config_status(if result.is_ok() {
+                translations.get_models_not_enabled()
             } else {
-                "保存失败"
-            }));
+                translations.get_common_save_failed()
+            });
             return;
         }
         let provider = provider_preset(ui.get_llm_provider());
         if provider.base_url() != expected_base_url.trim() {
-            ui.set_llm_config_status(SharedString::from("模型提供商已改变"));
+            ui.set_llm_config_status(ui.global::<Translations>().get_models_provider_changed());
             return;
         }
         if persist_llm_consent(&store, provider).is_err() {
-            ui.set_llm_config_status(SharedString::from("授权保存失败"));
+            ui.set_llm_config_status(
+                ui.global::<Translations>()
+                    .get_models_authorization_save_failed(),
+            );
             return;
         }
         start_llm_test(&ui, Arc::clone(&store), provider);
@@ -476,7 +539,7 @@ fn persist_llm_consent(
 
 fn start_llm_test(ui: &AppWindow, store: Arc<JsonSettingsStore>, provider: LlmProviderPreset) {
     ui.set_llm_enabled(false);
-    ui.set_llm_config_status(SharedString::from("正在测试连接"));
+    ui.set_llm_config_status(ui.global::<Translations>().get_models_testing_connection());
     let test_ui = ui.as_weak();
     let spawn_result = std::thread::Builder::new()
         .name("saymore-test-llm".to_owned())
@@ -486,12 +549,12 @@ fn start_llm_test(ui: &AppWindow, store: Arc<JsonSettingsStore>, provider: LlmPr
             let _ = test_ui.upgrade_in_event_loop(move |ui| {
                 apply_loaded_settings(&ui, &event_store);
                 if result.is_err() {
-                    ui.set_llm_config_status(SharedString::from("连接测试失败"));
+                    ui.set_llm_config_status(ui.global::<Translations>().get_models_test_failed());
                 }
             });
         });
     if spawn_result.is_err() {
-        ui.set_llm_config_status(SharedString::from("连接测试失败"));
+        ui.set_llm_config_status(ui.global::<Translations>().get_models_test_failed());
     }
 }
 
@@ -572,13 +635,14 @@ fn apply_loaded_settings(ui: &AppWindow, store: &JsonSettingsStore) {
             ui.set_llm_enabled(llm_enabled);
             ui.set_llm_provider_target(SharedString::from(llm_base_url));
             ui.set_llm_provider_local(provider_is_local(llm_base_url));
-            ui.set_llm_config_status(SharedString::from(if llm_enabled {
-                "已启用"
+            let translations = ui.global::<Translations>();
+            ui.set_llm_config_status(if llm_enabled {
+                translations.get_models_enabled()
             } else if llm_configured {
-                "未启用"
+                translations.get_models_not_enabled()
             } else {
-                "请保存当前提供商的 API Key"
-            }));
+                translations.get_models_save_current_provider_key()
+            });
             let volcengine = settings.asr.volcengine;
             let custom = settings.asr.openai_compatible;
             let volcengine_api_key = volcengine.api_key.trim();
@@ -586,7 +650,7 @@ fn apply_loaded_settings(ui: &AppWindow, store: &JsonSettingsStore) {
                 !volcengine_api_key.is_empty() && !volcengine_api_key_is_valid(volcengine_api_key);
             let volcengine_configured = !volcengine_api_key.is_empty()
                 && !invalid_api_key
-                && !volcengine.model.trim().is_empty();
+                && volcengine_model_id(&volcengine.model).is_ok();
             let custom_configured = !custom.api_key.trim().is_empty()
                 && !custom.base_url.trim().is_empty()
                 && !custom.model.trim().is_empty();
@@ -603,7 +667,7 @@ fn apply_loaded_settings(ui: &AppWindow, store: &JsonSettingsStore) {
             });
             ui.set_asr_api_key(SharedString::from(volcengine.api_key));
             ui.set_asr_model(SharedString::from(if volcengine.model.trim().is_empty() {
-                VOLCENGINE_MODEL
+                VOLCENGINE_ASR_2_MODEL
             } else {
                 volcengine.model.as_str()
             }));
@@ -611,22 +675,31 @@ fn apply_loaded_settings(ui: &AppWindow, store: &JsonSettingsStore) {
             ui.set_custom_asr_base_url(SharedString::from(custom.base_url));
             ui.set_custom_asr_model(SharedString::from(custom.model));
             ui.set_custom_asr_configured(custom_configured);
+            let translations = ui.global::<Translations>();
             apply_status(
                 ui,
                 configured,
                 !custom_active && invalid_api_key,
                 if !custom_active && invalid_api_key {
-                    "API Key 格式错误"
+                    translations.get_models_invalid_api_key()
                 } else if configured {
-                    "已配置"
+                    translations.get_models_configured()
                 } else {
-                    "未配置"
+                    translations.get_models_not_configured()
                 },
             );
             ui.set_asr_testing(false);
-            ui.set_asr_pending_test(configured);
+            apply_pending_test(ui, configured);
+            ui.set_asr_config_dirty(false);
+            ui.set_llm_config_dirty(false);
         }
-        _ => apply_status(ui, false, true, "配置读取失败"),
+        _ => apply_status(
+            ui,
+            false,
+            true,
+            ui.global::<Translations>()
+                .get_common_configuration_load_failed(),
+        ),
     }
 }
 
@@ -651,10 +724,38 @@ fn provider_is_local(base_url: &str) -> bool {
     )
 }
 
-fn apply_status(ui: &AppWindow, configured: bool, error: bool, status: &str) {
+fn apply_status(ui: &AppWindow, configured: bool, error: bool, status: impl Into<SharedString>) {
     ui.set_asr_configured(configured);
     ui.set_asr_config_error(error);
-    ui.set_asr_config_status(SharedString::from(status));
+    ui.set_asr_config_status(status.into());
+    ui.set_asr_home_available(asr_available_on_home(
+        configured,
+        error,
+        ui.get_asr_pending_test(),
+    ));
+}
+
+fn apply_pending_test(ui: &AppWindow, pending_test: bool) {
+    ui.set_asr_pending_test(pending_test);
+    ui.set_asr_home_available(asr_available_on_home(
+        ui.get_asr_configured(),
+        ui.get_asr_config_error(),
+        pending_test,
+    ));
+}
+
+fn asr_available_on_home(configured: bool, error: bool, _pending_test: bool) -> bool {
+    configured && !error
+}
+
+pub(crate) fn mark_asr_runtime_healthy(ui: &AppWindow) {
+    apply_pending_test(ui, false);
+    apply_status(
+        ui,
+        true,
+        false,
+        ui.global::<Translations>().get_models_connected(),
+    );
 }
 
 #[cfg(test)]

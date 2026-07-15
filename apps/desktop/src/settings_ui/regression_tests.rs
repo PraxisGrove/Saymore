@@ -2,18 +2,25 @@ use std::fs;
 
 use template_app::{
     LlmProviderPreset, OpenAiCompatibleAsrSettings, ProviderCatalog, ProviderConfigStore,
-    SaymoreSettings, SettingsStore, SpeechRecognitionError, VolcengineAsrSettings,
+    SaymoreSettings, SettingsStore, VolcengineAsrSettings,
 };
 use template_infra::JsonSettingsStore;
 use uuid::Uuid;
 
 use super::{
-    AsrConfigError, asr_test_failure_status, clear_asr_configuration, llm_consent_required,
+    AsrConfigError, asr_available_on_home, clear_asr_configuration, llm_consent_required,
     persist_llm_consent, save_asr_configuration, save_custom_asr_configuration,
     volcengine_api_key_is_valid,
 };
 
 const VALID_ASR_API_KEY: &str = "123e4567-e89b-42d3-a456-426614174000";
+
+#[test]
+fn configured_asr_remains_available_on_home_while_optional_test_is_pending() {
+    assert!(asr_available_on_home(true, false, true));
+    assert!(!asr_available_on_home(false, false, false));
+    assert!(!asr_available_on_home(true, true, false));
+}
 
 #[test]
 fn asr_configuration_rejects_an_empty_model() {
@@ -29,7 +36,7 @@ fn asr_configuration_rejects_an_empty_model() {
 }
 
 #[test]
-fn asr_configuration_round_trips_a_custom_model_and_can_be_deleted() {
+fn asr_configuration_normalizes_the_legacy_model_and_can_be_deleted() {
     let directory = std::env::temp_dir().join(format!("saymore-asr-round-trip-{}", Uuid::new_v4()));
     let store = JsonSettingsStore::at_path(directory.join("providers.json"));
 
@@ -38,7 +45,7 @@ fn asr_configuration_round_trips_a_custom_model_and_can_be_deleted() {
         save_asr_configuration(
             &store,
             &format!("  {VALID_ASR_API_KEY}  "),
-            "  custom-model  ",
+            "bigmodel_async"
         )
     );
     let Ok(settings) = store.load() else {
@@ -48,12 +55,25 @@ fn asr_configuration_round_trips_a_custom_model_and_can_be_deleted() {
         VolcengineAsrSettings {
             enabled: true,
             api_key: VALID_ASR_API_KEY.to_owned(),
-            model: "custom-model".to_owned(),
+            model: "volc.seedasr.sauc.duration".to_owned(),
         },
         settings.asr.volcengine
     );
 
     assert_eq!(Ok(()), clear_asr_configuration(&store));
+    assert_eq!(Ok(SaymoreSettings::default()), store.load());
+    let _ = fs::remove_dir_all(directory);
+}
+
+#[test]
+fn asr_configuration_rejects_an_unknown_volcengine_model() {
+    let directory = std::env::temp_dir().join(format!("saymore-asr-model-{}", Uuid::new_v4()));
+    let store = JsonSettingsStore::at_path(directory.join("providers.json"));
+
+    assert_eq!(
+        Err(AsrConfigError::UnsupportedModel),
+        save_asr_configuration(&store, VALID_ASR_API_KEY, "custom-model")
+    );
     assert_eq!(Ok(SaymoreSettings::default()), store.load());
     let _ = fs::remove_dir_all(directory);
 }
@@ -129,22 +149,6 @@ fn custom_asr_configuration_round_trips_and_becomes_active() {
     assert!(!settings.asr.openai_compatible.enabled);
     assert_eq!("test-key", settings.asr.openai_compatible.api_key);
     let _ = fs::remove_dir_all(directory);
-}
-
-#[test]
-fn asr_test_errors_are_reported_by_category() {
-    assert_eq!(
-        "API Key 无效，请检查后重试",
-        asr_test_failure_status(&SpeechRecognitionError::Authentication)
-    );
-    assert_eq!(
-        "无法连接语音服务，请检查网络后重试",
-        asr_test_failure_status(&SpeechRecognitionError::Transport("offline".to_owned()))
-    );
-    assert_eq!(
-        "当前语音服务额度不可用",
-        asr_test_failure_status(&SpeechRecognitionError::Quota)
-    );
 }
 
 #[test]

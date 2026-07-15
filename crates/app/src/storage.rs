@@ -20,10 +20,43 @@ impl HistoryRetention {
     }
 }
 
+/// Stores the user's desktop interface language preference independently from
+/// speech-recognition and transcript language selection.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum UiLanguagePreference {
+    #[default]
+    System,
+    English,
+    SimplifiedChinese,
+}
+
+impl UiLanguagePreference {
+    pub const fn storage_value(self) -> &'static str {
+        match self {
+            Self::System => "system",
+            Self::English => "en",
+            Self::SimplifiedChinese => "zh-Hans",
+        }
+    }
+
+    pub fn from_storage_value(value: &str) -> Option<Self> {
+        match value {
+            "system" => Some(Self::System),
+            "en" => Some(Self::English),
+            "zh-Hans" => Some(Self::SimplifiedChinese),
+            _ => None,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LocalSettings {
     pub history_enabled: bool,
     pub history_retention: HistoryRetention,
+    pub preferred_microphone_id: Option<String>,
+    pub preferred_microphone_name: Option<String>,
+    pub diagnostics_logging_enabled: bool,
+    pub ui_language: UiLanguagePreference,
 }
 
 impl Default for LocalSettings {
@@ -31,6 +64,10 @@ impl Default for LocalSettings {
         Self {
             history_enabled: true,
             history_retention: HistoryRetention::SevenDays,
+            preferred_microphone_id: None,
+            preferred_microphone_name: None,
+            diagnostics_logging_enabled: false,
+            ui_language: UiLanguagePreference::System,
         }
     }
 }
@@ -63,6 +100,8 @@ pub struct NewHistoryRecord {
     pub refinement: HistoryRefinement,
     pub asr_provider_id: Option<String>,
     pub llm_provider_id: Option<String>,
+    pub asr_model: Option<String>,
+    pub llm_model: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -78,6 +117,8 @@ pub struct HistoryRecord {
     pub refinement: HistoryRefinement,
     pub asr_provider_id: Option<String>,
     pub llm_provider_id: Option<String>,
+    pub asr_model: Option<String>,
+    pub llm_model: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -102,7 +143,6 @@ pub enum DictionaryOrigin {
 pub struct NewDictionaryEntry {
     pub canonical: String,
     pub language: String,
-    pub variants: Vec<String>,
     pub origin: DictionaryOrigin,
 }
 
@@ -111,7 +151,6 @@ pub struct DictionaryEntry {
     pub id: String,
     pub canonical: String,
     pub language: String,
-    pub variants: Vec<String>,
     pub origin: DictionaryOrigin,
     pub created_at_ms: i64,
     pub updated_at_ms: i64,
@@ -136,10 +175,12 @@ pub enum SecretStoreError {
     Invalid(String),
 }
 
-/// Stores the local history data key in an operating-system credential vault.
+/// Stores the local history data key outside the SQLite database.
 ///
-/// Implementations must distinguish a missing key from a temporarily unavailable
-/// credential service and must never persist the key in the SQLite database.
+/// Production implementations use an operating-system credential vault. Development
+/// implementations may use a private file so rebuilt local binaries do not repeatedly
+/// trigger credential-vault authorization. Implementations must distinguish a missing
+/// key from unavailable storage and must never persist the key in the SQLite database.
 pub trait SecretStore: Send + Sync {
     fn load_history_key(&self) -> Result<Option<Vec<u8>>, SecretStoreError>;
     fn save_history_key(&self, key: &[u8]) -> Result<(), SecretStoreError>;
@@ -171,6 +212,16 @@ pub trait HistoryStore: Send + Sync {
         &self,
         cursor: Option<HistoryCursor>,
         limit: u16,
+    ) -> Result<HistoryPage, StorageError>;
+    /// Returns an encrypted-history page matching final text.
+    ///
+    /// Implementations are expected to keep filtering behind the storage boundary so
+    /// callers receive only a bounded page rather than a full decrypted history dump.
+    fn search_history_page(
+        &self,
+        cursor: Option<HistoryCursor>,
+        limit: u16,
+        query: &str,
     ) -> Result<HistoryPage, StorageError>;
     fn update_history_delivery(
         &self,
@@ -204,16 +255,6 @@ pub trait InstalledModelStore: Send + Sync {
 }
 
 pub fn dictionary_comparison_key(value: &str) -> String {
-    value
-        .nfkc()
-        .flat_map(char::to_lowercase)
-        .collect::<String>()
-        .split_whitespace()
-        .collect::<Vec<_>>()
-        .join(" ")
-}
-
-pub fn dictionary_variant_key(value: &str) -> String {
     value
         .nfkc()
         .flat_map(char::to_lowercase)

@@ -9,7 +9,7 @@ use template_app::{
     DictionaryOrigin, DictionaryStore, HistoryDelivery, HistoryRecord, HistoryRefinement,
     HistoryRetention, HistoryStore, InstalledModel, InstalledModelStore, LocalSettings,
     LocalSettingsStore, NewDictionaryEntry, NewHistoryRecord, SecretStore, SecretStoreError,
-    StorageError,
+    StorageError, UiLanguagePreference,
 };
 use template_infra::SqliteStorage;
 
@@ -81,6 +81,8 @@ fn history_record(id: &str, created_at_ms: i64, final_text: &str) -> NewHistoryR
         refinement: HistoryRefinement::Completed,
         asr_provider_id: Some("asr-primary".to_owned()),
         llm_provider_id: Some("llm-primary".to_owned()),
+        asr_model: Some("asr-model".to_owned()),
+        llm_model: Some("llm-model".to_owned()),
     }
 }
 
@@ -95,12 +97,57 @@ fn settings_are_typed_and_persisted_across_restarts() -> Result<(), Box<dyn std:
     let changed = LocalSettings {
         history_enabled: false,
         history_retention: HistoryRetention::ThirtyDays,
+        preferred_microphone_id: Some("coreaudio:BuiltInMicrophoneDevice".to_owned()),
+        preferred_microphone_name: Some("MacBook 麦克风".to_owned()),
+        diagnostics_logging_enabled: true,
+        ui_language: UiLanguagePreference::English,
     };
     store.save_settings(changed.clone())?;
     drop(store);
 
     let reopened = SqliteStorage::start(path, secrets)?;
     assert_eq!(changed, reopened.load_settings()?);
+    Ok(())
+}
+
+#[test]
+fn v7_settings_migrate_to_follow_system_language() -> Result<(), Box<dyn std::error::Error>> {
+    let directory = tempfile::tempdir()?;
+    let path = directory.path().join("saymore.sqlite3");
+    let secrets = Arc::new(MemorySecretStore::default());
+    drop(SqliteStorage::start(path.clone(), secrets.clone())?);
+
+    let connection = rusqlite::Connection::open(&path)?;
+    connection.execute_batch(
+        "ALTER TABLE app_settings RENAME TO app_settings_v8;
+         CREATE TABLE app_settings (
+            singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
+            history_enabled INTEGER NOT NULL CHECK (history_enabled IN (0, 1)),
+            history_retention_days INTEGER CHECK (
+                history_retention_days IS NULL OR history_retention_days IN (1, 7, 30)
+            ),
+            automatic_dictionary_learning INTEGER NOT NULL
+                CHECK (automatic_dictionary_learning IN (0, 1)),
+            preferred_microphone_id TEXT,
+            preferred_microphone_name TEXT,
+            diagnostics_logging_enabled INTEGER NOT NULL DEFAULT 0
+                CHECK (diagnostics_logging_enabled IN (0, 1))
+         );
+         INSERT INTO app_settings
+         SELECT singleton, history_enabled, history_retention_days,
+                automatic_dictionary_learning, preferred_microphone_id,
+                preferred_microphone_name, diagnostics_logging_enabled
+         FROM app_settings_v8;
+         DROP TABLE app_settings_v8;
+         PRAGMA user_version = 7;",
+    )?;
+    drop(connection);
+
+    let store = SqliteStorage::start(path, secrets)?;
+    assert_eq!(
+        UiLanguagePreference::System,
+        store.load_settings()?.ui_language
+    );
     Ok(())
 }
 
@@ -138,6 +185,8 @@ fn history_is_encrypted_and_uses_stable_keyset_pagination() -> Result<(), Box<dy
             refinement: HistoryRefinement::Completed,
             asr_provider_id: Some("asr-primary".to_owned()),
             llm_provider_id: Some("llm-primary".to_owned()),
+            asr_model: Some("asr-model".to_owned()),
+            llm_model: Some("llm-model".to_owned()),
         },
         first.records[0]
     );
@@ -178,6 +227,45 @@ fn history_is_encrypted_and_uses_stable_keyset_pagination() -> Result<(), Box<dy
             .windows("第二条 LLM 润色结果".len())
             .any(|bytes| bytes == "第二条 LLM 润色结果".as_bytes())
     );
+    Ok(())
+}
+
+#[test]
+fn history_search_filters_decrypted_text_and_keeps_stable_pages()
+-> Result<(), Box<dyn std::error::Error>> {
+    let directory = tempfile::tempdir()?;
+    let store = SqliteStorage::start(
+        directory.path().join("saymore.sqlite3"),
+        Arc::new(MemorySecretStore::default()),
+    )?;
+    for index in 0..55 {
+        let text = if index % 10 == 0 {
+            format!("首页方案 {index}")
+        } else {
+            format!("其他记录 {index}")
+        };
+        store.insert_history(history_record(&format!("record-{index:02}"), index, &text))?;
+    }
+
+    let first = store.search_history_page(None, 3, " 首页方案 ")?;
+    assert_eq!(
+        vec!["record-50", "record-40", "record-30"],
+        first
+            .records
+            .iter()
+            .map(|record| record.id.as_str())
+            .collect::<Vec<_>>()
+    );
+    let second = store.search_history_page(first.next_cursor, 3, "首页方案")?;
+    assert_eq!(
+        vec!["record-20", "record-10", "record-00"],
+        second
+            .records
+            .iter()
+            .map(|record| record.id.as_str())
+            .collect::<Vec<_>>()
+    );
+    assert!(second.next_cursor.is_none());
     Ok(())
 }
 
@@ -288,7 +376,6 @@ fn explicit_history_reset_rotates_the_key_without_removing_dictionary_entries()
         NewDictionaryEntry {
             canonical: "Saymore".to_owned(),
             language: "en".to_owned(),
-            variants: Vec::new(),
             origin: DictionaryOrigin::Manual,
         },
         1_000,
@@ -314,7 +401,6 @@ fn failed_key_rotation_does_not_leave_old_history_with_an_overwritten_key()
         NewDictionaryEntry {
             canonical: "Saymore".to_owned(),
             language: "en".to_owned(),
-            variants: Vec::new(),
             origin: DictionaryOrigin::Manual,
         },
         1_000,
@@ -384,7 +470,6 @@ fn manual_dictionary_entries_merge_normalized_duplicates() -> Result<(), Box<dyn
         NewDictionaryEntry {
             canonical: "openai".to_owned(),
             language: "en".to_owned(),
-            variants: vec!["Open AI".to_owned()],
             origin: DictionaryOrigin::Automatic,
         },
         1_000,
@@ -393,7 +478,6 @@ fn manual_dictionary_entries_merge_normalized_duplicates() -> Result<(), Box<dyn
         NewDictionaryEntry {
             canonical: "OpenAI".to_owned(),
             language: "en".to_owned(),
-            variants: vec!["欧盆AI".to_owned()],
             origin: DictionaryOrigin::Manual,
         },
         2_000,
@@ -401,7 +485,6 @@ fn manual_dictionary_entries_merge_normalized_duplicates() -> Result<(), Box<dyn
 
     assert_eq!("OpenAI", updated.canonical);
     assert_eq!(DictionaryOrigin::Manual, updated.origin);
-    assert_eq!(vec!["Open AI", "欧盆AI"], updated.variants);
     assert_eq!(vec![updated], store.list_dictionary()?);
     Ok(())
 }
@@ -417,7 +500,6 @@ fn dictionary_identity_preserves_token_boundaries_across_v3_migration()
         NewDictionaryEntry {
             canonical: "Open AI".to_owned(),
             language: "en".to_owned(),
-            variants: Vec::new(),
             origin: DictionaryOrigin::Manual,
         },
         1_000,
@@ -437,7 +519,6 @@ fn dictionary_identity_preserves_token_boundaries_across_v3_migration()
         NewDictionaryEntry {
             canonical: "OpenAI".to_owned(),
             language: "en".to_owned(),
-            variants: Vec::new(),
             origin: DictionaryOrigin::Manual,
         },
         2_000,
@@ -450,7 +531,7 @@ fn dictionary_identity_preserves_token_boundaries_across_v3_migration()
 
     let connection = rusqlite::Connection::open(path)?;
     let version: u32 = connection.query_row("PRAGMA user_version", [], |row| row.get(0))?;
-    assert_eq!(4, version);
+    assert_eq!(8, version);
     let spaced_key: String = connection.query_row(
         "SELECT canonical_key FROM dictionary_entries WHERE canonical = 'Open AI'",
         [],
@@ -461,7 +542,8 @@ fn dictionary_identity_preserves_token_boundaries_across_v3_migration()
 }
 
 #[test]
-fn paused_dictionary_learning_data_is_preserved() -> Result<(), Box<dyn std::error::Error>> {
+fn v4_dictionary_learning_data_is_migrated_without_mappings()
+-> Result<(), Box<dyn std::error::Error>> {
     let directory = tempfile::tempdir()?;
     let path = directory.path().join("saymore.sqlite3");
     let secrets = Arc::new(MemorySecretStore::default());
@@ -469,7 +551,40 @@ fn paused_dictionary_learning_data_is_preserved() -> Result<(), Box<dyn std::err
 
     let connection = rusqlite::Connection::open(&path)?;
     connection.execute_batch(
-        "UPDATE app_settings SET automatic_dictionary_learning = 0 WHERE singleton = 1;
+        "DROP INDEX term_observations_candidate;
+         DROP TABLE term_observations;
+         DROP TABLE dictionary_candidates;
+         CREATE TABLE dictionary_variants (
+            id TEXT PRIMARY KEY NOT NULL,
+            entry_id TEXT NOT NULL REFERENCES dictionary_entries(id) ON DELETE CASCADE,
+            recognized_as TEXT NOT NULL,
+            variant_key TEXT NOT NULL,
+            created_at_ms INTEGER NOT NULL,
+            UNIQUE(entry_id, variant_key)
+         );
+         CREATE TABLE term_observations (
+            dictation_id TEXT NOT NULL,
+            language TEXT NOT NULL,
+            canonical TEXT NOT NULL,
+            canonical_key TEXT NOT NULL,
+            recognized_as TEXT NOT NULL,
+            variant_key TEXT NOT NULL,
+            occurrence_count INTEGER NOT NULL CHECK (occurrence_count > 0),
+            observed_at_ms INTEGER NOT NULL,
+            PRIMARY KEY(dictation_id, language, canonical_key, variant_key)
+         );
+         CREATE INDEX term_observations_candidate
+            ON term_observations(language, canonical_key, variant_key, observed_at_ms);
+         CREATE TABLE dictionary_candidates (
+            language TEXT NOT NULL,
+            canonical_key TEXT NOT NULL,
+            variant_key TEXT NOT NULL,
+            occurrence_count INTEGER NOT NULL,
+            dictation_count INTEGER NOT NULL,
+            last_observed_at_ms INTEGER NOT NULL,
+            PRIMARY KEY(language, canonical_key, variant_key)
+         );
+         UPDATE app_settings SET automatic_dictionary_learning = 0 WHERE singleton = 1;
          INSERT INTO term_observations(
             dictation_id, language, canonical, canonical_key, recognized_as,
             variant_key, occurrence_count, observed_at_ms
@@ -481,7 +596,8 @@ fn paused_dictionary_learning_data_is_preserved() -> Result<(), Box<dyn std::err
          ) VALUES ('en', 'saymore', 'say more', 2, 1, 1000);
          INSERT INTO dictionary_suppressions(
             language, canonical_key, suppressed_until_ms
-         ) VALUES ('en', 'saymore', 90000);",
+         ) VALUES ('en', 'saymore', 90000);
+         PRAGMA user_version = 4;",
     )?;
     drop(connection);
 
@@ -509,6 +625,12 @@ fn paused_dictionary_learning_data_is_preserved() -> Result<(), Box<dyn std::err
             })?;
         assert_eq!(1, count, "legacy rows in {table} must be preserved");
     }
+    let variants_table: u32 = connection.query_row(
+        "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'dictionary_variants'",
+        [],
+        |row| row.get(0),
+    )?;
+    assert_eq!(0, variants_table);
     Ok(())
 }
 

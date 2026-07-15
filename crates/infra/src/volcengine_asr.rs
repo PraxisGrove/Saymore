@@ -11,7 +11,7 @@ use futures_util::{SinkExt, StreamExt};
 use serde_json::{Value, json};
 use template_app::{
     SpeechRecognitionError, SpeechRecognitionHints, StreamingRecognitionSession,
-    StreamingSpeechRecognizer,
+    StreamingSpeechRecognizer, VolcengineAsrSettings,
 };
 use tokio::sync::mpsc as tokio_mpsc;
 use tokio_tungstenite::{
@@ -22,7 +22,9 @@ use unicode_normalization::UnicodeNormalization;
 use uuid::Uuid;
 
 const ENDPOINT: &str = "wss://openspeech.bytedance.com/api/v3/sauc/bigmodel_async";
-const RESOURCE_ID: &str = "volc.seedasr.sauc.duration";
+const ASR_1_RESOURCE_ID: &str = "volc.bigasr.sauc.duration";
+const ASR_2_RESOURCE_ID: &str = "volc.seedasr.sauc.duration";
+const LEGACY_MODEL_ID: &str = "bigmodel_async";
 const FINAL_TIMEOUT: Duration = Duration::from_secs(30);
 const CONNECTION_TEST_TIMEOUT: Duration = Duration::from_secs(8);
 const AUDIO_QUEUE_CAPACITY: usize = 128;
@@ -31,25 +33,36 @@ const MAX_HOTWORD_CHARS: usize = 10;
 
 pub struct VolcengineSpeechRecognizer {
     api_key: String,
+    resource_id: &'static str,
 }
 
 impl VolcengineSpeechRecognizer {
-    pub fn new(api_key: String) -> Result<Self, SpeechRecognitionError> {
-        let api_key = api_key.trim();
+    pub fn new(settings: VolcengineAsrSettings) -> Result<Self, SpeechRecognitionError> {
+        let api_key = settings.api_key.trim();
         if api_key.is_empty() {
             return Err(SpeechRecognitionError::NotConfigured);
         }
         if api_key.len() != 36 || Uuid::parse_str(api_key).is_err() {
             return Err(SpeechRecognitionError::Authentication);
         }
+        let resource_id = match settings.model.trim() {
+            ASR_1_RESOURCE_ID => ASR_1_RESOURCE_ID,
+            ASR_2_RESOURCE_ID | LEGACY_MODEL_ID => ASR_2_RESOURCE_ID,
+            model => {
+                return Err(SpeechRecognitionError::Protocol(format!(
+                    "unsupported Volcengine ASR model: {model}"
+                )));
+            }
+        };
         Ok(Self {
             api_key: api_key.to_owned(),
+            resource_id,
         })
     }
 
     pub async fn test_connection(&self) -> Result<(), SpeechRecognitionError> {
         let _ = rustls::crypto::ring::default_provider().install_default();
-        let request = connection_request(&self.api_key)?;
+        let request = connection_request(&self.api_key, self.resource_id)?;
         let (mut socket, _) = connect_async(request).await.map_err(handshake_error)?;
         let test_hints = SpeechRecognitionHints::from_terms(vec!["Saymore".to_owned()]);
         socket
@@ -87,6 +100,7 @@ impl StreamingSpeechRecognizer for VolcengineSpeechRecognizer {
         let (command_tx, command_rx) = tokio_mpsc::channel(AUDIO_QUEUE_CAPACITY);
         let (result_tx, result_rx) = mpsc::sync_channel(1);
         let api_key = self.api_key.clone();
+        let resource_id = self.resource_id;
         thread::Builder::new()
             .name("saymore-volcengine-asr".to_owned())
             .spawn(move || {
@@ -95,7 +109,13 @@ impl StreamingSpeechRecognizer for VolcengineSpeechRecognizer {
                     .build()
                     .map_err(|error| SpeechRecognitionError::Transport(error.to_string()))
                     .and_then(|runtime| {
-                        runtime.block_on(run_session(api_key, hints, command_rx, on_partial))
+                        runtime.block_on(run_session(
+                            api_key,
+                            resource_id,
+                            hints,
+                            command_rx,
+                            on_partial,
+                        ))
                     });
                 let _ = result_tx.send(result);
             })
@@ -152,12 +172,13 @@ enum SessionCommand {
 
 async fn run_session(
     api_key: String,
+    resource_id: &'static str,
     hints: SpeechRecognitionHints,
     mut commands: tokio_mpsc::Receiver<SessionCommand>,
     on_partial: Arc<dyn Fn(String) + Send + Sync>,
 ) -> Result<String, SpeechRecognitionError> {
     let _ = rustls::crypto::ring::default_provider().install_default();
-    let request = connection_request(&api_key)?;
+    let request = connection_request(&api_key, resource_id)?;
 
     let (mut socket, _) = connect_async(request).await.map_err(handshake_error)?;
     socket
@@ -221,11 +242,12 @@ async fn run_session(
 
 fn connection_request(
     api_key: &str,
+    resource_id: &str,
 ) -> Result<tokio_tungstenite::tungstenite::http::Request<()>, SpeechRecognitionError> {
     let mut request = ENDPOINT.into_client_request().map_err(protocol_error)?;
     let headers = request.headers_mut();
     headers.insert("X-Api-Key", header_value(api_key)?);
-    headers.insert("X-Api-Resource-Id", header_value(RESOURCE_ID)?);
+    headers.insert("X-Api-Resource-Id", header_value(resource_id)?);
     headers.insert(
         "X-Api-Connect-Id",
         header_value(&Uuid::new_v4().to_string())?,
@@ -490,10 +512,21 @@ mod tests {
 
     use super::*;
 
+    fn settings(api_key: &str, model: &str) -> VolcengineAsrSettings {
+        VolcengineAsrSettings {
+            enabled: true,
+            api_key: api_key.to_owned(),
+            model: model.to_owned(),
+        }
+    }
+
     #[test]
     fn rejects_an_api_key_with_an_extra_printable_character() {
         assert!(matches!(
-            VolcengineSpeechRecognizer::new("123e4567-e89b-42d3-a456-426614174000å".to_owned()),
+            VolcengineSpeechRecognizer::new(settings(
+                "123e4567-e89b-42d3-a456-426614174000å",
+                ASR_2_RESOURCE_ID,
+            )),
             Err(SpeechRecognitionError::Authentication)
         ));
     }
@@ -504,7 +537,8 @@ mod tests {
         let Ok(api_key) = env::var("SAYMORE_VOLCENGINE_API_KEY") else {
             panic!("SAYMORE_VOLCENGINE_API_KEY is required");
         };
-        let Ok(recognizer) = VolcengineSpeechRecognizer::new(api_key) else {
+        let Ok(recognizer) = VolcengineSpeechRecognizer::new(settings(&api_key, ASR_2_RESOURCE_ID))
+        else {
             panic!("live recognizer should be configured");
         };
         let Ok(runtime) = tokio::runtime::Builder::new_current_thread()
@@ -518,26 +552,50 @@ mod tests {
     }
 
     #[test]
-    fn connection_request_contains_volcengine_credentials_and_resource() {
-        let Ok(request) = connection_request("test-key") else {
+    fn selected_model_controls_the_volcengine_resource_header() {
+        let Ok(recognizer) = VolcengineSpeechRecognizer::new(settings(
+            "123e4567-e89b-42d3-a456-426614174000",
+            ASR_1_RESOURCE_ID,
+        )) else {
+            panic!("ASR 1.0 should be supported");
+        };
+        let Ok(request) = connection_request(&recognizer.api_key, recognizer.resource_id) else {
             panic!("connection request should be valid");
         };
 
         assert_eq!(
-            Some("test-key"),
+            Some("123e4567-e89b-42d3-a456-426614174000"),
             request
                 .headers()
                 .get("X-Api-Key")
                 .and_then(|value| value.to_str().ok())
         );
         assert_eq!(
-            Some(RESOURCE_ID),
+            Some(ASR_1_RESOURCE_ID),
             request
                 .headers()
                 .get("X-Api-Resource-Id")
                 .and_then(|value| value.to_str().ok())
         );
         assert!(request.headers().contains_key("X-Api-Connect-Id"));
+    }
+
+    #[test]
+    fn legacy_model_selects_asr_2_and_unknown_models_are_rejected() {
+        let Ok(recognizer) = VolcengineSpeechRecognizer::new(settings(
+            "123e4567-e89b-42d3-a456-426614174000",
+            LEGACY_MODEL_ID,
+        )) else {
+            panic!("legacy model should remain compatible");
+        };
+        assert_eq!(ASR_2_RESOURCE_ID, recognizer.resource_id);
+        assert!(matches!(
+            VolcengineSpeechRecognizer::new(settings(
+                "123e4567-e89b-42d3-a456-426614174000",
+                "unknown-model",
+            )),
+            Err(SpeechRecognitionError::Protocol(_))
+        ));
     }
 
     #[test]
@@ -657,7 +715,8 @@ mod tests {
         let Ok(samples) = pcm_samples_from_wav(&wav) else {
             panic!("WAV fixture should contain mono PCM16 audio");
         };
-        let Ok(recognizer) = VolcengineSpeechRecognizer::new(api_key) else {
+        let Ok(recognizer) = VolcengineSpeechRecognizer::new(settings(&api_key, ASR_2_RESOURCE_ID))
+        else {
             panic!("live recognizer should be configured");
         };
         let Ok(session) = recognizer.start(

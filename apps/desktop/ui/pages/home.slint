@@ -66,10 +66,11 @@ export component HomePage inherits Rectangle {
     in property <bool> microphone-authorized;
     in property <string> microphone-status;
     in property <bool> asr-configured;
+    in property <bool> asr-home-available;
     in property <bool> asr-config-error;
     in property <bool> asr-pending-test;
     in property <string> asr-config-status;
-    in property <string> shortcut-label: "右 Command";
+    in property <string> shortcut-label: @tr("shortcut.right-command" => "Right Command");
     in property <bool> shortcut-enabled: true;
     in property <string> usage-total-minutes: "0";
     in property <string> usage-total-characters: "0";
@@ -85,24 +86,24 @@ export component HomePage inherits Rectangle {
     callback refresh-usage();
 
     private property <bool> microphone-issue: !root.microphone-authorized;
-    private property <bool> model-issue: !root.asr-configured || root.asr-config-error || root.asr-pending-test;
+    private property <bool> model-issue: !root.asr-home-available;
     private property <bool> accessibility-issue: !root.authorized;
     private property <bool> healthy: !root.microphone-issue && !root.model-issue && !root.accessibility-issue;
-    private property <string> issue-title: root.microphone-issue ? "麦克风权限未开启"
-        : root.model-issue ? (root.asr-config-error ? "语音识别模型配置有误" : root.asr-pending-test ? "语音识别模型尚未验证" : "语音识别模型尚未配置")
-        : root.accessibility-issue ? "辅助功能权限未开启" : "";
-    private property <string> issue-detail: root.microphone-issue ? "语音输入暂时无法开始"
-        : root.model-issue ? (root.asr-config-error ? root.asr-config-status : root.asr-pending-test ? "请先在模型页面测试连接" : "完成配置后才能开始使用")
-        : root.accessibility-issue ? "识别结果无法自动输入到当前光标" : "";
-    private property <string> issue-action: root.model-issue ? "前往模型设置"
-        : "打开系统设置";
+    private property <string> issue-title: root.microphone-issue ? @tr("home.issue.microphone.title" => "Microphone access is off")
+        : root.model-issue ? (root.asr-config-error ? @tr("home.issue.asr-invalid.title" => "Voice recognition configuration needs attention") : @tr("home.issue.asr-missing.title" => "Voice recognition is not configured"))
+        : root.accessibility-issue ? @tr("home.issue.accessibility.title" => "Accessibility access is off") : "";
+    private property <string> issue-detail: root.microphone-issue ? @tr("home.issue.microphone.detail" => "Voice input cannot start yet")
+        : root.model-issue ? (root.asr-config-error ? root.asr-config-status : @tr("home.issue.asr-missing.detail" => "Finish setup before using voice input"))
+        : root.accessibility-issue ? @tr("home.issue.accessibility.detail" => "Recognized text cannot be entered at the current cursor") : "";
+    private property <string> issue-action: root.model-issue ? @tr("home.issue.models.action" => "Open model settings")
+        : @tr("common.open-system-settings" => "Open System Settings");
 
     background: transparent;
 
     Text {
         x: 0px;
         y: 43px;
-        text: "解放双手，说出所想";
+        text: @tr("home.headline" => "Speak your mind, hands-free");
         color: AppColors.ink;
         font-size: 27px;
         font-weight: 700;
@@ -116,8 +117,8 @@ export component HomePage inherits Rectangle {
         border-radius: 12px;
         background: AppColors.surface;
 
-        Text { x: 18px; y: 16px; text: "语音输入快捷键"; color: AppColors.ink; font-size: 14px; font-weight: 700; }
-        Text { x: 18px; y: 42px; text: "当前设置"; color: AppColors.text-muted; font-size: 11px; }
+        Text { x: 18px; y: 16px; text: @tr("home.shortcut.title" => "Voice input shortcut"); color: AppColors.ink; font-size: 14px; font-weight: 700; }
+        Text { x: 18px; y: 42px; text: @tr("home.shortcut.current" => "Current setting"); color: AppColors.text-muted; font-size: 11px; }
 
         Rectangle {
             x: parent.width - 210px;
@@ -138,11 +139,11 @@ export component HomePage inherits Rectangle {
             height: 38px;
             border-radius: 8px;
             background: root.shortcut-enabled ? AppColors.success-soft : AppColors.surface-subtle;
-            Text { text: root.shortcut-enabled ? "已启用" : "未启用"; color: root.shortcut-enabled ? AppColors.success : AppColors.text-muted; font-size: 11px; font-weight: 650; horizontal-alignment: center; vertical-alignment: center; }
+            Text { text: root.shortcut-enabled ? @tr("common.enabled" => "Enabled") : @tr("common.disabled" => "Disabled"); color: root.shortcut-enabled ? AppColors.success : AppColors.text-muted; font-size: 11px; font-weight: 650; horizontal-alignment: center; vertical-alignment: center; }
         }
     }
 
-    Text { x: 0px; y: 199px; text: "配置状态"; color: AppColors.text; font-size: 14px; font-weight: 650; }
+    Text { x: 0px; y: 199px; text: @tr("home.configuration-status.title" => "Configuration status"); color: AppColors.text; font-size: 14px; font-weight: 650; }
 
     Rectangle {
         x: 0px;
@@ -155,7 +156,7 @@ export component HomePage inherits Rectangle {
         if root.healthy: Text {
             x: 20px;
             y: 18px;
-            text: "模型已连接 · 麦克风已授权 · 文本投递正常";
+            text: root.asr-pending-test ? @tr("home.health.configured" => "Voice recognition configured · Microphone allowed · Text delivery ready") : @tr("home.health.connected" => "Model connected · Microphone allowed · Text delivery ready");
             color: AppColors.text;
             font-size: 12px;
             font-weight: 600;
@@ -168,7 +169,7 @@ export component HomePage inherits Rectangle {
             height: 30px;
             border-radius: 7px;
             background: AppColors.success-soft;
-            Text { text: "●  全部正常"; color: AppColors.success; font-size: 10px; font-weight: 650; horizontal-alignment: center; vertical-alignment: center; }
+            Text { text: root.asr-pending-test ? @tr("home.health.ready" => "●  Ready") : @tr("home.health.all-good" => "●  All good"); color: AppColors.success; font-size: 10px; font-weight: 650; horizontal-alignment: center; vertical-alignment: center; }
         }
 
         if !root.healthy: Rectangle {
@@ -212,7 +213,7 @@ export component HomePage inherits Rectangle {
         }
     }
 
-    Text { x: 0px; y: 301px; text: "使用概览"; color: AppColors.text; font-size: 14px; font-weight: 650; }
+    Text { x: 0px; y: 301px; text: @tr("home.usage.title" => "Usage overview"); color: AppColors.text; font-size: 14px; font-weight: 650; }
 
     Rectangle {
         x: 0px;
@@ -222,19 +223,19 @@ export component HomePage inherits Rectangle {
         border-radius: 12px;
         background: AppColors.surface;
 
-        Text { x: 20px; y: 16px; text: root.usage-loading ? "使用概览 · 正在加载" : root.usage-error ? "使用概览 · 加载失败" : "累计数据"; color: AppColors.text-muted; font-size: 11px; font-weight: 600; }
+        Text { x: 20px; y: 16px; text: root.usage-loading ? @tr("home.usage.loading" => "Usage overview · Loading") : root.usage-error ? @tr("home.usage.failed" => "Usage overview · Could not load") : @tr("home.usage.totals" => "All-time totals"); color: AppColors.text-muted; font-size: 11px; font-weight: 600; }
 
         private property <length> metric-step: (self.width - 62px) / 3;
-        UsageMetric { x: 20px; y: 32px; width: parent.metric-step - 30px; height: 78px; value: root.usage-loading ? "•••" : root.usage-error ? "—" : root.usage-total-minutes; unit: "分钟"; show-unit: !root.usage-loading && !root.usage-error; label: root.usage-error ? "本地统计暂时不可用" : "累计口述"; }
-        UsageMetric { x: 20px + parent.metric-step; y: 32px; width: parent.metric-step - 30px; height: 78px; value: root.usage-loading ? "•••" : root.usage-error ? "—" : root.usage-total-characters; unit: "字"; show-unit: !root.usage-loading && !root.usage-error; label: root.usage-error ? "不影响语音输入" : "累计字数"; }
-        UsageMetric { x: 20px + parent.metric-step * 2; y: 32px; width: parent.metric-step - 30px; height: 78px; value: root.usage-loading ? "•••" : root.usage-error ? "—" : root.usage-average-speed; unit: "字/分"; show-unit: !root.usage-loading && !root.usage-error; label: root.usage-error ? "" : "平均速度"; }
+        UsageMetric { x: 20px; y: 32px; width: parent.metric-step - 30px; height: 78px; value: root.usage-loading ? "•••" : root.usage-error ? "—" : root.usage-total-minutes; unit: @tr("home.usage.minutes.unit" => "min"); show-unit: !root.usage-loading && !root.usage-error; label: root.usage-error ? @tr("home.usage.local-unavailable" => "Local stats are temporarily unavailable") : @tr("home.usage.dictation-total" => "Voice input time"); }
+        UsageMetric { x: 20px + parent.metric-step; y: 32px; width: parent.metric-step - 30px; height: 78px; value: root.usage-loading ? "•••" : root.usage-error ? "—" : root.usage-total-characters; unit: @tr("home.usage.characters.unit" => "characters"); show-unit: !root.usage-loading && !root.usage-error; label: root.usage-error ? @tr("home.usage.input-unaffected" => "Voice input is unaffected") : @tr("home.usage.characters-total" => "Characters entered"); }
+        UsageMetric { x: 20px + parent.metric-step * 2; y: 32px; width: parent.metric-step - 30px; height: 78px; value: root.usage-loading ? "•••" : root.usage-error ? "—" : root.usage-average-speed; unit: @tr("home.usage.speed.unit" => "chars/min"); show-unit: !root.usage-loading && !root.usage-error; label: root.usage-error ? "" : @tr("home.usage.average-speed" => "Average speed"); }
         if root.usage-error: Rectangle {
             x: 20px + parent.metric-step * 2; y: 69px; width: parent.metric-step - 30px; height: 24px; background: transparent;
-            Text { text: "重新加载 ↗"; color: AppColors.brand; font-size: 10px; font-weight: 600; vertical-alignment: center; }
+            Text { text: @tr("common.reload" => "Reload ↗"); color: AppColors.brand; font-size: 10px; font-weight: 600; vertical-alignment: center; }
             TouchArea { mouse-cursor: pointer; clicked => { root.refresh-usage(); } }
         }
 
-        Text { x: 20px; y: 116px; text: "最近 7 天趋势"; color: AppColors.text-muted; font-size: 11px; font-weight: 600; }
+        Text { x: 20px; y: 116px; text: @tr("home.usage.seven-day-trend" => "Last 7 days"); color: AppColors.text-muted; font-size: 11px; font-weight: 600; }
 
         HorizontalLayout {
             x: 40px;

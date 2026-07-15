@@ -62,8 +62,7 @@ impl AsrSessionController {
             OpenAiCompatibleSpeechRecognizer::new(settings.asr.openai_compatible)?
                 .start(hints, on_partial)?
         } else {
-            VolcengineSpeechRecognizer::new(settings.asr.volcengine.api_key)?
-                .start(hints, on_partial)?
+            VolcengineSpeechRecognizer::new(settings.asr.volcengine)?.start(hints, on_partial)?
         };
         if let Ok(mut stream_error) = self.stream_error.lock() {
             *stream_error = None;
@@ -133,17 +132,6 @@ fn resolve_session_finish<T>(
 
 pub fn normalize_transcript(transcript: &str) -> String {
     transcript.split_whitespace().collect::<Vec<_>>().join(" ")
-}
-
-pub fn error_message(error: &SpeechRecognitionError) -> &'static str {
-    match error {
-        SpeechRecognitionError::NotConfigured => "请先配置火山引擎 API Key",
-        SpeechRecognitionError::Authentication => "火山引擎 API Key 无效",
-        SpeechRecognitionError::Quota => "火山引擎额度不足或请求受限",
-        SpeechRecognitionError::Transport(_) => "无法连接火山引擎",
-        SpeechRecognitionError::Protocol(_) => "火山引擎返回了无法解析的结果",
-        SpeechRecognitionError::Timeout => "语音识别超时",
-    }
 }
 
 #[cfg(test)]

@@ -1,0 +1,154 @@
+export global Translations {
+    out property <string> language-save-failed: @tr("settings.language.save-failed" => "Could not save the language preference");
+    out property <string> recording-active: @tr("recording.status.active" => "Listening");
+    out property <string> recording-delivery-failed: @tr("recording.status.delivery-failed" => "Could not deliver text");
+    out property <string> recording-transcription-complete: @tr("recording.status.transcription-complete" => "Transcription complete");
+    out property <string> recording-polishing-complete: @tr("recording.status.polishing-complete" => "Polishing complete");
+    out property <string> recording-polishing-incomplete: @tr("recording.status.polishing-incomplete" => "Polishing incomplete");
+    out property <string> recording-delivery-attempted: @tr("recording.status.delivery-attempted" => "Delivery attempted");
+    out property <string> recording-secure-input-attempted: @tr("recording.status.secure-input-attempted" => "Secure input attempted");
+    out property <string> recording-recognition-failed: @tr("recording.status.recognition-failed" => "Recognition failed");
+    out property <string> recording-capture-failed: @tr("recording.status.capture-failed" => "Recording failed");
+    out property <string> refinement-temporarily-unavailable: @tr("refinement.fallback.temporarily-unavailable" => "The polishing service is temporarily unavailable. Using the transcript instead.");
+    out property <string> refinement-output-rejected: @tr("refinement.fallback.output-rejected" => "The polished result was invalid. Using the transcript instead.");
+    out property <string> refinement-incomplete: @tr("refinement.fallback.incomplete" => "Polishing could not be completed. Using the transcript instead.");
+    out property <string> permission-authorized: @tr("permissions.status.authorized" => "Allowed");
+    out property <string> permission-not-authorized: @tr("permissions.status.not-authorized" => "Not allowed");
+    out property <string> permission-not-requested: @tr("permissions.status.not-requested" => "Not requested");
+    out property <string> permission-denied: @tr("permissions.status.denied" => "Denied");
+    out property <string> permission-restricted: @tr("permissions.status.restricted" => "Restricted by the system");
+    out property <string> delivery-inserted: @tr("delivery.outcome.inserted" => "Inserted");
+    out property <string> delivery-pasted: @tr("delivery.outcome.pasted" => "Pasted");
+    out property <string> delivery-paste-attempted: @tr("delivery.outcome.paste-attempted" => "Paste attempted");
+    out property <string> delivery-accessibility-required: @tr("delivery.error.accessibility-required" => "Accessibility permission is required");
+    out property <string> delivery-no-focused-control: @tr("delivery.error.no-focused-control" => "No text input is focused");
+    out property <string> delivery-unsupported-control: @tr("delivery.error.unsupported-control" => "The current control does not accept text input");
+    out property <string> delivery-unverified: @tr("delivery.error.unverified" => "Could not verify that the text was inserted");
+    out property <string> delivery-secure-failed: @tr("delivery.error.secure-failed" => "Secure text delivery failed");
+    out property <string> delivery-system-failed: @tr("delivery.error.system-failed" => "The system could not deliver the text");
+    out property <string> recording-microphone-required: @tr("recording.error.microphone-required" => "Microphone permission is required");
+    out property <string> recording-no-input-device: @tr("recording.error.no-input-device" => "No default microphone was found");
+    out property <string> recording-already-active: @tr("recording.error.already-active" => "Recording has already started");
+    out property <string> recording-not-active: @tr("recording.error.not-active" => "Recording has not started");
+    out property <string> recording-unsupported-format: @tr("recording.error.unsupported-format" => "This microphone sample format is not supported");
+    out property <string> recording-capture-error: @tr("recording.error.capture" => "Microphone capture failed");
+    out property <string> asr-not-configured: @tr("asr.error.not-configured" => "Configure a speech recognition API key first");
+    out property <string> asr-authentication: @tr("asr.error.authentication" => "The speech recognition API key is invalid");
+    out property <string> asr-quota: @tr("asr.error.quota" => "The speech recognition quota is unavailable");
+    out property <string> asr-transport: @tr("asr.error.transport" => "Could not connect to the speech recognition service");
+    out property <string> asr-protocol: @tr("asr.error.protocol" => "The speech recognition service returned an invalid response");
+    out property <string> asr-timeout: @tr("asr.error.timeout" => "Speech recognition timed out");
+    out property <string> history-group-today: @tr("history.group.today" => "Today");
+    out property <string> history-group-week: @tr("history.group.week" => "Past week");
+    out property <string> history-group-month: @tr("history.group.month" => "Past month");
+    out property <string> history-group-older: @tr("history.group.older" => "Older");
+    out property <string> history-delivered: @tr("history.status.delivered" => "Inserted");
+    out property <string> history-not-delivered: @tr("history.status.not-delivered" => "Not inserted");
+    out property <string> history-polished: @tr("history.status.polished" => "Polished");
+    out property <string> history-not-polished: @tr("history.status.not-polished" => "Not polished");
+    out property <string> history-model-not-recorded: @tr("history.model.not-recorded" => "Not recorded");
+    out property <string> history-model-not-used: @tr("history.model.not-used" => "Not used");
+    out property <string> history-reset-complete: @tr("history.reset.complete" => "History has been reset");
+    out property <string> dictionary-save-failed: @tr("dictionary.status.save-failed" => "Could not save entries. Check local storage and try again.");
+    out property <string> dictionary-entry-deleted: @tr("dictionary.status.deleted" => "Entry deleted");
+    out property <string> storage-error: @tr("storage.error.generic" => "Local storage is unavailable");
+    out property <string> microphone-system-default: @tr("settings.microphone.system-default" => "Automatic (system default microphone)");
+    out property <string> storage-unavailable: @tr("storage.usage.unavailable" => "Unavailable");
+    out property <string> settings-save-failed: @tr("settings.error.save-failed" => "Could not save settings");
+    out property <string> microphone-load-failed: @tr("settings.microphone.load-failed" => "Could not load microphones");
+    out property <string> common-saved: @tr("common.saved" => "Saved");
+    out property <string> common-save-failed: @tr("common.save-failed" => "Could not save");
+    out property <string> common-delete-failed: @tr("common.delete-failed" => "Could not delete");
+    out property <string> common-configuration-load-failed: @tr("common.configuration-load-failed" => "Could not load configuration");
+    out property <string> common-not-supported-platform: @tr("common.not-supported-platform" => "Not supported on this platform");
+    out property <string> models-enter-api-key: @tr("models.validation.enter-api-key" => "Enter an API key");
+    out property <string> models-invalid-api-key: @tr("models.validation.invalid-api-key" => "The API key format is invalid");
+    out property <string> models-enter-service-url: @tr("models.validation.enter-service-url" => "Enter a service URL");
+    out property <string> models-invalid-service-url: @tr("models.validation.invalid-service-url" => "The service URL is invalid");
+    out property <string> models-enter-model-name: @tr("models.validation.enter-model-name" => "Enter a model name");
+    out property <string> models-unsupported-volcengine-model: @tr("models.validation.unsupported-volcengine-model" => "This Volcengine model is not supported");
+    out property <string> models-not-configured: @tr("models.status.not-configured.plain" => "Not configured");
+    out property <string> models-configured: @tr("models.status.configured" => "Configured");
+    out property <string> models-testing-connection: @tr("models.status.testing-connection" => "Testing connection");
+    out property <string> models-connected: @tr("models.status.connected.plain" => "Connected");
+    out property <string> models-connection-failed: @tr("models.status.connection-failed.plain" => "Connection failed");
+    out property <string> models-test-authentication: @tr("models.test.error.authentication" => "The API key is invalid. Check it and try again.");
+    out property <string> models-test-quota: @tr("models.test.error.quota" => "The speech recognition quota is unavailable");
+    out property <string> models-test-transport: @tr("models.test.error.transport" => "Could not connect to the speech service. Check your network and try again.");
+    out property <string> models-test-protocol: @tr("models.test.error.protocol" => "The speech service returned an invalid response. Try again later.");
+    out property <string> models-test-timeout: @tr("models.test.error.timeout" => "The connection test timed out. Try again later.");
+    out property <string> models-choose-model: @tr("models.validation.choose-model" => "Choose a model");
+    out property <string> models-saved-enable-test: @tr("models.status.saved-enable-test" => "Saved. Enable polishing and test the connection.");
+    out property <string> models-switch-failed: @tr("models.status.switch-failed" => "Could not switch providers");
+    out property <string> models-save-api-key-first: @tr("models.status.save-api-key-first" => "Save an API key first");
+    out property <string> models-provider-changed: @tr("models.status.provider-changed" => "Model provider changed");
+    out property <string> models-authorization-save-failed: @tr("models.status.authorization-save-failed" => "Could not save authorization");
+    out property <string> models-test-failed: @tr("models.status.test-failed" => "Connection test failed");
+    out property <string> models-enabled: @tr("models.status.enabled" => "Enabled");
+    out property <string> models-not-enabled: @tr("models.status.not-enabled" => "Not enabled");
+    out property <string> models-save-current-provider-key: @tr("models.status.save-current-provider-key" => "Save an API key for the selected provider");
+    out property <string> models-fetch-enter-api-key: @tr("models.fetch.enter-api-key" => "Enter an API key first");
+    out property <string> models-fetch-enter-service-url: @tr("models.fetch.enter-service-url" => "Enter a service URL first");
+    out property <string> models-fetching: @tr("models.fetch.status.fetching" => "Fetching…");
+    out property <string> models-fetch-authentication: @tr("models.fetch.error.authentication" => "The API key is invalid");
+    out property <string> models-fetch-rate-limited: @tr("models.fetch.error.rate-limited" => "Too many requests. Try again shortly.");
+    out property <string> models-fetch-empty: @tr("models.fetch.error.empty" => "No available models were returned");
+    out property <string> models-fetch-transport: @tr("models.fetch.error.transport" => "Could not connect to the model service");
+    out property <string> models-fetch-protocol: @tr("models.fetch.error.protocol" => "The model list response was invalid");
+    out property <string> diagnostics-generating: @tr("settings.diagnostics.status.generating" => "Generating a report without sensitive content…");
+    out property <string> diagnostics-export-failed: @tr("settings.diagnostics.status.export-failed" => "Could not export the report. Try again.");
+    out property <string> diagnostics-export-start-failed: @tr("settings.diagnostics.status.export-start-failed" => "Could not start the report export");
+    out property <string> diagnostics-open-data-folder-failed: @tr("settings.diagnostics.status.open-data-folder-failed" => "Could not open the data folder");
+    out property <string> diagnostics-report-file-name: @tr("settings.diagnostics.report.file-name" => "Saymore Diagnostic Report.txt");
+    out property <string> diagnostics-report-name: @tr("settings.diagnostics.report.name" => "Diagnostic Report");
+    out property <string> diagnostics-report-title: @tr("diagnostics.report.title" => "Saymore Diagnostic Report");
+    out property <string> diagnostics-report-privacy: @tr("diagnostics.report.privacy" => "Privacy: This report contains only diagnostic event identifiers. It does not include recognized text, API keys, or sensitive configuration.");
+    out property <string> diagnostics-report-events: @tr("diagnostics.report.events" => "Events:");
+    out property <string> diagnostics-report-no-events: @tr("diagnostics.report.no-events" => "No diagnostic events recorded.");
+    out property <string> update-service-unavailable: @tr("settings.update.error.service-unavailable" => "Could not connect to the update service");
+    out property <string> update-check-start-failed: @tr("settings.update.error.check-start-failed" => "Could not start the update check");
+    out property <string> update-download-url-unavailable: @tr("settings.update.error.download-url-unavailable" => "The update download link is unavailable");
+    out property <string> update-open-download-failed: @tr("settings.update.error.open-download-failed" => "Could not open the download page");
+    out property <string> microphone-system-fallback: @tr("settings.microphone.system-fallback" => "Temporarily using the system default microphone");
+    out property <string> recording-cancelled: @tr("recording.status.cancelled" => "Recording cancelled");
+    out property <string> recording-cancel-undo-hint: @tr("recording.cancel.undo-hint" => "You can undo for 2 seconds");
+    out property <string> recording-transcribing: @tr("recording.processing.transcribing" => "Transcribing");
+    out property <string> recording-refining: @tr("recording.processing.refining" => "Polishing");
+
+    public pure function recording-samples(duration: string, samples: int) -> string {
+        return @tr("recording.detail.samples" => "{} · {} input sample" | "{} · {} input samples" % samples, duration, samples);
+    }
+    public pure function recording-completion(duration: string, characters: int, outcome: string) -> string {
+        return @tr("recording.detail.completion" => "{} · {} character · {}" | "{} · {} characters · {}" % characters, duration, characters, outcome);
+    }
+    public pure function duration-seconds(value: string) -> string {
+        return @tr("common.duration.seconds" => "{} sec", value);
+    }
+    public pure function history-duration(seconds: int) -> string {
+        return @tr("history.duration.seconds" => "{} sec", seconds);
+    }
+    public pure function dictionary-saved(count: int) -> string {
+        return @tr("dictionary.status.saved" => "Saved {} entry" | "Saved {} entries" % count, count);
+    }
+    public pure function microphone-system-default-named(name: string) -> string {
+        return @tr("settings.microphone.system-default-named" => "Automatic (system default: {})", name);
+    }
+    public pure function microphone-disconnected(name: string) -> string {
+        return @tr("settings.microphone.disconnected" => "{} (disconnected)", name);
+    }
+    public pure function models-fetched(count: int) -> string {
+        return @tr("models.fetch.status.complete" => "Fetched {} model" | "Fetched {} models" % count, count);
+    }
+    public pure function diagnostics-exported(file-name: string) -> string {
+        return @tr("settings.diagnostics.status.exported" => "Exported {}", file-name);
+    }
+    public pure function dictionary-automatically-added(entry: string) -> string {
+        return @tr("dictionary.status.automatically-added" => "Added {} automatically", entry);
+    }
+    public pure function diagnostics-report-version(version: string) -> string {
+        return @tr("diagnostics.report.version" => "Version: v{}", version);
+    }
+    public pure function diagnostics-report-generated(timestamp: string) -> string {
+        return @tr("diagnostics.report.generated" => "Generated: {}", timestamp);
+    }
+}

@@ -42,15 +42,19 @@ struct HistoryPayload {
     refinement: String,
     asr_provider_id: Option<String>,
     llm_provider_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    asr_model: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    llm_model: Option<String>,
 }
 
-struct EncryptedRow {
-    id: String,
-    created_at_ms: i64,
-    crypto_version: u32,
-    payload_version: u32,
-    nonce: Vec<u8>,
-    ciphertext: Vec<u8>,
+pub(super) struct EncryptedRow {
+    pub(super) id: String,
+    pub(super) created_at_ms: i64,
+    pub(super) crypto_version: u32,
+    pub(super) payload_version: u32,
+    pub(super) nonce: Vec<u8>,
+    pub(super) ciphertext: Vec<u8>,
 }
 
 pub(super) fn initialize_key(
@@ -281,7 +285,7 @@ fn available_key(state: &HistoryKeyState) -> Result<&[u8; KEY_BYTES], StorageErr
     }
 }
 
-fn ensure_key(database: &mut Database) -> Result<&[u8; KEY_BYTES], StorageError> {
+pub(super) fn ensure_key(database: &mut Database) -> Result<&[u8; KEY_BYTES], StorageError> {
     if matches!(database.history_key, HistoryKeyState::Uninitialized) {
         database.history_key = initialize_key(&mut database.connection, database.secrets.as_ref());
     }
@@ -376,7 +380,7 @@ fn key_array(bytes: &[u8]) -> Result<[u8; KEY_BYTES], StorageError> {
         .map_err(|_| StorageError::Invalid("history key must contain 32 bytes".to_owned()))
 }
 
-fn query_rows<P: rusqlite::Params>(
+pub(super) fn query_rows<P: rusqlite::Params>(
     connection: &Connection,
     sql: &str,
     params: P,
@@ -419,7 +423,7 @@ fn first_row(connection: &Connection) -> Result<Option<EncryptedRow>, StorageErr
         .map_err(unavailable)
 }
 
-fn decrypt_history(
+pub(super) fn decrypt_history(
     key: &[u8; KEY_BYTES],
     row: EncryptedRow,
 ) -> Result<HistoryRecord, StorageError> {
@@ -528,6 +532,8 @@ impl HistoryPayload {
             refinement: refinement_name(record.refinement).to_owned(),
             asr_provider_id: record.asr_provider_id.clone(),
             llm_provider_id: record.llm_provider_id.clone(),
+            asr_model: record.asr_model.clone(),
+            llm_model: record.llm_model.clone(),
         }
     }
 
@@ -544,6 +550,8 @@ impl HistoryPayload {
             refinement: parse_refinement(&self.refinement)?,
             asr_provider_id: self.asr_provider_id,
             llm_provider_id: self.llm_provider_id,
+            asr_model: self.asr_model,
+            llm_model: self.llm_model,
         })
     }
 }

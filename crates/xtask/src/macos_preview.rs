@@ -23,6 +23,7 @@ const SHUTDOWN_RETRIES: usize = 40;
 const PROCESS_CHECK_INTERVAL: Duration = Duration::from_millis(50);
 const PREVIEW_RUNNING_PATTERN: &str =
     r"^/Applications/Saymore Preview\.app/Contents/MacOS/saymore-desktop( |$)";
+const PREVIEW_AUTOFILL_NAME: &str = "AutoFill (Saymore Preview)";
 
 pub(crate) fn run(args: &[String]) -> Result<(), Box<dyn Error>> {
     let once = parse_once(args)?;
@@ -108,11 +109,65 @@ fn stop_running_apps() -> Result<(), Box<dyn Error>> {
 
     for _ in 0..SHUTDOWN_RETRIES {
         if !any_saymore_process_running()? {
-            return Ok(());
+            return stop_preview_autofill_helpers();
         }
         thread::sleep(PROCESS_CHECK_INTERVAL);
     }
     Err("Saymore did not stop before the preview update".into())
+}
+
+fn stop_preview_autofill_helpers() -> Result<(), Box<dyn Error>> {
+    let pids = preview_autofill_pids()?;
+    for pid in pids {
+        let _ = Command::new("/bin/kill")
+            .args(["-TERM", &pid.to_string()])
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status()?;
+    }
+
+    for _ in 0..SHUTDOWN_RETRIES {
+        if preview_autofill_pids()?.is_empty() {
+            return Ok(());
+        }
+        thread::sleep(PROCESS_CHECK_INTERVAL);
+    }
+    Err("Saymore Preview AutoFill helpers did not stop before the preview update".into())
+}
+
+fn preview_autofill_pids() -> Result<Vec<u32>, Box<dyn Error>> {
+    let output = Command::new("/usr/bin/lsappinfo").arg("list").output()?;
+    if !output.status.success() {
+        return Err("failed to inspect Preview AutoFill helpers".into());
+    }
+    Ok(parse_preview_autofill_pids(&String::from_utf8_lossy(
+        &output.stdout,
+    )))
+}
+
+fn parse_preview_autofill_pids(output: &str) -> Vec<u32> {
+    let mut matching_entry = false;
+    let mut pids = Vec::new();
+    for line in output.lines() {
+        if !line.starts_with(char::is_whitespace) && line.contains(") \"") {
+            matching_entry = line.contains(&format!("\"{PREVIEW_AUTOFILL_NAME}\""));
+            continue;
+        }
+        if !matching_entry {
+            continue;
+        }
+        let Some(pid) = line.trim().strip_prefix("pid = ") else {
+            continue;
+        };
+        if let Some(pid) = pid
+            .split_whitespace()
+            .next()
+            .and_then(|pid| pid.parse().ok())
+        {
+            pids.push(pid);
+        }
+    }
+    pids
 }
 
 fn any_saymore_process_running() -> Result<bool, Box<dyn Error>> {
@@ -305,6 +360,22 @@ mod tests {
             },
             spec.signing
         );
+    }
+
+    #[test]
+    fn parses_only_preview_autofill_helpers() {
+        let output = r#"1) "AutoFill (Safari)" ASN:0x0-0x1:
+    pid = 11 type="BackgroundOnly"
+2) "AutoFill (Saymore Preview)" ASN:0x0-0x2:
+    bundleID="com.apple.SafariPlatformSupport.Helper"
+    pid = 22 type="BackgroundOnly"
+3) "AutoFill (Saymore Preview)" ASN:0x0-0x3:
+    pid = 33 type="BackgroundOnly"
+4) "Saymore Preview" ASN:0x0-0x4:
+    pid = 44 type="Foreground"
+"#;
+
+        assert_eq!(vec![22, 33], parse_preview_autofill_pids(output));
     }
 
     #[test]

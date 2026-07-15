@@ -9,24 +9,61 @@ const START_SOUND: &[u8] = include_bytes!("../assets/sounds/dictation-start.wav"
 const FINISH_SOUND: &[u8] = include_bytes!("../assets/sounds/dictation-finish.wav");
 
 thread_local! {
-    static ACTIVE_SOUND: RefCell<Option<Retained<NSSound>>> = const { RefCell::new(None) };
+    static CACHED_SOUNDS: RefCell<Option<CachedSounds>> = const { RefCell::new(None) };
+}
+
+struct CachedSounds {
+    start: Retained<NSSound>,
+    finish: Retained<NSSound>,
 }
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct MacOsFeedbackSoundPlayer;
 
-impl FeedbackSoundPlayer for MacOsFeedbackSoundPlayer {
-    fn play(&self, sound: FeedbackSound) -> Result<(), FeedbackSoundError> {
-        let sound = sound_from_bytes(bundled_sound_bytes(sound))?;
-        if sound.play() {
-            ACTIVE_SOUND.with(|active| active.replace(Some(sound)));
+impl MacOsFeedbackSoundPlayer {
+    pub fn preload(&self) -> Result<(), FeedbackSoundError> {
+        CACHED_SOUNDS.with(|cached| {
+            let mut cached = cached.borrow_mut();
+            if cached.is_none() {
+                *cached = Some(CachedSounds::load()?);
+            }
             Ok(())
-        } else {
-            Err(FeedbackSoundError::PlaybackFailed)
+        })
+    }
+}
+
+impl CachedSounds {
+    fn load() -> Result<Self, FeedbackSoundError> {
+        Ok(Self {
+            start: sound_from_bytes(START_SOUND)?,
+            finish: sound_from_bytes(FINISH_SOUND)?,
+        })
+    }
+
+    fn get(&self, sound: FeedbackSound) -> &NSSound {
+        match sound {
+            FeedbackSound::Start => &self.start,
+            FeedbackSound::Finish => &self.finish,
         }
     }
 }
 
+impl FeedbackSoundPlayer for MacOsFeedbackSoundPlayer {
+    fn play(&self, sound: FeedbackSound) -> Result<(), FeedbackSoundError> {
+        self.preload()?;
+        CACHED_SOUNDS.with(|cached| {
+            let cached = cached.borrow();
+            let cached = cached.as_ref().ok_or(FeedbackSoundError::Unavailable)?;
+            if cached.get(sound).play() {
+                Ok(())
+            } else {
+                Err(FeedbackSoundError::PlaybackFailed)
+            }
+        })
+    }
+}
+
+#[cfg(test)]
 fn bundled_sound_bytes(sound: FeedbackSound) -> &'static [u8] {
     match sound {
         FeedbackSound::Start => START_SOUND,
@@ -49,5 +86,12 @@ mod tests {
         for sound in [FeedbackSound::Start, FeedbackSound::Finish] {
             assert!(sound_from_bytes(bundled_sound_bytes(sound)).is_ok());
         }
+    }
+
+    #[test]
+    fn preloads_and_reuses_both_feedback_sounds() {
+        let player = MacOsFeedbackSoundPlayer;
+        assert!(player.preload().is_ok());
+        CACHED_SOUNDS.with(|cached| assert!(cached.borrow().is_some()));
     }
 }

@@ -1,9 +1,11 @@
+use super::observation::observable_text_control;
 use super::{
     AccessibilityAuthorization, DeliveryTargetAction, DeliveryTargetState, FocusResolutionAction,
     FocusSnapshot, InsertionVerification, SecureSubrole, TextRange, authorization_from,
     delivery_target_action, delivery_target_privacy, focus_resolution_action,
     insertion_range_matches, text_between_anchors, verify_observed_insertion,
 };
+use accessibility_sys::{kAXSecureTextFieldSubrole, kAXTextAreaRole, kAXTextFieldRole};
 use template_app::DeliveryTargetPrivacy;
 
 #[test]
@@ -41,12 +43,12 @@ fn selects_a_safe_delivery_path_for_the_current_focus_state() {
 }
 
 #[test]
-fn secure_or_unknown_targets_are_sensitive_before_delivery() {
+fn only_explicitly_secure_targets_are_sensitive_before_delivery() {
     assert_eq!(
         [
             DeliveryTargetPrivacy::Sensitive,
             DeliveryTargetPrivacy::Sensitive,
-            DeliveryTargetPrivacy::Sensitive,
+            DeliveryTargetPrivacy::Standard,
             DeliveryTargetPrivacy::Standard,
             DeliveryTargetPrivacy::Standard,
         ],
@@ -96,9 +98,9 @@ fn secure_or_unknown_targets_are_sensitive_before_delivery() {
 }
 
 #[test]
-fn unresolved_external_focus_is_sensitive() {
+fn unresolved_external_focus_does_not_discard_history() {
     assert_eq!(
-        DeliveryTargetPrivacy::Sensitive,
+        DeliveryTargetPrivacy::Standard,
         delivery_target_privacy(
             DeliveryTargetState {
                 external_target: true,
@@ -108,6 +110,18 @@ fn unresolved_external_focus_is_sensitive() {
             None,
         )
     );
+}
+
+#[test]
+fn observes_known_text_controls_without_weakening_secure_control_filtering() {
+    assert!(observable_text_control(Some(kAXTextAreaRole), None));
+    assert!(observable_text_control(Some(kAXTextFieldRole), None));
+    assert!(!observable_text_control(
+        Some(kAXTextFieldRole),
+        Some(kAXSecureTextFieldSubrole)
+    ));
+    assert!(!observable_text_control(Some("AXUnknown"), None));
+    assert!(!observable_text_control(None, None));
 }
 
 #[test]

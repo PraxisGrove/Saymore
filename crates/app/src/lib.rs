@@ -16,8 +16,8 @@ mod text_delivery;
 mod usage_summary;
 
 pub use audio_recording::{
-    AudioRecorder, MicrophoneAuthorization, MicrophonePermissionProvider, PcmChunk, PcmRecording,
-    RecordingError, RecordingMetrics, RecordingStarted, TARGET_SAMPLE_RATE,
+    AudioInputDevice, AudioRecorder, MicrophoneAuthorization, MicrophonePermissionProvider,
+    PcmChunk, PcmRecording, RecordingError, RecordingMetrics, RecordingStarted, TARGET_SAMPLE_RATE,
     convert_interleaved_f32_to_pcm16,
 };
 pub use cancelled_recording::CancelledRecordingStore;
@@ -28,11 +28,13 @@ pub use dictionary_learning::{
 pub use feedback_sound::{FeedbackSound, FeedbackSoundError, FeedbackSoundPlayer};
 pub use final_text_processing::{
     FinalTextProcessingError, FinalTextProcessor, FinalTextRequest, LlmProvider, LlmProviderError,
-    LlmRefinementRequest, ProcessedText, RefinementFallbackReason, RefinementMode,
-    RefinementSkipReason, RefinementStatus, RefinementTerm, refinement_needed,
+    LlmRefinementRequest, ProcessedText, RefinementEvaluation, RefinementEvaluationMode,
+    RefinementFallbackReason, RefinementMode, RefinementSkipReason, RefinementStatus,
+    RefinementTerm, refinement_needed,
 };
 pub use refinement_terms::{
-    normalize_standard_spellings, relevant_dictionary_terms, standard_spelling_occurs,
+    normalize_standard_spellings, relevant_dictionary_terms,
+    relevant_dictionary_terms_from_entries, standard_spelling_occurs,
 };
 pub use settings::{
     ActiveProviders, AsrSettings, ChatCompletionsLlmSettings, LlmProviderPreset, LlmSettings,
@@ -47,7 +49,7 @@ pub use storage::{
     DictionaryEntry, DictionaryOrigin, DictionaryStore, HistoryCursor, HistoryDelivery,
     HistoryPage, HistoryRecord, HistoryRefinement, HistoryRetention, HistoryStore, InstalledModel,
     InstalledModelStore, LocalSettings, LocalSettingsStore, NewDictionaryEntry, NewHistoryRecord,
-    SecretStore, SecretStoreError, StorageError, dictionary_comparison_key, dictionary_variant_key,
+    SecretStore, SecretStoreError, StorageError, UiLanguagePreference, dictionary_comparison_key,
     normalize_language_tag,
 };
 pub use text_delivery::{

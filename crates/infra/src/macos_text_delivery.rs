@@ -189,13 +189,7 @@ fn deliver_attempt(text: &str) -> Result<DeliveryAttempt, TextDeliveryError> {
                 observation: None,
             });
         }
-        Err(_) | Ok(None) => {
-            return paste_securely(text).map(|outcome| DeliveryAttempt {
-                outcome,
-                observation: None,
-            });
-        }
-        Ok(Some(_)) => {}
+        Ok(Some(_)) | Ok(None) | Err(_) => {}
     }
 
     let initial_range = focused.selected_text_range().ok().flatten();
@@ -268,19 +262,7 @@ fn delivery_target_privacy(
     state: DeliveryTargetState,
     subrole: Option<SecureSubrole>,
 ) -> DeliveryTargetPrivacy {
-    let unresolved_external_target = state.external_target
-        && (!state.focused_control
-            || !matches!(
-                subrole,
-                Some(SecureSubrole::Standard | SecureSubrole::Secure)
-            ));
-    if state.secure_input
-        || unresolved_external_target
-        || matches!(
-            subrole,
-            Some(SecureSubrole::Secure | SecureSubrole::Unknown)
-        )
-    {
+    if state.secure_input || matches!(subrole, Some(SecureSubrole::Secure)) {
         DeliveryTargetPrivacy::Sensitive
     } else {
         DeliveryTargetPrivacy::Standard
@@ -315,12 +297,15 @@ fn current_delivery_target() -> DeliveryTarget {
             external_target: true,
             focused: system_focused,
         },
-        FocusResolutionAction::QueryFrontmostApplication => DeliveryTarget {
-            external_target: true,
-            focused: frontmost_pid
+        FocusResolutionAction::QueryFrontmostApplication => {
+            let focused = frontmost_pid
                 .and_then(|process_id| OwnedAxElement::application(process_id).ok())
-                .and_then(|application| application.focused_control().ok()),
-        },
+                .and_then(|application| application.focused_control().ok());
+            DeliveryTarget {
+                external_target: true,
+                focused,
+            }
+        }
         FocusResolutionAction::RejectNoTarget => DeliveryTarget {
             external_target: false,
             focused: None,

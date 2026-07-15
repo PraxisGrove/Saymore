@@ -28,10 +28,13 @@ pub enum ProcessingActivity {
 }
 
 impl ProcessingActivity {
-    pub fn label(self) -> &'static str {
+    pub fn localized_label(self, ui: &crate::ui::AppWindow) -> slint::SharedString {
+        use slint::ComponentHandle;
+
+        let translations = ui.global::<crate::ui::Translations>();
         match self {
-            Self::Transcribing => "正在转写",
-            Self::Refining => "正在润色",
+            Self::Transcribing => translations.get_recording_transcribing(),
+            Self::Refining => translations.get_recording_refining(),
         }
     }
 }
@@ -222,12 +225,6 @@ mod tests {
     use httpmock::{Method::POST, MockServer};
 
     use super::*;
-
-    #[test]
-    fn processing_copy_is_typed() {
-        assert_eq!("正在转写", ProcessingActivity::Transcribing.label());
-        assert_eq!("正在润色", ProcessingActivity::Refining.label());
-    }
 
     #[test]
     fn infers_the_minimal_refinement_language_hint() {

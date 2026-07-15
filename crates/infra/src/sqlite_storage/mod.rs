@@ -1,6 +1,6 @@
 use std::{
     fs,
-    path::PathBuf,
+    path::{Path, PathBuf},
     sync::{
         Arc, Mutex,
         mpsc::{self, Receiver, SyncSender},
@@ -8,7 +8,7 @@ use std::{
     thread::{self, JoinHandle},
 };
 
-use rusqlite::Connection;
+use rusqlite::{Connection, OpenFlags};
 use template_app::{
     DictionaryEntry, DictionaryLearningOutcome, DictionaryLearningStore, DictionaryStore,
     HistoryCursor, HistoryPage, HistoryStore, InstalledModel, InstalledModelStore, LocalSettings,
@@ -19,6 +19,7 @@ use template_app::{
 mod dictionary;
 mod dictionary_learning;
 mod history;
+mod history_search;
 mod migrations;
 mod models;
 mod settings;
@@ -64,6 +65,19 @@ impl SqliteStorage {
     }
 }
 
+/// Reads a stable dictionary snapshot without starting the writable storage worker.
+///
+/// Evaluation and diagnostics callers use this to avoid migrations, history-key
+/// access, and competing writers while the desktop application is running.
+pub fn read_dictionary_snapshot(path: &Path) -> Result<Vec<DictionaryEntry>, StorageError> {
+    let connection = Connection::open_with_flags(
+        path,
+        OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX,
+    )
+    .map_err(unavailable)?;
+    dictionary::list(&connection)
+}
+
 impl LocalSettingsStore for SqliteStorage {
     fn load_settings(&self) -> Result<LocalSettings, StorageError> {
         self.request(Command::LoadSettings)
@@ -87,6 +101,20 @@ impl HistoryStore for SqliteStorage {
         self.request(|response| Command::HistoryPage {
             cursor,
             limit,
+            response,
+        })
+    }
+
+    fn search_history_page(
+        &self,
+        cursor: Option<HistoryCursor>,
+        limit: u16,
+        query: &str,
+    ) -> Result<HistoryPage, StorageError> {
+        self.request(|response| Command::SearchHistoryPage {
+            cursor,
+            limit,
+            query: query.to_owned(),
             response,
         })
     }
@@ -196,6 +224,12 @@ enum Command {
         limit: u16,
         response: SyncSender<Result<HistoryPage, StorageError>>,
     },
+    SearchHistoryPage {
+        cursor: Option<HistoryCursor>,
+        limit: u16,
+        query: String,
+        response: SyncSender<Result<HistoryPage, StorageError>>,
+    },
     DeleteHistory {
         id: String,
         response: SyncSender<Result<(), StorageError>>,
@@ -276,6 +310,14 @@ fn run_worker(
                 response,
             } => {
                 let _ = response.send(history::page(&mut database, cursor, limit));
+            }
+            Command::SearchHistoryPage {
+                cursor,
+                limit,
+                query,
+                response,
+            } => {
+                let _ = response.send(history_search::page(&mut database, cursor, limit, &query));
             }
             Command::DeleteHistory { id, response } => {
                 let _ = response.send(history::delete(&mut database.connection, &id));

@@ -1,120 +1,484 @@
 import { ScrollView } from "std-widgets.slint";
-import { AppButton, AppLineEdit, EmptyState, PageHeading } from "../components.slint";
 import { AppColors } from "../color-system.slint";
+
+export enum DictionaryFilterKind { all, automatic, manual }
+export enum DictionaryOriginKind { automatic, manual }
 
 export struct DictionaryListItem {
     id: string,
     canonical: string,
     language: string,
-    origin: string,
+    origin: DictionaryOriginKind,
+}
+
+export struct DictionaryDraft {
+    value: string,
+    focused: bool,
+}
+
+export struct DictionaryRow {
+    items: [DictionaryListItem],
+}
+
+component DictionaryFilterButton inherits Rectangle {
+    in property <DictionaryFilterKind> kind;
+    in property <string> label;
+    in property <image> icon;
+    in property <bool> has-icon: false;
+    in property <bool> selected: false;
+    callback activated();
+    width: root.kind == DictionaryFilterKind.all ? 58px : (root.kind == DictionaryFilterKind.automatic ? 98px : 94px);
+    height: 30px;
+    border-radius: 15px;
+    background: root.selected ? AppColors.surface : transparent;
+    accessible-role: button;
+    accessible-label: root.label;
+    accessible-checked: root.selected;
+    accessible-action-default => { root.activated(); }
+
+    if root.has-icon: Image {
+        x: 13px;
+        y: 8px;
+        width: 14px;
+        height: 14px;
+        source: root.icon;
+        colorize: root.kind == DictionaryFilterKind.automatic ? AppColors.brand : #a5a199;
+    }
+    filter-label := Text {
+        x: root.has-icon ? 33px : 0px;
+        width: root.has-icon ? parent.width - 42px : parent.width;
+        text: root.label;
+        color: root.selected ? AppColors.ink : AppColors.text;
+        font-size: 12px;
+        font-weight: root.selected ? 650 : 500;
+        horizontal-alignment: root.has-icon ? left : center;
+        vertical-alignment: center;
+    }
+    TouchArea { mouse-cursor: pointer; clicked => { root.activated(); } }
+}
+
+component DictionaryPill inherits Rectangle {
+    in property <DictionaryListItem> item;
+    callback delete-word(string);
+    property <bool> automatic: root.item.origin == DictionaryOriginKind.automatic;
+    width: term.preferred-width + 82px;
+    height: 42px;
+    border-radius: 21px;
+    background: pill-touch.has-hover ? AppColors.surface-subtle : AppColors.surface;
+    accessible-role: button;
+    accessible-label: root.item.canonical;
+
+    Image {
+        x: 14px;
+        y: 14px;
+        width: 14px;
+        height: 14px;
+        source: root.automatic ? @image-url("../../icons/lucide/sparkles.svg") : @image-url("../../icons/lucide/pen-line.svg");
+        colorize: root.automatic ? AppColors.brand : #a5a199;
+    }
+    term := Text {
+        x: 36px;
+        width: max(0px, parent.width - 48px - (pill-touch.has-hover ? 30px : 0px));
+        text: root.item.canonical;
+        color: AppColors.ink;
+        font-size: 13px;
+        font-weight: 650;
+        vertical-alignment: center;
+        overflow: elide;
+    }
+    pill-touch := TouchArea { mouse-cursor: pointer; }
+    Rectangle {
+        x: parent.width - 30px;
+        y: 7px;
+        width: 24px;
+        height: 28px;
+        border-radius: 7px;
+        opacity: pill-touch.has-hover || more-touch.has-hover ? 1 : 0;
+        animate opacity { duration: 120ms; easing: ease-out; }
+        background: more-touch.has-hover ? AppColors.selected : transparent;
+        Image { x: 5px; y: 7px; width: 14px; height: 14px; source: @image-url("../../icons/lucide/ellipsis.svg"); }
+        more-touch := TouchArea {
+            mouse-cursor: pointer;
+            clicked => { word-menu.show(); }
+        }
+    }
+
+    word-menu := PopupWindow {
+        x: root.width - 82px;
+        y: root.height + 4px;
+        width: 82px;
+        height: 38px;
+        close-policy: close-on-click-outside;
+        Rectangle {
+            border-radius: 7px;
+            background: AppColors.surface;
+            drop-shadow-blur: 12px;
+            drop-shadow-offset-y: 3px;
+            drop-shadow-color: #1f1f1c1f;
+            Text { x: 28px; width: 46px; text: @tr("common.delete" => "Delete"); color: AppColors.danger; font-size: 11px; font-weight: 650; vertical-alignment: center; }
+            Image { x: 10px; y: 11px; width: 15px; height: 15px; source: @image-url("../../icons/lucide/trash-2.svg"); }
+            delete-touch := TouchArea {
+                mouse-cursor: pointer;
+                clicked => { word-menu.close(); root.delete-word(root.item.id); }
+            }
+            if delete-touch.has-hover: Rectangle { border-radius: 7px; background: AppColors.danger-soft; }
+        }
+    }
+}
+
+component DictionaryState inherits Rectangle {
+    in property <string> title;
+    in property <string> detail;
+    in property <image> icon;
+    in property <bool> retry-visible: false;
+    callback retry();
+    background: transparent;
+    VerticalLayout {
+        width: parent.width;
+        height: parent.height;
+        spacing: 8px;
+        alignment: center;
+        cross-axis-alignment: center;
+        Image { width: 26px; height: 26px; source: root.icon; colorize: AppColors.text-muted; }
+        Text { text: root.title; color: AppColors.ink; font-size: 16px; font-weight: 650; horizontal-alignment: center; }
+        Text { text: root.detail; color: AppColors.text-muted; font-size: 12px; horizontal-alignment: center; wrap: word-wrap; }
+        if root.retry-visible: Rectangle {
+            width: 82px;
+            height: 32px;
+            border-radius: 7px;
+            background: retry-touch.has-hover ? AppColors.selected : AppColors.surface-subtle;
+            Text { text: @tr("common.reload" => "Reload"); color: AppColors.text; font-size: 11px; font-weight: 650; horizontal-alignment: center; vertical-alignment: center; }
+            retry-touch := TouchArea { mouse-cursor: pointer; clicked => { root.retry(); } }
+        }
+    }
 }
 
 export component DictionaryPage inherits Rectangle {
     in property <[DictionaryListItem]> items;
+    in property <[DictionaryRow]> rows;
+    in property <int> total-count: 0;
+    in property <DictionaryFilterKind> active-filter: DictionaryFilterKind.all;
     in property <string> status-text: "";
-    callback add-word(string, string);
+    in property <bool> loading: false;
+    in property <bool> load-failed: false;
+    callback refresh();
+    callback filter-selected(DictionaryFilterKind);
+    callback search(string);
+    callback layout-width-changed(length);
+    callback open-add();
     callback delete-word(string);
-    callback import-csv();
-    property <bool> add-visible: false;
+
+    property <bool> compact: root.width < 610px;
+    property <string> query: "";
+    property <bool> search-active: search-input.has-focus || !root.query.is-empty;
+    property <length> search-width: root.search-active ? min(220px, root.width - 294px) : 38px;
+    property <bool> status-visible: !root.status-text.is-empty;
+    property <string> count-label: root.query.is-empty
+        ? @tr("dictionary.entry-count" => "{} entry" | "{} entries" % root.items.length, root.items.length)
+        : @tr("dictionary.search-result-count" => "{} search result" | "{} search results" % root.items.length, root.items.length);
+
     background: AppColors.canvas;
+    page-focus := FocusScope { width: 0px; height: 0px; }
+    TouchArea { mouse-cursor: default; clicked => { page-focus.focus(); } }
+    changed status-text => { root.status-visible = !root.status-text.is-empty; }
+    changed width => { root.layout-width-changed(root.width); }
+    init => { root.layout-width-changed(root.width); }
+    Timer { interval: 4s; running: root.status-visible; triggered => { root.status-visible = false; } }
 
-    VerticalLayout {
-        padding-left: 32px;
-        padding-right: 32px;
-        padding-top: 48px;
-        padding-bottom: 28px;
-        spacing: 18px;
+    Text {
+        x: 0px;
+        y: 42px;
+        text: @tr("dictionary.title" => "Dictionary");
+        color: AppColors.ink;
+        font-size: 27px;
+        font-weight: 700;
+    }
+    Text {
+        x: 0px;
+        y: 80px;
+        width: max(0px, root.width - 116px);
+        text: @tr("dictionary.subtitle" => "Save names and terms you use often to improve voice input accuracy.");
+        color: AppColors.text-muted;
+        font-size: 11px;
+        overflow: elide;
+    }
+    Rectangle {
+        x: parent.width - 96px;
+        y: 39px;
+        width: 96px;
+        height: 38px;
+        border-radius: 8px;
+        background: add-touch.has-hover ? AppColors.brand-strong : AppColors.brand;
+        accessible-role: button;
+        accessible-label: @tr("dictionary.add-entry" => "Add entry");
+        accessible-action-default => { root.open-add(); }
+        Image { x: 10px; y: 10px; width: 16px; height: 16px; source: @image-url("../../icons/lucide/plus.svg"); colorize: #ffffff; }
+        Text { x: 31px; width: 56px; text: @tr("dictionary.add-entry" => "Add entry"); color: #ffffff; font-size: 12px; font-weight: 650; vertical-alignment: center; }
+        add-touch := TouchArea { mouse-cursor: pointer; clicked => { root.open-add(); } }
+    }
 
+    Rectangle {
+        x: 0px;
+        y: 116px;
+        width: 258px;
+        height: 38px;
+        border-radius: 19px;
+        background: AppColors.surface-subtle;
         HorizontalLayout {
-            height: 38px;
+            padding-left: 4px;
+            padding-right: 4px;
+            spacing: 0px;
             cross-axis-alignment: center;
-            PageHeading { label: "词典"; }
-            Rectangle { horizontal-stretch: 1; background: transparent; }
-            AppButton { text: "导入 CSV"; clicked => { root.import-csv(); } }
-            Rectangle {
-                width: 94px; height: 36px; border-radius: 6px; background: add-touch.has-hover ? AppColors.brand-strong : AppColors.brand;
-                accessible-role: button; accessible-label: "添加词条";
-                accessible-action-default => { root.add-visible = true; }
-                HorizontalLayout {
-                    padding-left: 12px; padding-right: 14px; spacing: 7px; cross-axis-alignment: center;
-                    Image { width: 16px; height: 16px; source: @image-url("../../icons/lucide/plus.svg"); }
-                    Text { text: "添加"; color: #ffffff; font-size: 12px; font-weight: 650; }
-                }
-                add-touch := TouchArea { mouse-cursor: pointer; clicked => { root.add-visible = true; } }
-            }
+            DictionaryFilterButton { kind: DictionaryFilterKind.all; label: @tr("dictionary.filter.all" => "All"); selected: root.active-filter == DictionaryFilterKind.all; activated => { root.filter-selected(DictionaryFilterKind.all); } }
+            DictionaryFilterButton { kind: DictionaryFilterKind.automatic; label: @tr("dictionary.filter.automatic" => "Automatic"); has-icon: true; icon: @image-url("../../icons/lucide/sparkles.svg"); selected: root.active-filter == DictionaryFilterKind.automatic; activated => { root.filter-selected(DictionaryFilterKind.automatic); } }
+            DictionaryFilterButton { kind: DictionaryFilterKind.manual; label: @tr("dictionary.filter.manual" => "Manual"); has-icon: true; icon: @image-url("../../icons/lucide/pen-line.svg"); selected: root.active-filter == DictionaryFilterKind.manual; activated => { root.filter-selected(DictionaryFilterKind.manual); } }
         }
-
-        if !root.status-text.is-empty: Text {
-            height: 28px; text: root.status-text; color: AppColors.text-muted; font-size: 12px; vertical-alignment: center;
+    }
+    search-box := Rectangle {
+        x: parent.width - self.width;
+        y: 116px;
+        width: root.search-width;
+        height: 38px;
+        border-radius: 19px;
+        border-width: root.search-active ? 1px : 0px;
+        border-color: AppColors.brand;
+        background: root.search-active ? AppColors.surface : AppColors.surface-subtle;
+        animate width { duration: 200ms; easing: ease-out; }
+        Image { x: 11px; y: 11px; width: 16px; height: 16px; source: @image-url("../../icons/lucide/search.svg"); colorize: AppColors.text; }
+        if root.search-active && root.query.is-empty: Text { x: 39px; width: parent.width - 65px; text: @tr("dictionary.search.placeholder" => "Search entries"); color: AppColors.text-muted; font-size: 12px; vertical-alignment: center; }
+        search-input := TextInput {
+            x: 38px;
+            width: max(0px, parent.width - 68px);
+            text <=> root.query;
+            color: AppColors.text;
+            font-size: 12px;
+            vertical-alignment: center;
+            changed text => { root.search(root.query); }
         }
-
-        if root.items.length == 0: EmptyState {
-            vertical-stretch: 1;
-            title: "词典还是空的";
-            detail: "添加人名、产品名和术语，统一专有词的标准写法";
+        if root.search-active: Rectangle {
+            x: parent.width - 28px;
+            y: 5px;
+            width: 26px;
+            height: 28px;
+            border-radius: 13px;
+            background: close-touch.has-hover ? AppColors.selected : transparent;
+            Image { x: 5px; y: 6px; width: 16px; height: 16px; source: @image-url("../../icons/lucide/x.svg"); }
+            close-touch := TouchArea { mouse-cursor: pointer; clicked => { root.query = ""; root.search(""); page-focus.focus(); } }
         }
+        TouchArea { width: root.search-active ? 34px : parent.width; mouse-cursor: pointer; clicked => { search-input.focus(); } }
+    }
 
-        if root.items.length > 0: ScrollView {
-            vertical-stretch: 1;
-            VerticalLayout {
+    Text { x: 0px; y: 179px; text: root.count-label; color: AppColors.text; font-size: 12px; font-weight: 650; }
+
+    if !root.loading && !root.load-failed && root.items.length > 0: ScrollView {
+        x: 0px;
+        y: 208px;
+        width: parent.width;
+        height: parent.height - 208px;
+        vertical-scrollbar-policy: ScrollBarPolicy.always-off;
+        horizontal-scrollbar-policy: ScrollBarPolicy.always-off;
+        VerticalLayout {
+            spacing: 16px;
+            for row in root.rows: HorizontalLayout {
+                height: 42px;
                 spacing: 10px;
-                for item in root.items: Rectangle {
-                    height: 72px;
-                    border-width: 1px;
-                    border-color: AppColors.border;
-                    border-radius: 7px;
-                    background: AppColors.surface;
-                    HorizontalLayout {
-                        padding-left: 18px; padding-right: 12px; spacing: 12px; cross-axis-alignment: center;
-                        VerticalLayout {
-                            spacing: 5px;
-                            Text { text: item.canonical; color: AppColors.ink; font-size: 15px; font-weight: 650; }
-                            Text { text: item.language + "  ·  " + item.origin; color: AppColors.text-muted; font-size: 11px; }
-                        }
-                        Rectangle { horizontal-stretch: 1; background: transparent; }
-                        Rectangle {
-                            width: 34px; height: 34px; border-radius: 6px; background: delete-touch.has-hover ? AppColors.danger-soft : transparent;
-                            accessible-role: button; accessible-label: "删除词条";
-                            accessible-action-default => { root.delete-word(item.id); }
-                            Image { width: 17px; height: 17px; x: 8px; y: 8px; source: @image-url("../../icons/lucide/trash-2.svg"); }
-                            delete-touch := TouchArea { mouse-cursor: pointer; clicked => { root.delete-word(item.id); } }
-                        }
-                    }
-                }
+                cross-axis-alignment: center;
+                for item in row.items: DictionaryPill { item: item; delete-word(id) => { root.delete-word(id); } }
+                Rectangle { horizontal-stretch: 1; background: transparent; }
+            }
+            HorizontalLayout {
+                height: 18px;
+                spacing: 5px;
+                cross-axis-alignment: center;
+                Image { width: 13px; height: 13px; source: @image-url("../../icons/lucide/lock-keyhole.svg"); colorize: #a09c94; }
+                Text { text: @tr("dictionary.local-only" => "Dictionary entries are stored only on this device"); color: #a09c94; font-size: 10px; vertical-alignment: center; }
             }
         }
     }
+    if root.loading: DictionaryState {
+        x: 0px;
+        y: 208px;
+        width: parent.width;
+        height: parent.height - 208px;
+        title: @tr("dictionary.loading.title" => "Loading dictionary");
+        detail: @tr("dictionary.loading.detail" => "Reading entries stored on this device.");
+        icon: @image-url("../../icons/lucide/refresh-cw.svg");
+    }
+    if root.load-failed: DictionaryState {
+        x: 0px;
+        y: 208px;
+        width: parent.width;
+        height: parent.height - 208px;
+        title: @tr("dictionary.load-failed.title" => "Dictionary unavailable");
+        detail: @tr("dictionary.load-failed.detail" => "Check local storage and try again.");
+        icon: @image-url("../../icons/lucide/circle-alert.svg");
+        retry-visible: true;
+        retry => { root.refresh(); }
+    }
+    if !root.loading && !root.load-failed && root.items.length == 0: DictionaryState {
+        x: 0px;
+        y: 208px;
+        width: parent.width;
+        height: parent.height - 208px;
+        title: root.query.is-empty ? @tr("dictionary.empty.title" => "No entries yet") : @tr("dictionary.no-results.title" => "No matching entries");
+        detail: root.query.is-empty
+            ? (root.total-count == 0 ? @tr("dictionary.empty.detail" => "Add an entry so Saymore remembers how you write it.") : @tr("dictionary.filter-empty.detail" => "No entries match this filter."))
+            : @tr("dictionary.no-results.detail" => "Try a different search term.");
+        icon: root.query.is-empty ? @image-url("../../icons/lucide/book-open.svg") : @image-url("../../icons/lucide/search.svg");
+    }
 
-    if root.add-visible: Rectangle {
-        background: #17130e66;
-        TouchArea { clicked => { root.add-visible = false; } }
+    if root.status-visible: Rectangle {
+        x: 0px;
+        y: parent.height - 38px;
+        width: min(250px, parent.width);
+        height: 30px;
+        border-radius: 7px;
+        background: AppColors.surface-subtle;
+        opacity: root.status-visible ? 1 : 0;
+        animate opacity { duration: 140ms; easing: ease-out; }
+        Text { x: 11px; width: parent.width - 22px; text: root.status-text; color: AppColors.text; font-size: 11px; vertical-alignment: center; overflow: elide; }
+    }
+}
+
+export component DictionaryAddDialog inherits Rectangle {
+    in property <[DictionaryDraft]> drafts;
+    in property <int> nonempty-count: 0;
+    in property <bool> saving: false;
+    in property <bool> save-failed: false;
+    in property <string> status-text: "";
+    callback close();
+    callback add-row();
+    callback update-row(int, string);
+    callback remove-row(int);
+    callback save();
+
+    background: #11110f55;
+    opacity: 1;
+    animate opacity { duration: 160ms; easing: ease-out; }
+    TouchArea { mouse-cursor: default; clicked => { } }
+    panel := Rectangle {
+        width: min(500px, parent.width - 64px);
+        height: min(468px, parent.height - 48px);
+        x: max(32px, parent.width - self.width - 120px);
+        y: (parent.height - self.height) / 2;
+        border-radius: 18px;
+        background: AppColors.surface;
+        drop-shadow-blur: 22px;
+        drop-shadow-offset-y: 8px;
+        drop-shadow-color: #1f1f1c2b;
+
+        Text { x: 32px; y: 32px; text: @tr("dictionary.add-entry" => "Add entry"); color: AppColors.ink; font-size: 20px; font-weight: 700; }
         Rectangle {
-            width: min(parent.width - 64px, 480px);
-            height: 250px;
-            x: (parent.width - self.width) / 2;
-            y: (parent.height - self.height) / 2;
-            border-radius: 8px;
-            background: AppColors.surface;
-            VerticalLayout {
-                padding: 24px; spacing: 14px;
-                Text { text: "添加到词典"; color: AppColors.ink; font-size: 18px; font-weight: 700; }
-                word-input := AppLineEdit { placeholder-text: "输入标准写法"; }
-                language-input := AppLineEdit { text: "zh-Hans"; placeholder-text: "语言，例如 zh-Hans 或 en"; }
-                HorizontalLayout {
-                    alignment: end; spacing: 10px;
-                    AppButton { text: "取消"; clicked => { root.add-visible = false; } }
-                    AppButton {
-                        text: "添加";
-                        primary: true;
-                        enabled: !word-input.text.is-empty && !language-input.text.is-empty;
-                        clicked => {
-                            root.add-word(word-input.text, language-input.text);
-                            word-input.text = "";
-                            root.add-visible = false;
+            x: parent.width - 54px;
+            y: 23px;
+            width: 30px;
+            height: 30px;
+            border-radius: 7px;
+            background: close-touch.has-hover ? AppColors.surface-subtle : transparent;
+            Image { x: 6px; y: 6px; width: 18px; height: 18px; source: @image-url("../../icons/lucide/x.svg"); }
+            close-touch := TouchArea { enabled: !root.saving; mouse-cursor: root.saving ? default : pointer; clicked => { root.close(); } }
+        }
+        Text { x: 32px; y: 92px; text: @tr("dictionary.entry-field" => "Entry"); color: AppColors.text; font-size: 13px; font-weight: 650; }
+        ScrollView {
+            x: 32px;
+            y: 115px;
+            width: parent.width - 64px;
+            height: parent.height - 202px;
+            viewport-width: self.width;
+            viewport-height: max(self.height, root.drafts.length * 57px + 46px);
+            vertical-scrollbar-policy: ScrollBarPolicy.always-off;
+            horizontal-scrollbar-policy: ScrollBarPolicy.always-off;
+            content := Rectangle {
+                width: panel.width - 64px;
+                height: max(parent.height, root.drafts.length * 57px + 46px);
+                background: transparent;
+                VerticalLayout {
+                    width: parent.width;
+                    spacing: 7px;
+                for draft[index] in root.drafts: Rectangle {
+                    height: 50px;
+                    Text { x: 0px; width: 18px; text: (index + 1).to-string-unlocalized(); color: AppColors.text-muted; font-size: 12px; font-weight: 650; horizontal-alignment: center; vertical-alignment: center; }
+                    row-touch := TouchArea { x: 26px; width: parent.width - 26px; mouse-cursor: default; }
+                    input-surface := Rectangle {
+                        x: 30px;
+                        width: parent.width - 30px;
+                        height: 50px;
+                        border-radius: 10px;
+                        border-width: draft-input.has-focus ? 1px : 0px;
+                        border-color: AppColors.brand;
+                        background: AppColors.sidebar;
+                        if draft.value.is-empty && !draft-input.has-focus: Text { x: 18px; width: parent.width - 62px; text: @tr("dictionary.entry.placeholder" => "For example: Volcano Engine"); color: #a09c94; font-size: 13px; vertical-alignment: center; }
+                        draft-input := TextInput {
+                            x: 18px;
+                            width: parent.width - 62px;
+                            text: draft.value;
+                            color: AppColors.ink;
+                            font-size: 13px;
+                            vertical-alignment: center;
+                            changed text => { root.update-row(index, draft-input.text); }
+                            init => { if draft.focused { draft-input.focus(); } }
+                        }
+                        if root.drafts.length > 1: Rectangle {
+                            x: parent.width - 38px;
+                            y: 8px;
+                            width: 30px;
+                            height: 34px;
+                            border-radius: 7px;
+                            opacity: row-touch.has-hover ? 1 : 0;
+                            animate opacity { duration: 120ms; easing: ease-out; }
+                            background: delete-touch.has-hover ? AppColors.danger-soft : transparent;
+                            Image { x: 7px; y: 9px; width: 16px; height: 16px; source: @image-url("../../icons/lucide/trash-2.svg"); }
+                            delete-touch := TouchArea { mouse-cursor: pointer; clicked => { root.remove-row(index); } }
+                        }
+                    }
+                }
+                    Rectangle {
+                        height: 46px;
+                        background: transparent;
+                        Rectangle {
+                            x: 30px;
+                            y: 10px;
+                            width: parent.width - 30px;
+                            height: 36px;
+                            border-radius: 8px;
+                            background: add-touch.has-hover ? AppColors.selected : AppColors.surface-subtle;
+                            Image { x: (parent.width - 128px) / 2; y: 11px; width: 14px; height: 14px; source: @image-url("../../icons/lucide/plus.svg"); colorize: AppColors.brand; }
+                            Text { x: (parent.width - 98px) / 2; width: 98px; text: @tr("dictionary.add-another-entry" => "Add another entry"); color: AppColors.brand; font-size: 12px; font-weight: 650; vertical-alignment: center; }
+                            add-touch := TouchArea { mouse-cursor: pointer; clicked => { root.add-row(); } }
                         }
                     }
                 }
             }
         }
+        if !root.status-text.is-empty: Text {
+            x: 32px;
+            y: parent.height - 76px;
+            width: parent.width - 64px;
+            text: root.status-text;
+            color: root.save-failed ? AppColors.danger : AppColors.success;
+            font-size: 11px;
+            overflow: elide;
+        }
+        Rectangle {
+            x: parent.width - 270px;
+            y: parent.height - 58px;
+            width: 96px;
+            height: 38px;
+            border-radius: 8px;
+            background: cancel-touch.has-hover ? AppColors.selected : AppColors.surface-subtle;
+            Text { text: @tr("common.cancel" => "Cancel"); color: AppColors.text; font-size: 12px; font-weight: 650; horizontal-alignment: center; vertical-alignment: center; }
+            cancel-touch := TouchArea { enabled: !root.saving; mouse-cursor: root.saving ? default : pointer; clicked => { root.close(); } }
+        }
+        Rectangle {
+            x: parent.width - 158px;
+            y: parent.height - 58px;
+            width: 126px;
+            height: 38px;
+            border-radius: 8px;
+            background: root.nonempty-count == 0 || root.saving ? AppColors.surface-subtle : (save-touch.has-hover ? AppColors.brand-strong : AppColors.brand);
+            Text { text: root.saving ? @tr("common.saving" => "Saving…") : @tr("dictionary.save-entry-count" => "Save {} entry" | "Save {} entries" % root.nonempty-count, root.nonempty-count); color: root.nonempty-count == 0 || root.saving ? AppColors.text-muted : #ffffff; font-size: 12px; font-weight: 650; horizontal-alignment: center; vertical-alignment: center; }
+            save-touch := TouchArea { enabled: root.nonempty-count > 0 && !root.saving; mouse-cursor: root.nonempty-count > 0 && !root.saving ? pointer : default; clicked => { root.save(); } }
+        }
+        TouchArea { x: 0px; y: 0px; width: parent.width; height: 0px; }
     }
 }

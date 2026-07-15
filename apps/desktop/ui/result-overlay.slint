@@ -32,12 +32,12 @@ export component ResultOverlay inherits Window {
             x: 13px; y: 15px; width: 24px; height: 24px; border-radius: 12px; background: #cbe1fb;
             Text { text: "i"; color: #256bc1; font-size: 14px; font-weight: 700; horizontal-alignment: center; vertical-alignment: center; }
         }
-        Text { x: 45px; y: 15px; width: 270px; height: 24px; text: "复制最后的转录"; color: #141413; font-size: 15px; font-weight: 700; vertical-alignment: center; }
+        Text { x: 45px; y: 15px; width: 270px; height: 24px; text: @tr("result.copy-last-transcript.title" => "Copy the latest transcript"); color: #141413; font-size: 15px; font-weight: 700; vertical-alignment: center; }
 
         Rectangle {
             x: 350px; y: 13px; width: 24px; height: 24px; border-radius: 8px;
             background: close-area.has-hover ? #f4f4f1 : transparent;
-            accessible-role: button; accessible-label: "关闭转录面板";
+            accessible-role: button; accessible-label: @tr("result.close-panel.accessible-label" => "Close transcript panel");
             accessible-action-default => { root.close-result(); }
             Text { text: "×"; color: #7b7974; font-size: 17px; horizontal-alignment: center; vertical-alignment: center; }
             close-area := TouchArea { mouse-cursor: pointer; clicked => { root.close-result(); } }
@@ -45,32 +45,43 @@ export component ResultOverlay inherits Window {
 
         Rectangle {
             x: 13px; y: 51px; width: 360px; height: 98px; border-radius: 10px; background: #f4f4f1;
-            ScrollView {
-                x: 14px; y: 8px; width: 332px; height: 82px;
-                Text {
-                    width: parent.width - 8px;
-                    text: "“" + root.transcript + "”";
-                    color: #373734; font-size: 12px; wrap: word-wrap;
+            transcript-scroll := ScrollView {
+                x: 14px;
+                y: 8px;
+                width: 332px;
+                height: 82px;
+                viewport-width: self.width;
+                viewport-height: max(self.height, transcript-copy.preferred-height);
+                vertical-scrollbar-policy: ScrollBarPolicy.always-off;
+                horizontal-scrollbar-policy: ScrollBarPolicy.always-off;
+
+                transcript-copy := Text {
+                    width: transcript-scroll.viewport-width - 8px;
+                    height: self.preferred-height;
+                    text: @tr("result.transcript.quoted" => "“{}”", root.transcript);
+                    color: #373734;
+                    font-size: 12px;
+                    wrap: word-wrap;
                 }
             }
         }
 
-        Text { x: 15px; y: 172px; text: "内容已保留"; color: #7b7974; font-size: 10px; vertical-alignment: center; }
+        Text { x: 15px; y: 172px; text: @tr("result.content-preserved" => "Your text has been preserved"); color: #7b7974; font-size: 10px; vertical-alignment: center; }
 
         Rectangle {
             x: 217px; y: 169px; width: 64px; height: 34px; border-radius: 10px;
             background: dismiss-area.has-hover ? #efeeeb : #f4f4f1;
-            accessible-role: button; accessible-label: "关闭";
+            accessible-role: button; accessible-label: @tr("common.close" => "Close");
             accessible-action-default => { root.close-result(); }
-            Text { text: "关闭"; color: #373734; font-size: 11px; font-weight: 600; horizontal-alignment: center; vertical-alignment: center; }
+            Text { text: @tr("common.close" => "Close"); color: #373734; font-size: 11px; font-weight: 600; horizontal-alignment: center; vertical-alignment: center; }
             dismiss-area := TouchArea { mouse-cursor: pointer; clicked => { root.close-result(); } }
         }
         Rectangle {
             x: 291px; y: 169px; width: 82px; height: 34px; border-radius: 10px;
             background: copy-area.pressed ? #c6613f : copy-area.has-hover ? #c6613f : #d97757;
-            accessible-role: button; accessible-label: "复制文字";
+            accessible-role: button; accessible-label: @tr("result.copy-text" => "Copy text");
             accessible-action-default => { root.copy-result(); }
-            Text { text: "复制文字"; color: #ffffff; font-size: 11px; font-weight: 700; horizontal-alignment: center; vertical-alignment: center; }
+            Text { text: @tr("result.copy-text" => "Copy text"); color: #ffffff; font-size: 11px; font-weight: 700; horizontal-alignment: center; vertical-alignment: center; }
             copy-area := TouchArea { mouse-cursor: pointer; clicked => { root.copy-result(); } }
         }
     }

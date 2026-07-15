@@ -1,11 +1,13 @@
 import { AppSidebar } from "sidebar.slint";
 import { HomePage } from "pages/home.slint";
 import { ModelConsentDialog, ModelsPage } from "pages/models.slint";
-import { HistoryListItem, HistoryPage } from "pages/history.slint";
-import { DictionaryListItem, DictionaryPage } from "pages/dictionary.slint";
-import { SettingsPage } from "pages/settings.slint";
-import { AppPage, AsrProvider, LlmProvider, SettingsSection } from "components.slint";
+import { HistoryDialog, HistoryGroup, HistoryPage, HistoryRetentionOption } from "pages/history.slint";
+import { DictionaryAddDialog, DictionaryDraft, DictionaryFilterKind, DictionaryListItem, DictionaryPage, DictionaryRow } from "pages/dictionary.slint";
+import { AudioInputDevice, SettingsPage } from "pages/settings.slint";
+import { AppPage, AsrProvider, LlmProvider, SettingsSection, UiLanguage } from "components.slint";
 import { AppColors } from "color-system.slint";
+import { Translations } from "translations.slint";
+export { Translations } from "translations.slint";
 export { RecordingOverlay } from "recording-overlay.slint";
 export { ResultOverlay } from "result-overlay.slint";
 export { MicrophoneIntroOverlay, MicrophonePermissionOverlay } from "microphone-access.slint";
@@ -13,12 +15,13 @@ export { LlmProvider } from "components.slint";
 export { AsrProvider } from "components.slint";
 
 export component AppWindow inherits Window {
+    private property <string> translation-marker: Translations.language-save-failed;
     title: root.development-environment ? "Saymore Preview" : "Saymore";
     default-font-family: "PingFang SC";
     default-font-size: 13px;
     preferred-width: 920px;
     preferred-height: 620px;
-    min-width: 820px;
+    min-width: root.current-page == AppPage.settings ? 720px : 820px;
     min-height: 560px;
     background: AppColors.canvas;
 
@@ -27,17 +30,34 @@ export component AppWindow inherits Window {
     in-out property <SettingsSection> settings-section: SettingsSection.general;
     in-out property <bool> focus-asr-config: false;
     in property <bool> authorized: false;
-    in property <string> authorization-status: "检测中";
+    in property <string> authorization-status: @tr("permissions.status.checking" => "Checking…");
     in property <bool> microphone-authorized: false;
-    in property <string> microphone-status: "检测中";
+    in property <string> microphone-status: @tr("permissions.status.checking" => "Checking…");
+    in property <[AudioInputDevice]> microphone-devices;
+    in property <string> microphone-selection-id: "";
+    in property <string> microphone-selection-label: @tr("settings.microphone.system-default" => "Automatic (system default microphone)");
+    in property <string> microphone-default-label: @tr("settings.microphone.system-default" => "Automatic (system default microphone)");
+    in property <string> microphone-selection-status: "";
+    in property <bool> microphone-devices-loading: false;
+    in property <UiLanguage> ui-language: UiLanguage.system;
+    in property <UiLanguage> system-ui-language: UiLanguage.english;
+    in property <bool> ui-language-saving: false;
+    in property <string> ui-language-status: "";
+    in-out property <bool> diagnostics-enabled: false;
+    in property <string> diagnostics-status: "";
+    in property <string> diagnostics-export-status: "idle";
+    in property <string> diagnostics-export-detail: "";
+    in property <string> update-status: "idle";
+    in property <string> update-version: "";
+    in property <string> update-detail: "";
     in property <bool> recording-active: false;
     in property <bool> recording-failed: false;
     in property <bool> recording-complete: false;
     in property <bool> recording-attempted: false;
     in property <float> recording-level: 0;
-    in property <string> recording-status: "等待录音";
-    in property <string> recording-detail: "单击右 Command 开始";
-    in property <string> shortcut-label: "右 Command";
+    in property <string> recording-status: @tr("recording.status.ready" => "Ready for voice input");
+    in property <string> recording-detail: @tr("recording.start-hint" => "Press Right Command to start");
+    in property <string> shortcut-label: @tr("shortcut.right-command" => "Right Command");
     in property <bool> shortcut-enabled: true;
     in property <string> usage-total-minutes: "0";
     in property <string> usage-total-characters: "0";
@@ -47,18 +67,21 @@ export component AppWindow inherits Window {
     in property <int> usage-highlighted-day: -1;
     in property <bool> usage-loading: false;
     in property <bool> usage-error: false;
+    in property <string> storage-usage: @tr("storage.usage.calculating" => "Calculating…");
     in-out property <string> asr-api-key: "";
-    in-out property <string> asr-model: "bigmodel_async";
+    in-out property <string> asr-model: "volc.seedasr.sauc.duration";
     in-out property <AsrProvider> asr-provider: AsrProvider.volcengine;
     in-out property <string> custom-asr-api-key: "";
     in-out property <string> custom-asr-base-url: "";
     in-out property <string> custom-asr-model: "";
     in property <bool> custom-asr-configured: false;
     in property <bool> asr-configured: false;
+    in property <bool> asr-home-available: false;
     in property <bool> asr-config-error: false;
-    in property <string> asr-config-status: "未配置";
+    in property <string> asr-config-status: @tr("models.status.not-configured.plain" => "Not configured");
     in-out property <bool> asr-testing: false;
     in-out property <bool> asr-pending-test: false;
+    in-out property <bool> asr-config-dirty: false;
     in-out property <bool> llm-enabled: false;
     in-out property <LlmProvider> llm-provider: LlmProvider.sensenova;
     in-out property <string> sensenova-api-key: "";
@@ -69,26 +92,59 @@ export component AppWindow inherits Window {
     in-out property <string> deepseek-model: "";
     in property <string> llm-provider-target: "";
     in property <bool> llm-provider-local: false;
-    in property <string> llm-config-status: "未启用";
+    in property <string> llm-config-status: @tr("models.status.not-enabled" => "Not enabled");
+    in-out property <bool> llm-config-dirty: false;
     in-out property <bool> llm-confirmation-visible: false;
     in-out property <int> model-tab: 0;
     in-out property <[string]> available-models;
     in-out property <bool> model-discovery-loading: false;
     in-out property <bool> model-discovery-error: false;
     in-out property <string> model-discovery-status: "";
-    in property <[HistoryListItem]> history-items;
+    in property <[HistoryGroup]> history-groups;
     in property <string> history-status: "";
     in property <bool> history-undo-visible: false;
     in property <bool> history-has-more: false;
     in property <bool> history-locked: false;
+    in property <bool> history-loading: false;
+    in property <bool> history-load-failed: false;
+    in property <HistoryRetentionOption> history-retention: HistoryRetentionOption.seven-days;
+    in-out property <bool> history-detail-visible: false;
+    in-out property <bool> history-clear-confirmation-visible: false;
+    in-out property <bool> history-reset-confirmation-visible: false;
+    in-out property <string> history-selected-id: "";
+    in-out property <string> history-selected-text: "";
+    in-out property <string> history-selected-time: "";
+    in-out property <string> history-selected-duration: "";
+    in-out property <string> history-selected-input: "";
+    in-out property <string> history-selected-polish: "";
+    in-out property <string> history-selected-asr: "";
+    in-out property <string> history-selected-llm: "";
     in property <[DictionaryListItem]> dictionary-items;
+    in property <[DictionaryRow]> dictionary-rows;
+    in property <[DictionaryDraft]> dictionary-drafts;
     in property <string> dictionary-status: "";
+    in property <int> dictionary-total-count: 0;
+    in property <int> dictionary-draft-nonempty-count: 0;
+    in property <DictionaryFilterKind> dictionary-filter: DictionaryFilterKind.all;
+    in property <bool> dictionary-loading: false;
+    in property <bool> dictionary-load-failed: false;
+    in property <bool> dictionary-saving: false;
+    in property <bool> dictionary-save-failed: false;
+    in-out property <bool> dictionary-add-visible: false;
     in-out property <bool> history-enabled: true;
-    in-out property <string> history-retention: "7 天";
     callback request-authorization();
     callback request-microphone-authorization();
+    callback select-microphone(string, string);
+    callback refresh-microphones();
+    callback set-ui-language(UiLanguage);
+    callback refresh-localized-state();
     callback open-microphone-settings();
     callback open-accessibility-settings();
+    callback set-diagnostics-enabled(bool);
+    callback export-diagnostics-report();
+    callback open-data-directory();
+    callback check-for-updates();
+    callback download-update();
     callback refresh-usage();
     callback save-asr-config(AsrProvider, string, string, string);
     callback select-asr-provider(AsrProvider);
@@ -100,18 +156,26 @@ export component AppWindow inherits Window {
     callback refresh-models();
     callback request-asr-test();
     callback refresh-history();
+    callback search-history(string);
     callback load-more-history();
     callback copy-history(string);
     callback delete-history(string);
     callback clear-history();
     callback reset-history();
     callback undo-history-delete();
-    callback add-dictionary-word(string, string);
     callback refresh-dictionary();
+    callback filter-dictionary(DictionaryFilterKind);
+    callback search-dictionary(string);
+    callback set-dictionary-layout-width(length);
+    callback open-dictionary-add();
+    callback close-dictionary-add();
+    callback add-dictionary-draft();
+    callback update-dictionary-draft(int, string);
+    callback remove-dictionary-draft(int);
+    callback save-dictionary-drafts();
     callback delete-dictionary-word(string);
-    callback import-dictionary-csv();
     callback set-history-enabled(bool);
-    callback set-history-retention(string);
+    callback set-history-retention(HistoryRetentionOption);
 
     changed current-page => {
         if root.current-page == AppPage.history {
@@ -128,6 +192,11 @@ export component AppWindow inherits Window {
 
         AppSidebar {
             current-page <=> root.current-page;
+            storage-usage: root.storage-usage;
+            manage-storage => {
+                root.settings-section = SettingsSection.privacy-history;
+                root.current-page = AppPage.settings;
+            }
         }
 
         Rectangle {
@@ -143,6 +212,7 @@ export component AppWindow inherits Window {
                 microphone-authorized: root.microphone-authorized;
                 microphone-status: root.microphone-status;
                 asr-configured: root.asr-configured;
+                asr-home-available: root.asr-home-available;
                 asr-config-error: root.asr-config-error;
                 asr-pending-test: root.asr-pending-test;
                 asr-config-status: root.asr-config-status;
@@ -178,6 +248,7 @@ export component AppWindow inherits Window {
                 asr-config-status: root.asr-config-status;
                 asr-testing <=> root.asr-testing;
                 asr-pending-test <=> root.asr-pending-test;
+                asr-config-dirty <=> root.asr-config-dirty;
                 llm-enabled <=> root.llm-enabled;
                 llm-provider <=> root.llm-provider;
                 sensenova-api-key <=> root.sensenova-api-key;
@@ -189,6 +260,7 @@ export component AppWindow inherits Window {
                 llm-provider-target: root.llm-provider-target;
                 llm-provider-local: root.llm-provider-local;
                 llm-config-status: root.llm-config-status;
+                llm-config-dirty <=> root.llm-config-dirty;
                 llm-confirmation-visible <=> root.llm-confirmation-visible;
                 active-tab <=> root.model-tab;
                 available-models <=> root.available-models;
@@ -209,27 +281,51 @@ export component AppWindow inherits Window {
             if root.current-page == AppPage.history: HistoryPage {
                 width: parent.width;
                 height: parent.height;
-                items: root.history-items;
+                groups: root.history-groups;
                 status-text: root.history-status;
                 undo-visible: root.history-undo-visible;
                 has-more: root.history-has-more;
                 locked: root.history-locked;
+                loading: root.history-loading;
+                load-failed: root.history-load-failed;
+                retention: root.history-retention;
                 refresh => { root.refresh-history(); }
+                search(query) => { root.search-history(query); }
                 load-more => { root.load-more-history(); }
                 copy(id) => { root.copy-history(id); }
                 delete-record(id) => { root.delete-history(id); }
-                clear-all => { root.clear-history(); }
-                reset => { root.reset-history(); }
                 undo-delete => { root.undo-history-delete(); }
+                retention-selected(retention) => { root.set-history-retention(retention); }
+                show-detail(item) => {
+                    root.history-selected-id = item.id;
+                    root.history-selected-text = item.text;
+                    root.history-selected-time = item.time;
+                    root.history-selected-duration = item.duration;
+                    root.history-selected-input = item.input-status;
+                    root.history-selected-polish = item.polish-status;
+                    root.history-selected-asr = item.asr-model;
+                    root.history-selected-llm = item.llm-model;
+                    root.history-detail-visible = true;
+                }
+                show-clear-confirmation => { root.history-clear-confirmation-visible = true; }
+                show-reset-confirmation => { root.history-reset-confirmation-visible = true; }
             }
             if root.current-page == AppPage.dictionary: DictionaryPage {
                 width: parent.width;
                 height: parent.height;
                 items: root.dictionary-items;
+                rows: root.dictionary-rows;
+                total-count: root.dictionary-total-count;
+                active-filter: root.dictionary-filter;
                 status-text: root.dictionary-status;
-                add-word(word, language) => { root.add-dictionary-word(word, language); }
+                loading: root.dictionary-loading;
+                load-failed: root.dictionary-load-failed;
+                refresh => { root.refresh-dictionary(); }
+                filter-selected(filter) => { root.filter-dictionary(filter); }
+                search(query) => { root.search-dictionary(query); }
+                layout-width-changed(width) => { root.set-dictionary-layout-width(width); }
+                open-add => { root.open-dictionary-add(); }
                 delete-word(id) => { root.delete-dictionary-word(id); }
-                import-csv => { root.import-dictionary-csv(); }
             }
 
         }
@@ -243,16 +339,38 @@ export component AppWindow inherits Window {
         authorization-status: root.authorization-status;
         microphone-authorized: root.microphone-authorized;
         microphone-status: root.microphone-status;
-        history-enabled <=> root.history-enabled;
-        history-retention <=> root.history-retention;
+        microphone-devices: root.microphone-devices;
+        microphone-selection-id: root.microphone-selection-id;
+        microphone-selection-label: root.microphone-selection-label;
+        microphone-default-label: root.microphone-default-label;
+        microphone-selection-status: root.microphone-selection-status;
+        microphone-devices-loading: root.microphone-devices-loading;
+        ui-language: root.ui-language;
+        system-ui-language: root.system-ui-language;
+        ui-language-saving: root.ui-language-saving;
+        ui-language-status: root.ui-language-status;
+        diagnostics-enabled <=> root.diagnostics-enabled;
+        diagnostics-status: root.diagnostics-status;
+        storage-usage: root.storage-usage;
+        diagnostics-export-status: root.diagnostics-export-status;
+        diagnostics-export-detail: root.diagnostics-export-detail;
+        update-status: root.update-status;
+        update-version: root.update-version;
+        update-detail: root.update-detail;
         back-to-app => { root.current-page = AppPage.home; }
-        request-authorization => { root.request-authorization(); }
-        request-microphone-authorization => { root.request-microphone-authorization(); }
-        set-history-enabled(enabled) => { root.set-history-enabled(enabled); }
-        set-history-retention(retention) => { root.set-history-retention(retention); }
+        open-microphone-settings => { root.open-microphone-settings(); }
+        open-accessibility-settings => { root.open-accessibility-settings(); }
+        select-microphone(id, name) => { root.select-microphone(id, name); }
+        refresh-microphones => { root.refresh-microphones(); }
+        set-ui-language(language) => { root.set-ui-language(language); }
+        set-diagnostics-enabled(enabled) => { root.set-diagnostics-enabled(enabled); }
+        export-diagnostics-report => { root.export-diagnostics-report(); }
+        open-data-directory => { root.open-data-directory(); }
+        check-for-updates => { root.check-for-updates(); }
+        download-update => { root.download-update(); }
     }
 
-    if root.development-environment: Rectangle {
+    if root.development-environment && root.current-page != AppPage.settings: Rectangle {
         x: parent.width - self.width - 12px;
         y: 12px;
         width: 31px;
@@ -260,6 +378,41 @@ export component AppWindow inherits Window {
         border-radius: 5px;
         background: AppColors.warning-soft;
         Text { text: "DEV"; color: AppColors.warning; font-size: 9px; font-weight: 700; horizontal-alignment: center; vertical-alignment: center; }
+    }
+
+    HistoryDialog {
+        width: parent.width;
+        height: parent.height;
+        detail-visible <=> root.history-detail-visible;
+        clear-confirmation-visible <=> root.history-clear-confirmation-visible;
+        reset-confirmation-visible <=> root.history-reset-confirmation-visible;
+        selected-id: root.history-selected-id;
+        selected-text: root.history-selected-text;
+        selected-time: root.history-selected-time;
+        selected-duration: root.history-selected-duration;
+        selected-input: root.history-selected-input;
+        selected-polish: root.history-selected-polish;
+        selected-asr: root.history-selected-asr;
+        selected-llm: root.history-selected-llm;
+        copy(id) => { root.copy-history(id); }
+        delete-record(id) => { root.delete-history(id); }
+        clear-all => { root.clear-history(); }
+        reset => { root.reset-history(); }
+    }
+
+    if root.dictionary-add-visible: DictionaryAddDialog {
+        width: parent.width;
+        height: parent.height;
+        drafts: root.dictionary-drafts;
+        nonempty-count: root.dictionary-draft-nonempty-count;
+        saving: root.dictionary-saving;
+        save-failed: root.dictionary-save-failed;
+        status-text: root.dictionary-status;
+        close => { root.close-dictionary-add(); }
+        add-row => { root.add-dictionary-draft(); }
+        update-row(index, value) => { root.update-dictionary-draft(index, value); }
+        remove-row(index) => { root.remove-dictionary-draft(index); }
+        save => { root.save-dictionary-drafts(); }
     }
 
     if root.llm-confirmation-visible: ModelConsentDialog {

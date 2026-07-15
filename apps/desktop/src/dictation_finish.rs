@@ -4,7 +4,7 @@ use std::sync::{
 };
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
-use slint::{ComponentHandle, SharedString};
+use slint::ComponentHandle;
 use template_app::{
     AudioRecorder, HistoryDelivery, HistoryRefinement, LocalSettingsStore, NewHistoryRecord,
     ProviderConfigStore, RecordingError, RefinementFallbackReason, RefinementStatus,
@@ -16,7 +16,7 @@ use uuid::Uuid;
 use crate::refinement_runtime::ProcessingActivity;
 use crate::{
     DictationOverlays, TextProcessingServices, delivery_runtime, hide_overlay_after_delay,
-    ui::AppWindow,
+    ui::{AppWindow, Translations},
     ui_status::{apply_asr_error, apply_recording_error},
 };
 
@@ -33,37 +33,47 @@ pub fn finish_recording(
     processing: TextProcessingServices,
 ) {
     let plan = processing.refinement.plan();
-    let processing_label = ProcessingActivity::Transcribing.label();
-    let processing_overlay = overlays.status.clone();
     let _ = ui.upgrade_in_event_loop(move |ui| {
+        let processing_label = ProcessingActivity::Transcribing.localized_label(&ui);
         ui.set_recording_active(false);
         ui.set_recording_failed(false);
         ui.set_recording_complete(false);
         ui.set_recording_attempted(false);
-        ui.set_recording_status(SharedString::from(processing_label));
-        ui.set_recording_detail(SharedString::from(processing_label));
-        if let Some(overlay) = processing_overlay.upgrade() {
-            overlay.set_mode(1);
-            overlay.set_processing_label(SharedString::from(processing_label));
-        }
-    });
-    let failure_ui = ui.clone();
-    let failure_recording_active = Arc::clone(&recording_active);
-    if std::thread::Builder::new()
-        .name("saymore-finish-dictation".to_owned())
-        .spawn(move || {
-            finish_recording_worker(ui, overlays, recorder, recording_active, processing, plan);
-        })
-        .is_err()
-    {
-        failure_recording_active.store(false, Ordering::Relaxed);
-        let _ = failure_ui.upgrade_in_event_loop(|ui| {
+        ui.set_recording_status(processing_label.clone());
+        ui.set_recording_detail(processing_label.clone());
+        let overlay_generation = overlays
+            .status
+            .upgrade()
+            .map(|overlay| {
+                overlay.set_mode(1);
+                overlay.set_processing_label(processing_label);
+                overlay.get_session_generation()
+            })
+            .unwrap_or_default();
+        let worker_ui = ui.as_weak();
+        let failure_recording_active = Arc::clone(&recording_active);
+        if std::thread::Builder::new()
+            .name("saymore-finish-dictation".to_owned())
+            .spawn(move || {
+                finish_recording_worker(
+                    worker_ui,
+                    overlays,
+                    recorder,
+                    recording_active,
+                    processing,
+                    plan,
+                    overlay_generation,
+                );
+            })
+            .is_err()
+        {
+            failure_recording_active.store(false, Ordering::Relaxed);
             apply_recording_error(
                 &ui,
                 &RecordingError::Capture("failed to start transcription worker".to_owned()),
             );
-        });
-    }
+        }
+    });
 }
 
 fn finish_recording_worker(
@@ -73,6 +83,7 @@ fn finish_recording_worker(
     recording_active: Arc<AtomicBool>,
     processing: TextProcessingServices,
     plan: crate::refinement_runtime::RefinementPlan,
+    overlay_generation: i32,
 ) {
     let mut recorder = match recorder.lock() {
         Ok(recorder) if recorder.is_recording() => recorder,
@@ -137,12 +148,15 @@ fn finish_recording_worker(
     recording_active.store(false, Ordering::Relaxed);
     let _ = ui.upgrade_in_event_loop(move |ui| match processing_result {
         Ok((recording, processed, history)) => {
+            crate::settings_ui::mark_asr_runtime_healthy(&ui);
             if let Some(error) = &history.error {
-                ui.set_history_status(SharedString::from(error));
+                tracing::warn!(event = "history.prepare_failed", reason = %error);
+                ui.set_history_status(ui.global::<Translations>().get_storage_error());
             }
             delivery_runtime::schedule_delivery(delivery_runtime::DeliveryRequest {
                 ui: ui.as_weak(),
                 status_overlay: overlays.status,
+                overlay_generation,
                 result_overlay: overlays.result,
                 recording,
                 processed,
@@ -192,6 +206,30 @@ pub(crate) fn prepare_history(
     };
     let _ = settings;
     let catalog = processing.provider_config.load_catalog().ok();
+    let asr_provider_id = catalog
+        .as_ref()
+        .and_then(|catalog| catalog.active.asr.clone());
+    let llm_provider_id = catalog
+        .as_ref()
+        .and_then(|catalog| catalog.active.llm.clone());
+    let asr_model = catalog.as_ref().and_then(|catalog| {
+        catalog
+            .asr_providers
+            .iter()
+            .find(|provider| Some(provider.id.as_str()) == asr_provider_id.as_deref())
+            .and_then(|provider| provider.config.get("model"))
+            .and_then(|value| value.as_str())
+            .map(str::to_owned)
+    });
+    let llm_model = catalog.as_ref().and_then(|catalog| {
+        catalog
+            .llm_providers
+            .iter()
+            .find(|provider| Some(provider.id.as_str()) == llm_provider_id.as_deref())
+            .and_then(|provider| provider.config.get("model"))
+            .and_then(|value| value.as_str())
+            .map(str::to_owned)
+    });
     let record = NewHistoryRecord {
         id,
         created_at_ms: now_ms(),
@@ -202,12 +240,10 @@ pub(crate) fn prepare_history(
         language: None,
         delivery: HistoryDelivery::NotDelivered,
         refinement: history_refinement(&processed.refinement),
-        asr_provider_id: catalog
-            .as_ref()
-            .and_then(|catalog| catalog.active.asr.clone()),
-        llm_provider_id: catalog
-            .as_ref()
-            .and_then(|catalog| catalog.active.llm.clone()),
+        asr_provider_id,
+        llm_provider_id,
+        asr_model,
+        llm_model,
     };
     PreparedHistory {
         record: Some(record),
@@ -293,13 +329,13 @@ pub(crate) fn show_processing_activity(
         ProcessingActivity::Transcribing => return,
         ProcessingActivity::Refining => {}
     }
-    let label = activity.label();
     let overlay = overlay.clone();
     let _ = ui.upgrade_in_event_loop(move |ui| {
-        ui.set_recording_status(SharedString::from(label));
-        ui.set_recording_detail(SharedString::from(label));
+        let label = activity.localized_label(&ui);
+        ui.set_recording_status(label.clone());
+        ui.set_recording_detail(label.clone());
         if let Some(overlay) = overlay.upgrade() {
-            overlay.set_processing_label(SharedString::from(label));
+            overlay.set_processing_label(label);
         }
     });
 }

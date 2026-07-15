@@ -2,8 +2,10 @@ use slint::{ComponentHandle, ModelRc, SharedString, VecModel};
 use template_app::LlmProviderPreset;
 use template_infra::{ModelDiscoveryError, discover_models};
 
-use super::{VOLCENGINE_MODEL, provider_preset};
-use crate::ui::{AppWindow, AsrProvider as UiAsrProvider, LlmProvider as UiLlmProvider};
+use super::{VOLCENGINE_MODELS, provider_preset};
+use crate::ui::{
+    AppWindow, AsrProvider as UiAsrProvider, LlmProvider as UiLlmProvider, Translations,
+};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum DiscoveryTarget {
@@ -30,8 +32,18 @@ pub(super) fn wire(ui: &AppWindow) {
         } else {
             ui.get_sensenova_api_key()
         };
+        if tab == 0 && ui.get_asr_provider() == UiAsrProvider::Volcengine {
+            apply_models(
+                &ui,
+                DiscoveryTarget::Volcengine,
+                VOLCENGINE_MODELS.iter().map(ToString::to_string).collect(),
+            );
+            return;
+        }
         if api_key.trim().is_empty() {
-            ui.set_model_discovery_status(SharedString::from("请先输入 API Key"));
+            ui.set_model_discovery_status(
+                ui.global::<Translations>().get_models_fetch_enter_api_key(),
+            );
             ui.set_model_discovery_error(false);
             return;
         }
@@ -39,23 +51,17 @@ pub(super) fn wire(ui: &AppWindow) {
             && ui.get_asr_provider() == UiAsrProvider::Custom
             && ui.get_custom_asr_base_url().trim().is_empty()
         {
-            ui.set_model_discovery_status(SharedString::from("请先输入服务地址"));
+            ui.set_model_discovery_status(
+                ui.global::<Translations>()
+                    .get_models_fetch_enter_service_url(),
+            );
             ui.set_model_discovery_error(false);
             return;
         }
         ui.set_available_models(ModelRc::default());
         ui.set_model_discovery_loading(true);
         ui.set_model_discovery_error(false);
-        ui.set_model_discovery_status(SharedString::from("正在获取"));
-        if tab == 0 && ui.get_asr_provider() == UiAsrProvider::Volcengine {
-            apply_models(
-                &ui,
-                DiscoveryTarget::Volcengine,
-                vec![VOLCENGINE_MODEL.to_owned()],
-            );
-            return;
-        }
-
+        ui.set_model_discovery_status(ui.global::<Translations>().get_models_fetching());
         let target = if tab == 0 {
             DiscoveryTarget::CustomAsr
         } else {
@@ -140,19 +146,23 @@ fn apply_models(ui: &AppWindow, target: DiscoveryTarget, models: Vec<String>) {
     ui.set_available_models(ModelRc::new(VecModel::from(models)));
     ui.set_model_discovery_loading(false);
     ui.set_model_discovery_error(false);
-    ui.set_model_discovery_status(SharedString::from(format!("已获取 {count} 个模型")));
+    ui.set_model_discovery_status(
+        ui.global::<Translations>()
+            .invoke_models_fetched(i32::try_from(count).unwrap_or(i32::MAX)),
+    );
 }
 
 fn apply_error(ui: &AppWindow, error: ModelDiscoveryError) {
+    let translations = ui.global::<Translations>();
     let status = match error {
-        ModelDiscoveryError::MissingApiKey => "请先输入 API Key",
-        ModelDiscoveryError::Authentication => "API Key 无效",
-        ModelDiscoveryError::RateLimited => "请求过于频繁",
-        ModelDiscoveryError::Empty => "未获取到可用模型",
-        ModelDiscoveryError::Transport(_) => "无法连接模型服务",
-        ModelDiscoveryError::Protocol(_) => "模型列表响应异常",
+        ModelDiscoveryError::MissingApiKey => translations.get_models_fetch_enter_api_key(),
+        ModelDiscoveryError::Authentication => translations.get_models_fetch_authentication(),
+        ModelDiscoveryError::RateLimited => translations.get_models_fetch_rate_limited(),
+        ModelDiscoveryError::Empty => translations.get_models_fetch_empty(),
+        ModelDiscoveryError::Transport(_) => translations.get_models_fetch_transport(),
+        ModelDiscoveryError::Protocol(_) => translations.get_models_fetch_protocol(),
     };
     ui.set_model_discovery_loading(false);
     ui.set_model_discovery_error(true);
-    ui.set_model_discovery_status(SharedString::from(status));
+    ui.set_model_discovery_status(status);
 }

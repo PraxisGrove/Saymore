@@ -7,7 +7,6 @@ const MAX_WHOLE_REPLACEMENT_CHARS: usize = 32;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DictionaryCorrection {
-    pub recognized_as: String,
     pub canonical: String,
 }
 
@@ -74,7 +73,6 @@ pub fn correction_from_edit(original: &str, edited: &str) -> Option<DictionaryCo
         return None;
     }
     Some(DictionaryCorrection {
-        recognized_as: recognized_as.to_owned(),
         canonical: canonical.to_owned(),
     })
 }
@@ -123,7 +121,6 @@ mod tests {
     fn extracts_one_local_word_replacement() {
         assert_eq!(
             Some(DictionaryCorrection {
-                recognized_as: "CM".to_owned(),
                 canonical: "Saymore".to_owned(),
             }),
             correction_from_edit("我们使用 CM 开发", "我们使用 Saymore 开发")
@@ -134,7 +131,6 @@ mod tests {
     fn keeps_standard_spelling_corrections() {
         assert_eq!(
             Some(DictionaryCorrection {
-                recognized_as: "open ai".to_owned(),
                 canonical: "OpenAI".to_owned(),
             }),
             correction_from_edit("使用 open ai", "使用 OpenAI")
