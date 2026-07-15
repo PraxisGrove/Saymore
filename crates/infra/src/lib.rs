@@ -8,6 +8,7 @@ mod sqlite_storage;
 mod app_instance_guard;
 mod app_paths;
 mod dictionary_files;
+mod model_discovery;
 
 #[cfg(any(target_os = "macos", target_os = "windows"))]
 mod platform_secret_store;
@@ -70,6 +71,7 @@ pub use app_instance_guard::{AppInstanceGuard, AppInstanceGuardError};
 pub use app_paths::{AppEnvironment, AppPaths};
 pub use chat_completions_llm::ChatCompletionsLlmProvider;
 pub use dictionary_files::{DictionaryFileError, DictionaryFileReport, DictionaryFiles};
+pub use model_discovery::{ModelDiscoveryError, discover_models};
 #[cfg(any(target_os = "macos", target_os = "windows"))]
 pub use platform_secret_store::PlatformSecretStore;
 pub use sqlite_storage::SqliteStorage;

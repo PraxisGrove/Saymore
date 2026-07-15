@@ -70,6 +70,13 @@ impl LlmProviderPreset {
         }
     }
 
+    pub const fn model_list_url(self) -> &'static str {
+        match self {
+            Self::SenseNova => "https://api.sensenova.cn/v1/llm/models",
+            Self::DeepSeek => "https://api.deepseek.com/models",
+        }
+    }
+
     pub fn settings(self, api_key: &str) -> ChatCompletionsLlmSettings {
         ChatCompletionsLlmSettings {
             base_url: self.base_url().to_owned(),
@@ -109,7 +116,17 @@ pub struct ProviderCatalog {
 
 impl ProviderCatalog {
     pub fn save_llm_provider_config(&mut self, preset: LlmProviderPreset, api_key: &str) {
-        let settings = preset.settings(api_key);
+        self.save_llm_provider_model_config(preset, api_key, preset.model());
+    }
+
+    pub fn save_llm_provider_model_config(
+        &mut self,
+        preset: LlmProviderPreset,
+        api_key: &str,
+        model: &str,
+    ) {
+        let mut settings = preset.settings(api_key);
+        settings.model = model.trim().to_owned();
         let config = serde_json::json!({
             "base_url": settings.base_url,
             "api_key": settings.api_key,
@@ -239,6 +256,22 @@ mod tests {
         catalog.save_llm_provider_config(LlmProviderPreset::DeepSeek, "saved-key");
         assert_eq!(
             Some("deepseek-v4-flash"),
+            catalog.configured_llm_provider_model(LlmProviderPreset::DeepSeek)
+        );
+    }
+
+    #[test]
+    fn saves_the_model_selected_by_the_user() {
+        let mut catalog = ProviderCatalog::default();
+
+        catalog.save_llm_provider_model_config(
+            LlmProviderPreset::DeepSeek,
+            "saved-key",
+            "deepseek-v4-pro",
+        );
+
+        assert_eq!(
+            Some("deepseek-v4-pro"),
             catalog.configured_llm_provider_model(LlmProviderPreset::DeepSeek)
         );
     }

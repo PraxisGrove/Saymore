@@ -13,6 +13,8 @@ use template_infra::{ChatCompletionsLlmProvider, JsonSettingsStore};
 
 use crate::ui::{AppWindow, LlmProvider as UiLlmProvider};
 
+mod model_discovery;
+
 const VOLCENGINE_MODEL: &str = "bigmodel_async";
 #[cfg(test)]
 const CHAT_COMPLETIONS_TYPE: &str = "openai_compatible";
@@ -33,6 +35,7 @@ fn ui_provider(provider: LlmProviderPreset) -> UiLlmProvider {
 
 pub fn wire(ui: &AppWindow, store: Arc<JsonSettingsStore>) {
     apply_loaded_settings(ui, &store);
+    model_discovery::wire(ui);
 
     let save_ui = ui.as_weak();
     let save_store = Arc::clone(&store);
@@ -119,7 +122,7 @@ fn wire_llm(ui: &AppWindow, store: Arc<JsonSettingsStore>) {
 fn wire_llm_config_actions(ui: &AppWindow, store: Arc<JsonSettingsStore>) {
     let save_ui = ui.as_weak();
     let save_store = Arc::clone(&store);
-    ui.on_save_llm_config(move |provider, api_key| {
+    ui.on_save_llm_config(move |provider, api_key, model| {
         let Some(ui) = save_ui.upgrade() else {
             return;
         };
@@ -128,8 +131,12 @@ fn wire_llm_config_actions(ui: &AppWindow, store: Arc<JsonSettingsStore>) {
             ui.set_llm_config_status(SharedString::from("请输入 API Key"));
             return;
         }
+        if model.trim().is_empty() {
+            ui.set_llm_config_status(SharedString::from("请选择模型"));
+            return;
+        }
         let result = save_store.load_catalog().and_then(|mut catalog| {
-            catalog.save_llm_provider_config(provider, api_key.as_str());
+            catalog.save_llm_provider_model_config(provider, api_key.as_str(), model.as_str());
             save_store.save_catalog(&catalog)
         });
         if result.is_ok() {

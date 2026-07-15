@@ -57,12 +57,16 @@ export component AppWindow inherits Window {
     in-out property <string> deepseek-api-key: "";
     in property <bool> sensenova-configured: false;
     in property <bool> deepseek-configured: false;
-    in property <string> sensenova-model: "";
-    in property <string> deepseek-model: "";
+    in-out property <string> sensenova-model: "";
+    in-out property <string> deepseek-model: "";
     in property <string> llm-provider-target: "";
     in property <bool> llm-provider-local: false;
     in property <string> llm-config-status: "未启用";
     in-out property <bool> llm-confirmation-visible: false;
+    in-out property <int> model-tab: 0;
+    in-out property <[string]> available-models;
+    in-out property <bool> model-discovery-loading: false;
+    in-out property <string> model-discovery-status: "";
     in property <[HistoryListItem]> history-items;
     in property <string> history-status: "";
     in property <bool> history-undo-visible: false;
@@ -81,8 +85,9 @@ export component AppWindow inherits Window {
     callback delete-asr-config();
     callback request-llm-enable();
     callback set-llm-enabled(bool, string);
-    callback save-llm-config(LlmProvider, string);
+    callback save-llm-config(LlmProvider, string, string);
     callback select-llm-provider(LlmProvider);
+    callback refresh-models();
     callback refresh-history();
     callback load-more-history();
     callback copy-history(string);
@@ -102,6 +107,8 @@ export component AppWindow inherits Window {
             root.refresh-history();
         }
     }
+    changed model-tab => { root.available-models = []; root.model-discovery-status = ""; }
+    changed llm-provider => { root.available-models = []; root.model-discovery-status = ""; }
 
     if root.current-page != AppPage.settings: HorizontalLayout {
         padding: 10px;
@@ -157,18 +164,23 @@ export component AppWindow inherits Window {
                 deepseek-api-key <=> root.deepseek-api-key;
                 sensenova-configured: root.sensenova-configured;
                 deepseek-configured: root.deepseek-configured;
-                sensenova-model: root.sensenova-model;
-                deepseek-model: root.deepseek-model;
+                sensenova-model <=> root.sensenova-model;
+                deepseek-model <=> root.deepseek-model;
                 llm-provider-target: root.llm-provider-target;
                 llm-provider-local: root.llm-provider-local;
                 llm-config-status: root.llm-config-status;
                 llm-confirmation-visible <=> root.llm-confirmation-visible;
+                active-tab <=> root.model-tab;
+                available-models <=> root.available-models;
+                model-discovery-loading <=> root.model-discovery-loading;
+                model-discovery-status <=> root.model-discovery-status;
                 save-asr-config(api-key, model) => { root.save-asr-config(api-key, model); }
                 delete-asr-config => { root.delete-asr-config(); }
                 request-llm-enable => { root.request-llm-enable(); }
                 set-llm-enabled(enabled, base-url) => { root.set-llm-enabled(enabled, base-url); }
-                save-llm-config(provider, api-key) => { root.save-llm-config(provider, api-key); }
+                save-llm-config(provider, api-key, model) => { root.save-llm-config(provider, api-key, model); }
                 select-llm-provider(provider) => { root.select-llm-provider(provider); }
+                refresh-models => { root.refresh-models(); }
             }
 
             if root.current-page == AppPage.history: HistoryPage {
