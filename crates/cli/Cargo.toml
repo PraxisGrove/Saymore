@@ -9,13 +9,23 @@ license.workspace = true
 name = "template"
 path = "src/main.rs"
 
+[[bin]]
+name = "saymore-eval"
+path = "src/bin/saymore_eval/main.rs"
+
 [lints]
 workspace = true
 
 [dependencies]
 anyhow = { workspace = true }
+chrono = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
 template-app = { workspace = true }
 template-infra = { workspace = true }
+tokio = { workspace = true }
+tokio-util = { workspace = true }
+unicode-normalization = { workspace = true }
 
 [dev-dependencies]
 assert_cmd = { workspace = true }
