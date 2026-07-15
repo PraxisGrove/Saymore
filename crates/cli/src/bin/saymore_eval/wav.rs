@@ -73,7 +73,8 @@ mod tests {
         let mut bytes = Vec::from(b"RIFF\x28\x00\x00\x00WAVEfmt \x10\x00\x00\x00\x01\x00\x01\x00\x80\x3e\x00\x00\x00\x7d\x00\x00\x02\x00\x10\x00data\x04\x00\x00\x00".as_slice());
         bytes.extend_from_slice(&[1, 0, 254, 255]);
 
-        assert_eq!(vec![1, -2], pcm16_mono_16khz(&bytes)?);
+        let actual = pcm16_mono_16khz(&bytes)?;
+        anyhow::ensure!(actual == vec![1, -2], "decoded unexpected PCM samples");
         Ok(())
     }
 

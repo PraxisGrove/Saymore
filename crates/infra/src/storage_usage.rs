@@ -45,7 +45,10 @@ mod tests {
         fs::create_dir(directory.path().join("logs"))?;
         fs::write(directory.path().join("logs/runtime.log"), [0_u8; 11])?;
 
-        assert_eq!(18, directory_usage_bytes(directory.path())?);
+        let actual = directory_usage_bytes(directory.path())?;
+        if actual != 18 {
+            return Err(format!("expected 18 bytes, measured {actual}").into());
+        }
         Ok(())
     }
 
@@ -54,7 +57,10 @@ mod tests {
         let directory = tempfile::tempdir()?;
         let missing = directory.path().join("missing");
 
-        assert_eq!(0, directory_usage_bytes(&missing)?);
+        let actual = directory_usage_bytes(&missing)?;
+        if actual != 0 {
+            return Err(format!("expected 0 bytes, measured {actual}").into());
+        }
         Ok(())
     }
 }
