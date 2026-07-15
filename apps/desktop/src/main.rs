@@ -12,9 +12,9 @@ use std::{
     time::{Duration, Instant},
 };
 
-use slint::{ComponentHandle, SharedString};
 #[cfg(target_os = "macos")]
-use slint::{Timer, TimerMode};
+use slint::Timer;
+use slint::{ComponentHandle, SharedString};
 #[cfg(target_os = "macos")]
 use template_app::{
     AudioRecorder, CancelledRecordingStore, DictionaryStore, LocalSettingsStore,
@@ -49,6 +49,8 @@ use ui::{MicrophoneIntroOverlay, MicrophonePermissionOverlay, RecordingOverlay, 
 mod app_environment;
 #[cfg(target_os = "macos")]
 mod asr_runtime;
+#[cfg(target_os = "macos")]
+mod authorization_ui;
 #[cfg(target_os = "macos")]
 mod delivery_runtime;
 #[cfg(target_os = "macos")]
@@ -89,8 +91,6 @@ use refinement_runtime::RefinementRuntime;
 #[cfg(target_os = "macos")]
 use ui_status::*;
 
-#[cfg(target_os = "macos")]
-const AUTHORIZATION_POLL_INTERVAL: Duration = Duration::from_secs(1);
 #[cfg(target_os = "macos")]
 const CANCEL_UNDO_WINDOW: Duration = Duration::from_secs(2);
 #[cfg(target_os = "macos")]
@@ -254,25 +254,7 @@ fn run() -> Result<(), Box<dyn Error>> {
         paths.data_directory().to_path_buf(),
     );
     update_check::wire(&ui);
-
-    let request_accessibility_ui = ui.as_weak();
-    ui.on_request_authorization(move || {
-        if let Some(ui) = request_accessibility_ui.upgrade() {
-            update_accessibility_authorization(&ui, deliverer.request_authorization());
-        }
-    });
-
-    let poll_ui = ui.as_weak();
-    let authorization_poll = Timer::default();
-    authorization_poll.start(
-        TimerMode::Repeated,
-        AUTHORIZATION_POLL_INTERVAL,
-        move || {
-            if let Some(ui) = poll_ui.upgrade() {
-                update_authorizations(&ui, deliverer.authorization(), microphone.authorization());
-            }
-        },
-    );
+    let authorization_poll = authorization_ui::wire(&ui, deliverer, microphone);
 
     let first_recording = Arc::new(AtomicBool::new(true));
     delivery_runtime::wire_result_actions(&result_overlay);
