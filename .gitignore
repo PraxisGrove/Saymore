@@ -312,3 +312,6 @@ __marimo__/
 
 # Local Playwright CLI artifacts
 /.playwright-cli/
+
+# Canonical gettext template required by the desktop build
+!/apps/desktop/i18n/saymore-desktop.pot
