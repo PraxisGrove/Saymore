@@ -190,6 +190,10 @@ export component ModelsPage inherits Rectangle {
     private property <bool> advanced-visible: false;
     private property <bool> api-key-visible: false;
     private property <bool> manual-model: false;
+    private property <bool> first-service-selected: root.active-tab == 0 || root.llm-provider == LlmProvider.sensenova;
+    private property <bool> second-service-selected: root.active-tab == 1 && root.llm-provider == LlmProvider.deepseek;
+    private property <bool> default-model-selected: root.active-tab == 1 || !root.manual-model;
+    private property <bool> manual-model-selected: root.active-tab == 0 && root.manual-model;
     private property <string> active-api-key: root.active-tab == 0 ? root.asr-api-key : root.llm-provider == LlmProvider.deepseek ? root.deepseek-api-key : root.sensenova-api-key;
     private property <string> service-name: root.active-tab == 0 ? "火山引擎" : root.llm-provider == LlmProvider.deepseek ? "DeepSeek" : "商汤 SenseNova";
     private property <string> model-name: root.active-tab == 0 ? root.asr-model : root.llm-provider == LlmProvider.deepseek ? "deepseek-v4-flash" : "sensenova-6.7-flash-lite";
@@ -202,8 +206,8 @@ export component ModelsPage inherits Rectangle {
     background: transparent;
 
     Text { x: 0px; y: 44px; text: "模型"; color: AppColors.ink; font-size: 27px; font-weight: 700; }
-    ModelTab { x: 0px; y: 89px; label: "语音识别"; selected: root.active-tab == 0; activated => { root.active-tab = 0; root.service-menu-open = false; root.model-menu-open = false; } }
-    ModelTab { x: 97px; y: 89px; label: "文本润色"; selected: root.active-tab == 1; activated => { root.active-tab = 1; root.service-menu-open = false; root.model-menu-open = false; } }
+    ModelTab { x: 0px; y: 89px; label: "语音识别"; selected: root.active-tab == 0; activated => { root.active-tab = 0; root.service-menu-open = false; root.model-menu-open = false; root.api-key-visible = false; } }
+    ModelTab { x: 97px; y: 89px; label: "文本润色"; selected: root.active-tab == 1; activated => { root.active-tab = 1; root.service-menu-open = false; root.model-menu-open = false; root.api-key-visible = false; } }
     Rectangle { x: 0px; y: 120px; width: parent.width - 1px; height: 1px; background: AppColors.border; }
 
     Text { x: 0px; y: 140px; text: root.active-tab == 0 ? "语音识别服务" : "文本润色服务"; color: AppColors.text; font-size: 14px; font-weight: 650; }
@@ -283,33 +287,35 @@ export component ModelsPage inherits Rectangle {
     if root.service-menu-open: Rectangle {
         x: 0px; y: 242px; width: parent.width - 1px; height: 124px; border-radius: 12px; background: AppColors.surface; drop-shadow-blur: 18px; drop-shadow-offset-y: 6px; drop-shadow-color: #1f1f1c1a;
         Rectangle {
-            x: 12px; y: 12px; width: parent.width - 24px; height: 48px; border-radius: 8px; background: AppColors.sidebar;
-            Image { x: 16px; y: 14px; width: 18px; height: 18px; source: root.active-tab == 0 ? @image-url("../../icons/lucide/audio-lines.svg") : @image-url("../../icons/lucide/sparkles.svg"); colorize: AppColors.ink; }
+            x: 12px; y: 12px; width: parent.width - 24px; height: 48px; border-radius: 8px; background: root.first-service-selected ? AppColors.sidebar : AppColors.surface;
+            Image { x: 16px; y: 14px; width: 18px; height: 18px; source: root.active-tab == 0 ? @image-url("../../icons/lucide/audio-lines.svg") : @image-url("../../icons/lucide/sparkles.svg"); colorize: root.first-service-selected ? AppColors.ink : AppColors.text-muted; }
             Text { x: 46px; y: 5px; text: root.active-tab == 0 ? "火山引擎" : "商汤 SenseNova"; color: AppColors.ink; font-size: 12px; font-weight: 650; }
             Text { x: 46px; y: 27px; text: root.active-tab == 0 ? "豆包流式语音识别模型 2.0" : "sensenova-6.7-flash-lite"; color: AppColors.text-muted; font-size: 9px; }
-            Image { x: parent.width - 29px; y: 17px; width: 14px; height: 14px; source: @image-url("../../icons/lucide/check.svg"); colorize: AppColors.success; }
-            TouchArea { mouse-cursor: pointer; clicked => { if root.active-tab == 1 { root.llm-provider = LlmProvider.sensenova; root.select-llm-provider(root.llm-provider); } root.service-menu-open = false; } }
+            if root.first-service-selected: Image { x: parent.width - 29px; y: 17px; width: 14px; height: 14px; source: @image-url("../../icons/lucide/check.svg"); colorize: AppColors.success; }
+            TouchArea { mouse-cursor: pointer; clicked => { if root.active-tab == 1 { root.llm-provider = LlmProvider.sensenova; root.select-llm-provider(root.llm-provider); root.api-key-visible = false; } root.service-menu-open = false; } }
         }
         Rectangle {
-            x: 12px; y: 64px; width: parent.width - 24px; height: 48px; border-radius: 8px; background: AppColors.surface;
-            Image { x: 16px; y: 14px; width: 18px; height: 18px; source: root.active-tab == 0 ? @image-url("../../icons/lucide/braces.svg") : @image-url("../../icons/lucide/sparkles.svg"); colorize: AppColors.text-muted; }
+            x: 12px; y: 64px; width: parent.width - 24px; height: 48px; border-radius: 8px; background: root.second-service-selected ? AppColors.sidebar : AppColors.surface;
+            Image { x: 16px; y: 14px; width: 18px; height: 18px; source: root.active-tab == 0 ? @image-url("../../icons/lucide/braces.svg") : @image-url("../../icons/lucide/sparkles.svg"); colorize: root.second-service-selected ? AppColors.ink : AppColors.text-muted; }
             Text { x: 46px; y: 5px; text: root.active-tab == 0 ? "自定义兼容接口" : "DeepSeek"; color: AppColors.ink; font-size: 12px; font-weight: 650; }
             Text { x: 46px; y: 27px; text: root.active-tab == 0 ? "手动配置服务地址、模型与请求头" : "deepseek-v4-flash"; color: AppColors.text-muted; font-size: 9px; }
-            TouchArea { mouse-cursor: pointer; clicked => { if root.active-tab == 1 { root.llm-provider = LlmProvider.deepseek; root.select-llm-provider(root.llm-provider); } root.service-menu-open = false; } }
+            if root.second-service-selected: Image { x: parent.width - 29px; y: 17px; width: 14px; height: 14px; source: @image-url("../../icons/lucide/check.svg"); colorize: AppColors.success; }
+            TouchArea { mouse-cursor: pointer; clicked => { if root.active-tab == 1 { root.llm-provider = LlmProvider.deepseek; root.select-llm-provider(root.llm-provider); root.api-key-visible = false; } root.service-menu-open = false; } }
         }
     }
 
     if root.model-menu-open: Rectangle {
         x: 18px; y: 443px; width: parent.width - 37px; height: 100px; border-radius: 10px; background: AppColors.surface; drop-shadow-blur: 18px; drop-shadow-offset-y: 6px; drop-shadow-color: #1f1f1c1a;
         Rectangle {
-            x: 10px; y: 10px; width: parent.width - 20px; height: 36px; border-radius: 7px; background: AppColors.sidebar;
-            Text { x: 14px; text: root.model-name; color: AppColors.text; font-size: 11px; vertical-alignment: center; }
-            Image { x: parent.width - 24px; y: 11px; width: 14px; height: 14px; source: @image-url("../../icons/lucide/check.svg"); colorize: AppColors.success; }
+            x: 10px; y: 10px; width: parent.width - 20px; height: 36px; border-radius: 7px; background: root.default-model-selected ? AppColors.sidebar : AppColors.surface;
+            Text { x: 14px; text: root.active-tab == 0 ? "bigmodel_async" : root.model-name; color: AppColors.text; font-size: 11px; vertical-alignment: center; }
+            if root.default-model-selected: Image { x: parent.width - 24px; y: 11px; width: 14px; height: 14px; source: @image-url("../../icons/lucide/check.svg"); colorize: AppColors.success; }
             TouchArea { mouse-cursor: pointer; clicked => { root.manual-model = false; if root.active-tab == 0 { root.asr-model = "bigmodel_async"; } root.model-menu-open = false; } }
         }
         Rectangle {
-            x: 10px; y: 54px; width: parent.width - 20px; height: 36px; border-radius: 7px; background: AppColors.surface;
+            x: 10px; y: 54px; width: parent.width - 20px; height: 36px; border-radius: 7px; background: root.manual-model-selected ? AppColors.sidebar : AppColors.surface;
             Text { x: 14px; text: "手动输入模型名称"; color: AppColors.text; font-size: 11px; vertical-alignment: center; }
+            if root.manual-model-selected: Image { x: parent.width - 24px; y: 11px; width: 14px; height: 14px; source: @image-url("../../icons/lucide/check.svg"); colorize: AppColors.success; }
             TouchArea { enabled: root.active-tab == 0; mouse-cursor: root.active-tab == 0 ? pointer : default; clicked => { root.manual-model = true; root.asr-model = ""; root.model-menu-open = false; } }
         }
     }
