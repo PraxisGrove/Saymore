@@ -12,9 +12,9 @@ use std::{
     time::{Duration, Instant},
 };
 
+use slint::ComponentHandle;
 #[cfg(target_os = "macos")]
-use slint::Timer;
-use slint::{ComponentHandle, SharedString};
+use slint::{SharedString, Timer};
 #[cfg(target_os = "macos")]
 use template_app::{
     AudioRecorder, CancelledRecordingStore, DictionaryStore, LocalSettingsStore,
