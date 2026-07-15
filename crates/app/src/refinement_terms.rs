@@ -27,10 +27,26 @@ pub fn relevant_dictionary_terms_from_entries(
 }
 
 pub fn normalize_standard_spellings(text: &str, terms: &[RefinementTerm]) -> String {
+    normalize_spellings(text, terms, spelling_match_ranges)
+}
+
+pub(crate) fn normalize_spaced_standard_spellings(text: &str, terms: &[RefinementTerm]) -> String {
+    normalize_spellings(text, terms, |text, spelling| {
+        let mut ranges = spelling_match_ranges(text, spelling);
+        ranges.extend(spaced_spelling_match_ranges(text, spelling));
+        ranges
+    })
+}
+
+fn normalize_spellings(
+    text: &str,
+    terms: &[RefinementTerm],
+    mut match_ranges: impl FnMut(&str, &str) -> Vec<Range<usize>>,
+) -> String {
     let mut replacements = terms
         .iter()
         .flat_map(|term| {
-            spelling_match_ranges(text, &term.canonical)
+            match_ranges(text, &term.canonical)
                 .into_iter()
                 .map(|range| Replacement {
                     range,
@@ -121,6 +137,41 @@ fn spelling_match_ranges(text: &str, spelling: &str) -> Vec<Range<usize>> {
                 .then_some(range)
         })
         .collect()
+}
+
+fn spaced_spelling_match_ranges(text: &str, spelling: &str) -> Vec<Range<usize>> {
+    let Some(expected) = spelling_pattern(spelling) else {
+        return Vec::new();
+    };
+    let [expected_key] = expected.tokens.as_slice() else {
+        return Vec::new();
+    };
+    let actual = spelling_token_ranges(text)
+        .filter_map(|range| standard_spelling_key(&text[range.clone()]).map(|key| (range, key)))
+        .collect::<Vec<_>>();
+    let mut matches = Vec::new();
+
+    for start in 0..actual.len() {
+        let mut joined = actual[start].1.clone();
+        for end in (start + 1)..actual.len() {
+            let separator = &text[actual[end - 1].0.end..actual[end].0.start];
+            if spelling_separator(separator).is_none() {
+                break;
+            }
+            joined.push_str(&actual[end].1);
+            if joined.len() > expected_key.len() {
+                break;
+            }
+            if joined == *expected_key {
+                let range = actual[start].0.start..actual[end].0.end;
+                if !is_protected_token(text, range.start, range.end) {
+                    matches.push(range);
+                }
+                break;
+            }
+        }
+    }
+    matches
 }
 
 fn spelling_pattern(value: &str) -> Option<SpellingPattern> {
