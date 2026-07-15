@@ -1,6 +1,6 @@
 import { AppSidebar } from "sidebar.slint";
 import { HomePage } from "pages/home.slint";
-import { ModelsPage } from "pages/models.slint";
+import { ModelConsentDialog, ModelsPage } from "pages/models.slint";
 import { HistoryListItem, HistoryPage } from "pages/history.slint";
 import { DictionaryListItem, DictionaryPage } from "pages/dictionary.slint";
 import { SettingsPage } from "pages/settings.slint";
@@ -47,6 +47,7 @@ export component AppWindow inherits Window {
     in property <[string]> usage-day-labels;
     in property <int> usage-highlighted-day: -1;
     in-out property <string> asr-api-key: "";
+    in-out property <string> asr-model: "bigmodel_async";
     in property <bool> asr-configured: false;
     in property <bool> asr-config-error: false;
     in property <string> asr-config-status: "未配置";
@@ -72,7 +73,7 @@ export component AppWindow inherits Window {
     callback open-microphone-settings();
     callback open-accessibility-settings();
     callback refresh-usage();
-    callback save-asr-config(string);
+    callback save-asr-config(string, string);
     callback delete-asr-config();
     callback request-llm-enable();
     callback set-llm-enabled(bool, string);
@@ -142,6 +143,7 @@ export component AppWindow inherits Window {
                 height: parent.height;
                 focus-asr-config: root.focus-asr-config;
                 asr-api-key <=> root.asr-api-key;
+                asr-model <=> root.asr-model;
                 asr-configured: root.asr-configured;
                 asr-config-error: root.asr-config-error;
                 asr-config-status: root.asr-config-status;
@@ -153,8 +155,7 @@ export component AppWindow inherits Window {
                 llm-provider-local: root.llm-provider-local;
                 llm-config-status: root.llm-config-status;
                 llm-confirmation-visible <=> root.llm-confirmation-visible;
-                save-asr-config(api-key) => { root.save-asr-config(api-key); }
-                delete-asr-config => { root.delete-asr-config(); }
+                save-asr-config(api-key, model) => { root.save-asr-config(api-key, model); }
                 request-llm-enable => { root.request-llm-enable(); }
                 set-llm-enabled(enabled, base-url) => { root.set-llm-enabled(enabled, base-url); }
                 save-llm-config(provider, api-key) => { root.save-llm-config(provider, api-key); }
@@ -215,5 +216,16 @@ export component AppWindow inherits Window {
         border-radius: 5px;
         background: AppColors.warning-soft;
         Text { text: "DEV"; color: AppColors.warning; font-size: 9px; font-weight: 700; horizontal-alignment: center; vertical-alignment: center; }
+    }
+
+    if root.llm-confirmation-visible: ModelConsentDialog {
+        width: parent.width;
+        height: parent.height;
+        target: root.llm-provider-target;
+        cancelled => { root.llm-confirmation-visible = false; }
+        confirmed => {
+            root.llm-confirmation-visible = false;
+            root.set-llm-enabled(true, root.llm-provider-target);
+        }
     }
 }

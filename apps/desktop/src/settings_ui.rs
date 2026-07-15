@@ -33,13 +33,18 @@ pub fn wire(ui: &AppWindow, store: Arc<JsonSettingsStore>) {
 
     let save_ui = ui.as_weak();
     let save_store = Arc::clone(&store);
-    ui.on_save_asr_config(move |api_key| {
+    ui.on_save_asr_config(move |api_key, model| {
         let Some(ui) = save_ui.upgrade() else {
             return;
         };
         let api_key = api_key.trim();
+        let model = model.trim();
         if api_key.is_empty() {
             apply_status(&ui, false, true, "请输入 API Key");
+            return;
+        }
+        if model.is_empty() {
+            apply_status(&ui, false, true, "请输入模型名称");
             return;
         }
 
@@ -47,7 +52,7 @@ pub fn wire(ui: &AppWindow, store: Arc<JsonSettingsStore>) {
             settings.asr.volcengine = VolcengineAsrSettings {
                 enabled: true,
                 api_key: api_key.to_owned(),
-                model: VOLCENGINE_MODEL.to_owned(),
+                model: model.to_owned(),
             };
             save_store.save(&settings)
         });
@@ -278,6 +283,11 @@ fn apply_loaded_settings(ui: &AppWindow, store: &JsonSettingsStore) {
             let provider = settings.asr.volcengine;
             let configured = provider.enabled && !provider.api_key.trim().is_empty();
             ui.set_asr_api_key(SharedString::from(provider.api_key));
+            ui.set_asr_model(SharedString::from(if provider.model.trim().is_empty() {
+                VOLCENGINE_MODEL
+            } else {
+                provider.model.as_str()
+            }));
             apply_status(
                 ui,
                 configured,

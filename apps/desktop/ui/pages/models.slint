@@ -1,46 +1,172 @@
-import { AppButton, AppCheckBox, AppSelect, LlmProvider, StatusPill } from "../components.slint";
+import { LlmProvider } from "../components.slint";
 import { AppColors } from "../color-system.slint";
 
-component ModelApiKeyField inherits Rectangle {
-    in-out property <string> text;
-    in property <string> placeholder-text;
+component ModelTab inherits Rectangle {
+    in property <string> label;
+    in property <bool> selected;
+    callback activated();
+    width: 56px;
+    height: 32px;
+    background: transparent;
+    accessible-role: button;
+    accessible-label: root.label;
+    accessible-action-default => { root.activated(); }
+
+    Text {
+        y: 0px;
+        text: root.label;
+        color: root.selected ? AppColors.ink : AppColors.text-muted;
+        font-size: 14px;
+        font-weight: root.selected ? 700 : 600;
+    }
+    if root.selected: Rectangle {
+        y: 28px;
+        width: 56px;
+        height: 3px;
+        border-radius: 2px;
+        background: AppColors.brand;
+    }
+    TouchArea { mouse-cursor: pointer; clicked => { root.activated(); } }
+}
+
+component ModelActionButton inherits Rectangle {
+    in property <string> label;
+    in property <bool> primary;
+    in property <bool> enabled: true;
+    callback activated();
+    width: 110px;
+    height: 40px;
+    border-radius: 8px;
+    background: root.primary ? AppColors.brand : AppColors.surface-subtle;
+    opacity: root.enabled ? 1 : 0.55;
+    accessible-role: button;
+    accessible-label: root.label;
+    accessible-enabled: root.enabled;
+    accessible-action-default => { if root.enabled { root.activated(); } }
+    Text { text: root.label; color: root.primary ? #ffffff : AppColors.text; font-size: 12px; font-weight: 650; horizontal-alignment: center; vertical-alignment: center; }
+    TouchArea { enabled: root.enabled; mouse-cursor: root.enabled ? pointer : default; clicked => { root.activated(); } }
+}
+
+component ChevronButton inherits Rectangle {
+    in property <bool> open;
+    callback activated();
+    width: 32px;
+    height: 32px;
+    background: transparent;
+    Image {
+        x: 9px;
+        y: 9px;
+        width: 14px;
+        height: 14px;
+        source: root.open ? @image-url("../../icons/lucide/chevron-up.svg") : @image-url("../../icons/lucide/chevron-down.svg");
+        colorize: AppColors.text-muted;
+    }
+    TouchArea { mouse-cursor: pointer; clicked => { root.activated(); } }
+}
+
+component ServiceCard inherits Rectangle {
+    in property <image> icon;
+    in property <string> name;
+    in property <string> detail;
+    in property <string> status;
+    in property <bool> healthy;
+    in property <bool> open;
+    callback activated();
+    height: 72px;
+    border-radius: 12px;
+    background: AppColors.surface;
+
+    Image { x: 18px; y: 20px; width: 20px; height: 20px; source: root.icon; colorize: AppColors.ink; }
+    Text { x: 50px; y: 13px; text: root.name; color: AppColors.ink; font-size: 14px; font-weight: 650; }
+    Text { x: 50px; y: 37px; text: root.detail; color: AppColors.text-muted; font-size: 10px; }
+    Text { x: parent.width - 110px; y: 27px; width: 82px; text: root.status; color: root.healthy ? AppColors.success : AppColors.text-muted; font-size: 10px; font-weight: 650; horizontal-alignment: right; }
+    ChevronButton { x: parent.width - 32px; y: 20px; open: root.open; activated => { root.activated(); } }
+    TouchArea { x: 0px; y: 0px; width: parent.width - 32px; height: parent.height; mouse-cursor: pointer; clicked => { root.activated(); } }
+}
+
+component ApiKeyField inherits Rectangle {
+    in-out property <string> value;
+    in property <bool> reveal;
+    in property <bool> error;
     in property <string> accessible-name;
     callback accepted(string);
+    callback toggle-reveal();
+    forward-focus: field-input;
     height: 42px;
-    clip: true;
-    border-width: 1px;
-    border-color: api-input.has-focus ? AppColors.brand : AppColors.border;
     border-radius: 8px;
-    background: AppColors.surface;
-    horizontal-stretch: 1;
+    border-width: field-input.has-focus || root.error ? 1px : 0px;
+    border-color: root.error ? AppColors.danger : AppColors.brand;
+    background: AppColors.sidebar;
+    clip: true;
 
-    if root.text.is-empty: Text {
-        x: 13px;
-        text: root.placeholder-text;
-        color: #a1a1aa;
-        font-size: 12px;
-        vertical-alignment: center;
-    }
-
-    api-input := TextInput {
-        x: 13px;
-        width: max(parent.width - 26px, self.preferred-width);
-        text <=> root.text;
-        input-type: InputType.password;
+    field-input := TextInput {
+        x: 15px;
+        width: parent.width - 55px;
+        text <=> root.value;
+        input-type: root.reveal ? InputType.text : InputType.password;
         accessible-label: root.accessible-name;
-        accessible-value: root.text.is-empty ? "" : "已填写";
-        color: AppColors.ink;
+        accessible-value: root.value.is-empty ? "" : "已填写";
+        color: AppColors.text;
         font-size: 12px;
         vertical-alignment: center;
         accepted => { root.accepted(self.text); }
+    }
+    Image { x: parent.width - 27px; y: 13px; width: 16px; height: 16px; source: @image-url("../../icons/lucide/eye.svg"); colorize: AppColors.text-muted; }
+    TouchArea { x: parent.width - 40px; width: 40px; mouse-cursor: pointer; clicked => { root.toggle-reveal(); } }
+}
+
+export component ModelConsentDialog inherits Rectangle {
+    in property <string> target;
+    in-out property <bool> consent-checked;
+    callback cancelled();
+    callback confirmed();
+    background: #1f1f1c66;
+
+    Rectangle {
+        x: parent.width - 620px;
+        y: (parent.height - 340px) / 2 + 5px;
+        width: 540px;
+        height: 340px;
+        border-radius: 14px;
+        background: AppColors.surface;
+        drop-shadow-blur: 32px;
+        drop-shadow-offset-y: 12px;
+        drop-shadow-color: #1f1f1c33;
+
+        Rectangle { x: 30px; y: 29px; width: 40px; height: 40px; border-radius: 10px; background: #f2ded6; Image { x: 10px; y: 10px; width: 20px; height: 20px; source: @image-url("../../icons/lucide/sparkles.svg"); colorize: AppColors.brand; } }
+        Text { x: 86px; y: 26px; text: "启用文本润色？"; color: AppColors.ink; font-size: 20px; font-weight: 700; }
+        Text { x: 86px; y: 56px; text: "首次启用前，请确认文本的发送范围。"; color: AppColors.text-muted; font-size: 11px; }
+        Rectangle {
+            x: 492px; y: 13px; width: 28px; height: 28px; background: transparent;
+            Image { x: 5px; y: 5px; width: 18px; height: 18px; source: @image-url("../../icons/lucide/x.svg"); colorize: AppColors.text-muted; }
+            TouchArea { mouse-cursor: pointer; clicked => { root.cancelled(); } }
+        }
+        Text { x: 30px; y: 97px; text: "Saymore 会将本次转写文本发送到所选服务完成润色。"; color: AppColors.text; font-size: 12px; }
+        Rectangle {
+            x: 30px; y: 130px; width: 480px; height: 64px; border-radius: 8px; background: AppColors.sidebar;
+            Text { x: 16px; y: 10px; text: "数据发送目标"; color: AppColors.text-muted; font-size: 9px; font-weight: 600; }
+            Text { x: 16px; y: 31px; text: root.target; color: AppColors.ink; font-size: 11px; font-weight: 600; }
+        }
+        Text { x: 30px; y: 212px; text: "仅发送本次转写文本，不发送个人词典条目。"; color: AppColors.text-muted; font-size: 10px; }
+        Rectangle {
+            x: 30px; y: 244px; width: 18px; height: 18px; border-radius: 4px; border-width: 1px; border-color: AppColors.chart-neutral; background: root.consent-checked ? AppColors.brand : AppColors.surface;
+            if root.consent-checked: Image { x: 2px; y: 2px; width: 14px; height: 14px; source: @image-url("../../icons/lucide/check.svg"); colorize: #ffffff; }
+            TouchArea { mouse-cursor: pointer; clicked => { root.consent-checked = !root.consent-checked; } }
+        }
+        Text { x: 60px; y: 244px; text: "我已了解并同意发送上述内容"; color: AppColors.ink; font-size: 11px; font-weight: 500; }
+        ModelActionButton { x: 264px; y: 284px; label: "取消"; primary: false; activated => { root.cancelled(); } }
+        Rectangle {
+            x: 384px; y: 284px; width: 126px; height: 40px; border-radius: 8px; background: AppColors.brand;
+            Text { text: "确认并测试"; color: #ffffff; font-size: 12px; font-weight: 650; horizontal-alignment: center; vertical-alignment: center; }
+            TouchArea { enabled: root.consent-checked; mouse-cursor: root.consent-checked ? pointer : default; clicked => { root.confirmed(); } }
+        }
     }
 }
 
 export component ModelsPage inherits Rectangle {
     in property <bool> focus-asr-config: false;
-    forward-focus: api-input;
-    init => { if root.focus-asr-config { root.focus(); } }
     in-out property <string> asr-api-key;
+    in-out property <string> asr-model: "bigmodel_async";
     in property <bool> asr-configured;
     in property <bool> asr-config-error;
     in property <string> asr-config-status;
@@ -52,191 +178,139 @@ export component ModelsPage inherits Rectangle {
     in property <bool> llm-provider-local;
     in property <string> llm-config-status;
     in-out property <bool> llm-confirmation-visible: false;
-    callback save-asr-config(string);
-    callback delete-asr-config();
+    callback save-asr-config(string, string);
     callback request-llm-enable();
     callback set-llm-enabled(bool, string);
     callback save-llm-config(LlmProvider, string);
     callback select-llm-provider(LlmProvider);
+
+    private property <int> active-tab: 0;
+    private property <bool> service-menu-open: false;
+    private property <bool> model-menu-open: false;
+    private property <bool> advanced-visible: false;
+    private property <bool> api-key-visible: false;
+    private property <bool> manual-model: false;
+    private property <string> active-api-key: root.active-tab == 0 ? root.asr-api-key : root.llm-provider == LlmProvider.deepseek ? root.deepseek-api-key : root.sensenova-api-key;
+    private property <string> service-name: root.active-tab == 0 ? "火山引擎" : root.llm-provider == LlmProvider.deepseek ? "DeepSeek" : "商汤 SenseNova";
+    private property <string> model-name: root.active-tab == 0 ? root.asr-model : root.llm-provider == LlmProvider.deepseek ? "deepseek-v4-flash" : "sensenova-6.7-flash-lite";
+    private property <bool> service-healthy: root.active-tab == 0 ? root.asr-configured && !root.asr-config-error : root.llm-enabled;
+    private property <string> service-status: root.service-healthy ? "●  连接正常" : root.active-tab == 0 ? root.asr-config-status : root.llm-config-status;
+    private property <length> config-height: root.advanced-visible ? 250px : 228px;
+    private property <length> action-y: root.advanced-visible ? 550px : 525px;
+    forward-focus: asr-field;
+    init => { if root.focus-asr-config { root.focus(); } }
     background: transparent;
 
-    VerticalLayout {
-        padding-left: 30px;
-        padding-right: 30px;
-        padding-top: 28px;
-        padding-bottom: 22px;
-        spacing: 9px;
+    Text { x: 0px; y: 44px; text: "模型"; color: AppColors.ink; font-size: 27px; font-weight: 700; }
+    ModelTab { x: 0px; y: 89px; label: "语音识别"; selected: root.active-tab == 0; activated => { root.active-tab = 0; root.service-menu-open = false; root.model-menu-open = false; } }
+    ModelTab { x: 97px; y: 89px; label: "文本润色"; selected: root.active-tab == 1; activated => { root.active-tab = 1; root.service-menu-open = false; root.model-menu-open = false; } }
+    Rectangle { x: 0px; y: 120px; width: parent.width - 1px; height: 1px; background: AppColors.border; }
 
-        Text { height: 42px; text: "模型"; color: AppColors.ink; font-size: 27px; font-weight: 700; vertical-alignment: center; }
-
-        HorizontalLayout {
-            height: 34px;
-            alignment: space-between;
-            cross-axis-alignment: center;
-            Text { text: "语音识别"; color: AppColors.ink; font-size: 15px; font-weight: 650; }
-            StatusPill { label: root.asr-config-status; granted: root.asr-configured && !root.asr-config-error; }
-        }
-
-        Text { height: 20px; text: "火山引擎 · API Key 仅保存在本机"; color: AppColors.text-muted; font-size: 12px; }
-
-        HorizontalLayout {
-            height: 42px;
-            spacing: 10px;
-            api-field := Rectangle {
-                clip: true;
-                border-width: 1px;
-                border-color: api-input.has-focus ? AppColors.brand : AppColors.border;
-                border-radius: 8px;
-                background: AppColors.surface;
-                horizontal-stretch: 1;
-
-                if root.asr-api-key.is-empty: Text { x: 13px; text: "输入火山引擎 API Key"; color: #a1a1aa; font-size: 12px; vertical-alignment: center; }
-
-                api-input := TextInput {
-                    x: 13px;
-                    width: max(parent.width - 26px, self.preferred-width);
-                    text <=> root.asr-api-key;
-                    input-type: InputType.password;
-                    accessible-label: "火山引擎 API Key";
-                    accessible-value: root.asr-api-key.is-empty ? "" : "已填写";
-                    color: AppColors.ink;
-                    font-size: 12px;
-                    vertical-alignment: center;
-                    accepted => { root.save-asr-config(self.text); }
-                }
-            }
-            AppButton { text: "保存配置"; primary: true; enabled: !root.asr-api-key.is-empty; clicked => { root.save-asr-config(api-input.text); } }
-            AppButton { text: "删除"; danger: true; enabled: root.asr-configured; clicked => { root.delete-asr-config(); } }
-        }
-
-        Rectangle { height: 1px; background: AppColors.border; }
-
-        HorizontalLayout {
-            height: 36px;
-            cross-axis-alignment: center;
-            Text { text: "大模型提供商"; color: AppColors.text; font-size: 15px; font-weight: 650; }
-            Rectangle { horizontal-stretch: 1; background: transparent; }
-            AppSelect {
-                width: 174px;
-                model: ["商汤 SenseNova", "DeepSeek"];
-                current-value: root.llm-provider == LlmProvider.deepseek ? "DeepSeek" : "商汤 SenseNova";
-                selected(value) => {
-                    root.llm-provider = value == "DeepSeek" ? LlmProvider.deepseek : LlmProvider.sensenova;
-                    root.select-llm-provider(root.llm-provider);
-                }
-            }
-        }
-
-        HorizontalLayout {
-            height: 42px;
-            spacing: 10px;
-            if root.llm-provider == LlmProvider.sensenova: ModelApiKeyField {
-                text <=> root.sensenova-api-key;
-                placeholder-text: "输入商汤 SenseNova API Key";
-                accessible-name: "商汤 SenseNova API Key";
-                accepted(value) => { root.save-llm-config(LlmProvider.sensenova, value); }
-            }
-            if root.llm-provider == LlmProvider.deepseek: ModelApiKeyField {
-                text <=> root.deepseek-api-key;
-                placeholder-text: "输入 DeepSeek API Key";
-                accessible-name: "DeepSeek API Key";
-                accepted(value) => { root.save-llm-config(LlmProvider.deepseek, value); }
-            }
-            AppButton {
-                text: "保存 API Key";
-                primary: true;
-                enabled: root.llm-provider == LlmProvider.deepseek ? !root.deepseek-api-key.is-empty : !root.sensenova-api-key.is-empty;
-                clicked => {
-                    root.save-llm-config(
-                        root.llm-provider,
-                        root.llm-provider == LlmProvider.deepseek ? root.deepseek-api-key : root.sensenova-api-key
-                    );
-                }
-            }
-        }
-
-        AppCheckBox {
-            height: 32px;
-            text: "启用大模型润色";
-            checked <=> root.llm-enabled;
-            toggled => {
-                if self.checked {
-                    root.llm-enabled = false;
-                    root.request-llm-enable();
-                } else if !root.llm-confirmation-visible {
-                    root.set-llm-enabled(false, "");
-                }
-            }
-        }
-        Text { height: 20px; text: root.llm-config-status; color: AppColors.text-muted; font-size: 12px; }
-        HorizontalLayout {
-            height: 42px;
-            spacing: 20px;
-            VerticalLayout {
-                spacing: 2px;
-                Text { text: "语音识别"; color: AppColors.text-muted; font-size: 10px; }
-                Text { text: "豆包流式语音识别模型 2.0"; color: AppColors.text; font-size: 11px; }
-            }
-            VerticalLayout {
-                spacing: 2px;
-                Text { text: "规则标准化"; color: AppColors.text-muted; font-size: 10px; }
-                Text { text: "基础标点与数字格式"; color: AppColors.text; font-size: 11px; }
-            }
-            VerticalLayout {
-                spacing: 2px;
-                Text { text: "文本处理"; color: AppColors.text-muted; font-size: 10px; }
-                Text {
-                    text: root.llm-enabled ? (root.llm-provider == LlmProvider.deepseek ? "DeepSeek 润色" : "SenseNova 润色") : "仅安全本地清理";
-                    color: AppColors.text;
-                    font-size: 11px;
-                }
-            }
-        }
-        Rectangle { vertical-stretch: 1; background: transparent; }
+    Text { x: 0px; y: 140px; text: root.active-tab == 0 ? "语音识别服务" : "文本润色服务"; color: AppColors.text; font-size: 14px; font-weight: 650; }
+    ServiceCard {
+        x: 0px; y: 166px; width: parent.width - 1px;
+        icon: root.active-tab == 0 ? @image-url("../../icons/lucide/audio-lines.svg") : @image-url("../../icons/lucide/sparkles.svg");
+        name: root.service-name;
+        detail: root.model-name + " · 当前默认";
+        status: root.service-status;
+        healthy: root.service-healthy;
+        open: root.service-menu-open;
+        activated => { root.service-menu-open = !root.service-menu-open; root.model-menu-open = false; }
     }
 
-    if root.llm-confirmation-visible: Rectangle {
-        x: 0px;
-        y: 0px;
-        width: parent.width;
-        height: parent.height;
-        background: #00000066;
+    Text { x: 0px; y: 258px; text: "连接配置"; color: AppColors.text; font-size: 14px; font-weight: 650; }
+    Rectangle {
+        x: 0px; y: 283px; width: parent.width - 1px; height: root.config-height; border-radius: 12px; background: AppColors.surface;
+
+        Text { x: 18px; y: root.advanced-visible ? 11px : 17px; text: "API Key"; color: AppColors.text; font-size: 11px; font-weight: 600; }
+        Text { x: parent.width - 88px; y: 17px; text: "获取密钥 ↗"; color: AppColors.brand; font-size: 10px; font-weight: 600; }
+
+        asr-field := ApiKeyField {
+            visible: root.active-tab == 0;
+            x: 18px; y: root.advanced-visible ? 30px : 39px; width: parent.width - 36px; height: root.advanced-visible ? 36px : 42px;
+            value <=> root.asr-api-key; reveal: root.api-key-visible; error: root.asr-config-error; accessible-name: "火山引擎 API Key";
+            accepted(value) => { root.save-asr-config(value, root.asr-model); }
+            toggle-reveal => { root.api-key-visible = !root.api-key-visible; }
+        }
+        if root.active-tab == 1 && root.llm-provider == LlmProvider.sensenova: ApiKeyField {
+            x: 18px; y: 39px; width: parent.width - 36px; value <=> root.sensenova-api-key; reveal: root.api-key-visible; error: false; accessible-name: "商汤 SenseNova API Key";
+            accepted(value) => { root.save-llm-config(LlmProvider.sensenova, value); }
+            toggle-reveal => { root.api-key-visible = !root.api-key-visible; }
+        }
+        if root.active-tab == 1 && root.llm-provider == LlmProvider.deepseek: ApiKeyField {
+            x: 18px; y: 39px; width: parent.width - 36px; value <=> root.deepseek-api-key; reveal: root.api-key-visible; error: false; accessible-name: "DeepSeek API Key";
+            accepted(value) => { root.save-llm-config(LlmProvider.deepseek, value); }
+            toggle-reveal => { root.api-key-visible = !root.api-key-visible; }
+        }
+
+        Text { x: 18px; y: root.advanced-visible ? 77px : 95px; text: "模型"; color: AppColors.text; font-size: 11px; font-weight: 600; }
+        Rectangle {
+            x: 18px; y: root.advanced-visible ? 96px : 116px; width: parent.width - 36px; height: root.advanced-visible ? 36px : 42px; border-radius: 8px; background: AppColors.sidebar;
+            if root.active-tab == 0 && root.manual-model: TextInput { x: 15px; width: parent.width - 50px; text <=> root.asr-model; color: AppColors.text; font-size: 12px; vertical-alignment: center; }
+            if root.active-tab != 0 || !root.manual-model: Text { x: 15px; width: parent.width - 50px; text: root.model-name; color: AppColors.text; font-size: 12px; vertical-alignment: center; overflow: elide; }
+            ChevronButton { x: parent.width - 38px; y: (parent.height - 32px) / 2; open: root.model-menu-open; activated => { root.model-menu-open = !root.model-menu-open; root.service-menu-open = false; } }
+        }
 
         Rectangle {
-            width: 440px;
-            height: 250px;
-            x: (parent.width - self.width) / 2;
-            y: (parent.height - self.height) / 2;
-            background: AppColors.surface;
-            border-radius: 8px;
+            x: 18px; y: root.advanced-visible ? 142px : 166px; width: parent.width - 36px; height: 34px; background: transparent;
+            Text { x: root.advanced-visible ? 0px : 15px; text: "高级设置"; color: AppColors.text; font-size: 11px; font-weight: 600; vertical-alignment: center; }
+            if !root.advanced-visible: Text { x: 81px; text: root.active-tab == 0 ? "服务地址与自定义请求头" : "服务地址、自定义请求头与数据发送说明"; color: AppColors.text-muted; font-size: 10px; vertical-alignment: center; }
+            Image { x: parent.width - 24px; y: 10px; width: 14px; height: 14px; source: root.advanced-visible ? @image-url("../../icons/lucide/chevron-up.svg") : @image-url("../../icons/lucide/chevron-right.svg"); colorize: AppColors.text-muted; }
+            TouchArea { mouse-cursor: pointer; clicked => { root.advanced-visible = !root.advanced-visible; root.model-menu-open = false; } }
+        }
 
-            VerticalLayout {
-                padding: 24px;
-                spacing: 14px;
-                Text { height: 28px; text: "确认启用云端润色"; color: AppColors.ink; font-size: 18px; font-weight: 650; }
-                Text {
-                    height: 76px;
-                    text: "启用后，Saymore 会把本次转写文本发送到以下服务进行润色：\n" + root.llm-provider-target + "\n当前版本不发送个人词典条目。";
-                    color: AppColors.text;
-                    font-size: 13px;
-                    wrap: word-wrap;
-                }
-                Rectangle { vertical-stretch: 1; background: transparent; }
-                HorizontalLayout {
-                    height: 40px;
-                    spacing: 10px;
-                    alignment: end;
-                    AppButton { text: "取消"; clicked => { root.llm-confirmation-visible = false; } }
-                    AppButton {
-                        primary: true;
-                        text: "确认启用";
-                        clicked => {
-                            root.llm-confirmation-visible = false;
-                            root.set-llm-enabled(true, root.llm-provider-target);
-                        }
-                    }
-                }
-            }
+        if root.advanced-visible: Text { x: 18px; y: 171px; text: "服务地址"; color: AppColors.text; font-size: 11px; font-weight: 600; }
+        if root.advanced-visible: Text { x: parent.width - 119px; y: 171px; text: "+ 自定义请求头"; color: AppColors.brand; font-size: 10px; font-weight: 600; }
+        if root.advanced-visible: Rectangle {
+            x: 18px; y: 190px; width: parent.width - 36px; height: 36px; border-radius: 8px; background: AppColors.sidebar;
+            Text { x: 15px; text: root.active-tab == 0 ? "https://openspeech.bytedance.com" : root.llm-provider == LlmProvider.deepseek ? "https://api.deepseek.com" : "https://token.sensenova.cn/v1"; color: AppColors.text; font-size: 11px; vertical-alignment: center; }
+        }
+    }
+
+    ModelActionButton {
+        x: 0px; y: root.action-y; label: "保存配置"; primary: true; enabled: !root.active-api-key.is-empty;
+        activated => {
+            if root.active-tab == 0 { root.save-asr-config(root.asr-api-key, root.asr-model); }
+            else { root.save-llm-config(root.llm-provider, root.active-api-key); }
+        }
+    }
+    ModelActionButton {
+        x: 120px; y: root.action-y; label: "测试连接"; primary: false; enabled: root.active-tab == 0 ? root.asr-configured : !root.active-api-key.is-empty;
+        activated => { if root.active-tab == 1 { root.request-llm-enable(); } }
+    }
+    Text { x: parent.width - 112px; y: root.action-y + 13px; width: 111px; text: root.service-status; color: root.service-healthy ? AppColors.success : AppColors.text-muted; font-size: 10px; font-weight: 650; horizontal-alignment: right; }
+
+    if root.service-menu-open: Rectangle {
+        x: 0px; y: 242px; width: parent.width - 1px; height: 124px; border-radius: 12px; background: AppColors.surface; drop-shadow-blur: 18px; drop-shadow-offset-y: 6px; drop-shadow-color: #1f1f1c1a;
+        Rectangle {
+            x: 12px; y: 12px; width: parent.width - 24px; height: 48px; border-radius: 8px; background: AppColors.sidebar;
+            Image { x: 16px; y: 14px; width: 18px; height: 18px; source: root.active-tab == 0 ? @image-url("../../icons/lucide/audio-lines.svg") : @image-url("../../icons/lucide/sparkles.svg"); colorize: AppColors.ink; }
+            Text { x: 46px; y: 5px; text: root.active-tab == 0 ? "火山引擎" : "商汤 SenseNova"; color: AppColors.ink; font-size: 12px; font-weight: 650; }
+            Text { x: 46px; y: 27px; text: root.active-tab == 0 ? "豆包流式语音识别模型 2.0" : "sensenova-6.7-flash-lite"; color: AppColors.text-muted; font-size: 9px; }
+            Image { x: parent.width - 29px; y: 17px; width: 14px; height: 14px; source: @image-url("../../icons/lucide/check.svg"); colorize: AppColors.success; }
+            TouchArea { mouse-cursor: pointer; clicked => { if root.active-tab == 1 { root.llm-provider = LlmProvider.sensenova; root.select-llm-provider(root.llm-provider); } root.service-menu-open = false; } }
+        }
+        Rectangle {
+            x: 12px; y: 64px; width: parent.width - 24px; height: 48px; border-radius: 8px; background: AppColors.surface;
+            Image { x: 16px; y: 14px; width: 18px; height: 18px; source: root.active-tab == 0 ? @image-url("../../icons/lucide/braces.svg") : @image-url("../../icons/lucide/sparkles.svg"); colorize: AppColors.text-muted; }
+            Text { x: 46px; y: 5px; text: root.active-tab == 0 ? "自定义兼容接口" : "DeepSeek"; color: AppColors.ink; font-size: 12px; font-weight: 650; }
+            Text { x: 46px; y: 27px; text: root.active-tab == 0 ? "手动配置服务地址、模型与请求头" : "deepseek-v4-flash"; color: AppColors.text-muted; font-size: 9px; }
+            TouchArea { mouse-cursor: pointer; clicked => { if root.active-tab == 1 { root.llm-provider = LlmProvider.deepseek; root.select-llm-provider(root.llm-provider); } root.service-menu-open = false; } }
+        }
+    }
+
+    if root.model-menu-open: Rectangle {
+        x: 18px; y: 443px; width: parent.width - 37px; height: 100px; border-radius: 10px; background: AppColors.surface; drop-shadow-blur: 18px; drop-shadow-offset-y: 6px; drop-shadow-color: #1f1f1c1a;
+        Rectangle {
+            x: 10px; y: 10px; width: parent.width - 20px; height: 36px; border-radius: 7px; background: AppColors.sidebar;
+            Text { x: 14px; text: root.model-name; color: AppColors.text; font-size: 11px; vertical-alignment: center; }
+            Image { x: parent.width - 24px; y: 11px; width: 14px; height: 14px; source: @image-url("../../icons/lucide/check.svg"); colorize: AppColors.success; }
+            TouchArea { mouse-cursor: pointer; clicked => { root.manual-model = false; if root.active-tab == 0 { root.asr-model = "bigmodel_async"; } root.model-menu-open = false; } }
+        }
+        Rectangle {
+            x: 10px; y: 54px; width: parent.width - 20px; height: 36px; border-radius: 7px; background: AppColors.surface;
+            Text { x: 14px; text: "手动输入模型名称"; color: AppColors.text; font-size: 11px; vertical-alignment: center; }
+            TouchArea { enabled: root.active-tab == 0; mouse-cursor: root.active-tab == 0 ? pointer : default; clicked => { root.manual-model = true; root.asr-model = ""; root.model-menu-open = false; } }
         }
     }
 }
