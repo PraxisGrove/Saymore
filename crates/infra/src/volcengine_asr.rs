@@ -21,6 +21,7 @@ use uuid::Uuid;
 const ENDPOINT: &str = "wss://openspeech.bytedance.com/api/v3/sauc/bigmodel_async";
 const RESOURCE_ID: &str = "volc.seedasr.sauc.duration";
 const FINAL_TIMEOUT: Duration = Duration::from_secs(30);
+const CONNECTION_TEST_TIMEOUT: Duration = Duration::from_secs(8);
 const AUDIO_QUEUE_CAPACITY: usize = 128;
 
 pub struct VolcengineSpeechRecognizer {
@@ -46,7 +47,25 @@ impl VolcengineSpeechRecognizer {
             .send(Message::Binary(encode_config_request()?.into()))
             .await
             .map_err(transport_error)?;
-        socket.close(None).await.map_err(transport_error)
+        socket
+            .send(Message::Binary(encode_audio_request(-2, &[], true)?.into()))
+            .await
+            .map_err(transport_error)?;
+        let response = tokio::time::timeout(CONNECTION_TEST_TIMEOUT, socket.next())
+            .await
+            .map_err(|_| SpeechRecognitionError::Timeout)?;
+        let result = match response {
+            Some(Ok(Message::Binary(bytes))) => parse_server_message(&bytes).map(|_| ()),
+            Some(Ok(Message::Close(_))) | None => Err(SpeechRecognitionError::Transport(
+                "ASR connection closed during testing".to_owned(),
+            )),
+            Some(Ok(_)) => Err(SpeechRecognitionError::Protocol(
+                "ASR test response is not binary".to_owned(),
+            )),
+            Some(Err(error)) => Err(transport_error(error)),
+        };
+        let _ = socket.close(None).await;
+        result
     }
 }
 

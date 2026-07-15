@@ -2,11 +2,11 @@ use std::sync::Arc;
 
 use slint::{ComponentHandle, SharedString};
 use template_app::{
-    LlmProviderPreset, ProviderConfigStore, SettingsStore, SettingsStoreError,
-    VolcengineAsrSettings,
+    LlmProviderPreset, ProviderConfigStore, SaymoreSettings, SettingsStore, SettingsStoreError,
+    SpeechRecognitionError, VolcengineAsrSettings,
 };
 #[cfg(test)]
-use template_app::{ProviderCatalog, ProviderInstance, SaymoreSettings};
+use template_app::{ProviderCatalog, ProviderInstance};
 #[cfg(test)]
 use template_infra::AppEnvironment;
 use template_infra::{ChatCompletionsLlmProvider, JsonSettingsStore, VolcengineSpeechRecognizer};
@@ -14,6 +14,8 @@ use template_infra::{ChatCompletionsLlmProvider, JsonSettingsStore, VolcengineSp
 use crate::ui::{AppWindow, LlmProvider as UiLlmProvider};
 
 mod model_discovery;
+#[cfg(test)]
+mod regression_tests;
 
 const VOLCENGINE_MODEL: &str = "bigmodel_async";
 #[cfg(test)]
@@ -68,39 +70,7 @@ fn wire_asr(ui: &AppWindow, store: Arc<JsonSettingsStore>) {
         let Some(ui) = test_ui.upgrade() else {
             return;
         };
-        let api_key = ui.get_asr_api_key().to_string();
-        let model = ui.get_asr_model().to_string();
-        if let Err(error) = save_asr_configuration(&test_store, &api_key, &model) {
-            let status = match error {
-                AsrConfigError::MissingApiKey => "请输入 API Key",
-                AsrConfigError::MissingModel => "请输入模型名称",
-                AsrConfigError::Store => "保存失败",
-            };
-            apply_status(&ui, false, true, status);
-            return;
-        }
-        ui.set_asr_testing(true);
-        ui.set_asr_pending_test(false);
-        ui.set_asr_config_error(false);
-        ui.set_asr_config_status(SharedString::from("正在测试连接"));
-        let result_ui = ui.as_weak();
-        let spawn_result = std::thread::Builder::new()
-            .name("saymore-test-asr".to_owned())
-            .spawn(move || {
-                let result = test_asr_connection(api_key);
-                let _ = result_ui.upgrade_in_event_loop(move |ui| {
-                    ui.set_asr_testing(false);
-                    if result.is_ok() {
-                        apply_status(&ui, true, false, "连接正常");
-                    } else {
-                        apply_status(&ui, true, true, "连接失败");
-                    }
-                });
-            });
-        if spawn_result.is_err() {
-            ui.set_asr_testing(false);
-            apply_status(&ui, true, true, "连接失败");
-        }
+        begin_asr_connection_test(&ui, Arc::clone(&test_store));
     });
 
     let delete_ui = ui.as_weak();
@@ -118,6 +88,46 @@ fn wire_asr(ui: &AppWindow, store: Arc<JsonSettingsStore>) {
             Err(_) => apply_status(&ui, true, true, "删除失败"),
         }
     });
+}
+
+fn begin_asr_connection_test(ui: &AppWindow, store: Arc<JsonSettingsStore>) {
+    let api_key = ui.get_asr_api_key().to_string();
+    let model = ui.get_asr_model().to_string();
+    if let Err(error) = save_asr_configuration(&store, &api_key, &model) {
+        let status = match error {
+            AsrConfigError::MissingApiKey => "请输入 API Key",
+            AsrConfigError::MissingModel => "请输入模型名称",
+            AsrConfigError::Store => "保存失败",
+        };
+        apply_status(ui, false, true, status);
+        return;
+    }
+    ui.set_asr_testing(true);
+    ui.set_asr_pending_test(false);
+    ui.set_asr_config_error(false);
+    ui.set_asr_config_status(SharedString::from("正在测试连接"));
+    let result_ui = ui.as_weak();
+    let spawn_result = std::thread::Builder::new()
+        .name("saymore-test-asr".to_owned())
+        .spawn(move || {
+            let result = test_asr_connection(api_key);
+            if let Err(error) = &result {
+                tracing::warn!(event = "asr.connection_test_failed", reason = %error);
+            }
+            let _ = result_ui.upgrade_in_event_loop(move |ui| {
+                ui.set_asr_testing(false);
+                match result {
+                    Ok(()) => apply_status(&ui, true, false, "连接正常"),
+                    Err(error) => {
+                        apply_status(&ui, true, true, asr_test_failure_status(&error));
+                    }
+                }
+            });
+        });
+    if spawn_result.is_err() {
+        ui.set_asr_testing(false);
+        apply_status(ui, true, true, "连接失败");
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -160,15 +170,24 @@ fn clear_asr_configuration(store: &JsonSettingsStore) -> Result<(), SettingsStor
     })
 }
 
-fn test_asr_connection(api_key: String) -> Result<(), String> {
-    let recognizer = VolcengineSpeechRecognizer::new(api_key).map_err(|error| error.to_string())?;
+fn test_asr_connection(api_key: String) -> Result<(), SpeechRecognitionError> {
+    let recognizer = VolcengineSpeechRecognizer::new(api_key)?;
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
-        .map_err(|error| error.to_string())?;
-    runtime
-        .block_on(recognizer.test_connection())
-        .map_err(|error| error.to_string())
+        .map_err(|error| SpeechRecognitionError::Transport(error.to_string()))?;
+    runtime.block_on(recognizer.test_connection())
+}
+
+fn asr_test_failure_status(error: &SpeechRecognitionError) -> &'static str {
+    match error {
+        SpeechRecognitionError::NotConfigured => "请先填写 API Key",
+        SpeechRecognitionError::Authentication => "API Key 无效，请检查后重试",
+        SpeechRecognitionError::Quota => "当前语音服务额度不可用",
+        SpeechRecognitionError::Transport(_) => "无法连接语音服务，请检查网络后重试",
+        SpeechRecognitionError::Protocol(_) => "语音服务响应异常，请稍后重试",
+        SpeechRecognitionError::Timeout => "连接测试超时，请稍后重试",
+    }
 }
 
 fn wire_llm(ui: &AppWindow, store: Arc<JsonSettingsStore>) {
@@ -247,7 +266,15 @@ fn wire_llm_enablement(ui: &AppWindow, store: Arc<JsonSettingsStore>) {
         let local = provider_is_local(&base_url);
         ui.set_llm_provider_target(SharedString::from(&base_url));
         ui.set_llm_provider_local(local);
-        ui.set_llm_confirmation_visible(true);
+        let Ok(settings) = prepare_store.load() else {
+            ui.set_llm_config_status(SharedString::from("配置读取失败"));
+            return;
+        };
+        if llm_consent_required(&settings, &base_url) {
+            ui.set_llm_confirmation_visible(true);
+        } else {
+            start_llm_test(&ui, Arc::clone(&prepare_store), provider);
+        }
     });
 
     let llm_ui = ui.as_weak();
@@ -273,8 +300,27 @@ fn wire_llm_enablement(ui: &AppWindow, store: Arc<JsonSettingsStore>) {
             ui.set_llm_config_status(SharedString::from("模型提供商已改变"));
             return;
         }
+        if persist_llm_consent(&store, provider).is_err() {
+            ui.set_llm_config_status(SharedString::from("授权保存失败"));
+            return;
+        }
         start_llm_test(&ui, Arc::clone(&store), provider);
     });
+}
+
+fn llm_consent_required(settings: &SaymoreSettings, expected_base_url: &str) -> bool {
+    settings.llm.confirmed_base_url.trim() != expected_base_url.trim()
+}
+
+fn persist_llm_consent(
+    store: &JsonSettingsStore,
+    provider: LlmProviderPreset,
+) -> Result<(), SettingsStoreError> {
+    store.load().and_then(|mut settings| {
+        settings.llm.enabled = false;
+        settings.llm.confirmed_base_url = provider.base_url().to_owned();
+        store.save(&settings)
+    })
 }
 
 fn start_llm_test(ui: &AppWindow, store: Arc<JsonSettingsStore>, provider: LlmProviderPreset) {
@@ -512,47 +558,6 @@ mod tests {
             Some("legacy-key"),
             catalog.llm_provider_api_key(LlmProviderPreset::SenseNova)
         );
-    }
-
-    #[test]
-    fn asr_configuration_rejects_an_empty_model() {
-        let directory =
-            std::env::temp_dir().join(format!("saymore-asr-validation-{}", Uuid::new_v4()));
-        let store = JsonSettingsStore::at_path(directory.join("providers.json"));
-
-        assert_eq!(
-            Err(AsrConfigError::MissingModel),
-            save_asr_configuration(&store, "test-key", " ")
-        );
-        assert_eq!(Ok(SaymoreSettings::default()), store.load());
-        let _ = fs::remove_dir_all(directory);
-    }
-
-    #[test]
-    fn asr_configuration_round_trips_a_custom_model_and_can_be_deleted() {
-        let directory =
-            std::env::temp_dir().join(format!("saymore-asr-round-trip-{}", Uuid::new_v4()));
-        let store = JsonSettingsStore::at_path(directory.join("providers.json"));
-
-        assert_eq!(
-            Ok(()),
-            save_asr_configuration(&store, "  test-key  ", "  custom-model  ")
-        );
-        let Ok(settings) = store.load() else {
-            panic!("saved ASR settings should be readable");
-        };
-        assert_eq!(
-            VolcengineAsrSettings {
-                enabled: true,
-                api_key: "test-key".to_owned(),
-                model: "custom-model".to_owned(),
-            },
-            settings.asr.volcengine
-        );
-
-        assert_eq!(Ok(()), clear_asr_configuration(&store));
-        assert_eq!(Ok(SaymoreSettings::default()), store.load());
-        let _ = fs::remove_dir_all(directory);
     }
 
     #[test]

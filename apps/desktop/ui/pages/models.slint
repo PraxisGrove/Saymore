@@ -313,7 +313,7 @@ export component ModelsPage inherits Rectangle {
         x: 120px; y: root.action-y; label: root.asr-testing ? "正在测试…" : root.asr-config-error && root.active-tab == 0 ? "重新测试" : "测试连接"; primary: root.asr-config-error && root.active-tab == 0; enabled: !root.active-api-key.is-empty && !root.asr-testing;
         activated => { if root.active-tab == 0 { root.request-asr-test(); } else { root.request-llm-enable(); } }
     }
-    Text { x: parent.width - 230px; y: root.action-y + 13px; width: 229px; text: root.api-key-visible ? "5 秒后自动隐藏" : root.asr-testing ? "正在测试连接" : root.asr-config-error && root.active-tab == 0 ? "API Key 无效，请检查后重试" : root.asr-pending-test && root.active-tab == 0 ? "已保存，等待连接测试" : root.service-status; color: root.asr-config-error && root.active-tab == 0 ? AppColors.danger : root.service-healthy ? AppColors.success : AppColors.text-muted; font-size: 10px; font-weight: 650; horizontal-alignment: right; }
+    Text { x: parent.width - 270px; y: root.action-y + 13px; width: 269px; text: root.api-key-visible ? "5 秒后自动隐藏" : root.asr-testing ? "正在测试连接" : root.asr-config-error && root.active-tab == 0 ? root.asr-config-status : root.asr-pending-test && root.active-tab == 0 ? "已保存，等待连接测试" : root.service-status; color: root.asr-config-error && root.active-tab == 0 ? AppColors.danger : root.service-healthy ? AppColors.success : AppColors.text-muted; font-size: 10px; font-weight: 650; horizontal-alignment: right; overflow: elide; }
 
     if root.service-menu-open: Rectangle {
         x: 0px; y: 242px; width: parent.width - 1px; height: root.active-tab == 0 ? 72px : 124px; border-radius: 12px; background: AppColors.surface; drop-shadow-blur: 18px; drop-shadow-offset-y: 6px; drop-shadow-color: #1f1f1c1a;

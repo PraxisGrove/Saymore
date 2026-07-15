@@ -136,7 +136,7 @@ impl ProviderCatalog {
         if let Some(index) = self.llm_provider_index(preset) {
             let provider = &mut self.llm_providers[index];
             let previous_id = provider.id.clone();
-            if provider.config != config {
+            if provider.config.get("base_url") != config.get("base_url") {
                 provider.data_consent = None;
             }
             provider.id = preset.id().to_owned();
@@ -236,7 +236,7 @@ pub trait ProviderConfigStore: Send + Sync {
 
 #[cfg(test)]
 mod tests {
-    use super::{LlmProviderPreset, ProviderCatalog};
+    use super::{LlmProviderPreset, ProviderCatalog, ProviderDataConsent};
 
     #[test]
     fn exposes_a_provider_model_only_after_configuration_is_saved() {
@@ -273,6 +273,29 @@ mod tests {
         assert_eq!(
             Some("deepseek-v4-pro"),
             catalog.configured_llm_provider_model(LlmProviderPreset::DeepSeek)
+        );
+    }
+
+    #[test]
+    fn changing_credentials_or_model_preserves_endpoint_consent() {
+        let mut catalog = ProviderCatalog::default();
+        catalog.save_llm_provider_config(LlmProviderPreset::DeepSeek, "old-key");
+        catalog.llm_providers[0].data_consent = Some(ProviderDataConsent {
+            fingerprint: "endpoint:https://api.deepseek.com".to_owned(),
+        });
+
+        catalog.save_llm_provider_model_config(
+            LlmProviderPreset::DeepSeek,
+            "new-key",
+            "deepseek-v4-pro",
+        );
+
+        assert_eq!(
+            Some("endpoint:https://api.deepseek.com"),
+            catalog.llm_providers[0]
+                .data_consent
+                .as_ref()
+                .map(|consent| consent.fingerprint.as_str())
         );
     }
 }
