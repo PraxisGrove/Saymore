@@ -23,7 +23,12 @@ pub struct UsageSummary {
     pub highlighted_day: Option<usize>,
 }
 
-/// Loads persisted history and summarizes the cumulative and rolling seven-day usage.
+/// Loads persisted history for presentation callers and summarizes cumulative and
+/// rolling seven-day usage.
+///
+/// The loader follows every history page and returns the first [`StorageError`]
+/// unchanged, without returning a partial summary. Existing callers are unaffected
+/// because this is an additive API in the application crate.
 pub fn load_usage_summary(
     store: &dyn HistoryStore,
     today: NaiveDate,
@@ -91,7 +96,9 @@ fn summarize_history(
 
 #[cfg(test)]
 mod tests {
-    use crate::{HistoryDelivery, HistoryRefinement};
+    use std::{collections::VecDeque, sync::Mutex};
+
+    use crate::{HistoryDelivery, HistoryPage, HistoryRefinement, NewHistoryRecord};
 
     use super::*;
 
@@ -140,6 +147,53 @@ mod tests {
         );
     }
 
+    #[test]
+    fn public_loader_follows_pages_before_summarizing() {
+        let cursor = HistoryCursor {
+            created_at_ms: 2,
+            id: "2".to_owned(),
+        };
+        let store = FakeHistoryStore::new([
+            Ok(HistoryPage {
+                records: vec![record(1, "第一页", 30_000)],
+                next_cursor: Some(cursor),
+            }),
+            Ok(HistoryPage {
+                records: vec![record(2, "第二页", 60_000)],
+                next_cursor: None,
+            }),
+        ]);
+
+        assert_eq!(
+            Ok(UsageSummary {
+                total_duration_ms: 90_000,
+                total_characters: 6,
+                daily_duration_ms: [0, 0, 0, 0, 0, 30_000, 60_000],
+                highlighted_day: Some(6),
+            }),
+            load_usage_summary(
+                &store,
+                NaiveDate::from_ymd_opt(2026, 7, 15).unwrap_or_default(),
+                |timestamp| NaiveDate::from_ymd_opt(2026, 7, 13 + timestamp as u32),
+            )
+        );
+    }
+
+    #[test]
+    fn public_loader_propagates_history_errors_without_a_partial_summary() {
+        let error = StorageError::Unavailable("history offline".to_owned());
+        let store = FakeHistoryStore::new([Err(error.clone())]);
+
+        assert_eq!(
+            Err(error),
+            load_usage_summary(
+                &store,
+                NaiveDate::from_ymd_opt(2026, 7, 15).unwrap_or_default(),
+                |_| None,
+            )
+        );
+    }
+
     fn record(created_at_ms: i64, text: &str, duration_ms: u64) -> HistoryRecord {
         HistoryRecord {
             id: created_at_ms.to_string(),
@@ -153,6 +207,66 @@ mod tests {
             refinement: HistoryRefinement::NotUsed,
             asr_provider_id: None,
             llm_provider_id: None,
+        }
+    }
+
+    struct FakeHistoryStore {
+        pages: Mutex<VecDeque<Result<HistoryPage, StorageError>>>,
+    }
+
+    impl FakeHistoryStore {
+        fn new(pages: impl IntoIterator<Item = Result<HistoryPage, StorageError>>) -> Self {
+            Self {
+                pages: Mutex::new(pages.into_iter().collect()),
+            }
+        }
+
+        fn unused<T>() -> Result<T, StorageError> {
+            Err(StorageError::Unavailable(
+                "unused test operation".to_owned(),
+            ))
+        }
+    }
+
+    impl HistoryStore for FakeHistoryStore {
+        fn insert_history(&self, _record: NewHistoryRecord) -> Result<(), StorageError> {
+            Self::unused()
+        }
+
+        fn history_page(
+            &self,
+            _cursor: Option<HistoryCursor>,
+            _limit: u16,
+        ) -> Result<HistoryPage, StorageError> {
+            self.pages
+                .lock()
+                .map_err(|_| StorageError::Unavailable("test history lock failed".to_owned()))?
+                .pop_front()
+                .unwrap_or_else(Self::unused)
+        }
+
+        fn update_history_delivery(
+            &self,
+            _id: &str,
+            _delivery: HistoryDelivery,
+        ) -> Result<(), StorageError> {
+            Self::unused()
+        }
+
+        fn delete_history(&self, _id: &str) -> Result<(), StorageError> {
+            Self::unused()
+        }
+
+        fn clear_history(&self) -> Result<(), StorageError> {
+            Self::unused()
+        }
+
+        fn reset_history(&self) -> Result<(), StorageError> {
+            Self::unused()
+        }
+
+        fn cleanup_history(&self, _now_ms: i64) -> Result<u64, StorageError> {
+            Self::unused()
         }
     }
 }

@@ -23,23 +23,13 @@ pub fn apply_transcription_completed(
     processed: &ProcessedText,
     delivery: Result<TextDeliveryOutcome, TextDeliveryError>,
 ) {
-    let verified = matches!(
-        &delivery,
-        Ok(TextDeliveryOutcome::AccessibilityVerified | TextDeliveryOutcome::ClipboardVerified)
-    );
+    let (verified, delivery_health_status) = delivery_health_status(&delivery);
     let attempted = matches!(
         &delivery,
         Ok(TextDeliveryOutcome::ClipboardAttempted | TextDeliveryOutcome::SecureClipboardAttempted)
     );
     ui.set_delivery_healthy(verified);
-    ui.set_delivery_status(SharedString::from(match &delivery {
-        Ok(TextDeliveryOutcome::AccessibilityVerified | TextDeliveryOutcome::ClipboardVerified) => {
-            "文本投递正常"
-        }
-        Ok(TextDeliveryOutcome::ClipboardAttempted) => "已发出粘贴，但未能验证结果",
-        Ok(TextDeliveryOutcome::SecureClipboardAttempted) => "已尝试安全输入，但未能验证结果",
-        Err(error) => text_delivery_error_message(error),
-    }));
+    ui.set_delivery_status(SharedString::from(delivery_health_status));
     ui.set_recording_active(false);
     ui.set_recording_complete(verified);
     ui.set_recording_attempted(attempted);
@@ -59,6 +49,21 @@ pub fn apply_transcription_completed(
             ui.set_recording_status(SharedString::from("投递失败"));
             ui.set_recording_detail(SharedString::from(text_delivery_error_message(&error)));
         }
+    }
+}
+
+fn delivery_health_status(
+    delivery: &Result<TextDeliveryOutcome, TextDeliveryError>,
+) -> (bool, &'static str) {
+    match delivery {
+        Ok(TextDeliveryOutcome::AccessibilityVerified | TextDeliveryOutcome::ClipboardVerified) => {
+            (true, "文本投递正常")
+        }
+        Ok(TextDeliveryOutcome::ClipboardAttempted) => (false, "已发出粘贴，但未能验证结果"),
+        Ok(TextDeliveryOutcome::SecureClipboardAttempted) => {
+            (false, "已尝试安全输入，但未能验证结果")
+        }
+        Err(error) => (false, text_delivery_error_message(error)),
     }
 }
 
@@ -320,6 +325,22 @@ mod tests {
                 &RefinementStatus::Completed,
                 TextDeliveryOutcome::SecureClipboardAttempted
             )
+        );
+    }
+
+    #[test]
+    fn delivery_health_distinguishes_verified_attempted_and_failed_results() {
+        assert_eq!(
+            (true, "文本投递正常"),
+            delivery_health_status(&Ok(TextDeliveryOutcome::ClipboardVerified))
+        );
+        assert_eq!(
+            (false, "已发出粘贴，但未能验证结果"),
+            delivery_health_status(&Ok(TextDeliveryOutcome::ClipboardAttempted))
+        );
+        assert_eq!(
+            (false, "需要辅助功能权限"),
+            delivery_health_status(&Err(TextDeliveryError::PermissionDenied))
         );
     }
 }
