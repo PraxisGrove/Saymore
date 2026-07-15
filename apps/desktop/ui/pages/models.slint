@@ -264,10 +264,13 @@ export component ModelsPage inherits Rectangle {
             TouchArea { mouse-cursor: pointer; clicked => { root.advanced-visible = !root.advanced-visible; root.model-menu-open = false; } }
         }
 
-        if root.advanced-visible: Text { x: 18px; y: 171px; text: "服务地址"; color: AppColors.text; font-size: 11px; font-weight: 600; }
-        if root.advanced-visible && root.active-tab == 1: Text { x: parent.width - 119px; y: 171px; text: "+ 自定义请求头"; color: AppColors.brand; font-size: 10px; font-weight: 600; }
         if root.advanced-visible: Rectangle {
-            x: 18px; y: 190px; width: parent.width - 36px; height: 36px; border-radius: 8px; background: AppColors.sidebar;
+            x: 30px; y: 177px; width: 2px; height: 57px; border-radius: 1px; background: AppColors.border;
+        }
+        if root.advanced-visible: Text { x: 44px; y: 177px; text: "服务地址"; color: AppColors.text; font-size: 11px; font-weight: 600; }
+        if root.advanced-visible && root.active-tab == 1: Text { x: parent.width - 119px; y: 177px; text: "+ 自定义请求头"; color: AppColors.brand; font-size: 10px; font-weight: 600; }
+        if root.advanced-visible: Rectangle {
+            x: 44px; y: 196px; width: parent.width - 62px; height: 36px; border-radius: 8px; background: AppColors.sidebar;
             Text { x: 15px; text: root.active-tab == 0 ? "https://openspeech.bytedance.com" : root.llm-provider == LlmProvider.deepseek ? "https://api.deepseek.com" : "https://token.sensenova.cn/v1"; color: AppColors.text; font-size: 11px; vertical-alignment: center; }
         }
     }
