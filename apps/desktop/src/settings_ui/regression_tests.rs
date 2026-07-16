@@ -162,7 +162,7 @@ fn llm_consent_is_persisted_before_connection_testing() {
 
     assert_eq!(
         Ok(()),
-        persist_llm_consent(&store, LlmProviderPreset::SenseNova)
+        persist_llm_consent(&store, LlmProviderPreset::SenseNova.base_url())
     );
     let Ok(settings) = store.load() else {
         panic!("settings with consent should be readable");

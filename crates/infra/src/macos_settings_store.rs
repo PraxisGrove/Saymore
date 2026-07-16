@@ -56,15 +56,13 @@ impl JsonSettingsStore {
 
     pub fn enable_llm_provider_if_unchanged(
         &self,
-        preset: template_app::LlmProviderPreset,
         expected_provider_id: &str,
+        expected_base_url: &str,
         expected_api_key: &str,
     ) -> Result<bool, SettingsStoreError> {
         let _guard = self.lock_access()?;
         let mut catalog = self.load_catalog_unlocked()?;
-        if catalog.active.llm.as_deref() != Some(expected_provider_id)
-            || catalog.llm_provider_api_key(preset) != Some(expected_api_key)
-        {
+        if catalog.active.llm.as_deref() != Some(expected_provider_id) {
             return Ok(false);
         }
         let Some(provider) = catalog
@@ -74,8 +72,21 @@ impl JsonSettingsStore {
         else {
             return Ok(false);
         };
+        let unchanged = provider
+            .config
+            .get("base_url")
+            .and_then(serde_json::Value::as_str)
+            == Some(expected_base_url)
+            && provider
+                .config
+                .get("api_key")
+                .and_then(serde_json::Value::as_str)
+                == Some(expected_api_key);
+        if !unchanged {
+            return Ok(false);
+        }
         provider.data_consent = Some(ProviderDataConsent {
-            fingerprint: endpoint_fingerprint(preset.base_url()),
+            fingerprint: endpoint_fingerprint(expected_base_url),
         });
         self.save_catalog_unlocked(&catalog)?;
         Ok(true)

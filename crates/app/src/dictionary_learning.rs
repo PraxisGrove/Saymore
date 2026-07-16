@@ -4,6 +4,7 @@ const MAX_CORRECTION_CHARS: usize = 64;
 const MAX_CJK_CORRECTION_CHARS: usize = 8;
 const MAX_CORRECTION_WORDS: usize = 3;
 const MAX_WHOLE_REPLACEMENT_CHARS: usize = 32;
+const HIGH_CONFIDENCE_THRESHOLD: u8 = 80;
 
 pub const DICTIONARY_CANDIDATE_INSTRUCTIONS: &str = r#"You classify whether a user's local text correction should become a personal voice-input dictionary entry. Prefer names, brands, products, projects, acronyms, technical or professional terms, and code identifiers in any language. Reject ordinary sentence fragments, actions, grammar edits, punctuation edits, and generic prose. Return only one JSON object with: decision (accept, reject, or uncertain), type (named_term, acronym, code_identifier, professional_phrase, ordinary_fragment, or unknown), and confidence (a number from 0 to 1)."#;
 
@@ -41,7 +42,10 @@ pub struct DictionaryCandidateAssessment {
 impl DictionaryCandidateAssessment {
     pub fn required_evidence(self) -> Option<(u32, u32)> {
         match self.decision {
-            CandidateDecision::Accept => Some((3, 2)),
+            CandidateDecision::Accept if self.confidence >= HIGH_CONFIDENCE_THRESHOLD => {
+                Some((2, 2))
+            }
+            CandidateDecision::Accept => Some((5, 3)),
             CandidateDecision::Uncertain => Some((5, 3)),
             CandidateDecision::Reject => None,
         }
@@ -383,6 +387,25 @@ mod tests {
             let assessment = assess_dictionary_candidate(canonical);
             assert_eq!((kind, decision), (assessment.kind, assessment.decision));
         }
+    }
+
+    #[test]
+    fn high_confidence_candidates_need_two_independent_corrections() {
+        let assessment = assess_dictionary_candidate("Vercel");
+
+        assert_eq!(Some((2, 2)), assessment.required_evidence());
+    }
+
+    #[test]
+    fn low_confidence_acceptance_still_needs_repeated_evidence() {
+        let assessment = DictionaryCandidateAssessment {
+            decision: CandidateDecision::Accept,
+            kind: DictionaryCandidateKind::Unknown,
+            confidence: 79,
+            source: CandidateAssessmentSource::Llm,
+        };
+
+        assert_eq!(Some((5, 3)), assessment.required_evidence());
     }
 
     #[test]

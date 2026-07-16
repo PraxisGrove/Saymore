@@ -8,7 +8,7 @@ use template_app::{
     ChatCompletionsLlmSettings, DictionaryCandidateAssessment, FinalTextProcessor,
     FinalTextRequest, ProcessedText, RefinementFallbackReason, RefinementMode, RefinementStatus,
     RefinementTerm, SettingsStore, SpeechRecognitionError, assess_dictionary_candidate,
-    normalize_standard_spellings, relevant_dictionary_terms, review_dictionary_candidate,
+    dictionary_terms_for_refinement, normalize_standard_spellings, review_dictionary_candidate,
 };
 #[cfg(test)]
 use template_infra::AppEnvironment;
@@ -239,16 +239,8 @@ fn bounded_edit_fragments(original: &str, edited: &str) -> (String, String) {
     )
 }
 
-pub fn relevant_terms_for_transcript(
-    storage: &SqliteStorage,
-    transcript: &str,
-) -> Vec<RefinementTerm> {
-    relevant_dictionary_terms(
-        storage,
-        transcript,
-        inferred_transcript_language(transcript),
-    )
-    .unwrap_or_default()
+pub fn dictionary_terms_for_current_refinement(storage: &SqliteStorage) -> Vec<RefinementTerm> {
+    dictionary_terms_for_refinement(storage).unwrap_or_default()
 }
 
 fn inferred_transcript_language(text: &str) -> &'static str {

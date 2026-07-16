@@ -15,7 +15,9 @@ pub(super) fn wire(ui: &AppWindow) {
         let Some(ui) = weak_ui.upgrade() else {
             return;
         };
-        let url = url(ui.get_model_tab(), ui.get_llm_provider());
+        let Some(url) = url(ui.get_model_tab(), ui.get_llm_provider()) else {
+            return;
+        };
         if Command::new("/usr/bin/open").arg(url).spawn().is_err() {
             let message = ui
                 .global::<Translations>()
@@ -29,13 +31,14 @@ pub(super) fn wire(ui: &AppWindow) {
     });
 }
 
-pub(super) fn url(model_tab: i32, llm_provider: UiLlmProvider) -> &'static str {
+pub(super) fn url(model_tab: i32, llm_provider: UiLlmProvider) -> Option<&'static str> {
     if model_tab == 0 {
-        VOLCENGINE_KEY_PAGE
+        Some(VOLCENGINE_KEY_PAGE)
     } else {
         match llm_provider {
-            UiLlmProvider::Sensenova => SENSENOVA_KEY_PAGE,
-            UiLlmProvider::Deepseek => DEEPSEEK_KEY_PAGE,
+            UiLlmProvider::Sensenova => Some(SENSENOVA_KEY_PAGE),
+            UiLlmProvider::Deepseek => Some(DEEPSEEK_KEY_PAGE),
+            UiLlmProvider::Custom => None,
         }
     }
 }

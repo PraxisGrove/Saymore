@@ -6,7 +6,7 @@ use template_app::{
     DictionaryCandidateState, DictionaryEntry, DictionaryLearningStore, DictionaryOrigin,
     DictionaryStore, NewDictionaryEntry,
 };
-use template_infra::SqliteStorage;
+use template_infra::{DictionaryFiles, SqliteStorage};
 
 use crate::{
     local_data_ui::{now_ms, spawn_named},
@@ -75,7 +75,76 @@ pub(super) fn wire(
     wire_refresh(ui, Arc::clone(&storage), Arc::clone(&state));
     wire_filter_and_search(ui, Arc::clone(&state));
     wire_draft_actions(ui, Arc::clone(&storage), Arc::clone(&state));
+    wire_csv_import(ui, Arc::clone(&storage), Arc::clone(&state));
     wire_delete(ui, storage, state);
+}
+
+fn wire_csv_import(
+    ui: &AppWindow,
+    storage: Arc<SqliteStorage>,
+    state: Arc<Mutex<DictionaryUiState>>,
+) {
+    let import_ui = ui.as_weak();
+    ui.on_import_dictionary_csv(move || {
+        let Some(window) = import_ui.upgrade() else {
+            return;
+        };
+        let path = rfd::FileDialog::new()
+            .add_filter("CSV", &["csv"])
+            .pick_file();
+        let Some(path) = path else {
+            return;
+        };
+        window.set_dictionary_importing(true);
+        window.set_dictionary_status(SharedString::new());
+
+        let ui = import_ui.clone();
+        let storage = Arc::clone(&storage);
+        let state = Arc::clone(&state);
+        spawn_named("saymore-import-dictionary", move || {
+            let dictionary_store: Arc<dyn DictionaryStore> = storage.clone();
+            let result =
+                DictionaryFiles::new(dictionary_store).import_csv(&path, "zh-Hans", now_ms());
+            let entries = storage.list_dictionary();
+            let evidence = storage.list_dictionary_candidate_evidence();
+            let _ = ui.upgrade_in_event_loop(move |window| {
+                window.set_dictionary_importing(false);
+                match (result, entries) {
+                    (Ok(report), Ok(entries)) => {
+                        if let Ok(mut state) = state.lock() {
+                            state.entries = entries;
+                            if let Ok(evidence) = evidence {
+                                state.evidence = evidence;
+                            }
+                            apply_state(&window, &state);
+                        }
+                        window.set_dictionary_status(
+                            window.global::<Translations>().invoke_dictionary_imported(
+                                i32::try_from(report.added).unwrap_or(i32::MAX),
+                                i32::try_from(report.skipped).unwrap_or(i32::MAX),
+                            ),
+                        );
+                    }
+                    (Err(error), _) => {
+                        tracing::warn!(event = "dictionary.import_failed", reason = %error);
+                        window.set_dictionary_status(
+                            window
+                                .global::<Translations>()
+                                .get_dictionary_import_failed(),
+                        );
+                    }
+                    (_, Err(error)) => {
+                        tracing::warn!(event = "dictionary.import_failed", reason = %error);
+                        window.set_dictionary_status(
+                            window
+                                .global::<Translations>()
+                                .get_dictionary_import_failed(),
+                        );
+                    }
+                }
+            });
+        });
+    });
 }
 
 fn wire_refresh(ui: &AppWindow, storage: Arc<SqliteStorage>, state: Arc<Mutex<DictionaryUiState>>) {

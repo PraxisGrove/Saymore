@@ -1,14 +1,11 @@
-use std::sync::{
-    Arc, Mutex,
-    atomic::{AtomicBool, Ordering},
-};
+use std::sync::{Arc, Mutex, atomic::Ordering};
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 use slint::ComponentHandle;
 use template_app::{
-    AudioRecorder, HistoryDelivery, HistoryRefinement, LocalSettingsStore, NewHistoryRecord,
-    ProviderConfigStore, RecordingError, RefinementFallbackReason, RefinementStatus,
-    SpeechRecognitionError,
+    AudioRecorder, DictationSession, HistoryDelivery, HistoryRefinement, LocalSettingsStore,
+    NewHistoryRecord, ProviderConfigStore, RecordingError, RefinementFallbackReason,
+    RefinementStatus, SpeechRecognitionError,
 };
 use template_infra::MacOsAudioRecorder;
 use uuid::Uuid;
@@ -29,67 +26,85 @@ pub fn finish_recording(
     ui: slint::Weak<AppWindow>,
     overlays: DictationOverlays,
     recorder: Arc<Mutex<MacOsAudioRecorder>>,
-    recording_active: Arc<AtomicBool>,
+    session: Arc<DictationSession>,
     processing: TextProcessingServices,
 ) {
-    let plan = processing.refinement.plan();
-    let _ = ui.upgrade_in_event_loop(move |ui| {
-        let processing_label = ProcessingActivity::Transcribing.localized_label(&ui);
-        ui.set_recording_active(false);
-        ui.set_recording_failed(false);
-        ui.set_recording_complete(false);
-        ui.set_recording_attempted(false);
-        ui.set_recording_status(processing_label.clone());
-        ui.set_recording_detail(processing_label.clone());
-        let overlay_generation = overlays
-            .status
-            .upgrade()
-            .map(|overlay| {
-                overlay.set_mode(1);
-                overlay.set_processing_label(processing_label);
-                overlay.get_session_generation()
-            })
-            .unwrap_or_default();
-        let worker_ui = ui.as_weak();
-        let failure_recording_active = Arc::clone(&recording_active);
-        if std::thread::Builder::new()
-            .name("saymore-finish-dictation".to_owned())
-            .spawn(move || {
-                finish_recording_worker(
-                    worker_ui,
-                    overlays,
-                    recorder,
-                    recording_active,
-                    processing,
-                    plan,
-                    overlay_generation,
-                );
-            })
-            .is_err()
-        {
-            failure_recording_active.store(false, Ordering::Relaxed);
-            apply_recording_error(
-                &ui,
-                &RecordingError::Capture("failed to start transcription worker".to_owned()),
-            );
-        }
+    let _ = overlays.limit.upgrade_in_event_loop(|limit| {
+        let _ = limit.hide();
     });
+    let plan = processing.refinement.plan();
+    let queue_failure_session = Arc::clone(&session);
+    let queue_failure_asr = Arc::clone(&processing.asr);
+    let queue_failure_recorder = Arc::clone(&recorder);
+    if ui
+        .upgrade_in_event_loop(move |ui| {
+            let processing_label = ProcessingActivity::Transcribing.localized_label(&ui);
+            ui.set_recording_active(false);
+            ui.set_recording_failed(false);
+            ui.set_recording_complete(false);
+            ui.set_recording_attempted(false);
+            ui.set_recording_status(processing_label.clone());
+            ui.set_recording_detail(processing_label.clone());
+            let overlay_generation = overlays
+                .status
+                .upgrade()
+                .map(|overlay| {
+                    overlay.set_mode(1);
+                    overlay.set_processing_label(processing_label);
+                    overlay.get_session_generation()
+                })
+                .unwrap_or_default();
+            let worker_ui = ui.as_weak();
+            let failure_session = Arc::clone(&session);
+            if std::thread::Builder::new()
+                .name("saymore-finish-dictation".to_owned())
+                .spawn(move || {
+                    finish_recording_worker(
+                        worker_ui,
+                        overlays,
+                        recorder,
+                        session,
+                        processing,
+                        plan,
+                        overlay_generation,
+                    );
+                })
+                .is_err()
+            {
+                failure_session.complete();
+                apply_recording_error(
+                    &ui,
+                    &RecordingError::Capture("failed to start transcription worker".to_owned()),
+                );
+            }
+        })
+        .is_err()
+    {
+        queue_failure_session.complete();
+        queue_failure_asr.cancel();
+        if let Ok(mut recorder) = queue_failure_recorder.lock() {
+            let _ = recorder.stop();
+        }
+    }
 }
 
 fn finish_recording_worker(
     ui: slint::Weak<AppWindow>,
     overlays: DictationOverlays,
     recorder: Arc<Mutex<MacOsAudioRecorder>>,
-    recording_active: Arc<AtomicBool>,
+    session: Arc<DictationSession>,
     processing: TextProcessingServices,
     plan: crate::refinement_runtime::RefinementPlan,
     overlay_generation: i32,
 ) {
     let mut recorder = match recorder.lock() {
         Ok(recorder) if recorder.is_recording() => recorder,
-        Ok(_) => return,
+        Ok(_) => {
+            session.complete();
+            return;
+        }
         Err(_) => {
-            recording_active.store(false, Ordering::Relaxed);
+            session.complete();
             let _ = ui.upgrade_in_event_loop(|ui| {
                 apply_recording_error(
                     &ui,
@@ -120,10 +135,8 @@ fn finish_recording_worker(
     let processing_result = transcription_result.and_then(|(recording, transcript)| {
         let activity_ui = ui.clone();
         let activity_overlay = overlays.status.clone();
-        let relevant_terms = crate::refinement_runtime::relevant_terms_for_transcript(
-            &processing.storage,
-            &transcript,
-        );
+        let relevant_terms =
+            crate::refinement_runtime::dictionary_terms_for_current_refinement(&processing.storage);
         processing
             .refinement
             .process_final_transcript(&transcript, plan, relevant_terms, move || {
@@ -145,7 +158,7 @@ fn finish_recording_worker(
             })
             .map_err(FinishError::Recognition)
     });
-    recording_active.store(false, Ordering::Relaxed);
+    session.complete();
     let _ = ui.upgrade_in_event_loop(move |ui| match processing_result {
         Ok((recording, processed, history)) => {
             crate::settings_ui::mark_asr_runtime_healthy(&ui);
@@ -164,6 +177,7 @@ fn finish_recording_worker(
                 storage: processing.storage,
                 refinement: processing.refinement,
                 feedback_sounds_enabled: processing.feedback_sounds_enabled.load(Ordering::Acquire),
+                copy_to_clipboard: ui.get_copy_to_clipboard(),
             });
         }
         Err(FinishError::Recording(RecordingError::NotRecording)) => {}

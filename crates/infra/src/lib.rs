@@ -19,7 +19,16 @@ mod platform_secret_store;
 mod macos_audio_recorder;
 
 #[cfg(target_os = "macos")]
+mod macos_application_reopen;
+
+#[cfg(target_os = "macos")]
 mod macos_feedback_sound;
+
+#[cfg(target_os = "macos")]
+mod macos_dock;
+
+#[cfg(target_os = "macos")]
+mod macos_launch_at_login;
 
 #[cfg(target_os = "macos")]
 mod macos_main_window;
@@ -45,7 +54,18 @@ mod volcengine_asr;
 pub use macos_audio_recorder::MacOsAudioRecorder;
 
 #[cfg(target_os = "macos")]
+pub use macos_application_reopen::{MacOsApplicationReopenError, MacOsApplicationReopenHandler};
+
+#[cfg(target_os = "macos")]
 pub use macos_feedback_sound::MacOsFeedbackSoundPlayer;
+
+#[cfg(target_os = "macos")]
+pub use macos_dock::{MacOsDockError, activate_application, dock_is_visible, set_dock_visible};
+
+#[cfg(target_os = "macos")]
+pub use macos_launch_at_login::{
+    LaunchAtLoginStatus, MacOsLaunchAtLoginError, launch_at_login_status, set_launch_at_login,
+};
 
 #[cfg(target_os = "macos")]
 pub use macos_main_window::{MacOsMainWindowError, configure_main_window};
@@ -62,11 +82,16 @@ pub use macos_microphone_permission::{
 };
 
 #[cfg(target_os = "macos")]
-pub use macos_shortcut_monitor::{DictationShortcutAction, MacOsShortcutMonitor};
+pub use macos_shortcut_monitor::{
+    DictationShortcutAction, MacOsShortcut, MacOsShortcutController, MacOsShortcutError,
+    MacOsShortcutMonitor,
+};
 
 #[cfg(target_os = "macos")]
 pub use macos_text_delivery::{
-    MacOsTextDeliverer, copy_text_to_clipboard, open_accessibility_privacy_settings,
+    MacOsCorrectionObservationSupport, MacOsFocusedTextControlCapabilities, MacOsTextDeliverer,
+    copy_text_to_clipboard, focused_text_control_capabilities, open_accessibility_privacy_settings,
+    text_control_capabilities_for_process,
 };
 
 pub use app_instance_guard::{AppInstanceGuard, AppInstanceGuardError};

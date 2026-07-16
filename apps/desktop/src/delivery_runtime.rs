@@ -6,10 +6,10 @@ use std::{
 
 use slint::{ComponentHandle, SharedString, Timer};
 use template_app::{
-    CorrectionObservingTextDeliverer, DeliveryTargetPrivacy, DictionaryLearningOutcome,
-    DictionaryLearningStore, FeedbackSound, HistoryDelivery, HistoryStore,
-    NewDictionaryObservation, NewHistoryRecord, PcmRecording, ProcessedText, RefinementStatus,
-    TextDeliverer, TextDeliveryError, TextDeliveryOutcome, correction_from_edit,
+    CorrectionObservingTextDeliverer, DictionaryLearningOutcome, DictionaryLearningStore,
+    FeedbackSound, HistoryDelivery, HistoryStore, NewDictionaryObservation, NewHistoryRecord,
+    PcmRecording, ProcessedText, RefinementStatus, TextDeliveryError, TextDeliveryOutcome,
+    correction_from_edit,
 };
 use template_infra::{MacOsTextDeliverer, SqliteStorage, copy_text_to_clipboard};
 use uuid::Uuid;
@@ -53,6 +53,7 @@ pub(crate) struct DeliveryRequest {
     pub storage: Arc<SqliteStorage>,
     pub refinement: Arc<RefinementRuntime>,
     pub feedback_sounds_enabled: bool,
+    pub copy_to_clipboard: bool,
 }
 
 #[derive(Clone)]
@@ -63,14 +64,15 @@ struct ReadyDeliveryRequest {
     result_overlay: slint::Weak<ResultOverlay>,
     recording: PcmRecording,
     processed: ProcessedText,
-    history_id: Option<String>,
+    history: Option<NewHistoryRecord>,
     storage: Arc<SqliteStorage>,
     refinement: Arc<RefinementRuntime>,
     feedback_sounds_enabled: bool,
+    copy_to_clipboard: bool,
 }
 
 impl DeliveryRequest {
-    fn into_ready(self, history_id: Option<String>) -> ReadyDeliveryRequest {
+    fn into_ready(self) -> ReadyDeliveryRequest {
         ReadyDeliveryRequest {
             ui: self.ui,
             status_overlay: self.status_overlay,
@@ -78,57 +80,17 @@ impl DeliveryRequest {
             result_overlay: self.result_overlay,
             recording: self.recording,
             processed: self.processed,
-            history_id,
+            history: self.history,
             storage: self.storage,
             refinement: self.refinement,
             feedback_sounds_enabled: self.feedback_sounds_enabled,
+            copy_to_clipboard: self.copy_to_clipboard,
         }
     }
 }
 
-pub fn schedule_delivery(mut request: DeliveryRequest) {
-    if !history_allowed_for_target(MacOsTextDeliverer.target_privacy()) {
-        request.history = None;
-    }
-    let Some(record) = request.history.take() else {
-        schedule_ready_delivery(request.into_ready(None));
-        return;
-    };
-
-    let history_id = record.id.clone();
-    let ready = request.into_ready(None);
-    let fallback = ready.clone();
-    let event_ui = ready.ui.clone();
-    let storage = Arc::clone(&ready.storage);
-    let spawn = thread::Builder::new()
-        .name("saymore-create-history".to_owned())
-        .spawn(move || {
-            let result = storage.insert_history(record);
-            let mut ready = ready;
-            if result.is_ok() {
-                ready.history_id = Some(history_id);
-            }
-            let _ = event_ui.upgrade_in_event_loop(move |ui| {
-                match result {
-                    Ok(()) => ui.invoke_refresh_usage(),
-                    Err(error) => {
-                        tracing::warn!(event = "history.create_failed", reason = %error);
-                        ui.set_history_status(ui.global::<Translations>().get_storage_error());
-                    }
-                }
-                schedule_ready_delivery(ready);
-            });
-        });
-    if spawn.is_err() {
-        if let Some(ui) = fallback.ui.upgrade() {
-            ui.set_history_status(ui.global::<Translations>().get_storage_error());
-        }
-        schedule_ready_delivery(fallback);
-    }
-}
-
-fn history_allowed_for_target(privacy: DeliveryTargetPrivacy) -> bool {
-    privacy == DeliveryTargetPrivacy::Standard
+pub fn schedule_delivery(request: DeliveryRequest) {
+    schedule_ready_delivery(request.into_ready());
 }
 
 fn schedule_ready_delivery(request: ReadyDeliveryRequest) {
@@ -195,9 +157,10 @@ fn complete_delivery(pending: ReadyDeliveryRequest) {
                 Ok(DictionaryLearningOutcome::Added(entry)) => {
                     ui.set_dictionary_status(
                         ui.global::<Translations>()
-                            .invoke_dictionary_automatically_added(entry.canonical.into()),
+                            .invoke_dictionary_automatically_added(entry.canonical.clone().into()),
                     );
                     ui.invoke_refresh_dictionary();
+                    ui.invoke_show_dictionary_added(entry.id.into(), entry.canonical.into());
                 }
                 Ok(DictionaryLearningOutcome::Pending { .. }) => {
                     ui.invoke_refresh_dictionary();
@@ -211,6 +174,11 @@ fn complete_delivery(pending: ReadyDeliveryRequest) {
         }),
     );
     let requires_recovery = delivery_requires_copy_recovery(&delivery);
+    if should_preserve_clipboard(pending.copy_to_clipboard, &delivery)
+        && let Err(error) = copy_text_to_clipboard(&pending.processed.text)
+    {
+        tracing::warn!(event = "delivery.clipboard_copy_failed", reason = %error);
+    }
     tracing::info!(
         target: "saymore::diagnostics",
         event = "delivery.completed",
@@ -218,6 +186,7 @@ fn complete_delivery(pending: ReadyDeliveryRequest) {
         requires_recovery
     );
     let history_action = history_delivery_action(&delivery);
+    let history = history_record_after_delivery(pending.history, history_action);
     if delivery.is_ok() && pending.feedback_sounds_enabled {
         play_feedback_sound(FeedbackSound::Finish);
     }
@@ -232,8 +201,8 @@ fn complete_delivery(pending: ReadyDeliveryRequest) {
     if requires_recovery && let Some(overlay) = pending.result_overlay.upgrade() {
         show_result_overlay(&overlay, &pending.processed.text);
     }
-    if let Some(history_id) = pending.history_id {
-        persist_delivery_outcome(pending.ui, pending.storage, history_id, history_action);
+    if let Some(history) = history {
+        persist_history(pending.ui, pending.storage, history);
     }
 }
 
@@ -245,6 +214,18 @@ fn inferred_dictionary_language(text: &str) -> &'static str {
     } else {
         "en"
     }
+}
+
+fn should_preserve_clipboard(
+    enabled: bool,
+    delivery: &Result<TextDeliveryOutcome, TextDeliveryError>,
+) -> bool {
+    enabled
+        && !matches!(
+            delivery,
+            Ok(TextDeliveryOutcome::SecureClipboardAttempted)
+                | Err(TextDeliveryError::SecureDeliveryFailed(_))
+        )
 }
 
 fn now_ms() -> i64 {
@@ -276,37 +257,40 @@ fn history_delivery_action(
     }
 }
 
-fn persist_delivery_outcome(
+fn history_record_after_delivery(
+    record: Option<NewHistoryRecord>,
+    action: HistoryDeliveryAction,
+) -> Option<NewHistoryRecord> {
+    let mut record = record?;
+    match action {
+        HistoryDeliveryAction::DiscardSensitive => None,
+        HistoryDeliveryAction::MarkDelivered => {
+            record.delivery = HistoryDelivery::Delivered;
+            Some(record)
+        }
+        HistoryDeliveryAction::KeepPending => {
+            record.delivery = HistoryDelivery::NotDelivered;
+            Some(record)
+        }
+    }
+}
+
+fn persist_history(
     ui: slint::Weak<AppWindow>,
     storage: Arc<SqliteStorage>,
-    history_id: String,
-    action: HistoryDeliveryAction,
+    record: NewHistoryRecord,
 ) {
-    if action == HistoryDeliveryAction::KeepPending {
-        if let Some(ui) = ui.upgrade() {
-            ui.invoke_refresh_history();
-        }
-        return;
-    }
     let refresh_ui = ui.clone();
     let failure_ui = ui;
-    let refresh_usage = action == HistoryDeliveryAction::DiscardSensitive;
     let spawn = thread::Builder::new()
-        .name("saymore-update-history".to_owned())
+        .name("saymore-create-history".to_owned())
         .spawn(move || {
-            let result = match action {
-                HistoryDeliveryAction::DiscardSensitive => storage.delete_history(&history_id),
-                HistoryDeliveryAction::MarkDelivered => {
-                    storage.update_history_delivery(&history_id, HistoryDelivery::Delivered)
-                }
-                HistoryDeliveryAction::KeepPending => Ok(()),
-            };
+            let result = storage.insert_history(record);
             let _ = refresh_ui.upgrade_in_event_loop(move |ui| {
                 match result {
-                    Ok(()) if refresh_usage => ui.invoke_refresh_usage(),
-                    Ok(()) => {}
+                    Ok(()) => ui.invoke_refresh_usage(),
                     Err(error) => {
-                        tracing::warn!(event = "history.delivery_update_failed", reason = %error);
+                        tracing::warn!(event = "history.create_failed", reason = %error);
                         ui.set_history_status(ui.global::<Translations>().get_storage_error());
                     }
                 }
@@ -354,10 +338,64 @@ mod tests {
     }
 
     #[test]
-    fn secure_target_preflight_prevents_history_creation() {
-        assert!(history_allowed_for_target(DeliveryTargetPrivacy::Standard));
-        assert!(!history_allowed_for_target(
-            DeliveryTargetPrivacy::Sensitive
+    fn optional_clipboard_copy_excludes_secure_input() {
+        assert!(should_preserve_clipboard(
+            true,
+            &Ok(TextDeliveryOutcome::AccessibilityVerified)
         ));
+        assert!(!should_preserve_clipboard(
+            false,
+            &Ok(TextDeliveryOutcome::AccessibilityVerified)
+        ));
+        assert!(!should_preserve_clipboard(
+            true,
+            &Ok(TextDeliveryOutcome::SecureClipboardAttempted)
+        ));
+        assert!(!should_preserve_clipboard(
+            true,
+            &Err(TextDeliveryError::SecureDeliveryFailed(
+                "secure input".to_owned()
+            ))
+        ));
+    }
+
+    #[test]
+    fn history_is_created_only_after_the_final_delivery_classification() {
+        let record = NewHistoryRecord {
+            id: "history-1".to_owned(),
+            created_at_ms: 1,
+            final_text: "hello".to_owned(),
+            raw_asr_text: None,
+            llm_refined_text: None,
+            audio_duration_ms: 10,
+            language: None,
+            delivery: HistoryDelivery::NotDelivered,
+            refinement: template_app::HistoryRefinement::NotUsed,
+            asr_provider_id: None,
+            llm_provider_id: None,
+            asr_model: None,
+            llm_model: None,
+        };
+
+        assert_eq!(
+            None,
+            history_record_after_delivery(
+                Some(record.clone()),
+                HistoryDeliveryAction::DiscardSensitive
+            )
+        );
+        assert_eq!(
+            Some(HistoryDelivery::Delivered),
+            history_record_after_delivery(
+                Some(record.clone()),
+                HistoryDeliveryAction::MarkDelivered
+            )
+            .map(|record| record.delivery)
+        );
+        assert_eq!(
+            Some(HistoryDelivery::NotDelivered),
+            history_record_after_delivery(Some(record), HistoryDeliveryAction::KeepPending)
+                .map(|record| record.delivery)
+        );
     }
 }

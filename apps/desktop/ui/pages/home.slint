@@ -81,6 +81,7 @@ export component HomePage inherits Rectangle {
     in property <bool> usage-loading: false;
     in property <bool> usage-error: false;
     callback open-model-settings();
+    callback open-shortcut-settings();
     callback open-microphone-settings();
     callback open-accessibility-settings();
     callback refresh-usage();
@@ -89,6 +90,7 @@ export component HomePage inherits Rectangle {
     private property <bool> model-issue: !root.asr-home-available;
     private property <bool> accessibility-issue: !root.authorized;
     private property <bool> healthy: !root.microphone-issue && !root.model-issue && !root.accessibility-issue;
+    private property <string> shortcut-title: @tr("home.shortcut.title" => "Voice input shortcut");
     private property <string> issue-title: root.microphone-issue ? @tr("home.issue.microphone.title" => "Microphone access is off")
         : root.model-issue ? (root.asr-config-error ? @tr("home.issue.asr-invalid.title" => "Voice recognition configuration needs attention") : @tr("home.issue.asr-missing.title" => "Voice recognition is not configured"))
         : root.accessibility-issue ? @tr("home.issue.accessibility.title" => "Accessibility access is off") : "";
@@ -115,9 +117,12 @@ export component HomePage inherits Rectangle {
         width: parent.width - 1px;
         height: 86px;
         border-radius: 12px;
-        background: AppColors.surface;
+        background: shortcut-area.has-hover ? AppColors.surface-subtle : AppColors.surface;
+        accessible-role: button;
+        accessible-label: root.shortcut-title;
+        accessible-action-default => { root.open-shortcut-settings(); }
 
-        Text { x: 18px; y: 16px; text: @tr("home.shortcut.title" => "Voice input shortcut"); color: AppColors.ink; font-size: 14px; font-weight: 700; }
+        Text { x: 18px; y: 16px; text: root.shortcut-title; color: AppColors.ink; font-size: 14px; font-weight: 700; }
         Text { x: 18px; y: 42px; text: @tr("home.shortcut.current" => "Current setting"); color: AppColors.text-muted; font-size: 11px; }
 
         Rectangle {
@@ -140,6 +145,10 @@ export component HomePage inherits Rectangle {
             border-radius: 8px;
             background: root.shortcut-enabled ? AppColors.success-soft : AppColors.surface-subtle;
             Text { text: root.shortcut-enabled ? @tr("common.enabled" => "Enabled") : @tr("common.disabled" => "Disabled"); color: root.shortcut-enabled ? AppColors.success : AppColors.text-muted; font-size: 11px; font-weight: 650; horizontal-alignment: center; vertical-alignment: center; }
+        }
+        shortcut-area := TouchArea {
+            mouse-cursor: pointer;
+            clicked => { root.open-shortcut-settings(); }
         }
     }
 

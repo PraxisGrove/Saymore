@@ -1,0 +1,92 @@
+export component RecordingLimitOverlay inherits Window {
+    title: @tr("recording.limit.window-title" => "Recording time limit");
+    default-font-family: "PingFang SC";
+    preferred-width: 420px;
+    preferred-height: 174px;
+    min-width: 420px;
+    min-height: 174px;
+    max-width: 420px;
+    max-height: 174px;
+    no-frame: true;
+    always-on-top: true;
+    background: transparent;
+
+    callback acknowledged();
+
+    Rectangle {
+        x: 7px;
+        y: 6px;
+        width: 406px;
+        height: 160px;
+        border-radius: 14px;
+        background: #ffffff;
+        border-width: 1px;
+        border-color: #dddad2;
+        drop-shadow-blur: 18px;
+        drop-shadow-offset-y: 5px;
+        drop-shadow-color: #1f1f1c24;
+
+        Rectangle {
+            x: 20px;
+            y: 22px;
+            width: 38px;
+            height: 38px;
+            border-radius: 10px;
+            background: #f5e7df;
+            Image {
+                x: 9px;
+                y: 9px;
+                width: 20px;
+                height: 20px;
+                source: @image-url("../icons/lucide/circle-alert.svg");
+                colorize: #c6613f;
+            }
+        }
+
+        Text {
+            x: 74px;
+            y: 20px;
+            width: 300px;
+            height: 26px;
+            text: @tr("recording.limit.warning-title" => "Recording ends in 1 minute");
+            color: #1f1f1c;
+            font-size: 17px;
+            font-weight: 700;
+            vertical-alignment: center;
+        }
+        Text {
+            x: 74px;
+            y: 51px;
+            width: 306px;
+            height: 42px;
+            text: @tr("recording.limit.warning-detail" => "Saymore will finish this recording automatically at 10 minutes and continue processing the audio already captured.");
+            color: #77746c;
+            font-size: 11px;
+            wrap: word-wrap;
+        }
+
+        Rectangle {
+            x: 286px;
+            y: 112px;
+            width: 96px;
+            height: 34px;
+            border-radius: 8px;
+            background: acknowledge-area.has-hover ? #c6613f : #d97757;
+            accessible-role: button;
+            accessible-label: @tr("common.got-it" => "Got it");
+            accessible-action-default => { root.acknowledged(); }
+            Text {
+                text: @tr("common.got-it" => "Got it");
+                color: #ffffff;
+                font-size: 11px;
+                font-weight: 650;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+            acknowledge-area := TouchArea {
+                mouse-cursor: pointer;
+                clicked => { root.acknowledged(); }
+            }
+        }
+    }
+}

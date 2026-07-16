@@ -49,6 +49,70 @@ impl UiLanguagePreference {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum OnboardingStatus {
+    #[default]
+    NotStarted,
+    InProgress,
+    Completed,
+    Skipped,
+}
+
+impl OnboardingStatus {
+    pub const fn should_present(self) -> bool {
+        matches!(self, Self::NotStarted | Self::InProgress)
+    }
+
+    pub const fn storage_value(self) -> &'static str {
+        match self {
+            Self::NotStarted => "not_started",
+            Self::InProgress => "in_progress",
+            Self::Completed => "completed",
+            Self::Skipped => "skipped",
+        }
+    }
+
+    pub fn from_storage_value(value: &str) -> Option<Self> {
+        match value {
+            "not_started" => Some(Self::NotStarted),
+            "in_progress" => Some(Self::InProgress),
+            "completed" => Some(Self::Completed),
+            "skipped" => Some(Self::Skipped),
+            _ => None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum OnboardingStep {
+    #[default]
+    Welcome,
+    Microphone,
+    Accessibility,
+    Complete,
+}
+
+impl OnboardingStep {
+    pub const fn index(self) -> u8 {
+        match self {
+            Self::Welcome => 0,
+            Self::Microphone => 1,
+            Self::Accessibility => 2,
+            Self::Complete => 3,
+        }
+    }
+
+    pub const fn from_index(index: u8) -> Option<Self> {
+        match index {
+            0 => Some(Self::Welcome),
+            1 => Some(Self::Microphone),
+            2 => Some(Self::Accessibility),
+            3 => Some(Self::Complete),
+            _ => None,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LocalSettings {
     pub history_enabled: bool,
@@ -59,6 +123,12 @@ pub struct LocalSettings {
     pub ui_language: UiLanguagePreference,
     pub automatic_update_checks: bool,
     pub feedback_sounds_enabled: bool,
+    pub copy_to_clipboard: bool,
+    pub show_in_dock: bool,
+    pub dictation_paused: bool,
+    pub dictation_shortcuts: Vec<String>,
+    pub onboarding_status: OnboardingStatus,
+    pub onboarding_step: OnboardingStep,
 }
 
 impl Default for LocalSettings {
@@ -72,6 +142,48 @@ impl Default for LocalSettings {
             ui_language: UiLanguagePreference::System,
             automatic_update_checks: false,
             feedback_sounds_enabled: true,
+            copy_to_clipboard: false,
+            show_in_dock: true,
+            dictation_paused: false,
+            dictation_shortcuts: vec!["right-command".to_owned()],
+            onboarding_status: OnboardingStatus::NotStarted,
+            onboarding_step: OnboardingStep::Welcome,
+        }
+    }
+}
+
+#[cfg(test)]
+mod onboarding_tests {
+    use super::{OnboardingStatus, OnboardingStep};
+
+    #[test]
+    fn only_unfinished_onboarding_is_presented_automatically() {
+        assert!(OnboardingStatus::NotStarted.should_present());
+        assert!(OnboardingStatus::InProgress.should_present());
+        assert!(!OnboardingStatus::Completed.should_present());
+        assert!(!OnboardingStatus::Skipped.should_present());
+    }
+
+    #[test]
+    fn onboarding_storage_values_round_trip() {
+        for status in [
+            OnboardingStatus::NotStarted,
+            OnboardingStatus::InProgress,
+            OnboardingStatus::Completed,
+            OnboardingStatus::Skipped,
+        ] {
+            assert_eq!(
+                Some(status),
+                OnboardingStatus::from_storage_value(status.storage_value())
+            );
+        }
+        for step in [
+            OnboardingStep::Welcome,
+            OnboardingStep::Microphone,
+            OnboardingStep::Accessibility,
+            OnboardingStep::Complete,
+        ] {
+            assert_eq!(Some(step), OnboardingStep::from_index(step.index()));
         }
     }
 }

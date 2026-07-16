@@ -1,9 +1,10 @@
 # Saymore Desktop
 
 The native Saymore desktop application, implemented with Rust and Slint. It
-currently supports macOS Accessibility and microphone permission flows. Hold
-the right Command key to capture audio; releasing it converts the in-memory
-recording to mono 16 kHz signed 16-bit PCM and shows the capture metrics.
+currently supports macOS Accessibility and microphone permission flows. Press
+the right Command key once to start recording and press it again to finish;
+press Escape to cancel. Saymore keeps the recording in memory and converts it
+to mono 16 kHz signed 16-bit PCM for speech recognition.
 
 ## Development
 

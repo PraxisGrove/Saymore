@@ -5,7 +5,8 @@ use thiserror::Error;
 use tokio::{sync::Mutex, time::Instant};
 use tokio_util::sync::CancellationToken;
 
-use crate::refinement_policy::{REFINEMENT_INSTRUCTIONS, accepts_refinement};
+use crate::refinement_policy::accepts_refinement;
+use crate::refinement_prompt::instructions_for;
 
 const REFINEMENT_TIMEOUT: Duration = Duration::from_secs(8);
 const FAILURE_PAUSE: Duration = Duration::from_secs(5 * 60);
@@ -234,7 +235,7 @@ impl FinalTextProcessor {
         let fallback_text = text.clone();
         let relevant_terms = request.relevant_terms;
         let provider_request = LlmRefinementRequest {
-            instructions: REFINEMENT_INSTRUCTIONS.to_owned(),
+            instructions: instructions_for(&text),
             transcript: text,
             language: request.language,
             relevant_terms: relevant_terms.clone(),

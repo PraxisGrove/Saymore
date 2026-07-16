@@ -1,6 +1,7 @@
 use std::time::Duration;
 
 use raw_window_handle::{HasWindowHandle, RawWindowHandle};
+use slint::winit_030::{EventResult, WinitWindowAccessor, winit::event::WindowEvent};
 use slint::{ComponentHandle, Timer};
 use template_app::LocalSettings;
 use template_infra::{AppEnvironment, configure_main_window};
@@ -19,7 +20,21 @@ pub fn initialize(
     ui.set_automatic_update_checks(settings.automatic_update_checks);
     ui.set_feedback_sounds_enabled(settings.feedback_sounds_enabled);
     ui.set_development_environment(environment == AppEnvironment::Development);
+    keep_running_after_main_window_close(ui);
     Ok(context)
+}
+
+fn keep_running_after_main_window_close(ui: &AppWindow) {
+    ui.window().on_winit_window_event(|window, event| {
+        if !matches!(event, WindowEvent::CloseRequested) {
+            return EventResult::Propagate;
+        }
+
+        if let Err(error) = window.hide() {
+            tracing::warn!(event = "main_window.hide_failed", reason = %error);
+        }
+        EventResult::PreventDefault
+    });
 }
 
 pub fn schedule_titlebar_integration(ui: &AppWindow) {

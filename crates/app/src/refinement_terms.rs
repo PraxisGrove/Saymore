@@ -4,26 +4,26 @@ use unicode_normalization::UnicodeNormalization;
 
 use crate::{
     final_text_processing::RefinementTerm,
-    storage::{DictionaryEntry, DictionaryStore, StorageError, normalize_language_tag},
+    storage::{DictionaryEntry, DictionaryStore, StorageError},
 };
 
-const MAX_RELEVANT_TERMS: usize = 50;
-
-pub fn relevant_dictionary_terms(
+pub fn dictionary_terms_for_refinement(
     store: &dyn DictionaryStore,
-    transcript: &str,
-    language: &str,
 ) -> Result<Vec<RefinementTerm>, StorageError> {
-    relevant_dictionary_terms_from_entries(store.list_dictionary()?, transcript, language)
+    Ok(dictionary_terms_for_refinement_from_entries(
+        store.list_dictionary()?,
+    ))
 }
 
-pub fn relevant_dictionary_terms_from_entries(
+pub fn dictionary_terms_for_refinement_from_entries(
     entries: Vec<DictionaryEntry>,
-    transcript: &str,
-    language: &str,
-) -> Result<Vec<RefinementTerm>, StorageError> {
-    let language = normalize_language_tag(language)?;
-    Ok(select_relevant_terms(entries, transcript, &language))
+) -> Vec<RefinementTerm> {
+    entries
+        .into_iter()
+        .map(|entry| RefinementTerm {
+            canonical: entry.canonical,
+        })
+        .collect()
 }
 
 pub fn normalize_standard_spellings(text: &str, terms: &[RefinementTerm]) -> String {
@@ -77,23 +77,6 @@ fn normalize_spellings(
 
 pub fn standard_spelling_occurs(text: &str, spelling: &str) -> bool {
     !spelling_match_ranges(text, spelling).is_empty()
-}
-
-fn select_relevant_terms(
-    entries: Vec<DictionaryEntry>,
-    transcript: &str,
-    language: &str,
-) -> Vec<RefinementTerm> {
-    entries
-        .into_iter()
-        .filter(|entry| entry.language == language || spelling_pattern(&entry.canonical).is_some())
-        .filter_map(|entry| {
-            standard_spelling_occurs(transcript, &entry.canonical).then_some(RefinementTerm {
-                canonical: entry.canonical,
-            })
-        })
-        .take(MAX_RELEVANT_TERMS)
-        .collect()
 }
 
 struct Replacement<'a> {
@@ -283,23 +266,26 @@ mod tests {
     use super::*;
 
     #[test]
-    fn recalls_only_canonical_terms_across_language_tags() {
+    fn sends_every_dictionary_term_without_local_relevance_filtering() {
         let entries = vec![
-            entry("en", "OpenAI"),
-            entry("zh-Hans", "SQLite"),
-            entry("en", "GitHub"),
+            entry("en", "Vercel"),
+            entry("zh-Hans", "逆地理编码"),
+            entry("en", "Saymore"),
         ];
 
         assert_eq!(
             vec![
                 RefinementTerm {
-                    canonical: "OpenAI".to_owned(),
+                    canonical: "Vercel".to_owned(),
                 },
                 RefinementTerm {
-                    canonical: "SQLite".to_owned(),
+                    canonical: "逆地理编码".to_owned(),
+                },
+                RefinementTerm {
+                    canonical: "Saymore".to_owned(),
                 },
             ],
-            select_relevant_terms(entries, "请用 openai 和 sqlite", "zh-Hans")
+            dictionary_terms_for_refinement_from_entries(entries)
         );
     }
 
@@ -321,14 +307,6 @@ mod tests {
                 &terms,
             )
         );
-    }
-
-    #[test]
-    fn noncanonical_spellings_do_not_recall_a_term() {
-        let entries = vec![entry("en", "OpenAI")];
-
-        assert!(select_relevant_terms(entries.clone(), "使用 open ai", "zh-Hans").is_empty());
-        assert!(select_relevant_terms(entries, "使用 open-ai", "zh-Hans").is_empty());
     }
 
     fn entry(language: &str, canonical: &str) -> DictionaryEntry {

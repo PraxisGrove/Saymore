@@ -1,0 +1,258 @@
+import { AppColors } from "color-system.slint";
+
+component OnboardingButton inherits Rectangle {
+    in property <string> label;
+    in property <bool> primary: false;
+    in property <bool> enabled: true;
+    callback activated();
+    width: 148px;
+    height: 40px;
+    border-radius: 8px;
+    background: !root.enabled ? AppColors.surface-muted : root.primary ? AppColors.brand : AppColors.surface-muted;
+    Text {
+        text: root.label;
+        color: !root.enabled ? AppColors.text-muted : root.primary ? #FFFFFF : AppColors.text;
+        font-size: 12px;
+        font-weight: 650;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+    TouchArea { enabled: root.enabled; clicked => { root.activated(); } }
+}
+
+component OnboardingStepItem inherits Rectangle {
+    in property <int> number;
+    in property <string> label;
+    in property <int> current-step;
+    height: 32px;
+    background: transparent;
+    property <bool> complete: root.number - 1 < root.current-step;
+    property <bool> active: root.number - 1 == root.current-step;
+    Rectangle {
+        x: 0;
+        y: 4px;
+        width: 24px;
+        height: 24px;
+        border-radius: 12px;
+        background: root.active ? AppColors.brand : root.complete ? AppColors.success-soft : AppColors.surface-muted;
+        Text {
+            text: root.complete ? "✓" : root.number;
+            color: root.active ? #FFFFFF : root.complete ? AppColors.success : AppColors.text-muted;
+            font-size: 10px;
+            font-weight: 700;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+        }
+    }
+    Text {
+        x: 38px;
+        width: parent.width - 38px;
+        text: root.label;
+        color: root.active ? AppColors.ink : AppColors.text-muted;
+        font-size: 12px;
+        font-weight: root.active ? 650 : 500;
+        vertical-alignment: center;
+    }
+}
+
+component OnboardingToggle inherits Rectangle {
+    in-out property <bool> checked;
+    callback toggled(bool);
+    width: 42px;
+    height: 24px;
+    border-radius: 12px;
+    background: root.checked ? AppColors.brand : AppColors.border;
+    Rectangle {
+        x: root.checked ? 21px : 3px;
+        y: 3px;
+        width: 18px;
+        height: 18px;
+        border-radius: 9px;
+        background: #FFFFFF;
+    }
+    TouchArea {
+        clicked => {
+            root.checked = !root.checked;
+            root.toggled(root.checked);
+        }
+    }
+}
+
+component PermissionStatus inherits Rectangle {
+    in property <bool> granted;
+    in property <string> label;
+    width: 94px;
+    height: 26px;
+    border-radius: 7px;
+    background: root.granted ? AppColors.success-soft : AppColors.surface-muted;
+    Text {
+        text: root.label;
+        color: root.granted ? AppColors.success : AppColors.text-muted;
+        font-size: 10px;
+        font-weight: 650;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+}
+
+component MicrophoneWave inherits Rectangle {
+    in property <float> level;
+    height: 72px;
+    background: transparent;
+    for amplitude[index] in [0.28, 0.38, 0.48, 0.62, 0.76, 0.88, 0.70, 0.82, 0.94, 0.78, 1.0, 0.78, 0.94, 0.82, 0.70, 0.88, 0.76, 0.62, 0.48, 0.38, 0.28]: spectrum-bar := Rectangle {
+        private property <float> phase: mod(animation-tick(), 920ms) / 920ms;
+        private property <float> pulse: 0.72 + 0.28 * abs(sin((spectrum-bar.phase + index * 0.09) * 360deg));
+        width: 4px;
+        x: (parent.width - 204px) / 2 + index * 10px;
+        height: max(4px, 4px + 56px * root.level * amplitude * spectrum-bar.pulse);
+        y: (parent.height - self.height) / 2;
+        border-radius: 2px;
+        background: root.level > 0.01 ? AppColors.brand : AppColors.border;
+        animate height { duration: 70ms; easing: ease-out; }
+        animate background { duration: 120ms; }
+    }
+}
+
+export component OnboardingWindow inherits Window {
+    title: @tr("onboarding.window-title" => "Set up Saymore");
+    default-font-family: "PingFang SC";
+    default-font-size: 13px;
+    preferred-width: 920px;
+    preferred-height: 620px;
+    min-width: 920px;
+    min-height: 620px;
+    max-width: 920px;
+    max-height: 620px;
+    background: AppColors.canvas;
+
+    in-out property <int> step: 0;
+    in property <string> default-shortcut-label: "Right Command";
+    in property <bool> microphone-authorized: false;
+    in property <string> microphone-status: "";
+    in property <float> microphone-level: 0;
+    in property <bool> microphone-test-active: false;
+    in property <bool> microphone-test-complete: false;
+    in property <bool> accessibility-authorized: false;
+    in property <string> accessibility-status: "";
+    in-out property <bool> launch-at-login: false;
+    in property <string> action-status: "";
+
+    callback advance();
+    callback back();
+    callback skip();
+    callback request-microphone();
+    callback toggle-microphone-test();
+    callback request-accessibility();
+    callback finish();
+    callback set-launch-at-login(bool);
+
+    Rectangle {
+        x: 0;
+        y: 0;
+        width: 250px;
+        height: parent.height;
+        background: AppColors.sidebar;
+        Image {
+            x: 28px;
+            y: 62px;
+            width: 42px;
+            height: 42px;
+            source: @image-url("../icons/saymore-mark-3d-136.png");
+            image-fit: contain;
+        }
+        Text { x: 80px; y: 69px; text: "Saymore"; color: AppColors.ink; font-size: 24px; font-weight: 700; }
+        Text { x: 28px; y: 158px; text: @tr("onboarding.setup" => "Get started"); color: AppColors.text; font-size: 12px; font-weight: 650; }
+        VerticalLayout {
+            x: 28px;
+            y: 194px;
+            width: 190px;
+            spacing: 12px;
+            OnboardingStepItem { number: 1; label: @tr("onboarding.step.welcome" => "Welcome"); current-step: root.step; }
+            OnboardingStepItem { number: 2; label: @tr("onboarding.step.microphone" => "Microphone & shortcut"); current-step: root.step; }
+            OnboardingStepItem { number: 3; label: @tr("onboarding.step.accessibility" => "Accessibility"); current-step: root.step; }
+            OnboardingStepItem { number: 4; label: @tr("onboarding.step.complete" => "Finish"); current-step: root.step; }
+        }
+        Text {
+            x: 28px;
+            y: 558px;
+            width: 190px;
+            text: @tr("onboarding.local-only" => "Microphone testing is processed only on this device.");
+            color: AppColors.text-muted;
+            font-size: 9px;
+            wrap: word-wrap;
+        }
+    }
+
+    Rectangle {
+        x: 250px;
+        width: 670px;
+        height: parent.height;
+        background: AppColors.canvas;
+
+        if root.step == 0: Rectangle {
+            x: 54px; y: 54px; width: 562px; height: 470px; background: transparent;
+            Rectangle {
+                x: 0; y: 36px; width: 72px; height: 72px; border-radius: 16px; background: AppColors.surface-muted;
+                Image { x: 14px; y: 14px; width: 44px; height: 44px; source: @image-url("../icons/saymore-mark-3d-136.png"); image-fit: contain; }
+            }
+            Text { x: 0; y: 142px; width: 520px; text: @tr("onboarding.welcome.title" => "Type less. Say more."); color: AppColors.ink; font-size: 32px; font-weight: 700; wrap: word-wrap; }
+            Text { x: 0; y: 200px; width: 500px; text: @tr("onboarding.welcome.detail" => "Saymore lets you use your voice in any text field. Set up your microphone, default shortcut, and Accessibility permission in about a minute."); color: AppColors.text-muted; font-size: 13px; wrap: word-wrap; }
+            OnboardingButton { x: 0; y: 326px; label: @tr("onboarding.start" => "Start setup"); primary: true; activated => { root.advance(); } }
+        }
+
+        if root.step == 1: Rectangle {
+            x: 54px; y: 38px; width: 562px; height: 500px; background: transparent;
+            Text { x: 0; y: 0; text: "2 / 4"; color: AppColors.text-muted; font-size: 11px; font-weight: 650; }
+            Text { x: 0; y: 34px; text: @tr("onboarding.microphone.title" => "Test your microphone"); color: AppColors.ink; font-size: 28px; font-weight: 700; }
+            Text { x: 0; y: 78px; width: 540px; text: @tr("onboarding.microphone.detail" => "Allow microphone access, press {}, and say a few words. The waveform responds to your voice without sending audio anywhere.", root.default-shortcut-label); color: AppColors.text-muted; font-size: 12px; wrap: word-wrap; }
+            Rectangle {
+                x: 0; y: 126px; width: 562px; height: 176px; border-radius: 10px; background: AppColors.surface-muted;
+                Rectangle { x: 20px; y: 20px; width: 40px; height: 40px; border-radius: 10px; background: #FFFFFF; Image { x: 11px; y: 11px; width: 18px; height: 18px; source: @image-url("../icons/lucide/audio-lines.svg"); colorize: AppColors.text; } }
+                Text { x: 76px; y: 18px; text: @tr("onboarding.microphone.device" => "System microphone"); color: AppColors.ink; font-size: 13px; font-weight: 650; }
+                Text { x: 76px; y: 43px; text: root.microphone-status == "granted" ? @tr("onboarding.microphone.granted" => "Permission enabled · ready to test") : root.microphone-status == "not_determined" ? @tr("onboarding.microphone.required" => "Microphone permission is required") : @tr("onboarding.microphone.denied" => "Permission denied · open System Settings"); color: root.microphone-authorized ? AppColors.success : AppColors.text-muted; font-size: 10px; }
+                if !root.microphone-authorized: OnboardingButton { x: 382px; y: 20px; width: 160px; label: @tr("onboarding.microphone.allow" => "Allow microphone"); primary: true; activated => { root.request-microphone(); } }
+                MicrophoneWave { x: 20px; y: 88px; width: 522px; level: root.microphone-level; }
+            }
+            Rectangle {
+                x: 0; y: 318px; width: 562px; height: 128px; border-radius: 10px; background: AppColors.surface-muted;
+                Rectangle { x: 20px; y: 20px; width: 40px; height: 40px; border-radius: 10px; background: #FFFFFF; Text { text: "⌘"; color: AppColors.text; font-size: 20px; horizontal-alignment: center; vertical-alignment: center; } }
+                Text { x: 76px; y: 17px; text: @tr("onboarding.shortcut.try" => "Try the default shortcut"); color: AppColors.ink; font-size: 12px; font-weight: 650; }
+                Text { x: 76px; y: 43px; width: 280px; text: root.microphone-test-complete ? @tr("onboarding.shortcut.success" => "Microphone and shortcut are working.") : root.microphone-test-active ? @tr("onboarding.shortcut.speak" => "Speak now, then press the shortcut again to finish.") : @tr("onboarding.shortcut.waiting" => "Press the shortcut to start the local microphone test."); color: root.microphone-test-complete ? AppColors.success : AppColors.text-muted; font-size: 10px; wrap: word-wrap; }
+                Rectangle { x: 390px; y: 20px; width: 152px; height: 42px; border-radius: 8px; background: #FFFFFF; border-color: AppColors.border; border-width: 1px; Text { text: root.default-shortcut-label; color: AppColors.ink; font-size: 12px; font-weight: 650; horizontal-alignment: center; vertical-alignment: center; } }
+                if root.microphone-authorized: OnboardingButton { x: 390px; y: 76px; width: 152px; height: 34px; label: root.microphone-test-active ? @tr("onboarding.test.stop" => "Finish test") : @tr("onboarding.test.start" => "Start test"); activated => { root.toggle-microphone-test(); } }
+            }
+        }
+
+        if root.step == 2: Rectangle {
+            x: 54px; y: 38px; width: 562px; height: 500px; background: transparent;
+            Text { x: 0; y: 0; text: "3 / 4"; color: AppColors.text-muted; font-size: 11px; font-weight: 650; }
+            Text { x: 0; y: 34px; text: @tr("onboarding.accessibility.title" => "Enable Accessibility"); color: AppColors.ink; font-size: 28px; font-weight: 700; }
+            Text { x: 0; y: 78px; width: 540px; text: @tr("onboarding.accessibility.detail" => "Accessibility lets Saymore listen for the global shortcut and insert recognized text into the text field you are using."); color: AppColors.text-muted; font-size: 12px; wrap: word-wrap; }
+            Rectangle {
+                x: 0; y: 140px; width: 562px; height: 210px; border-radius: 10px; background: AppColors.surface;
+                Rectangle { x: 24px; y: 24px; width: 48px; height: 48px; border-radius: 12px; background: AppColors.surface-muted; Image { x: 14px; y: 14px; width: 20px; height: 20px; source: @image-url("../icons/lucide/shield.svg"); colorize: AppColors.text; } }
+                Text { x: 92px; y: 25px; text: @tr("onboarding.accessibility.card-title" => "Allow Saymore in System Settings"); color: AppColors.ink; font-size: 14px; font-weight: 650; }
+                Text { x: 92px; y: 52px; width: 420px; text: @tr("onboarding.accessibility.card-detail" => "Saymore does not use this permission to read password fields."); color: AppColors.text-muted; font-size: 10px; wrap: word-wrap; }
+                PermissionStatus { x: 24px; y: 104px; granted: root.accessibility-authorized; label: root.accessibility-status == "granted" ? @tr("onboarding.permission.granted-short" => "Enabled") : @tr("onboarding.permission.required-short" => "Required"); }
+                OnboardingButton { x: 24px; y: 150px; width: 182px; label: root.accessibility-authorized ? @tr("onboarding.permission.granted" => "Permission enabled") : @tr("onboarding.accessibility.open" => "Open System Settings"); primary: !root.accessibility-authorized; enabled: !root.accessibility-authorized; activated => { root.request-accessibility(); } }
+            }
+        }
+
+        if root.step == 3: Rectangle {
+            x: 54px; y: 38px; width: 562px; height: 500px; background: transparent;
+            Text { x: 0; y: 0; text: "4 / 4"; color: AppColors.text-muted; font-size: 11px; font-weight: 650; }
+            Rectangle { x: 0; y: 38px; width: 42px; height: 42px; border-radius: 12px; background: AppColors.success-soft; Text { text: "✓"; color: AppColors.success; font-size: 18px; font-weight: 700; horizontal-alignment: center; vertical-alignment: center; } }
+            Text { x: 0; y: 104px; text: @tr("onboarding.complete.title" => "Saymore is ready"); color: AppColors.ink; font-size: 28px; font-weight: 700; }
+            Text { x: 0; y: 148px; width: 520px; text: @tr("onboarding.complete.detail" => "Press {} in any text field to start speaking, then press it again to finish.", root.default-shortcut-label); color: AppColors.text-muted; font-size: 12px; wrap: word-wrap; }
+            Rectangle { x: 0; y: 202px; width: 562px; height: 68px; border-radius: 10px; background: AppColors.surface-muted; Text { x: 20px; y: 14px; text: @tr("onboarding.complete.shortcut" => "Your voice input shortcut"); color: AppColors.text-muted; font-size: 10px; } Text { x: 20px; y: 36px; text: root.default-shortcut-label; color: AppColors.ink; font-size: 13px; font-weight: 650; } }
+            Rectangle { x: 0; y: 286px; width: 562px; height: 74px; border-radius: 10px; background: AppColors.surface; Text { x: 20px; y: 16px; text: @tr("onboarding.complete.login-title" => "Launch Saymore at login"); color: AppColors.ink; font-size: 12px; font-weight: 650; } Text { x: 20px; y: 40px; text: @tr("onboarding.complete.login-detail" => "Keep voice input ready in the background."); color: AppColors.text-muted; font-size: 10px; } OnboardingToggle { x: parent.width - 62px; y: 25px; checked <=> root.launch-at-login; toggled(value) => { root.set-launch-at-login(value); } } }
+            if root.action-status != "": Text { x: 0; y: 376px; width: 540px; text: root.action-status == "microphone_test_failed" ? @tr("onboarding.error.microphone-test" => "The microphone test could not start. Check the selected input device and try again.") : @tr("common.save-failed" => "Could not save this change. Try again."); color: AppColors.danger; font-size: 10px; wrap: word-wrap; }
+        }
+
+        if root.step > 0: OnboardingButton { x: 54px; y: 540px; width: 76px; label: @tr("common.back" => "Back"); activated => { root.back(); } }
+        if root.step < 3: Text { x: 270px; y: 552px; width: 110px; text: @tr("onboarding.skip" => "Skip for now"); color: AppColors.text-muted; font-size: 10px; horizontal-alignment: center; TouchArea { clicked => { root.skip(); } } }
+        if root.step == 1: OnboardingButton { x: 466px; y: 540px; width: 150px; label: @tr("common.continue" => "Continue"); primary: true; enabled: root.microphone-test-complete && !root.microphone-test-active; activated => { root.advance(); } }
+        if root.step == 2: OnboardingButton { x: 466px; y: 540px; width: 150px; label: @tr("common.continue" => "Continue"); primary: true; enabled: root.accessibility-authorized; activated => { root.advance(); } }
+        if root.step == 3: OnboardingButton { x: 466px; y: 540px; width: 150px; label: @tr("onboarding.finish" => "Start using Saymore"); primary: true; activated => { root.finish(); } }
+    }
+}

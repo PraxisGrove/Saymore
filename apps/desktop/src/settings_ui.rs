@@ -2,8 +2,9 @@ use std::sync::Arc;
 
 use slint::{ComponentHandle, SharedString};
 use template_app::{
-    LlmProviderPreset, OpenAiCompatibleAsrSettings, ProviderConfigStore, SaymoreSettings,
-    SettingsStore, SettingsStoreError, SpeechRecognitionError, VolcengineAsrSettings,
+    ChatCompletionsLlmSettings, LlmProviderPreset, OpenAiCompatibleAsrSettings,
+    ProviderConfigStore, SettingsStore, SettingsStoreError, SpeechRecognitionError,
+    VolcengineAsrSettings,
 };
 #[cfg(test)]
 use template_app::{ProviderCatalog, ProviderInstance};
@@ -19,12 +20,16 @@ use crate::ui::{
     AppWindow, AsrProvider as UiAsrProvider, LlmProvider as UiLlmProvider, Translations,
 };
 
+mod llm_enablement;
 mod loaded_settings;
 mod model_discovery;
 mod provider_key_page;
 #[cfg(test)]
 mod regression_tests;
 
+use llm_enablement::{llm_configuration_ready, provider_is_local};
+#[cfg(test)]
+use llm_enablement::{llm_consent_required, persist_llm_consent, test_and_enable_llm};
 use loaded_settings::apply_loaded_settings;
 
 const VOLCENGINE_ASR_1_MODEL: &str = "volc.bigasr.sauc.duration";
@@ -38,6 +43,7 @@ fn provider_preset(provider: UiLlmProvider) -> LlmProviderPreset {
     match provider {
         UiLlmProvider::Sensenova => LlmProviderPreset::SenseNova,
         UiLlmProvider::Deepseek => LlmProviderPreset::DeepSeek,
+        UiLlmProvider::Custom => LlmProviderPreset::Custom,
     }
 }
 
@@ -45,6 +51,7 @@ fn ui_provider(provider: LlmProviderPreset) -> UiLlmProvider {
     match provider {
         LlmProviderPreset::SenseNova => UiLlmProvider::Sensenova,
         LlmProviderPreset::DeepSeek => UiLlmProvider::Deepseek,
+        LlmProviderPreset::Custom => UiLlmProvider::Custom,
     }
 }
 
@@ -400,29 +407,59 @@ fn asr_config_error_text(ui: &AppWindow, error: AsrConfigError) -> SharedString 
 
 fn wire_llm(ui: &AppWindow, store: Arc<JsonSettingsStore>) {
     wire_llm_config_actions(ui, Arc::clone(&store));
-    wire_llm_enablement(ui, store);
+    llm_enablement::wire(ui, store);
 }
 
 fn wire_llm_config_actions(ui: &AppWindow, store: Arc<JsonSettingsStore>) {
     let save_ui = ui.as_weak();
     let save_store = Arc::clone(&store);
-    ui.on_save_llm_config(move |provider, api_key, model| {
+    ui.on_save_llm_config(move |provider, api_key, base_url, model| {
         let Some(ui) = save_ui.upgrade() else {
             return;
         };
         let provider = provider_preset(provider);
-        if api_key.trim().is_empty() {
+        if provider != LlmProviderPreset::Custom && api_key.trim().is_empty() {
             ui.set_llm_config_status(ui.global::<Translations>().get_models_enter_api_key());
+            return;
+        }
+        let base_url = if provider == LlmProviderPreset::Custom {
+            base_url.trim().trim_end_matches('/').to_owned()
+        } else {
+            provider.base_url().to_owned()
+        };
+        if base_url.is_empty() {
+            ui.set_llm_config_status(ui.global::<Translations>().get_models_enter_service_url());
             return;
         }
         if model.trim().is_empty() {
             ui.set_llm_config_status(ui.global::<Translations>().get_models_choose_model());
             return;
         }
-        let result = save_store.load_catalog().and_then(|mut catalog| {
-            catalog.save_llm_provider_model_config(provider, api_key.as_str(), model.as_str());
-            save_store.save_catalog(&catalog)
-        });
+        let configuration = ChatCompletionsLlmSettings {
+            base_url: base_url.clone(),
+            api_key: api_key.trim().to_owned(),
+            model: model.trim().to_owned(),
+            custom_headers: Default::default(),
+        };
+        let result = ChatCompletionsLlmProvider::new(configuration)
+            .map_err(|_| SettingsStoreError::Invalid("invalid LLM configuration".to_owned()))
+            .and_then(|_| save_store.load_catalog())
+            .and_then(|mut catalog| {
+                if provider == LlmProviderPreset::Custom {
+                    catalog.save_custom_llm_provider_config(
+                        &base_url,
+                        api_key.as_str(),
+                        model.as_str(),
+                    );
+                } else {
+                    catalog.save_llm_provider_model_config(
+                        provider,
+                        api_key.as_str(),
+                        model.as_str(),
+                    );
+                }
+                save_store.save_catalog(&catalog)
+            });
         if result.is_ok() {
             apply_loaded_settings(&ui, &save_store);
             ui.set_llm_config_status(ui.global::<Translations>().get_models_saved_enable_test());
@@ -445,184 +482,20 @@ fn wire_llm_config_actions(ui: &AppWindow, store: Arc<JsonSettingsStore>) {
         });
         if result.is_ok() {
             apply_loaded_settings(&ui, &select_store);
-            ui.set_llm_provider_target(SharedString::from(provider.base_url()));
+            ui.set_llm_provider_target(SharedString::from(provider_base_url(&ui, provider)));
         } else {
             ui.set_llm_config_status(ui.global::<Translations>().get_models_switch_failed());
         }
     });
 }
 
-fn wire_llm_enablement(ui: &AppWindow, store: Arc<JsonSettingsStore>) {
-    let prepare_ui = ui.as_weak();
-    let prepare_store = Arc::clone(&store);
-    ui.on_request_llm_enable(move || {
-        let Some(ui) = prepare_ui.upgrade() else {
-            return;
-        };
-        let provider = provider_preset(ui.get_llm_provider());
-        let Ok(catalog) = prepare_store.load_catalog() else {
-            ui.set_llm_config_status(
-                ui.global::<Translations>()
-                    .get_common_configuration_load_failed(),
-            );
-            return;
-        };
-        if catalog
-            .llm_provider_api_key(provider)
-            .is_none_or(str::is_empty)
-        {
-            ui.set_llm_config_status(ui.global::<Translations>().get_models_save_api_key_first());
-            return;
+fn provider_base_url(ui: &AppWindow, provider: LlmProviderPreset) -> String {
+    match provider {
+        LlmProviderPreset::SenseNova | LlmProviderPreset::DeepSeek => {
+            provider.base_url().to_owned()
         }
-        let base_url = provider.base_url().to_owned();
-        let local = provider_is_local(&base_url);
-        ui.set_llm_provider_target(SharedString::from(&base_url));
-        ui.set_llm_provider_local(local);
-        let Ok(settings) = prepare_store.load() else {
-            ui.set_llm_config_status(
-                ui.global::<Translations>()
-                    .get_common_configuration_load_failed(),
-            );
-            return;
-        };
-        if llm_consent_required(&settings, &base_url) {
-            ui.set_llm_confirmation_visible(true);
-        } else {
-            start_llm_test(&ui, Arc::clone(&prepare_store), provider);
-        }
-    });
-
-    let llm_ui = ui.as_weak();
-    ui.on_set_llm_enabled(move |enabled, expected_base_url| {
-        let Some(ui) = llm_ui.upgrade() else {
-            return;
-        };
-        if !enabled {
-            let result = store.load().and_then(|mut settings| {
-                settings.llm.enabled = false;
-                store.save(&settings)
-            });
-            ui.set_llm_enabled(result.is_err());
-            let translations = ui.global::<Translations>();
-            ui.set_llm_config_status(if result.is_ok() {
-                translations.get_models_not_enabled()
-            } else {
-                translations.get_common_save_failed()
-            });
-            return;
-        }
-        let provider = provider_preset(ui.get_llm_provider());
-        if provider.base_url() != expected_base_url.trim() {
-            ui.set_llm_config_status(ui.global::<Translations>().get_models_provider_changed());
-            return;
-        }
-        if persist_llm_consent(&store, provider).is_err() {
-            ui.set_llm_config_status(
-                ui.global::<Translations>()
-                    .get_models_authorization_save_failed(),
-            );
-            return;
-        }
-        start_llm_test(&ui, Arc::clone(&store), provider);
-    });
-}
-
-fn llm_consent_required(settings: &SaymoreSettings, expected_base_url: &str) -> bool {
-    settings.llm.confirmed_base_url.trim() != expected_base_url.trim()
-}
-
-fn persist_llm_consent(
-    store: &JsonSettingsStore,
-    provider: LlmProviderPreset,
-) -> Result<(), SettingsStoreError> {
-    store.load().and_then(|mut settings| {
-        settings.llm.enabled = false;
-        settings.llm.confirmed_base_url = provider.base_url().to_owned();
-        store.save(&settings)
-    })
-}
-
-fn start_llm_test(ui: &AppWindow, store: Arc<JsonSettingsStore>, provider: LlmProviderPreset) {
-    ui.set_llm_enabled(false);
-    ui.set_llm_config_status(ui.global::<Translations>().get_models_testing_connection());
-    let test_ui = ui.as_weak();
-    let spawn_result = std::thread::Builder::new()
-        .name("saymore-test-llm".to_owned())
-        .spawn(move || {
-            let result = test_and_enable_llm(&store, provider);
-            let event_store = Arc::clone(&store);
-            let _ = test_ui.upgrade_in_event_loop(move |ui| {
-                apply_loaded_settings(&ui, &event_store);
-                if result.is_err() {
-                    ui.set_llm_config_status(ui.global::<Translations>().get_models_test_failed());
-                }
-            });
-        });
-    if spawn_result.is_err() {
-        ui.set_llm_config_status(ui.global::<Translations>().get_models_test_failed());
+        LlmProviderPreset::Custom => ui.get_custom_llm_base_url().trim().to_owned(),
     }
-}
-
-fn test_and_enable_llm(
-    store: &JsonSettingsStore,
-    provider_preset: LlmProviderPreset,
-) -> Result<(), String> {
-    let mut catalog = store.load_catalog().map_err(|error| error.to_string())?;
-    let api_key = catalog
-        .llm_provider_api_key(provider_preset)
-        .ok_or_else(|| "LLM API Key is missing".to_owned())?
-        .to_owned();
-    let provider_settings = provider_preset.settings(&api_key);
-    catalog.select_llm_provider(provider_preset);
-    let expected_provider_id = catalog
-        .active
-        .llm
-        .clone()
-        .ok_or_else(|| "LLM provider selection failed".to_owned())?;
-    store
-        .save_catalog(&catalog)
-        .map_err(|error| error.to_string())?;
-    let provider = ChatCompletionsLlmProvider::new(provider_settings.clone())
-        .map_err(|error| error.to_string())?;
-    let runtime = tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .build()
-        .map_err(|error| error.to_string())?;
-    runtime
-        .block_on(provider.test_connection())
-        .map_err(|error| error.to_string())?;
-    if !store
-        .enable_llm_provider_if_unchanged(
-            provider_preset,
-            &expected_provider_id,
-            &provider_settings.api_key,
-        )
-        .map_err(|error| error.to_string())?
-    {
-        return Err("LLM provider changed during connection test".to_owned());
-    }
-    Ok(())
-}
-
-fn provider_is_local(base_url: &str) -> bool {
-    let authority = base_url
-        .split_once("://")
-        .map_or(base_url, |(_, remainder)| remainder)
-        .split('/')
-        .next()
-        .unwrap_or_default()
-        .rsplit('@')
-        .next()
-        .unwrap_or_default();
-    let host = if let Some(bracketed) = authority.strip_prefix('[') {
-        bracketed.split(']').next().unwrap_or_default()
-    } else {
-        authority.split(':').next().unwrap_or_default()
-    };
-    matches!(
-        host.to_ascii_lowercase().as_str(),
-        "localhost" | "127.0.0.1" | "::1"
-    )
 }
 
 fn apply_status(ui: &AppWindow, configured: bool, error: bool, status: impl Into<SharedString>) {
@@ -689,17 +562,18 @@ mod tests {
     #[test]
     fn routes_key_page_actions_to_the_selected_provider() {
         assert_eq!(
-            provider_key_page::VOLCENGINE_KEY_PAGE,
+            Some(provider_key_page::VOLCENGINE_KEY_PAGE),
             provider_key_page::url(0, UiLlmProvider::Sensenova)
         );
         assert_eq!(
-            provider_key_page::SENSENOVA_KEY_PAGE,
+            Some(provider_key_page::SENSENOVA_KEY_PAGE),
             provider_key_page::url(1, UiLlmProvider::Sensenova)
         );
         assert_eq!(
-            provider_key_page::DEEPSEEK_KEY_PAGE,
+            Some(provider_key_page::DEEPSEEK_KEY_PAGE),
             provider_key_page::url(1, UiLlmProvider::Deepseek)
         );
+        assert_eq!(None, provider_key_page::url(1, UiLlmProvider::Custom));
     }
 
     #[test]

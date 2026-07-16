@@ -40,8 +40,8 @@ impl SecretStore for MemorySecretStore {
 }
 
 #[test]
-fn repeated_corrections_across_dictations_add_an_automatic_entry()
--> Result<(), Box<dyn std::error::Error>> {
+fn two_high_confidence_corrections_add_an_automatic_entry() -> Result<(), Box<dyn std::error::Error>>
+{
     let directory = tempfile::tempdir()?;
     let store = SqliteStorage::start(
         directory.path().join("saymore.sqlite3"),
@@ -51,21 +51,14 @@ fn repeated_corrections_across_dictations_add_an_automatic_entry()
     assert_eq!(
         DictionaryLearningOutcome::Pending {
             occurrence_count: 1,
-            dictation_count: 1
+            dictation_count: 1,
         },
         store.record_dictionary_observation(observation("first", 1_000))?
     );
-    assert_eq!(
-        DictionaryLearningOutcome::Pending {
-            occurrence_count: 2,
-            dictation_count: 2
-        },
-        store.record_dictionary_observation(observation("second", 2_000))?
-    );
     let DictionaryLearningOutcome::Added(added) =
-        store.record_dictionary_observation(observation("second", 3_000))?
+        store.record_dictionary_observation(observation("second", 2_000))?
     else {
-        return Err("third observation did not add a dictionary entry".into());
+        return Err("second high-confidence observation did not add a dictionary entry".into());
     };
     assert_eq!("Saymore", added.canonical);
     assert_eq!(DictionaryOrigin::Automatic, added.origin);
@@ -74,39 +67,56 @@ fn repeated_corrections_across_dictations_add_an_automatic_entry()
 }
 
 #[test]
-fn different_recognized_forms_accumulate_as_one_canonical_entry()
+fn repeated_edits_in_one_dictation_do_not_satisfy_the_high_confidence_threshold()
 -> Result<(), Box<dyn std::error::Error>> {
     let directory = tempfile::tempdir()?;
     let store = SqliteStorage::start(
         directory.path().join("saymore.sqlite3"),
         Arc::new(MemorySecretStore::default()),
     )?;
-    let cases = [
-        ("first", "我们使用 CM 开发", 1_000),
-        ("second", "我们使用 CMO 开发", 2_000),
-        ("third", "我们使用 C末 开发", 3_000),
-    ];
 
-    let mut outcome = None;
-    for (dictation_id, original, observed_at_ms) in cases {
+    store.record_dictionary_observation(observation("same", 1_000))?;
+    assert_eq!(
+        DictionaryLearningOutcome::Pending {
+            occurrence_count: 2,
+            dictation_count: 1,
+        },
+        store.record_dictionary_observation(observation("same", 2_000))?
+    );
+    assert!(store.list_dictionary()?.is_empty());
+    Ok(())
+}
+
+#[test]
+fn different_recognized_forms_save_only_the_canonical_entry()
+-> Result<(), Box<dyn std::error::Error>> {
+    let directory = tempfile::tempdir()?;
+    let store = SqliteStorage::start(
+        directory.path().join("saymore.sqlite3"),
+        Arc::new(MemorySecretStore::default()),
+    )?;
+    for (dictation_id, original, observed_at_ms) in [
+        ("first", "我们使用 CMO 开发", 1_000),
+        ("second", "我们使用 C末 开发", 2_000),
+    ] {
         let correction = correction_from_edit(original, "我们使用 Saymore 开发")
             .ok_or("the local correction was not recognized")?;
-        outcome = Some(
-            store.record_dictionary_observation(NewDictionaryObservation {
-                dictation_id: dictation_id.to_owned(),
-                language: "und".to_owned(),
-                correction,
-                assessment: assess_dictionary_candidate("Saymore"),
-                observed_at_ms,
-            })?,
-        );
+        let outcome = store.record_dictionary_observation(NewDictionaryObservation {
+            dictation_id: dictation_id.to_owned(),
+            language: "und".to_owned(),
+            correction,
+            assessment: assess_dictionary_candidate("Saymore"),
+            observed_at_ms,
+        })?;
+        if dictation_id == "first" {
+            assert!(matches!(outcome, DictionaryLearningOutcome::Pending { .. }));
+        } else {
+            assert!(matches!(outcome, DictionaryLearningOutcome::Added(_)));
+        }
     }
-
-    let Some(DictionaryLearningOutcome::Added(added)) = outcome else {
-        return Err("different ASR forms did not accumulate into one entry".into());
-    };
-    assert_eq!("Saymore", added.canonical);
-    assert_eq!(vec![added], store.list_dictionary()?);
+    let entries = store.list_dictionary()?;
+    assert_eq!(1, entries.len());
+    assert_eq!("Saymore", entries[0].canonical);
     Ok(())
 }
 
@@ -119,11 +129,10 @@ fn deleting_an_automatic_entry_suppresses_relearning_until_manual_add()
         Arc::new(MemorySecretStore::default()),
     )?;
     store.record_dictionary_observation(observation("first", 1_000))?;
-    store.record_dictionary_observation(observation("second", 2_000))?;
     let DictionaryLearningOutcome::Added(added) =
-        store.record_dictionary_observation(observation("second", 3_000))?
+        store.record_dictionary_observation(observation("second", 2_000))?
     else {
-        return Err("third observation did not add a dictionary entry".into());
+        return Err("second high-confidence observation did not add a dictionary entry".into());
     };
 
     store.delete_dictionary(&added.id)?;
@@ -192,20 +201,14 @@ fn representative_english_terms_are_promoted_to_automatic_entries()
         Arc::new(MemorySecretStore::default()),
     )?;
     for term in ["Versa", "Vercel", "POI", "immersiveLayoutHeight"] {
-        for (index, dictation_id) in ["one", "two", "two"].iter().enumerate() {
-            let outcome = store.record_dictionary_observation(NewDictionaryObservation {
-                dictation_id: format!("{term}-{dictation_id}"),
-                language: "en".to_owned(),
-                correction: DictionaryCorrection {
-                    canonical: term.to_owned(),
-                },
-                assessment: assess_dictionary_candidate(term),
-                observed_at_ms: 10_000 + index as i64,
-            })?;
-            if index == 2 {
-                assert!(matches!(outcome, DictionaryLearningOutcome::Added(_)));
-            }
-        }
+        let first = term_observation(term, format!("{term}-one"), 10_000);
+        assert!(matches!(
+            store.record_dictionary_observation(first)?,
+            DictionaryLearningOutcome::Pending { .. }
+        ));
+        let second = term_observation(term, format!("{term}-two"), 11_000);
+        let outcome = store.record_dictionary_observation(second)?;
+        assert!(matches!(outcome, DictionaryLearningOutcome::Added(_)));
     }
     let entries = store.list_dictionary()?;
     assert_eq!(4, entries.len());
@@ -231,18 +234,20 @@ fn llm_approved_chinese_term_uses_the_high_confidence_threshold()
         confidence: 96,
         source: CandidateAssessmentSource::Llm,
     };
-    let mut outcome = DictionaryLearningOutcome::Rejected;
-    for (index, dictation_id) in ["one", "two", "two"].iter().enumerate() {
-        outcome = store.record_dictionary_observation(NewDictionaryObservation {
-            dictation_id: (*dictation_id).to_owned(),
-            language: "zh-Hans".to_owned(),
-            correction: DictionaryCorrection {
-                canonical: "逆地理编码".to_owned(),
-            },
-            assessment,
-            observed_at_ms: 20_000 + index as i64,
-        })?;
-    }
+    let make_observation = |dictation_id: &str, observed_at_ms| NewDictionaryObservation {
+        dictation_id: dictation_id.to_owned(),
+        language: "zh-Hans".to_owned(),
+        correction: DictionaryCorrection {
+            canonical: "逆地理编码".to_owned(),
+        },
+        assessment,
+        observed_at_ms,
+    };
+    assert!(matches!(
+        store.record_dictionary_observation(make_observation("one", 20_000))?,
+        DictionaryLearningOutcome::Pending { .. }
+    ));
+    let outcome = store.record_dictionary_observation(make_observation("two", 21_000))?;
     assert!(matches!(outcome, DictionaryLearningOutcome::Added(_)));
     let evidence = store.list_dictionary_candidate_evidence()?;
     assert_eq!(
@@ -285,6 +290,22 @@ fn observation(dictation_id: &str, observed_at_ms: i64) -> NewDictionaryObservat
             canonical: "Saymore".to_owned(),
         },
         assessment: assess_dictionary_candidate("Saymore"),
+        observed_at_ms,
+    }
+}
+
+fn term_observation(
+    term: &str,
+    dictation_id: String,
+    observed_at_ms: i64,
+) -> NewDictionaryObservation {
+    NewDictionaryObservation {
+        dictation_id,
+        language: "en".to_owned(),
+        correction: DictionaryCorrection {
+            canonical: term.to_owned(),
+        },
+        assessment: assess_dictionary_candidate(term),
         observed_at_ms,
     }
 }

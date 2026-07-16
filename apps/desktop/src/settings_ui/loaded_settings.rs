@@ -5,8 +5,8 @@ use template_infra::JsonSettingsStore;
 use crate::ui::{AppWindow, AsrProvider as UiAsrProvider, Translations};
 
 use super::{
-    VOLCENGINE_ASR_2_MODEL, apply_pending_test, apply_status, provider_is_local, ui_provider,
-    volcengine_api_key_is_valid, volcengine_model_id,
+    VOLCENGINE_ASR_2_MODEL, apply_pending_test, apply_status, llm_configuration_ready,
+    provider_is_local, ui_provider, volcengine_api_key_is_valid, volcengine_model_id,
 };
 
 pub(super) fn apply_loaded_settings(ui: &AppWindow, store: &JsonSettingsStore) {
@@ -29,6 +29,10 @@ pub(super) fn apply_loaded_settings(ui: &AppWindow, store: &JsonSettingsStore) {
             let sensenova_model =
                 catalog.configured_llm_provider_model(LlmProviderPreset::SenseNova);
             let deepseek_model = catalog.configured_llm_provider_model(LlmProviderPreset::DeepSeek);
+            let custom_settings = catalog
+                .llm_provider_settings(LlmProviderPreset::Custom)
+                .unwrap_or_default();
+            let custom_model = catalog.configured_llm_provider_model(LlmProviderPreset::Custom);
             ui.set_sensenova_configured(sensenova_model.is_some());
             ui.set_deepseek_configured(deepseek_model.is_some());
             ui.set_sensenova_model(SharedString::from(
@@ -37,14 +41,21 @@ pub(super) fn apply_loaded_settings(ui: &AppWindow, store: &JsonSettingsStore) {
             ui.set_deepseek_model(SharedString::from(
                 deepseek_model.unwrap_or_else(|| LlmProviderPreset::DeepSeek.model()),
             ));
-            let llm_configured = !settings.llm.chat_completions.api_key.trim().is_empty();
-            let llm_base_url = selected.base_url();
+            ui.set_custom_llm_api_key(SharedString::from(&custom_settings.api_key));
+            ui.set_custom_llm_base_url(SharedString::from(&custom_settings.base_url));
+            ui.set_custom_llm_model(SharedString::from(&custom_settings.model));
+            ui.set_custom_llm_configured(custom_model.is_some());
+            let selected_settings = catalog
+                .llm_provider_settings(selected)
+                .unwrap_or_else(|| selected.settings(""));
+            let llm_configured = llm_configuration_ready(selected, &selected_settings);
+            let llm_base_url = selected_settings.base_url;
             let llm_enabled = settings.llm.enabled
                 && llm_configured
                 && settings.llm.confirmed_base_url.trim() == llm_base_url;
             ui.set_llm_enabled(llm_enabled);
-            ui.set_llm_provider_target(SharedString::from(llm_base_url));
-            ui.set_llm_provider_local(provider_is_local(llm_base_url));
+            ui.set_llm_provider_target(SharedString::from(&llm_base_url));
+            ui.set_llm_provider_local(provider_is_local(&llm_base_url));
             let translations = ui.global::<Translations>();
             ui.set_llm_config_status(if llm_enabled {
                 translations.get_models_enabled()

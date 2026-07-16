@@ -9,6 +9,7 @@ pub(super) fn apply(connection: &mut Connection) -> Result<(), StorageError> {
     let version: u32 = connection
         .query_row("PRAGMA user_version", [], |row| row.get(0))
         .map_err(unavailable)?;
+    let fresh_install = version == 0;
     if version > CURRENT_SCHEMA_VERSION {
         return Err(StorageError::NewerSchema(version));
     }
@@ -39,6 +40,18 @@ pub(super) fn apply(connection: &mut Connection) -> Result<(), StorageError> {
     if version < 9 {
         add_runtime_preference_settings(connection)?;
     }
+    if version < 10 {
+        add_desktop_behavior_settings(connection)?;
+    }
+    if version < 11 {
+        add_dictation_shortcut_setting(connection)?;
+    }
+    if version < 12 {
+        add_multiple_dictation_shortcuts(connection)?;
+    }
+    if version < 13 {
+        add_onboarding_state(connection, fresh_install)?;
+    }
     if version < 14 {
         add_dictionary_candidate_evidence(connection)?;
     }
@@ -65,6 +78,109 @@ fn add_dictionary_candidate_evidence(connection: &mut Connection) -> Result<(), 
              );
              PRAGMA user_version = 14;",
         )
+        .map_err(unavailable)?;
+    transaction.commit().map_err(unavailable)
+}
+
+fn add_onboarding_state(
+    connection: &mut Connection,
+    fresh_install: bool,
+) -> Result<(), StorageError> {
+    let transaction = connection.transaction().map_err(unavailable)?;
+    if !app_settings_has_column(&transaction, "onboarding_status")? {
+        transaction
+            .execute_batch(
+                "ALTER TABLE app_settings
+                 ADD COLUMN onboarding_status TEXT NOT NULL DEFAULT 'not_started'
+                 CHECK (onboarding_status IN (
+                    'not_started', 'in_progress', 'completed', 'skipped'
+                 ));
+                 ALTER TABLE app_settings
+                 ADD COLUMN onboarding_step INTEGER NOT NULL DEFAULT 0
+                 CHECK (onboarding_step BETWEEN 0 AND 3);",
+            )
+            .map_err(unavailable)?;
+        if !fresh_install {
+            transaction
+                .execute(
+                    "UPDATE app_settings SET onboarding_status = 'completed', onboarding_step = 3",
+                    [],
+                )
+                .map_err(unavailable)?;
+        }
+    }
+    transaction
+        .execute_batch("PRAGMA user_version = 13;")
+        .map_err(unavailable)?;
+    transaction.commit().map_err(unavailable)
+}
+
+fn add_multiple_dictation_shortcuts(connection: &mut Connection) -> Result<(), StorageError> {
+    let transaction = connection.transaction().map_err(unavailable)?;
+    if !app_settings_has_column(&transaction, "dictation_shortcuts")? {
+        transaction
+            .execute_batch(
+                "ALTER TABLE app_settings
+                 ADD COLUMN dictation_shortcuts TEXT NOT NULL DEFAULT 'right-command';
+                 UPDATE app_settings
+                 SET dictation_shortcuts = dictation_shortcut
+                 WHERE dictation_shortcut <> '';",
+            )
+            .map_err(unavailable)?;
+    }
+    transaction
+        .execute_batch("PRAGMA user_version = 12;")
+        .map_err(unavailable)?;
+    transaction.commit().map_err(unavailable)
+}
+
+fn add_dictation_shortcut_setting(connection: &mut Connection) -> Result<(), StorageError> {
+    let transaction = connection.transaction().map_err(unavailable)?;
+    if !app_settings_has_column(&transaction, "dictation_shortcut")? {
+        transaction
+            .execute_batch(
+                "ALTER TABLE app_settings
+                 ADD COLUMN dictation_shortcut TEXT NOT NULL DEFAULT 'right-command';",
+            )
+            .map_err(unavailable)?;
+    }
+    transaction
+        .execute_batch("PRAGMA user_version = 11;")
+        .map_err(unavailable)?;
+    transaction.commit().map_err(unavailable)
+}
+
+fn add_desktop_behavior_settings(connection: &mut Connection) -> Result<(), StorageError> {
+    let transaction = connection.transaction().map_err(unavailable)?;
+    if !app_settings_has_column(&transaction, "copy_to_clipboard")? {
+        transaction
+            .execute_batch(
+                "ALTER TABLE app_settings
+                 ADD COLUMN copy_to_clipboard INTEGER NOT NULL DEFAULT 0
+                 CHECK (copy_to_clipboard IN (0, 1));",
+            )
+            .map_err(unavailable)?;
+    }
+    if !app_settings_has_column(&transaction, "show_in_dock")? {
+        transaction
+            .execute_batch(
+                "ALTER TABLE app_settings
+                 ADD COLUMN show_in_dock INTEGER NOT NULL DEFAULT 1
+                 CHECK (show_in_dock IN (0, 1));",
+            )
+            .map_err(unavailable)?;
+    }
+    if !app_settings_has_column(&transaction, "dictation_paused")? {
+        transaction
+            .execute_batch(
+                "ALTER TABLE app_settings
+                 ADD COLUMN dictation_paused INTEGER NOT NULL DEFAULT 0
+                 CHECK (dictation_paused IN (0, 1));",
+            )
+            .map_err(unavailable)?;
+    }
+    transaction
+        .execute_batch("PRAGMA user_version = 10;")
         .map_err(unavailable)?;
     transaction.commit().map_err(unavailable)
 }

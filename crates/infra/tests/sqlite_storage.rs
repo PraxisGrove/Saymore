@@ -8,8 +8,8 @@ use std::sync::{
 use template_app::{
     DictionaryOrigin, DictionaryStore, HistoryDelivery, HistoryRecord, HistoryRefinement,
     HistoryRetention, HistoryStore, InstalledModel, InstalledModelStore, LocalSettings,
-    LocalSettingsStore, NewDictionaryEntry, NewHistoryRecord, SecretStore, SecretStoreError,
-    StorageError, UiLanguagePreference,
+    LocalSettingsStore, NewDictionaryEntry, NewHistoryRecord, OnboardingStatus, OnboardingStep,
+    SecretStore, SecretStoreError, StorageError, UiLanguagePreference,
 };
 use template_infra::SqliteStorage;
 
@@ -103,12 +103,59 @@ fn settings_are_typed_and_persisted_across_restarts() -> Result<(), Box<dyn std:
         ui_language: UiLanguagePreference::English,
         automatic_update_checks: true,
         feedback_sounds_enabled: false,
+        copy_to_clipboard: true,
+        show_in_dock: false,
+        dictation_paused: true,
+        dictation_shortcuts: vec!["fn".to_owned(), "command+key-40".to_owned()],
+        onboarding_status: OnboardingStatus::InProgress,
+        onboarding_step: OnboardingStep::Accessibility,
     };
     store.save_settings(changed.clone())?;
     drop(store);
 
     let reopened = SqliteStorage::start(path, secrets)?;
     assert_eq!(changed, reopened.load_settings()?);
+    Ok(())
+}
+
+#[test]
+fn existing_installations_do_not_receive_first_run_onboarding()
+-> Result<(), Box<dyn std::error::Error>> {
+    let directory = tempfile::tempdir()?;
+    let path = directory.path().join("saymore.sqlite3");
+    let connection = rusqlite::Connection::open(&path)?;
+    connection.execute_batch(
+        "CREATE TABLE app_settings (
+            singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
+            history_enabled INTEGER NOT NULL,
+            history_retention_days INTEGER,
+            automatic_dictionary_learning INTEGER NOT NULL,
+            preferred_microphone_id TEXT,
+            preferred_microphone_name TEXT,
+            diagnostics_logging_enabled INTEGER NOT NULL DEFAULT 0,
+            ui_language TEXT NOT NULL DEFAULT 'system',
+            automatic_update_checks INTEGER NOT NULL DEFAULT 0,
+            feedback_sounds_enabled INTEGER NOT NULL DEFAULT 1,
+            copy_to_clipboard INTEGER NOT NULL DEFAULT 0,
+            show_in_dock INTEGER NOT NULL DEFAULT 1,
+            dictation_paused INTEGER NOT NULL DEFAULT 0,
+            dictation_shortcut TEXT NOT NULL DEFAULT 'right-command',
+            dictation_shortcuts TEXT NOT NULL DEFAULT 'right-command'
+        );
+        INSERT INTO app_settings (
+            singleton, history_enabled, history_retention_days,
+            automatic_dictionary_learning
+        ) VALUES (1, 1, 7, 1);
+        PRAGMA user_version = 12;",
+    )?;
+    drop(connection);
+
+    let store = SqliteStorage::start(path, Arc::new(MemorySecretStore::default()))?;
+
+    assert_eq!(
+        OnboardingStatus::Completed,
+        store.load_settings()?.onboarding_status
+    );
     Ok(())
 }
 
@@ -533,7 +580,7 @@ fn dictionary_identity_preserves_token_boundaries_across_v3_migration()
 
     let connection = rusqlite::Connection::open(path)?;
     let version: u32 = connection.query_row("PRAGMA user_version", [], |row| row.get(0))?;
-    assert_eq!(9, version);
+    assert_eq!(14, version);
     let spaced_key: String = connection.query_row(
         "SELECT canonical_key FROM dictionary_entries WHERE canonical = 'Open AI'",
         [],

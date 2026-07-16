@@ -55,6 +55,14 @@ export global Translations {
     out property <string> microphone-system-default: @tr("settings.microphone.system-default" => "Automatic (system default microphone)");
     out property <string> storage-unavailable: @tr("storage.usage.unavailable" => "Unavailable");
     out property <string> settings-save-failed: @tr("settings.error.save-failed" => "Could not save settings");
+    out property <string> shortcut-missing-modifier: @tr("settings.shortcut.error.missing-modifier" => "Include Command, Control, or Option");
+    out property <string> shortcut-reserved: @tr("settings.shortcut.error.reserved" => "This shortcut is already used by macOS");
+    out property <string> shortcut-unsupported: @tr("settings.shortcut.error.unsupported" => "Use a letter, number, or Space");
+    out property <string> shortcut-save-failed: @tr("settings.shortcut.error.save-failed" => "Could not save the shortcut");
+    out property <string> shortcut-right-command: @tr("shortcut.right-command" => "Right Command");
+    out property <string> shortcut-duplicate: @tr("settings.shortcut.error.duplicate" => "This shortcut is already added");
+    out property <string> shortcut-possible-conflict: @tr("settings.shortcut.warning.possible-conflict" => "This key may be assigned in macOS Keyboard settings. Test it before continuing.");
+    out property <string> shortcut-capture-active: @tr("settings.shortcut.error.capture-active" => "Finish the current shortcut first");
     out property <string> microphone-load-failed: @tr("settings.microphone.load-failed" => "Could not load microphones");
     out property <string> common-saved: @tr("common.saved" => "Saved");
     out property <string> common-save-failed: @tr("common.save-failed" => "Could not save");
@@ -115,6 +123,7 @@ export global Translations {
     out property <string> recording-cancel-undo-hint: @tr("recording.cancel.undo-hint" => "You can undo for 2 seconds");
     out property <string> recording-transcribing: @tr("recording.processing.transcribing" => "Transcribing");
     out property <string> recording-refining: @tr("recording.processing.refining" => "Polishing");
+    out property <string> dictionary-import-failed: @tr("dictionary.status.import-failed" => "Could not import this CSV file");
 
     public pure function recording-samples(duration: string, samples: int) -> string {
         return @tr("recording.detail.samples" => "{} · {} input sample" | "{} · {} input samples" % samples, duration, samples);
@@ -130,6 +139,9 @@ export global Translations {
     }
     public pure function dictionary-saved(count: int) -> string {
         return @tr("dictionary.status.saved" => "Saved {} entry" | "Saved {} entries" % count, count);
+    }
+    public pure function dictionary-imported(added: int, skipped: int) -> string {
+        return @tr("dictionary.status.imported" => "Imported {} entries · skipped {}", added, skipped);
     }
     public pure function microphone-system-default-named(name: string) -> string {
         return @tr("settings.microphone.system-default-named" => "Automatic (system default: {})", name);

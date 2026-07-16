@@ -4,10 +4,12 @@ use template_domain::Greeting;
 
 mod audio_recording;
 mod cancelled_recording;
+mod dictation_session;
 mod dictionary_learning;
 mod feedback_sound;
 mod final_text_processing;
 mod refinement_policy;
+mod refinement_prompt;
 mod refinement_terms;
 mod settings;
 mod speech_recognition;
@@ -21,6 +23,7 @@ pub use audio_recording::{
     convert_interleaved_f32_to_pcm16,
 };
 pub use cancelled_recording::CancelledRecordingStore;
+pub use dictation_session::{DictationSession, DictationSessionState, DictationToggleAction};
 pub use dictionary_learning::{
     CandidateAssessmentSource, CandidateDecision, DictionaryCandidateAssessment,
     DictionaryCandidateEvidence, DictionaryCandidateKind, DictionaryCandidateState,
@@ -36,8 +39,8 @@ pub use final_text_processing::{
     RefinementTerm, refinement_needed,
 };
 pub use refinement_terms::{
-    normalize_standard_spellings, relevant_dictionary_terms,
-    relevant_dictionary_terms_from_entries, standard_spelling_occurs,
+    dictionary_terms_for_refinement, dictionary_terms_for_refinement_from_entries,
+    normalize_standard_spellings, standard_spelling_occurs,
 };
 pub use settings::{
     ActiveProviders, AsrSettings, ChatCompletionsLlmSettings, LlmProviderPreset, LlmSettings,
@@ -52,8 +55,8 @@ pub use storage::{
     DictionaryEntry, DictionaryOrigin, DictionaryStore, HistoryCursor, HistoryDelivery,
     HistoryPage, HistoryRecord, HistoryRefinement, HistoryRetention, HistoryStore, InstalledModel,
     InstalledModelStore, LocalSettings, LocalSettingsStore, NewDictionaryEntry, NewHistoryRecord,
-    SecretStore, SecretStoreError, StorageError, UiLanguagePreference, dictionary_comparison_key,
-    normalize_language_tag,
+    OnboardingStatus, OnboardingStep, SecretStore, SecretStoreError, StorageError,
+    UiLanguagePreference, dictionary_comparison_key, normalize_language_tag,
 };
 pub use text_delivery::{
     AccessibilityAuthorization, CorrectionObservingTextDeliverer, DeliveryTargetPrivacy,

@@ -166,6 +166,7 @@ export component DictionaryPage inherits Rectangle {
     in property <string> status-text: "";
     in property <bool> loading: false;
     in property <bool> load-failed: false;
+    in property <bool> importing: false;
     in property <bool> development-environment: false;
     in property <[DictionaryEvidenceItem]> evidence-items;
     callback refresh();
@@ -173,6 +174,7 @@ export component DictionaryPage inherits Rectangle {
     callback search(string);
     callback layout-width-changed(length);
     callback open-add();
+    callback import-csv();
     callback delete-word(string);
 
     property <bool> compact: root.width < 610px;
@@ -203,11 +205,29 @@ export component DictionaryPage inherits Rectangle {
     Text {
         x: 0px;
         y: 80px;
-        width: max(0px, root.width - 116px);
+        width: max(0px, root.width - 236px);
         text: @tr("dictionary.subtitle" => "Save names and terms you use often to improve voice input accuracy.");
         color: AppColors.text-muted;
         font-size: 11px;
         overflow: elide;
+    }
+    Rectangle {
+        x: parent.width - 220px;
+        y: 39px;
+        width: 112px;
+        height: 38px;
+        border-radius: 8px;
+        border-width: 1px;
+        border-color: AppColors.border;
+        background: root.importing ? AppColors.surface-muted : import-touch.has-hover ? AppColors.surface-subtle : AppColors.surface;
+        opacity: root.importing ? 0.64 : 1;
+        accessible-role: button;
+        accessible-label: @tr("dictionary.import-csv" => "Import CSV");
+        accessible-enabled: !root.importing;
+        accessible-action-default => { if !root.importing { root.import-csv(); } }
+        Image { x: 12px; y: 11px; width: 16px; height: 16px; source: @image-url("../../icons/lucide/download.svg"); colorize: AppColors.text-muted; }
+        Text { x: 36px; width: 66px; text: root.importing ? @tr("dictionary.importing" => "Importing…") : @tr("dictionary.import-csv" => "Import CSV"); color: AppColors.text; font-size: 11px; font-weight: 650; vertical-alignment: center; overflow: elide; }
+        import-touch := TouchArea { enabled: !root.importing; mouse-cursor: root.importing ? default : pointer; clicked => { root.import-csv(); } }
     }
     Rectangle {
         x: parent.width - 96px;

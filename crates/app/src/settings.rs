@@ -48,13 +48,17 @@ pub struct ChatCompletionsLlmSettings {
 pub enum LlmProviderPreset {
     SenseNova,
     DeepSeek,
+    Custom,
 }
 
 impl LlmProviderPreset {
+    pub const ALL: [Self; 3] = [Self::SenseNova, Self::DeepSeek, Self::Custom];
+
     pub const fn label(self) -> &'static str {
         match self {
             Self::SenseNova => "商汤 SenseNova",
             Self::DeepSeek => "DeepSeek",
+            Self::Custom => "Custom compatible API",
         }
     }
 
@@ -62,6 +66,7 @@ impl LlmProviderPreset {
         match self {
             Self::SenseNova => "sensenova",
             Self::DeepSeek => "deepseek",
+            Self::Custom => "custom",
         }
     }
 
@@ -69,6 +74,7 @@ impl LlmProviderPreset {
         match self {
             Self::SenseNova => "https://token.sensenova.cn/v1",
             Self::DeepSeek => "https://api.deepseek.com",
+            Self::Custom => "",
         }
     }
 
@@ -76,6 +82,7 @@ impl LlmProviderPreset {
         match self {
             Self::SenseNova => "sensenova-6.7-flash-lite",
             Self::DeepSeek => "deepseek-v4-flash",
+            Self::Custom => "",
         }
     }
 
@@ -83,6 +90,7 @@ impl LlmProviderPreset {
         match self {
             Self::SenseNova => "https://api.sensenova.cn/v1/llm/models",
             Self::DeepSeek => "https://api.deepseek.com/models",
+            Self::Custom => "",
         }
     }
 
@@ -136,12 +144,27 @@ impl ProviderCatalog {
     ) {
         let mut settings = preset.settings(api_key);
         settings.model = model.trim().to_owned();
-        let config = serde_json::json!({
-            "base_url": settings.base_url,
-            "api_key": settings.api_key,
-            "model": settings.model,
-            "custom_headers": settings.custom_headers,
-        });
+        self.save_llm_provider_settings(preset, settings);
+    }
+
+    pub fn save_custom_llm_provider_config(&mut self, base_url: &str, api_key: &str, model: &str) {
+        self.save_llm_provider_settings(
+            LlmProviderPreset::Custom,
+            ChatCompletionsLlmSettings {
+                base_url: base_url.trim().trim_end_matches('/').to_owned(),
+                api_key: api_key.trim().to_owned(),
+                model: model.trim().to_owned(),
+                custom_headers: BTreeMap::new(),
+            },
+        );
+    }
+
+    fn save_llm_provider_settings(
+        &mut self,
+        preset: LlmProviderPreset,
+        settings: ChatCompletionsLlmSettings,
+    ) {
+        let config = provider_config(&settings);
         if let Some(index) = self.llm_provider_index(preset) {
             let provider = &mut self.llm_providers[index];
             let previous_id = provider.id.clone();
@@ -168,7 +191,14 @@ impl ProviderCatalog {
 
     pub fn select_llm_provider(&mut self, preset: LlmProviderPreset) {
         if self.llm_provider_index(preset).is_none() {
-            self.save_llm_provider_config(preset, "");
+            match preset {
+                LlmProviderPreset::SenseNova | LlmProviderPreset::DeepSeek => {
+                    self.save_llm_provider_config(preset, "");
+                }
+                LlmProviderPreset::Custom => {
+                    self.save_custom_llm_provider_config("", "", "");
+                }
+            }
         }
         self.active.llm = self
             .llm_provider_index(preset)
@@ -188,9 +218,32 @@ impl ProviderCatalog {
     pub fn configured_llm_provider_model(&self, preset: LlmProviderPreset) -> Option<&str> {
         let index = self.llm_provider_index(preset)?;
         let config = &self.llm_providers[index].config;
+        let base_url = config.get("base_url")?.as_str()?.trim();
         let api_key = config.get("api_key")?.as_str()?.trim();
         let model = config.get("model")?.as_str()?.trim();
-        (!api_key.is_empty() && !model.is_empty()).then_some(model)
+        let credentials_ready = preset == LlmProviderPreset::Custom || !api_key.is_empty();
+        (!base_url.is_empty() && credentials_ready && !model.is_empty()).then_some(model)
+    }
+
+    pub fn llm_provider_settings(
+        &self,
+        preset: LlmProviderPreset,
+    ) -> Option<ChatCompletionsLlmSettings> {
+        let provider = &self.llm_providers[self.llm_provider_index(preset)?];
+        let custom_headers = provider
+            .config
+            .get("custom_headers")
+            .cloned()
+            .map(serde_json::from_value)
+            .transpose()
+            .ok()?
+            .unwrap_or_default();
+        Some(ChatCompletionsLlmSettings {
+            base_url: provider.config.get("base_url")?.as_str()?.to_owned(),
+            api_key: provider.config.get("api_key")?.as_str()?.to_owned(),
+            model: provider.config.get("model")?.as_str()?.to_owned(),
+            custom_headers,
+        })
     }
 
     pub fn active_llm_provider(&self) -> Option<LlmProviderPreset> {
@@ -201,18 +254,53 @@ impl ProviderCatalog {
                 self.llm_provider_index(*preset)
                     .is_some_and(|index| self.llm_providers[index].id == active)
             })
+            .or_else(|| {
+                self.llm_providers
+                    .iter()
+                    .any(|provider| {
+                        provider.id == active && provider.provider_type == "openai_compatible"
+                    })
+                    .then_some(LlmProviderPreset::Custom)
+            })
     }
 
     fn llm_provider_index(&self, preset: LlmProviderPreset) -> Option<usize> {
-        self.llm_providers.iter().position(|provider| {
+        let exact = self.llm_providers.iter().position(|provider| {
             provider.id == preset.id()
-                || provider
-                    .config
-                    .get("base_url")
-                    .and_then(serde_json::Value::as_str)
-                    == Some(preset.base_url())
+                || (preset != LlmProviderPreset::Custom
+                    && provider
+                        .config
+                        .get("base_url")
+                        .and_then(serde_json::Value::as_str)
+                        == Some(preset.base_url()))
+        });
+        if exact.is_some() || preset != LlmProviderPreset::Custom {
+            return exact;
+        }
+        let active = self.active.llm.as_deref()?;
+        self.llm_providers.iter().position(|provider| {
+            provider.id == active
+                && provider.provider_type == "openai_compatible"
+                && ![LlmProviderPreset::SenseNova, LlmProviderPreset::DeepSeek]
+                    .iter()
+                    .any(|builtin| {
+                        provider
+                            .config
+                            .get("base_url")
+                            .and_then(serde_json::Value::as_str)
+                            == Some(builtin.base_url())
+                    })
         })
     }
+}
+
+fn provider_config(settings: &ChatCompletionsLlmSettings) -> serde_json::Value {
+    serde_json::json!({
+        "base_url": settings.base_url,
+        "api_key": settings.api_key,
+        "model": settings.model,
+        "custom_headers": settings.custom_headers,
+    })
 }
 
 #[derive(Debug, PartialEq, Eq, Error)]
@@ -245,7 +333,12 @@ pub trait ProviderConfigStore: Send + Sync {
 
 #[cfg(test)]
 mod tests {
-    use super::{LlmProviderPreset, ProviderCatalog, ProviderDataConsent};
+    use std::collections::BTreeMap;
+
+    use super::{
+        ActiveProviders, ChatCompletionsLlmSettings, LlmProviderPreset, ProviderCatalog,
+        ProviderDataConsent, ProviderInstance, provider_config,
+    };
 
     #[test]
     fn exposes_a_provider_model_only_after_configuration_is_saved() {
@@ -306,5 +399,59 @@ mod tests {
                 .as_ref()
                 .map(|consent| consent.fingerprint.as_str())
         );
+    }
+
+    #[test]
+    fn custom_provider_round_trips_user_owned_connection_settings() {
+        let mut catalog = ProviderCatalog::default();
+
+        catalog.save_custom_llm_provider_config(" http://localhost:11434/v1/ ", "", "qwen3:8b");
+        catalog.select_llm_provider(LlmProviderPreset::Custom);
+
+        assert_eq!(
+            Some(LlmProviderPreset::Custom),
+            catalog.active_llm_provider()
+        );
+        assert_eq!(
+            Some("qwen3:8b"),
+            catalog.configured_llm_provider_model(LlmProviderPreset::Custom)
+        );
+        let Some(settings) = catalog.llm_provider_settings(LlmProviderPreset::Custom) else {
+            panic!("custom provider settings should be available");
+        };
+        assert_eq!("http://localhost:11434/v1", settings.base_url);
+        assert_eq!("", settings.api_key);
+        assert_eq!("qwen3:8b", settings.model);
+    }
+
+    #[test]
+    fn active_generic_compatible_provider_is_adopted_as_custom() {
+        let mut catalog = ProviderCatalog {
+            active: ActiveProviders {
+                asr: None,
+                llm: Some("legacy-custom".to_owned()),
+            },
+            asr_providers: Vec::new(),
+            llm_providers: vec![ProviderInstance {
+                id: "legacy-custom".to_owned(),
+                name: "Local model".to_owned(),
+                provider_type: "openai_compatible".to_owned(),
+                config: provider_config(&ChatCompletionsLlmSettings {
+                    base_url: "http://localhost:11434/v1".to_owned(),
+                    api_key: String::new(),
+                    model: "qwen3:8b".to_owned(),
+                    custom_headers: BTreeMap::new(),
+                }),
+                data_consent: None,
+            }],
+        };
+
+        assert_eq!(
+            Some(LlmProviderPreset::Custom),
+            catalog.active_llm_provider()
+        );
+        catalog.save_custom_llm_provider_config("http://localhost:11434/v1", "", "qwen3:8b");
+        assert_eq!(Some("custom"), catalog.active.llm.as_deref());
+        assert_eq!("custom", catalog.llm_providers[0].id);
     }
 }

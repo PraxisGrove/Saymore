@@ -1,0 +1,43 @@
+import { Palette } from "std-widgets.slint";
+
+export component StatusTray inherits SystemTrayIcon {
+    in property <bool> paused: false;
+    icon: root.paused
+        ? (Palette.color-scheme == ColorScheme.dark
+            ? @image-url("../icons/status/saymore-status-paused-white.png")
+            : @image-url("../icons/status/saymore-status-paused-black.png"))
+        : (Palette.color-scheme == ColorScheme.dark
+            ? @image-url("../icons/status/saymore-status-white.png")
+            : @image-url("../icons/status/saymore-status-black.png"));
+    tooltip: root.paused
+        ? @tr("tray.tooltip.paused" => "Saymore is paused")
+        : "Saymore";
+
+    callback show-main-window();
+    callback show-settings();
+    callback toggle-pause();
+    callback quit-application();
+
+    Menu {
+        MenuItem {
+            title: @tr("tray.menu.show" => "Show Saymore");
+            activated => { root.show-main-window(); }
+        }
+        MenuItem {
+            title: @tr("tray.menu.settings" => "Settings…");
+            activated => { root.show-settings(); }
+        }
+        MenuSeparator { }
+        MenuItem {
+            title: root.paused
+                ? @tr("tray.menu.resume" => "Resume Saymore")
+                : @tr("tray.menu.pause" => "Pause Saymore");
+            activated => { root.toggle-pause(); }
+        }
+        MenuSeparator { }
+        MenuItem {
+            title: @tr("tray.menu.quit" => "Quit Saymore");
+            activated => { root.quit-application(); }
+        }
+    }
+}

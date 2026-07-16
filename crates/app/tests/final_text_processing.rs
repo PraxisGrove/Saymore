@@ -370,11 +370,14 @@ async fn provider_receives_the_fixed_conservative_policy_and_relevant_context()
         || captured.relevant_terms != expected_terms
         || !captured
             .instructions
-            .contains("The original sentence does not need to be incomprehensible")
+            .contains("Preserve information and communicative intent")
         || !captured
             .instructions
-            .contains("does not by itself justify a paragraph break")
-        || !captured.instructions.contains("two ASCII spaces")
+            .contains("A question stays a question")
+        || !captured.instructions.contains("Preserve hierarchy")
+        || !captured
+            .instructions
+            .contains("If brevity conflicts with coverage, keep the extra words")
     {
         return Err("provider did not receive the expected refinement context".into());
     }

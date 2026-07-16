@@ -2,7 +2,7 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
-"POT-Creation-Date: 2026-07-15 16:31+0000\n"
+"POT-Creation-Date: 2026-07-16 13:58+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -12,57 +12,82 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=1; plural=0;\n"
 
-#: apps/desktop/ui/app-window.slint:33 apps/desktop/ui/app-window.slint:35
+#: apps/desktop/ui/app-window.slint:37 apps/desktop/ui/app-window.slint:39
 msgctxt "permissions.status.checking"
 msgid "Checking…"
 msgstr ""
 
-#: apps/desktop/ui/app-window.slint:38 apps/desktop/ui/app-window.slint:39
-#: apps/desktop/ui/app-window.slint:38 apps/desktop/ui/app-window.slint:39
+#: apps/desktop/ui/app-window.slint:42 apps/desktop/ui/app-window.slint:43
+#: apps/desktop/ui/app-window.slint:42 apps/desktop/ui/app-window.slint:43
 msgctxt "settings.microphone.system-default"
 msgid "Automatic (system default microphone)"
 msgstr ""
 
-#: apps/desktop/ui/app-window.slint:58
+#: apps/desktop/ui/app-window.slint:72
 msgctxt "recording.status.ready"
 msgid "Ready for voice input"
 msgstr ""
 
-#: apps/desktop/ui/app-window.slint:59
+#: apps/desktop/ui/app-window.slint:73
 msgctxt "recording.start-hint"
 msgid "Press Right Command to start"
 msgstr ""
 
-#: apps/desktop/ui/app-window.slint:60 apps/desktop/ui/pages/home.slint:73
-#: apps/desktop/ui/app-window.slint:60 apps/desktop/ui/pages/home.slint:73
+#: apps/desktop/ui/app-window.slint:74 apps/desktop/ui/translations.slint:62
+#: apps/desktop/ui/app-window.slint:74 apps/desktop/ui/translations.slint:62
 msgctxt "shortcut.right-command"
 msgid "Right Command"
 msgstr ""
 
-#: apps/desktop/ui/app-window.slint:70
-#: apps/desktop/ui/app-window.slint:70 apps/desktop/ui/sidebar.slint:6
+#: apps/desktop/ui/app-window.slint:87 apps/desktop/ui/sidebar.slint:6
+#: apps/desktop/ui/app-window.slint:87 apps/desktop/ui/sidebar.slint:6
 msgctxt "storage.usage.calculating"
 msgid "Calculating…"
 msgstr ""
 
-#: apps/desktop/ui/app-window.slint:81 apps/desktop/ui/translations.slint:70
+#: apps/desktop/ui/app-window.slint:98 apps/desktop/ui/translations.slint:78
 msgctxt "models.status.not-configured.plain"
 msgid "Not configured"
 msgstr ""
 
-#: apps/desktop/ui/app-window.slint:95 apps/desktop/ui/translations.slint:88
+#: apps/desktop/ui/app-window.slint:116 apps/desktop/ui/translations.slint:96
 msgctxt "models.status.not-enabled"
 msgid "Not enabled"
 msgstr ""
 
-#: apps/desktop/ui/translations.slint
-msgctxt "models.key-page.open-failed"
-msgid "Could not open the API key page"
-msgstr ""
-
-#: apps/desktop/ui/components.slint:261
+#: apps/desktop/ui/components.slint:262
 msgctxt "common.select-value.accessible-label"
 msgid "Select {}"
+msgstr ""
+
+#: apps/desktop/ui/dictionary-added-overlay.slint:57
+msgctxt "dictionary.notification.added.title"
+msgid "Added to personal dictionary"
+msgstr ""
+
+#: apps/desktop/ui/dictionary-added-overlay.slint:80
+msgctxt "dictionary.notification.added.detail"
+msgid "Automatically added based on your repeated corrections"
+msgstr ""
+
+#: apps/desktop/ui/dictionary-added-overlay.slint:94
+#: apps/desktop/ui/dictionary-added-overlay.slint:94
+#: apps/desktop/ui/dictionary-added-overlay.slint:94
+#: apps/desktop/ui/dictionary-added-overlay.slint:94
+msgctxt "common.close"
+msgid "Close"
+msgstr ""
+
+#: apps/desktop/ui/dictionary-added-overlay.slint:119
+#: apps/desktop/ui/dictionary-added-overlay.slint:119
+msgctxt "dictionary.notification.undo"
+msgid "Undo"
+msgstr ""
+
+#: apps/desktop/ui/dictionary-added-overlay.slint:144
+#: apps/desktop/ui/dictionary-added-overlay.slint:144
+msgctxt "dictionary.notification.view"
+msgid "View dictionary"
 msgstr ""
 
 #: apps/desktop/ui/microphone-access.slint:23
@@ -96,6 +121,7 @@ msgid "Continue to microphone access"
 msgstr ""
 
 #: apps/desktop/ui/microphone-access.slint:44
+#: apps/desktop/ui/microphone-access.slint:44 apps/desktop/ui/onboarding.slint:255
 msgctxt "common.continue"
 msgid "Continue"
 msgstr ""
@@ -112,1359 +138,247 @@ msgstr ""
 
 #: apps/desktop/ui/microphone-access.slint:75
 #: apps/desktop/ui/microphone-access.slint:75
-#: apps/desktop/ui/microphone-access.slint:75 apps/desktop/ui/pages/settings.slint:267
+#: apps/desktop/ui/microphone-access.slint:75
+#: apps/desktop/ui/microphone-access.slint:75
 msgctxt "common.open-system-settings"
 msgid "Open System Settings"
 msgstr ""
 
-#: apps/desktop/ui/pages/dictionary.slint:118
-msgctxt "common.delete"
-msgid "Delete"
+#: apps/desktop/ui/onboarding.slint:117
+msgctxt "onboarding.window-title"
+msgid "Set up Saymore"
 msgstr ""
 
-#: apps/desktop/ui/pages/dictionary.slint:150
-msgctxt "common.reload"
-msgid "Reload"
+#: apps/desktop/ui/onboarding.slint:164
+msgctxt "onboarding.setup"
+msgid "Get started"
 msgstr ""
 
-#: apps/desktop/ui/pages/dictionary.slint:177
-msgctxt "dictionary.entry-count"
-msgid "{} entry"
-msgid_plural "{} entries"
-msgstr[0] ""
-msgstr[1] ""
-
-#: apps/desktop/ui/pages/dictionary.slint:178
-msgctxt "dictionary.search-result-count"
-msgid "{} search result"
-msgid_plural "{} search results"
-msgstr[0] ""
-msgstr[1] ""
-
-#: apps/desktop/ui/pages/dictionary.slint:191
-msgctxt "dictionary.title"
-msgid "Dictionary"
-msgstr ""
-
-#: apps/desktop/ui/pages/dictionary.slint:200
-msgctxt "dictionary.subtitle"
-msgid "Save names and terms you use often to improve voice input accuracy."
-msgstr ""
-
-#: apps/desktop/ui/pages/dictionary.slint:213
-#: apps/desktop/ui/pages/dictionary.slint:213
-#: apps/desktop/ui/pages/dictionary.slint:213
-msgctxt "dictionary.add-entry"
-msgid "Add entry"
-msgstr ""
-
-#: apps/desktop/ui/pages/dictionary.slint:232
-msgctxt "dictionary.filter.all"
-msgid "All"
-msgstr ""
-
-#: apps/desktop/ui/pages/dictionary.slint:233
-msgctxt "dictionary.filter.automatic"
-msgid "Automatic"
-msgstr ""
-
-#: apps/desktop/ui/pages/dictionary.slint:234
-msgctxt "dictionary.filter.manual"
-msgid "Manual"
-msgstr ""
-
-#: apps/desktop/ui/pages/dictionary.slint:248
-msgctxt "dictionary.search.placeholder"
-msgid "Search entries"
-msgstr ""
-
-#: apps/desktop/ui/pages/dictionary.slint:294
-msgctxt "dictionary.local-only"
-msgid "Dictionary entries are stored only on this device"
-msgstr ""
-
-#: apps/desktop/ui/pages/dictionary.slint:303
-msgctxt "dictionary.loading.title"
-msgid "Loading dictionary"
-msgstr ""
-
-#: apps/desktop/ui/pages/dictionary.slint:304
-msgctxt "dictionary.loading.detail"
-msgid "Reading entries stored on this device."
-msgstr ""
-
-#: apps/desktop/ui/pages/dictionary.slint:312
-msgctxt "dictionary.load-failed.title"
-msgid "Dictionary unavailable"
-msgstr ""
-
-#: apps/desktop/ui/pages/dictionary.slint:313
-msgctxt "dictionary.load-failed.detail"
-msgid "Check local storage and try again."
-msgstr ""
-
-#: apps/desktop/ui/pages/dictionary.slint:323
-msgctxt "dictionary.empty.title"
-msgid "No entries yet"
-msgstr ""
-
-#: apps/desktop/ui/pages/dictionary.slint:323
-msgctxt "dictionary.no-results.title"
-msgid "No matching entries"
-msgstr ""
-
-#: apps/desktop/ui/pages/dictionary.slint:325
-msgctxt "dictionary.empty.detail"
-msgid "Add an entry so Saymore remembers how you write it."
-msgstr ""
-
-#: apps/desktop/ui/pages/dictionary.slint:325
-msgctxt "dictionary.filter-empty.detail"
-msgid "No entries match this filter."
-msgstr ""
-
-#: apps/desktop/ui/pages/dictionary.slint:326
-msgctxt "dictionary.no-results.detail"
-msgid "Try a different search term."
-msgstr ""
-
-#: apps/desktop/ui/pages/dictionary.slint:381
-msgctxt "dictionary.entry-field"
-msgid "Entry"
-msgstr ""
-
-#: apps/desktop/ui/pages/dictionary.slint:410
-msgctxt "dictionary.entry.placeholder"
-msgid "For example: Volcano Engine"
-msgstr ""
-
-#: apps/desktop/ui/pages/dictionary.slint:446
-msgctxt "dictionary.add-another-entry"
-msgid "Add another entry"
-msgstr ""
-
-#: apps/desktop/ui/pages/dictionary.slint:469
-#: apps/desktop/ui/pages/dictionary.slint:469
-#: apps/desktop/ui/pages/dictionary.slint:469
-#: apps/desktop/ui/pages/dictionary.slint:469
-msgctxt "common.cancel"
-msgid "Cancel"
-msgstr ""
-
-#: apps/desktop/ui/pages/dictionary.slint:479
-msgctxt "common.saving"
-msgid "Saving…"
-msgstr ""
-
-#: apps/desktop/ui/pages/dictionary.slint:479
-msgctxt "dictionary.save-entry-count"
-msgid "Save {} entry"
-msgid_plural "Save {} entries"
-msgstr[0] ""
-msgstr[1] ""
-
-#: apps/desktop/ui/pages/history.slint:148
-msgctxt "history.clear.title"
-msgid "Clear all history?"
-msgstr ""
-
-#: apps/desktop/ui/pages/history.slint:149
-msgctxt "history.clear.detail"
-msgid ""
-"All records will be permanently deleted from this device. This cannot be "
-"undone."
-msgstr ""
-
-#: apps/desktop/ui/pages/history.slint:154
-msgctxt "history.clear.action"
-msgid "Clear"
-msgstr ""
-
-#: apps/desktop/ui/pages/history.slint:161
-msgctxt "history.reset.title"
-msgid "Reset history?"
-msgstr ""
-
-#: apps/desktop/ui/pages/history.slint:162
-msgctxt "history.reset.detail"
-msgid "Existing history will be permanently deleted and cannot be recovered."
-msgstr ""
-
-#: apps/desktop/ui/pages/history.slint:163
-msgctxt "history.reset.unaffected"
-msgid ""
-"Your dictionary, model configuration, and other settings will not be "
-"affected."
-msgstr ""
-
-#: apps/desktop/ui/pages/history.slint:168
-msgctxt "history.reset.action"
-msgid "Delete and reset"
-msgstr ""
-
-#: apps/desktop/ui/pages/history.slint:177
-msgctxt "history.detail.title"
-msgid "Record details"
-msgstr ""
-
-#: apps/desktop/ui/pages/history.slint:178
-#: apps/desktop/ui/pages/history.slint:178
-#: apps/desktop/ui/pages/history.slint:178
-msgctxt "common.close"
-msgid "Close"
-msgstr ""
-
-#: apps/desktop/ui/pages/history.slint:180
-msgctxt "history.detail.content"
-msgid "Content"
-msgstr ""
-
-#: apps/desktop/ui/pages/history.slint:207
-msgctxt "history.detail.record-info"
-msgid "Record information"
-msgstr ""
-
-#: apps/desktop/ui/pages/history.slint:215
-msgctxt "history.detail.summary"
-msgid "{}  ·  {}  ·  {}"
-msgstr ""
-
-#: apps/desktop/ui/pages/history.slint:216
-msgctxt "history.detail.asr-model"
-msgid "Speech model"
-msgstr ""
-
-#: apps/desktop/ui/pages/history.slint:218
-msgctxt "history.detail.llm-model"
-msgid "Polishing model"
-msgstr ""
-
-#: apps/desktop/ui/pages/history.slint:228
-#: apps/desktop/ui/pages/history.slint:228
-msgctxt "history.delete-record"
-msgid "Delete record"
-msgstr ""
-
-#: apps/desktop/ui/pages/history.slint:231
-#: apps/desktop/ui/pages/history.slint:231
-msgctxt "common.copied"
-msgid "Copied"
-msgstr ""
-
-#: apps/desktop/ui/pages/history.slint:231
-#: apps/desktop/ui/pages/history.slint:231
-msgctxt "history.copy-content"
-msgid "Copy content"
-msgstr ""
-
-#: apps/desktop/ui/pages/history.slint:267
-msgctxt "history.retention.never"
-msgid "Never save"
-msgstr ""
-
-#: apps/desktop/ui/pages/history.slint:268
-msgctxt "history.retention.one-day"
-msgid "Keep for 24 hours"
-msgstr ""
-
-#: apps/desktop/ui/pages/history.slint:269
-msgctxt "history.retention.thirty-days"
-msgid "Keep for 1 month"
-msgstr ""
-
-#: apps/desktop/ui/pages/history.slint:270
-msgctxt "history.retention.forever"
-msgid "Keep forever"
-msgstr ""
-
-#: apps/desktop/ui/pages/history.slint:271
-msgctxt "history.retention.seven-days"
-msgid "Keep for 1 week"
-msgstr ""
-
-#: apps/desktop/ui/pages/history.slint:283
-msgctxt "history.title"
-msgid "History"
-msgstr ""
-
-#: apps/desktop/ui/pages/history.slint:302
-msgctxt "history.search.placeholder"
-msgid "Search history"
-msgstr ""
-
-#: apps/desktop/ui/pages/history.slint:327
-msgctxt "common.more-actions"
-msgid "More actions"
-msgstr ""
-
-#: apps/desktop/ui/pages/history.slint:334
-msgctxt "history.local-only"
-msgid "History is stored only on this device"
-msgstr ""
-
-#: apps/desktop/ui/pages/history.slint:377
-msgctxt "history.item.summary"
-msgid "{}  ·  {}  ·  {}"
-msgstr ""
-
-#: apps/desktop/ui/pages/history.slint:391
-msgctxt "history.load-more"
-msgid "Load more"
-msgstr ""
-
-#: apps/desktop/ui/pages/history.slint:402
-msgctxt "history.loading.title"
-msgid "Loading history"
-msgstr ""
-
-#: apps/desktop/ui/pages/history.slint:403
-msgctxt "history.loading.detail"
-msgid "Reading content saved on this device"
-msgstr ""
-
-#: apps/desktop/ui/pages/history.slint:405
-msgctxt "history.load-failed.title"
-msgid "Local history is unavailable"
-msgstr ""
-
-#: apps/desktop/ui/pages/history.slint:406
-#: apps/desktop/ui/pages/history.slint:406
-msgctxt "common.reload"
-msgid "Reload ↗"
-msgstr ""
-
-#: apps/desktop/ui/pages/history.slint:408
-msgctxt "history.locked.title"
-msgid "History is locked"
-msgstr ""
-
-#: apps/desktop/ui/pages/history.slint:409
-msgctxt "history.locked.detail"
-msgid ""
-"The history key is unavailable. Settings and dictionary remain available."
-msgstr ""
-
-#: apps/desktop/ui/pages/history.slint:410
-msgctxt "history.locked.reset-action"
-msgid "Delete old history and reset"
-msgstr ""
-
-#: apps/desktop/ui/pages/history.slint:412
-msgctxt "history.empty.title"
-msgid "No history yet"
-msgstr ""
-
-#: apps/desktop/ui/pages/history.slint:413
-msgctxt "history.empty.detail"
-msgid "Completed voice input will be saved here securely"
-msgstr ""
-
-#: apps/desktop/ui/pages/history.slint:415
-msgctxt "history.no-results.title"
-msgid "No results for “{}”"
-msgstr ""
-
-#: apps/desktop/ui/pages/history.slint:416
-msgctxt "history.no-results.detail"
-msgid "Try a shorter search term or check your spelling"
-msgstr ""
-
-#: apps/desktop/ui/pages/history.slint:429
-msgctxt "history.retention.option.never"
-msgid "Never"
-msgstr ""
-
-#: apps/desktop/ui/pages/history.slint:430
-msgctxt "history.retention.option.one-day"
-msgid "24 hours"
-msgstr ""
-
-#: apps/desktop/ui/pages/history.slint:431
-msgctxt "history.retention.option.seven-days"
-msgid "1 week"
-msgstr ""
-
-#: apps/desktop/ui/pages/history.slint:432
-msgctxt "history.retention.option.thirty-days"
-msgid "1 month"
-msgstr ""
-
-#: apps/desktop/ui/pages/history.slint:433
-msgctxt "history.retention.option.forever"
-msgid "Forever"
-msgstr ""
-
-#: apps/desktop/ui/pages/history.slint:441
-msgctxt "history.refresh"
-msgid "Refresh history"
-msgstr ""
-
-#: apps/desktop/ui/pages/history.slint:442
-msgctxt "history.clear-all"
-msgid "Clear all history"
-msgstr ""
-
-#: apps/desktop/ui/pages/history.slint:472
-msgctxt "history.deleted-one"
-msgid "1 record deleted"
-msgstr ""
-
-#: apps/desktop/ui/pages/history.slint:474
-#: apps/desktop/ui/pages/history.slint:474
-msgctxt "common.undo"
-msgid "Undo"
-msgstr ""
-
-#: apps/desktop/ui/pages/home.slint:92
-msgctxt "home.issue.microphone.title"
-msgid "Microphone access is off"
-msgstr ""
-
-#: apps/desktop/ui/pages/home.slint:93
-msgctxt "home.issue.asr-invalid.title"
-msgid "Voice recognition configuration needs attention"
-msgstr ""
-
-#: apps/desktop/ui/pages/home.slint:93
-msgctxt "home.issue.asr-missing.title"
-msgid "Voice recognition is not configured"
-msgstr ""
-
-#: apps/desktop/ui/pages/home.slint:94
-msgctxt "home.issue.accessibility.title"
-msgid "Accessibility access is off"
-msgstr ""
-
-#: apps/desktop/ui/pages/home.slint:95
-msgctxt "home.issue.microphone.detail"
-msgid "Voice input cannot start yet"
-msgstr ""
-
-#: apps/desktop/ui/pages/home.slint:96
-msgctxt "home.issue.asr-missing.detail"
-msgid "Finish setup before using voice input"
-msgstr ""
-
-#: apps/desktop/ui/pages/home.slint:97
-msgctxt "home.issue.accessibility.detail"
-msgid "Recognized text cannot be entered at the current cursor"
-msgstr ""
-
-#: apps/desktop/ui/pages/home.slint:98
-msgctxt "home.issue.models.action"
-msgid "Open model settings"
-msgstr ""
-
-#: apps/desktop/ui/pages/home.slint:106
-msgctxt "home.headline"
-msgid "Speak your mind, hands-free"
-msgstr ""
-
-#: apps/desktop/ui/pages/home.slint:120
-msgctxt "home.shortcut.title"
-msgid "Voice input shortcut"
-msgstr ""
-
-#: apps/desktop/ui/pages/home.slint:121
-msgctxt "home.shortcut.current"
-msgid "Current setting"
-msgstr ""
-
-#: apps/desktop/ui/pages/home.slint:142
-#: apps/desktop/ui/pages/home.slint:142
-msgctxt "common.enabled"
-msgid "Enabled"
-msgstr ""
-
-#: apps/desktop/ui/pages/home.slint:142
-#: apps/desktop/ui/pages/home.slint:142
-msgctxt "common.disabled"
-msgid "Disabled"
-msgstr ""
-
-#: apps/desktop/ui/pages/home.slint:146
-msgctxt "home.configuration-status.title"
-msgid "Dictation availability"
-msgstr ""
-
-#: apps/desktop/ui/pages/home.slint:159
-msgctxt "home.health.configured"
-msgid "Voice recognition configured · Microphone allowed · Text delivery ready"
-msgstr ""
-
-#: apps/desktop/ui/pages/home.slint:159
-msgctxt "home.health.connected"
-msgid "Model connected · Microphone allowed · Text delivery ready"
-msgstr ""
-
-#: apps/desktop/ui/pages/home.slint:172
-msgctxt "home.health.ready"
-msgid "●  Ready"
-msgstr ""
-
-#: apps/desktop/ui/pages/home.slint:172
-msgctxt "home.health.all-good"
-msgid "●  All good"
-msgstr ""
-
-#: apps/desktop/ui/pages/home.slint:216
-msgctxt "home.usage.title"
-msgid "Usage overview"
-msgstr ""
-
-#: apps/desktop/ui/pages/home.slint:226
-msgctxt "home.usage.loading"
-msgid "Usage overview · Loading"
-msgstr ""
-
-#: apps/desktop/ui/pages/home.slint:226
-msgctxt "home.usage.failed"
-msgid "Usage overview · Could not load"
-msgstr ""
-
-#: apps/desktop/ui/pages/home.slint:226
-msgctxt "home.usage.totals"
-msgid "All-time totals"
-msgstr ""
-
-#: apps/desktop/ui/pages/home.slint:229
-msgctxt "home.usage.minutes.unit"
-msgid "min"
-msgstr ""
-
-#: apps/desktop/ui/pages/home.slint:229
-msgctxt "home.usage.local-unavailable"
-msgid "Local stats are temporarily unavailable"
-msgstr ""
-
-#: apps/desktop/ui/pages/home.slint:229
-msgctxt "home.usage.dictation-total"
-msgid "Voice input time"
-msgstr ""
-
-#: apps/desktop/ui/pages/home.slint:230
-msgctxt "home.usage.characters.unit"
-msgid "characters"
-msgstr ""
-
-#: apps/desktop/ui/pages/home.slint:230
-msgctxt "home.usage.input-unaffected"
-msgid "Voice input is unaffected"
-msgstr ""
-
-#: apps/desktop/ui/pages/home.slint:230
-msgctxt "home.usage.characters-total"
-msgid "Characters entered"
-msgstr ""
-
-#: apps/desktop/ui/pages/home.slint:231
-msgctxt "home.usage.speed.unit"
-msgid "chars/min"
-msgstr ""
-
-#: apps/desktop/ui/pages/home.slint:231
-msgctxt "home.usage.average-speed"
-msgid "Average speed"
-msgstr ""
-
-#: apps/desktop/ui/pages/home.slint:238
-msgctxt "home.usage.seven-day-trend"
-msgid "Last 7 days"
-msgstr ""
-
-#: apps/desktop/ui/pages/models.slint:77
-msgctxt "models.polishing.enable.accessible-label"
-msgid "Enable text polishing"
-msgstr ""
-
-#: apps/desktop/ui/pages/models.slint:151
-msgctxt "common.value-entered"
-msgid "Entered"
-msgstr ""
-
-#: apps/desktop/ui/pages/models.slint:181
-msgctxt "models.polishing.consent.title"
-msgid "Enable text polishing?"
-msgstr ""
-
-#: apps/desktop/ui/pages/models.slint:182
-msgctxt "models.polishing.consent.intro"
-msgid "Before enabling it, review what text will be sent."
-msgstr ""
-
-#: apps/desktop/ui/pages/models.slint:188
-msgctxt "models.polishing.consent.sent-content"
-msgid ""
-"Saymore sends the current transcript to the selected service for polishing."
-msgstr ""
-
-#: apps/desktop/ui/pages/models.slint:191
-msgctxt "models.polishing.consent.destination"
-msgid "Data destination"
-msgstr ""
-
-#: apps/desktop/ui/pages/models.slint:194
-msgctxt "models.polishing.consent.dictionary-excluded"
-msgid ""
-"Only this transcript is sent. Personal dictionary entries are not included."
-msgstr ""
-
-#: apps/desktop/ui/pages/models.slint:200
-msgctxt "models.polishing.consent.accept"
-msgid "I understand and agree to send the content described above"
-msgstr ""
-
-#: apps/desktop/ui/pages/models.slint:206
-msgctxt "models.polishing.consent.confirm-and-test"
-msgid "Confirm and test"
-msgstr ""
-
-#: apps/desktop/ui/pages/models.slint:265
-#: apps/desktop/ui/pages/models.slint:265
-msgctxt "models.volcengine.model-v1"
-msgid "Doubao Streaming Speech Recognition 1.0"
-msgstr ""
-
-#: apps/desktop/ui/pages/models.slint:265
-#: apps/desktop/ui/pages/models.slint:265
-msgctxt "models.volcengine.model-v2"
-msgid "Doubao Streaming Speech Recognition 2.0"
-msgstr ""
-
-#: apps/desktop/ui/pages/models.slint:268
-#: apps/desktop/ui/pages/models.slint:268
-msgctxt "models.provider.custom-compatible"
-msgid "Custom compatible API"
-msgstr ""
-
-#: apps/desktop/ui/pages/models.slint:268
-#: apps/desktop/ui/pages/models.slint:268
-msgctxt "models.provider.volcengine"
-msgid "Volcengine"
-msgstr ""
-
-#: apps/desktop/ui/pages/models.slint:277
-msgctxt "models.status.testing"
-msgid "●  Testing"
-msgstr ""
-
-#: apps/desktop/ui/pages/models.slint:277
-msgctxt "models.status.connection-failed"
-msgid "●  Connection failed"
-msgstr ""
-
-#: apps/desktop/ui/pages/models.slint:277
-msgctxt "models.status.awaiting-connection-test"
-msgid "●  Awaiting connection test"
-msgstr ""
-
-#: apps/desktop/ui/pages/models.slint:277
-msgctxt "models.status.connected"
-msgid "●  Connected"
-msgstr ""
-
-#: apps/desktop/ui/pages/models.slint:277
-msgctxt "models.status.not-configured"
-msgid "●  Not configured"
-msgstr ""
-
-#: apps/desktop/ui/pages/models.slint:295
-msgctxt "models.title"
-msgid "Models"
-msgstr ""
-
-#: apps/desktop/ui/pages/models.slint:296
-msgctxt "models.tab.speech-recognition"
-msgid "Transcription"
-msgstr ""
-
-#: apps/desktop/ui/pages/models.slint:297
-msgctxt "models.tab.text-polishing"
-msgid "Polishing"
-msgstr ""
-
-#: apps/desktop/ui/pages/models.slint:300
-msgctxt "models.speech-service"
-msgid "Speech recognition service"
-msgstr ""
-
-#: apps/desktop/ui/pages/models.slint:300
-msgctxt "models.polishing-service"
-msgid "Text polishing service"
-msgstr ""
-
-#: apps/desktop/ui/pages/models.slint:317
-msgctxt "models.api-key.not-configured"
-msgid "API key not configured"
-msgstr ""
-
-#: apps/desktop/ui/pages/models.slint:317
-msgctxt "models.model.saved-not-enabled"
-msgid "{} · Connection not tested"
-msgstr ""
-
-#: apps/desktop/ui/pages/models.slint:317
-msgctxt "models.model.current-default"
-msgid "{} · Current default"
-msgstr ""
-
-#: apps/desktop/ui/pages/models.slint:324
-msgctxt "models.connection-settings"
-msgid "Connection settings"
-msgstr ""
-
-#. Keep the secondary actions on one shared column so their labels align.
-#: apps/desktop/ui/pages/models.slint:330
-msgctxt "models.get-api-key"
-msgid "Get API key"
-msgstr ""
-
-#: apps/desktop/ui/pages/models.slint:336
-msgctxt "models.volcengine-api-key"
-msgid "Volcengine API key"
-msgstr ""
-
-#: apps/desktop/ui/pages/models.slint:342
-msgctxt "models.custom-speech-api-key"
-msgid "Custom speech recognition API key"
-msgstr ""
-
-#: apps/desktop/ui/pages/models.slint:347
-msgctxt "models.sensenova-api-key"
-msgid "SenseNova API key"
-msgstr ""
-
-#: apps/desktop/ui/pages/models.slint:357
-msgctxt "models.model-field"
-msgid "Model"
-msgstr ""
-
-#: apps/desktop/ui/pages/models.slint:362
-msgctxt "models.fetch.loading-accessible"
-msgid "Fetching models"
-msgstr ""
-
-#: apps/desktop/ui/pages/models.slint:362
-#: apps/desktop/ui/pages/models.slint:362
-msgctxt "models.fetch.action"
-msgid "Fetch models"
-msgstr ""
-
-#: apps/desktop/ui/pages/models.slint:363
-msgctxt "models.fetch.loading"
-msgid "Fetching…"
-msgstr ""
-
-#: apps/desktop/ui/pages/models.slint:369
-msgctxt "models.model-id.placeholder"
-msgid "Enter the model ID from your provider"
-msgstr ""
-
-#: apps/desktop/ui/pages/models.slint:380
-#: apps/desktop/ui/pages/models.slint:380
-msgctxt "models.advanced-settings"
-msgid "Advanced settings"
-msgstr ""
-
-#: apps/desktop/ui/pages/models.slint:382
-#: apps/desktop/ui/pages/models.slint:382
-msgctxt "models.base-url"
-msgid "Service URL"
-msgstr ""
-
-#: apps/desktop/ui/pages/models.slint:382
-msgctxt "models.advanced-summary"
-msgid "Service URL, custom headers, and data usage"
-msgstr ""
-
-#: apps/desktop/ui/pages/models.slint:388
-msgctxt "models.custom-header.add"
-msgid "+ Custom header"
-msgstr ""
-
-#: apps/desktop/ui/pages/models.slint:400
-#: apps/desktop/ui/pages/models.slint:400
-msgctxt "common.saved"
-msgid "Saved"
-msgstr ""
-
-#: apps/desktop/ui/pages/models.slint:400
-msgctxt "models.save-configuration"
-msgid "Save configuration"
-msgstr ""
-
-#: apps/desktop/ui/pages/models.slint:410
-msgctxt "models.test.testing"
-msgid "Testing…"
-msgstr ""
-
-#: apps/desktop/ui/pages/models.slint:410
-msgctxt "models.test.retry"
-msgid "Test again"
-msgstr ""
-
-#: apps/desktop/ui/pages/models.slint:410
-msgctxt "models.test.action"
-msgid "Test connection"
-msgstr ""
-
-#: apps/desktop/ui/pages/models.slint:413
-msgctxt "models.api-key.auto-hide"
-msgid "Hides automatically in 5 seconds"
-msgstr ""
-
-#: apps/desktop/ui/pages/models.slint:413
-msgctxt "models.test.testing-connection"
-msgid "Testing connection"
-msgstr ""
-
-#: apps/desktop/ui/pages/models.slint:413
-msgctxt "models.saved-awaiting-test"
-msgid "Configuration saved, awaiting connection test"
-msgstr ""
-
-#: apps/desktop/ui/pages/models.slint:455
-msgctxt "models.list.load-failed"
-msgid "Could not load models. Check your network connection."
-msgstr ""
-
-#: apps/desktop/ui/pages/models.slint:461
-msgctxt "models.list.not-fetched"
-msgid "Models have not been fetched yet"
-msgstr ""
-
-#: apps/desktop/ui/pages/models.slint:471
-msgctxt "models.model.manual-entry"
-msgid "Enter model name manually"
-msgstr ""
-
-#: apps/desktop/ui/pages/settings.slint:132
-msgctxt "settings.microphone.select-accessible"
-msgid "Select microphone: {}"
-msgstr ""
-
-#: apps/desktop/ui/pages/settings.slint:137
-msgctxt "settings.microphone.loading"
-msgid "Loading microphones…"
-msgstr ""
-
-#: apps/desktop/ui/pages/settings.slint:192
-msgctxt "settings.language.follow-system-zh"
-msgid "Follow System (Simplified Chinese)"
-msgstr ""
-
-#: apps/desktop/ui/pages/settings.slint:193
-msgctxt "settings.language.follow-system-en"
-msgid "Follow System (English)"
-msgstr ""
-
-#: apps/desktop/ui/pages/settings.slint:197
-#: apps/desktop/ui/pages/settings.slint:197
-msgctxt "settings.language.english"
-msgid "English"
-msgstr ""
-
-#: apps/desktop/ui/pages/settings.slint:198
-#: apps/desktop/ui/pages/settings.slint:198
-msgctxt "settings.language.simplified-chinese"
-msgid "Simplified Chinese"
-msgstr ""
-
-#: apps/desktop/ui/pages/settings.slint:206
-msgctxt "settings.language.accessible-label"
-msgid "Interface language: {}"
-msgstr ""
-
-#: apps/desktop/ui/pages/settings.slint:212
-msgctxt "settings.language.saving"
-msgid "Saving…"
-msgstr ""
-
-#: apps/desktop/ui/pages/settings.slint:289
-msgctxt "settings.title"
-msgid "Settings"
-msgstr ""
-
-#: apps/desktop/ui/pages/settings.slint:295
-#: apps/desktop/ui/pages/settings.slint:295
-msgctxt "settings.back-home"
-msgid "Back to Home"
-msgstr ""
-
-#: apps/desktop/ui/pages/settings.slint:302
-#: apps/desktop/ui/pages/settings.slint:302
-msgctxt "settings.section.general"
-msgid "General"
-msgstr ""
-
-#: apps/desktop/ui/pages/settings.slint:303
-#: apps/desktop/ui/pages/settings.slint:303
-msgctxt "settings.section.shortcuts-audio"
-msgid "Shortcuts & Audio"
-msgstr ""
-
-#: apps/desktop/ui/pages/settings.slint:304
-#: apps/desktop/ui/pages/settings.slint:304
-msgctxt "settings.section.delivery-permissions"
-msgid "Delivery & Permissions"
-msgstr ""
-
-#: apps/desktop/ui/pages/settings.slint:305
-#: apps/desktop/ui/pages/settings.slint:305
-msgctxt "settings.section.privacy-data"
-msgid "Privacy & Data"
-msgstr ""
-
-#: apps/desktop/ui/pages/settings.slint:306
-#: apps/desktop/ui/pages/settings.slint:306
-msgctxt "settings.section.about-updates"
-msgid "About & Updates"
-msgstr ""
-
-msgctxt "settings.nav.general"
-msgid "General"
-msgstr ""
-
-msgctxt "settings.nav.shortcuts"
-msgid "Shortcuts"
-msgstr ""
-
-msgctxt "settings.nav.permissions"
-msgid "Permissions"
-msgstr ""
-
-msgctxt "settings.nav.privacy"
-msgid "Privacy"
-msgstr ""
-
-msgctxt "settings.nav.about"
-msgid "About"
-msgstr ""
-
-#: apps/desktop/ui/pages/settings.slint:351
-msgctxt "settings.general.detail"
-msgid "Control how Saymore starts, appears, and looks on this device."
-msgstr ""
-
-#: apps/desktop/ui/pages/settings.slint:351
-msgctxt "settings.shortcuts-audio.detail"
-msgid "Choose how voice input starts and how audio feedback works."
-msgstr ""
-
-#: apps/desktop/ui/pages/settings.slint:351
-msgctxt "settings.delivery-permissions.detail"
-msgid "Choose how recognized text is delivered and review system permissions."
-msgstr ""
-
-#: apps/desktop/ui/pages/settings.slint:351
-msgctxt "settings.privacy-data.detail"
-msgid "Review local data storage and manage diagnostics."
-msgstr ""
-
-#: apps/desktop/ui/pages/settings.slint:351
-msgctxt "settings.about-updates.detail"
-msgid "View version information, update status, and product links."
-msgstr ""
-
-#: apps/desktop/ui/pages/settings.slint:353
-msgctxt "settings.diagnostics.exporting"
-msgid "Exporting…"
-msgstr ""
-
-#: apps/desktop/ui/pages/settings.slint:353
-msgctxt "settings.diagnostics.exported"
-msgid "Exported"
-msgstr ""
-
-#: apps/desktop/ui/pages/settings.slint:353
-msgctxt "settings.diagnostics.export-again"
-msgid "Export again"
-msgstr ""
-
-#: apps/desktop/ui/pages/settings.slint:353
-msgctxt "settings.diagnostics.export-report"
-msgid "Export report"
-msgstr ""
-
-#: apps/desktop/ui/pages/settings.slint:354
-msgctxt "settings.update.checking"
-msgid "Checking…"
-msgstr ""
-
-#: apps/desktop/ui/pages/settings.slint:354
-msgctxt "settings.update.check-again"
-msgid "Check again"
-msgstr ""
-
-#: apps/desktop/ui/pages/settings.slint:354
-msgctxt "settings.update.check"
-msgid "Check for updates"
-msgstr ""
-
-#: apps/desktop/ui/pages/settings.slint:355
-msgctxt "settings.update.checking-detail"
-msgid "Checking for updates…"
-msgstr ""
-
-#: apps/desktop/ui/pages/settings.slint:355
-msgctxt "settings.update.latest"
-msgid "You’re up to date"
-msgstr ""
-
-#: apps/desktop/ui/pages/settings.slint:355
-msgctxt "settings.update.available"
-msgid "Saymore {} is available"
-msgstr ""
-
-#: apps/desktop/ui/pages/settings.slint:355
-msgctxt "settings.update.not-checked"
-msgid "Updates have not been checked yet"
-msgstr ""
-
-#: apps/desktop/ui/pages/settings.slint:385
-msgctxt "settings.startup-display.title"
-msgid "Startup & Display"
-msgstr ""
-
-#: apps/desktop/ui/pages/settings.slint:392
-#: apps/desktop/ui/pages/settings.slint:392
-msgctxt "settings.launch-at-login.title"
-msgid "Launch at login"
-msgstr ""
-
-#: apps/desktop/ui/pages/settings.slint:393
-#: apps/desktop/ui/pages/settings.slint:393
-msgctxt "settings.launch-at-login.detail"
-msgid "Prepare voice input in the background after you sign in."
-msgstr ""
-
-#: apps/desktop/ui/pages/settings.slint:395
-msgctxt "common.off"
-msgid "Off"
-msgstr ""
-
-#: apps/desktop/ui/pages/settings.slint:400
-#: apps/desktop/ui/pages/settings.slint:400
-msgctxt "settings.show-in-dock.title"
-msgid "Show in Dock"
-msgstr ""
-
-#: apps/desktop/ui/pages/settings.slint:401
-#: apps/desktop/ui/pages/settings.slint:401
-msgctxt "settings.show-in-dock.detail"
-msgid "Keep the Dock icon visible for quick access."
-msgstr ""
-
-#: apps/desktop/ui/pages/settings.slint:403
-msgctxt "common.show"
-msgid "Show"
-msgstr ""
-
-#: apps/desktop/ui/pages/settings.slint:424
-msgctxt "settings.appearance.title"
-msgid "Appearance"
-msgstr ""
-
-#: apps/desktop/ui/pages/settings.slint:428
-msgctxt "settings.language.title"
-msgid "Interface language"
-msgstr ""
-
-#: apps/desktop/ui/pages/settings.slint:429
-msgctxt "settings.language.detail"
-msgid "Language used by the application interface"
-msgstr ""
-
-#: apps/desktop/ui/pages/settings.slint:432
-msgctxt "settings.theme.title"
-msgid "Theme"
-msgstr ""
-
-#: apps/desktop/ui/pages/settings.slint:433
-msgctxt "settings.theme.detail"
-msgid "Match this device’s appearance setting"
-msgstr ""
-
-#: apps/desktop/ui/pages/settings.slint:434
-msgctxt "common.follow-system"
-msgid "Follow System"
-msgstr ""
-
-#: apps/desktop/ui/pages/settings.slint:436
-msgctxt "settings.software.title"
-msgid "Software"
-msgstr ""
-
-#: apps/desktop/ui/pages/settings.slint:440
-msgctxt "settings.auto-update.title"
-msgid "Automatically check for updates"
-msgstr ""
-
-#: apps/desktop/ui/pages/settings.slint:441
-msgctxt "settings.auto-update.detail"
-msgid "Notify you when a new version is available."
-msgstr ""
-
-#: apps/desktop/ui/pages/settings.slint:448
-msgctxt "settings.shortcuts.title"
-msgid "Shortcuts"
-msgstr ""
-
-#: apps/desktop/ui/pages/settings.slint:452
-msgctxt "settings.shortcut.global.title"
-msgid "Global voice input shortcut"
-msgstr ""
-
-#: apps/desktop/ui/pages/settings.slint:453
-msgctxt "settings.shortcut.global.detail"
-msgid "Press to start or finish voice input."
-msgstr ""
-
-#: apps/desktop/ui/pages/settings.slint:455
-msgctxt "settings.shortcut.cancel"
-msgid "Esc to cancel"
-msgstr ""
-
-#: apps/desktop/ui/pages/settings.slint:457
-msgctxt "settings.audio.title"
-msgid "Audio"
-msgstr ""
-
-#: apps/desktop/ui/pages/settings.slint:461
-msgctxt "settings.microphone.input-device"
-msgid "Input device"
-msgstr ""
-
-#: apps/desktop/ui/pages/settings.slint:462
-msgctxt "settings.microphone.input-device-detail"
-msgid "Use the system default microphone or choose another device."
-msgstr ""
-
-#: apps/desktop/ui/pages/settings.slint:479
-#: apps/desktop/ui/pages/settings.slint:479
-msgctxt "settings.audio.cue.title"
-msgid "Voice input sounds"
-msgstr ""
-
-#: apps/desktop/ui/pages/settings.slint:479
-#: apps/desktop/ui/pages/settings.slint:479
-msgctxt "settings.audio.cue.detail"
-msgid "Play a short sound when voice input starts and finishes."
-msgstr ""
-
-#: apps/desktop/ui/pages/settings.slint:480
-#: apps/desktop/ui/pages/settings.slint:480
-msgctxt "settings.audio.mute-system.title"
-msgid "Mute system audio during voice input"
-msgstr ""
-
-#: apps/desktop/ui/pages/settings.slint:480
-#: apps/desktop/ui/pages/settings.slint:480
-msgctxt "settings.audio.mute-system.detail"
-msgid "Temporarily mute system audio only while listening."
-msgstr ""
-
-#: apps/desktop/ui/pages/settings.slint:491
-msgctxt "settings.delivery.title"
-msgid "Delivery"
-msgstr ""
-
-#: apps/desktop/ui/pages/settings.slint:495
-msgctxt "settings.delivery.auto-insert.title"
-msgid "Automatically insert recognized text"
-msgstr ""
-
-#: apps/desktop/ui/pages/settings.slint:496
-msgctxt "settings.delivery.auto-insert.detail"
-msgid "Insert completed text into the app you are currently using."
-msgstr ""
-
-#: apps/desktop/ui/pages/settings.slint:498
-msgctxt "settings.delivery.copy.title"
-msgid "Also copy to clipboard"
-msgstr ""
-
-#: apps/desktop/ui/pages/settings.slint:499
-msgctxt "settings.delivery.copy.detail"
-msgid "Keep a copy so you can paste it manually when needed."
-msgstr ""
-
-#: apps/desktop/ui/pages/settings.slint:502
-msgctxt "settings.permissions.title"
-msgid "System Permissions"
-msgstr ""
-
-#: apps/desktop/ui/pages/settings.slint:505
-#: apps/desktop/ui/pages/settings.slint:505
-msgctxt "settings.permissions.microphone.title"
-msgid "Microphone"
-msgstr ""
-
-#: apps/desktop/ui/pages/settings.slint:505
-#: apps/desktop/ui/pages/settings.slint:505
-msgctxt "settings.permissions.microphone.granted-detail"
-msgid "Captures your voice only while voice input is active."
+#: apps/desktop/ui/onboarding.slint:170
+msgctxt "onboarding.step.welcome"
+msgid "Welcome"
 msgstr ""
 
-#: apps/desktop/ui/pages/settings.slint:505
-#: apps/desktop/ui/pages/settings.slint:505
-msgctxt "settings.permissions.microphone.required-detail"
-msgid "Allow microphone access to start voice input."
+#: apps/desktop/ui/onboarding.slint:171
+msgctxt "onboarding.step.microphone"
+msgid "Microphone & shortcut"
 msgstr ""
 
-#: apps/desktop/ui/pages/settings.slint:506
-#: apps/desktop/ui/pages/settings.slint:506
-msgctxt "settings.permissions.accessibility.title"
+#: apps/desktop/ui/onboarding.slint:172
+msgctxt "onboarding.step.accessibility"
 msgid "Accessibility"
 msgstr ""
 
-#: apps/desktop/ui/pages/settings.slint:506
-#: apps/desktop/ui/pages/settings.slint:506
-msgctxt "settings.permissions.accessibility.granted-detail"
-msgid "Inserts recognized text into the app you are using."
+#: apps/desktop/ui/onboarding.slint:173
+msgctxt "onboarding.step.complete"
+msgid "Finish"
 msgstr ""
 
-#: apps/desktop/ui/pages/settings.slint:506
-#: apps/desktop/ui/pages/settings.slint:506
-msgctxt "settings.permissions.accessibility.required-detail"
-msgid "Allow Accessibility access to insert recognized text automatically."
+#: apps/desktop/ui/onboarding.slint:179
+msgctxt "onboarding.local-only"
+msgid "Microphone testing is processed only on this device."
 msgstr ""
 
-#: apps/desktop/ui/pages/settings.slint:513
-msgctxt "settings.permissions.system-managed"
-msgid "Permission status is managed by the system and refreshes automatically."
+#: apps/desktop/ui/onboarding.slint:198
+msgctxt "onboarding.welcome.title"
+msgid "Type less. Say more."
 msgstr ""
 
-#: apps/desktop/ui/pages/settings.slint:518
-msgctxt "settings.local-data.title"
-msgid "Local Data"
-msgstr ""
-
-#: apps/desktop/ui/pages/settings.slint:522
-msgctxt "settings.local-data.device-only.title"
-msgid "Data stays on this device"
-msgstr ""
-
-#: apps/desktop/ui/pages/settings.slint:523
-msgctxt "settings.local-data.device-only.detail"
+#: apps/desktop/ui/onboarding.slint:199
+msgctxt "onboarding.welcome.detail"
 msgid ""
-"History, dictionary entries, and configuration are stored only on this "
-"device by default."
+"Saymore lets you use your voice in any text field. Set up your microphone, "
+"default shortcut, and Accessibility permission in about a minute."
 msgstr ""
 
-#: apps/desktop/ui/pages/settings.slint:524
-msgctxt "settings.local-data.usage"
-msgid "Currently using {}"
+#: apps/desktop/ui/onboarding.slint:200
+msgctxt "onboarding.start"
+msgid "Start setup"
 msgstr ""
 
-#: apps/desktop/ui/pages/settings.slint:525
-msgctxt "settings.local-data.open-folder"
-msgid "Open data folder"
+#: apps/desktop/ui/onboarding.slint:206
+msgctxt "onboarding.microphone.title"
+msgid "Test your microphone"
 msgstr ""
 
-#: apps/desktop/ui/pages/settings.slint:526
-msgctxt "settings.local-data.no-cloud-sync"
-msgid "Saymore does not sync this content to the cloud."
+#: apps/desktop/ui/onboarding.slint:207
+msgctxt "onboarding.microphone.detail"
+msgid ""
+"Allow microphone access, press {}, and say a few words. The waveform "
+"responds to your voice without sending audio anywhere."
 msgstr ""
 
-#: apps/desktop/ui/pages/settings.slint:528
-msgctxt "settings.diagnostics.title"
-msgid "Diagnostics & Support"
+#: apps/desktop/ui/onboarding.slint:211
+msgctxt "onboarding.microphone.device"
+msgid "System microphone"
 msgstr ""
 
-#: apps/desktop/ui/pages/settings.slint:534
-#: apps/desktop/ui/pages/settings.slint:534
-msgctxt "settings.diagnostics.logging.title"
-msgid "Diagnostic logging"
+#: apps/desktop/ui/onboarding.slint:212
+msgctxt "onboarding.microphone.granted"
+msgid "Permission enabled · ready to test"
 msgstr ""
 
-#: apps/desktop/ui/pages/settings.slint:536
-#: apps/desktop/ui/pages/settings.slint:536
-msgctxt "settings.diagnostics.logging.detail"
-msgid "Records runtime status and errors, never recognized text."
+#: apps/desktop/ui/onboarding.slint:212
+msgctxt "onboarding.microphone.required"
+msgid "Microphone permission is required"
 msgstr ""
 
-#: apps/desktop/ui/pages/settings.slint:541
-#: apps/desktop/ui/pages/settings.slint:541
-msgctxt "settings.diagnostics.report.title"
-msgid "Diagnostic report"
+#: apps/desktop/ui/onboarding.slint:212
+msgctxt "onboarding.microphone.denied"
+msgid "Permission denied · open System Settings"
 msgstr ""
 
-#: apps/desktop/ui/pages/settings.slint:543
-#: apps/desktop/ui/pages/settings.slint:543
-msgctxt "settings.diagnostics.report.detail"
-msgid "Export a report without sensitive content when you need support."
+#: apps/desktop/ui/onboarding.slint:213
+msgctxt "onboarding.microphone.allow"
+msgid "Allow microphone"
 msgstr ""
 
-#: apps/desktop/ui/pages/settings.slint:551
-msgctxt "settings.policy.title"
-msgid "Policy"
+#: apps/desktop/ui/onboarding.slint:219
+msgctxt "onboarding.shortcut.try"
+msgid "Try the default shortcut"
 msgstr ""
 
-#: apps/desktop/ui/pages/settings.slint:552
-#: apps/desktop/ui/pages/settings.slint:552
-msgctxt "settings.privacy-policy.title"
-msgid "Privacy Policy"
+#: apps/desktop/ui/onboarding.slint:220
+msgctxt "onboarding.shortcut.success"
+msgid "Microphone and shortcut are working."
 msgstr ""
 
-#: apps/desktop/ui/pages/settings.slint:552
-msgctxt "settings.privacy-policy.detail"
-msgid "Learn how Saymore handles and protects your data."
+#: apps/desktop/ui/onboarding.slint:220
+msgctxt "onboarding.shortcut.speak"
+msgid "Speak now, then press the shortcut again to finish."
 msgstr ""
 
-#: apps/desktop/ui/pages/settings.slint:557
-msgctxt "settings.product.title"
-msgid "Product"
+#: apps/desktop/ui/onboarding.slint:220
+msgctxt "onboarding.shortcut.waiting"
+msgid "Press the shortcut to start the local microphone test."
 msgstr ""
 
-#: apps/desktop/ui/pages/settings.slint:562
-msgctxt "settings.product.tagline"
-msgid "Speak your mind, hands-free."
+#: apps/desktop/ui/onboarding.slint:222
+msgctxt "onboarding.test.stop"
+msgid "Finish test"
 msgstr ""
 
-#: apps/desktop/ui/pages/settings.slint:565
-msgctxt "settings.update.download-install"
-msgid "Download and install"
+#: apps/desktop/ui/onboarding.slint:222
+msgctxt "onboarding.test.start"
+msgid "Start test"
 msgstr ""
 
-#: apps/desktop/ui/pages/settings.slint:568
-msgctxt "settings.update.title"
-msgid "Updates"
+#: apps/desktop/ui/onboarding.slint:229
+msgctxt "onboarding.accessibility.title"
+msgid "Enable Accessibility"
 msgstr ""
 
-#: apps/desktop/ui/pages/settings.slint:569
-msgctxt "settings.release-notes.title"
-msgid "Release notes"
+#: apps/desktop/ui/onboarding.slint:230
+msgctxt "onboarding.accessibility.detail"
+msgid ""
+"Accessibility lets Saymore listen for the global shortcut and insert "
+"recognized text into the text field you are using."
 msgstr ""
 
-#: apps/desktop/ui/pages/settings.slint:569
-msgctxt "settings.release-notes.detail"
-msgid "See what changed in this release."
+#: apps/desktop/ui/onboarding.slint:234
+msgctxt "onboarding.accessibility.card-title"
+msgid "Allow Saymore in System Settings"
 msgstr ""
 
-#: apps/desktop/ui/pages/settings.slint:569
-msgctxt "settings.release-notes.view"
-msgid "View release notes"
+#: apps/desktop/ui/onboarding.slint:235
+msgctxt "onboarding.accessibility.card-detail"
+msgid "Saymore does not use this permission to read password fields."
 msgstr ""
 
-#: apps/desktop/ui/pages/settings.slint:570
-msgctxt "settings.links-support.title"
-msgid "Links & Support"
+#: apps/desktop/ui/onboarding.slint:236
+msgctxt "onboarding.permission.granted-short"
+msgid "Enabled"
 msgstr ""
 
-#: apps/desktop/ui/pages/settings.slint:571
-msgctxt "settings.link.website"
-msgid "Website"
+#: apps/desktop/ui/onboarding.slint:236
+msgctxt "onboarding.permission.required-short"
+msgid "Required"
 msgstr ""
 
-#: apps/desktop/ui/pages/settings.slint:571
-msgctxt "settings.link.feedback"
-msgid "Feedback"
+#: apps/desktop/ui/onboarding.slint:237
+msgctxt "onboarding.permission.granted"
+msgid "Permission enabled"
 msgstr ""
 
-#: apps/desktop/ui/pages/settings.slint:571
-msgctxt "settings.link.terms"
-msgid "Terms of Service"
+#: apps/desktop/ui/onboarding.slint:237
+msgctxt "onboarding.accessibility.open"
+msgid "Open System Settings"
+msgstr ""
+
+#: apps/desktop/ui/onboarding.slint:245
+msgctxt "onboarding.complete.title"
+msgid "Saymore is ready"
+msgstr ""
+
+#: apps/desktop/ui/onboarding.slint:246
+msgctxt "onboarding.complete.detail"
+msgid ""
+"Press {} in any text field to start speaking, then press it again to finish."
+msgstr ""
+
+#: apps/desktop/ui/onboarding.slint:247
+msgctxt "onboarding.complete.shortcut"
+msgid "Your voice input shortcut"
+msgstr ""
+
+#: apps/desktop/ui/onboarding.slint:248
+msgctxt "onboarding.complete.login-title"
+msgid "Launch Saymore at login"
+msgstr ""
+
+#: apps/desktop/ui/onboarding.slint:248
+msgctxt "onboarding.complete.login-detail"
+msgid "Keep voice input ready in the background."
+msgstr ""
+
+#: apps/desktop/ui/onboarding.slint:249
+msgctxt "onboarding.error.microphone-test"
+msgid ""
+"The microphone test could not start. Check the selected input device and try "
+"again."
+msgstr ""
+
+#: apps/desktop/ui/onboarding.slint:249
+msgctxt "common.save-failed"
+msgid "Could not save this change. Try again."
+msgstr ""
+
+#: apps/desktop/ui/onboarding.slint:252
+msgctxt "common.back"
+msgid "Back"
+msgstr ""
+
+#: apps/desktop/ui/onboarding.slint:253
+msgctxt "onboarding.skip"
+msgid "Skip for now"
+msgstr ""
+
+#: apps/desktop/ui/onboarding.slint:256
+msgctxt "onboarding.finish"
+msgid "Start using Saymore"
+msgstr ""
+
+#: apps/desktop/ui/recording-limit-overlay.slint:2
+msgctxt "recording.limit.window-title"
+msgid "Recording time limit"
+msgstr ""
+
+#: apps/desktop/ui/recording-limit-overlay.slint:51
+msgctxt "recording.limit.warning-title"
+msgid "Recording ends in 1 minute"
+msgstr ""
+
+#: apps/desktop/ui/recording-limit-overlay.slint:62
+msgctxt "recording.limit.warning-detail"
+msgid ""
+"Saymore will finish this recording automatically at 10 minutes and continue "
+"processing the audio already captured."
+msgstr ""
+
+#: apps/desktop/ui/recording-limit-overlay.slint:76
+#: apps/desktop/ui/recording-limit-overlay.slint:76
+msgctxt "common.got-it"
+msgid "Got it"
 msgstr ""
 
 #: apps/desktop/ui/recording-overlay.slint:17
@@ -1491,6 +405,12 @@ msgstr ""
 #: apps/desktop/ui/recording-overlay.slint:118
 msgctxt "recording.undo-cancel.accessible-label"
 msgid "Undo cancellation"
+msgstr ""
+
+#: apps/desktop/ui/recording-overlay.slint:120
+#: apps/desktop/ui/recording-overlay.slint:120
+msgctxt "common.undo"
+msgid "Undo"
 msgstr ""
 
 #: apps/desktop/ui/recording-overlay.slint:130
@@ -1567,6 +487,36 @@ msgstr ""
 #: apps/desktop/ui/sidebar.slint:67
 msgctxt "sidebar.privacy-tagline"
 msgid "Local-first · Privacy protected"
+msgstr ""
+
+#: apps/desktop/ui/status-tray.slint:13
+msgctxt "tray.tooltip.paused"
+msgid "Saymore is paused"
+msgstr ""
+
+#: apps/desktop/ui/status-tray.slint:23
+msgctxt "tray.menu.show"
+msgid "Show Saymore"
+msgstr ""
+
+#: apps/desktop/ui/status-tray.slint:27
+msgctxt "tray.menu.settings"
+msgid "Settings…"
+msgstr ""
+
+#: apps/desktop/ui/status-tray.slint:33
+msgctxt "tray.menu.resume"
+msgid "Resume Saymore"
+msgstr ""
+
+#: apps/desktop/ui/status-tray.slint:34
+msgctxt "tray.menu.pause"
+msgid "Pause Saymore"
+msgstr ""
+
+#: apps/desktop/ui/status-tray.slint:39
+msgctxt "tray.menu.quit"
+msgid "Quit Saymore"
 msgstr ""
 
 #: apps/desktop/ui/translations.slint:2
@@ -1847,347 +797,1758 @@ msgid "Could not save settings"
 msgstr ""
 
 #: apps/desktop/ui/translations.slint:58
+msgctxt "settings.shortcut.error.missing-modifier"
+msgid "Include Command, Control, or Option"
+msgstr ""
+
+#: apps/desktop/ui/translations.slint:59
+msgctxt "settings.shortcut.error.reserved"
+msgid "This shortcut is already used by macOS"
+msgstr ""
+
+#: apps/desktop/ui/translations.slint:60
+msgctxt "settings.shortcut.error.unsupported"
+msgid "Use a letter, number, or Space"
+msgstr ""
+
+#: apps/desktop/ui/translations.slint:61
+msgctxt "settings.shortcut.error.save-failed"
+msgid "Could not save the shortcut"
+msgstr ""
+
+#: apps/desktop/ui/translations.slint:63
+msgctxt "settings.shortcut.error.duplicate"
+msgid "This shortcut is already added"
+msgstr ""
+
+#: apps/desktop/ui/translations.slint:64
+msgctxt "settings.shortcut.warning.possible-conflict"
+msgid ""
+"This key may be assigned in macOS Keyboard settings. Test it before "
+"continuing."
+msgstr ""
+
+#: apps/desktop/ui/translations.slint:65
+msgctxt "settings.shortcut.error.capture-active"
+msgid "Finish the current shortcut first"
+msgstr ""
+
+#: apps/desktop/ui/translations.slint:66
 msgctxt "settings.microphone.load-failed"
 msgid "Could not load microphones"
 msgstr ""
 
-#: apps/desktop/ui/translations.slint:60
+#: apps/desktop/ui/translations.slint:67
+#: apps/desktop/ui/translations.slint:67
+msgctxt "common.saved"
+msgid "Saved"
+msgstr ""
+
+#: apps/desktop/ui/translations.slint:68
 msgctxt "common.save-failed"
 msgid "Could not save"
 msgstr ""
 
-#: apps/desktop/ui/translations.slint:61
+#: apps/desktop/ui/translations.slint:69
 msgctxt "common.delete-failed"
 msgid "Could not delete"
 msgstr ""
 
-#: apps/desktop/ui/translations.slint:62
+#: apps/desktop/ui/translations.slint:70
 msgctxt "common.configuration-load-failed"
 msgid "Could not load configuration"
 msgstr ""
 
-#: apps/desktop/ui/translations.slint:63
+#: apps/desktop/ui/translations.slint:71
 msgctxt "common.not-supported-platform"
 msgid "Not supported on this platform"
 msgstr ""
 
-#: apps/desktop/ui/translations.slint:64
+#: apps/desktop/ui/translations.slint:72
 msgctxt "models.validation.enter-api-key"
 msgid "Enter an API key"
 msgstr ""
 
-#: apps/desktop/ui/translations.slint:65
+#: apps/desktop/ui/translations.slint:73
 msgctxt "models.validation.invalid-api-key"
 msgid "The API key format is invalid"
 msgstr ""
 
-#: apps/desktop/ui/translations.slint:66
+#: apps/desktop/ui/translations.slint:74
 msgctxt "models.validation.enter-service-url"
 msgid "Enter a service URL"
 msgstr ""
 
-#: apps/desktop/ui/translations.slint:67
+#: apps/desktop/ui/translations.slint:75
 msgctxt "models.validation.invalid-service-url"
 msgid "The service URL is invalid"
 msgstr ""
 
-#: apps/desktop/ui/translations.slint:68
+#: apps/desktop/ui/translations.slint:76
 msgctxt "models.validation.enter-model-name"
 msgid "Enter a model name"
 msgstr ""
 
-#: apps/desktop/ui/translations.slint:69
+#: apps/desktop/ui/translations.slint:77
 msgctxt "models.validation.unsupported-volcengine-model"
 msgid "This Volcengine model is not supported"
 msgstr ""
 
-#: apps/desktop/ui/translations.slint:71
+#: apps/desktop/ui/translations.slint:79
 msgctxt "models.status.configured"
 msgid "Configured"
 msgstr ""
 
-#: apps/desktop/ui/translations.slint:72
+#: apps/desktop/ui/translations.slint:80
 msgctxt "models.status.testing-connection"
 msgid "Testing connection"
 msgstr ""
 
-#: apps/desktop/ui/translations.slint:73
+#: apps/desktop/ui/translations.slint:81
 msgctxt "models.status.connected.plain"
 msgid "Connected"
 msgstr ""
 
-#: apps/desktop/ui/translations.slint:74
+#: apps/desktop/ui/translations.slint:82
 msgctxt "models.status.connection-failed.plain"
 msgid "Connection failed"
 msgstr ""
 
-#: apps/desktop/ui/translations.slint:75
+#: apps/desktop/ui/translations.slint:83
 msgctxt "models.test.error.authentication"
 msgid "The API key is invalid. Check it and try again."
 msgstr ""
 
-#: apps/desktop/ui/translations.slint:76
+#: apps/desktop/ui/translations.slint:84
 msgctxt "models.test.error.quota"
 msgid "The speech recognition quota is unavailable"
 msgstr ""
 
-#: apps/desktop/ui/translations.slint:77
+#: apps/desktop/ui/translations.slint:85
 msgctxt "models.test.error.transport"
 msgid ""
 "Could not connect to the speech service. Check your network and try again."
 msgstr ""
 
-#: apps/desktop/ui/translations.slint:78
+#: apps/desktop/ui/translations.slint:86
 msgctxt "models.test.error.protocol"
 msgid "The speech service returned an invalid response. Try again later."
 msgstr ""
 
-#: apps/desktop/ui/translations.slint:79
+#: apps/desktop/ui/translations.slint:87
 msgctxt "models.test.error.timeout"
 msgid "The connection test timed out. Try again later."
 msgstr ""
 
-#: apps/desktop/ui/translations.slint:80
+#: apps/desktop/ui/translations.slint:88
 msgctxt "models.validation.choose-model"
 msgid "Choose a model"
 msgstr ""
 
-#: apps/desktop/ui/translations.slint:81
+#: apps/desktop/ui/translations.slint:89
 msgctxt "models.status.saved-enable-test"
 msgid "Saved. Enable polishing and test the connection."
 msgstr ""
 
-#: apps/desktop/ui/translations.slint:82
+#: apps/desktop/ui/translations.slint:90
 msgctxt "models.status.switch-failed"
 msgid "Could not switch providers"
 msgstr ""
 
-#: apps/desktop/ui/translations.slint:83
+#: apps/desktop/ui/translations.slint:91
 msgctxt "models.status.save-api-key-first"
 msgid "Save an API key first"
 msgstr ""
 
-#: apps/desktop/ui/translations.slint:84
+#: apps/desktop/ui/translations.slint:92
 msgctxt "models.status.provider-changed"
 msgid "Model provider changed"
 msgstr ""
 
-#: apps/desktop/ui/translations.slint:85
+#: apps/desktop/ui/translations.slint:93
 msgctxt "models.status.authorization-save-failed"
 msgid "Could not save authorization"
 msgstr ""
 
-#: apps/desktop/ui/translations.slint:86
+#: apps/desktop/ui/translations.slint:94
 msgctxt "models.status.test-failed"
 msgid "Connection test failed"
 msgstr ""
 
-#: apps/desktop/ui/translations.slint:87
+#: apps/desktop/ui/translations.slint:95
 msgctxt "models.status.enabled"
 msgid "Enabled"
 msgstr ""
 
-#: apps/desktop/ui/translations.slint:89
+#: apps/desktop/ui/translations.slint:97
+msgctxt "models.key-page.open-failed"
+msgid "Could not open the API key page"
+msgstr ""
+
+#: apps/desktop/ui/translations.slint:98
 msgctxt "models.status.save-current-provider-key"
 msgid "Save an API key for the selected provider"
 msgstr ""
 
-#: apps/desktop/ui/translations.slint:90
+#: apps/desktop/ui/translations.slint:99
 msgctxt "models.fetch.enter-api-key"
 msgid "Enter an API key first"
 msgstr ""
 
-#: apps/desktop/ui/translations.slint:91
+#: apps/desktop/ui/translations.slint:100
 msgctxt "models.fetch.enter-service-url"
 msgid "Enter a service URL first"
 msgstr ""
 
-#: apps/desktop/ui/translations.slint:92
+#: apps/desktop/ui/translations.slint:101
 msgctxt "models.fetch.status.fetching"
 msgid "Fetching…"
 msgstr ""
 
-#: apps/desktop/ui/translations.slint:93
+#: apps/desktop/ui/translations.slint:102
 msgctxt "models.fetch.error.authentication"
 msgid "The API key is invalid"
 msgstr ""
 
-#: apps/desktop/ui/translations.slint:94
+#: apps/desktop/ui/translations.slint:103
 msgctxt "models.fetch.error.rate-limited"
 msgid "Too many requests. Try again shortly."
 msgstr ""
 
-#: apps/desktop/ui/translations.slint:95
+#: apps/desktop/ui/translations.slint:104
 msgctxt "models.fetch.error.empty"
 msgid "No available models were returned"
 msgstr ""
 
-#: apps/desktop/ui/translations.slint:96
+#: apps/desktop/ui/translations.slint:105
 msgctxt "models.fetch.error.transport"
 msgid "Could not connect to the model service"
 msgstr ""
 
-#: apps/desktop/ui/translations.slint:97
+#: apps/desktop/ui/translations.slint:106
 msgctxt "models.fetch.error.protocol"
 msgid "The model list response was invalid"
 msgstr ""
 
-#: apps/desktop/ui/translations.slint:98
+#: apps/desktop/ui/translations.slint:107
 msgctxt "settings.diagnostics.status.generating"
 msgid "Generating a report without sensitive content…"
 msgstr ""
 
-#: apps/desktop/ui/translations.slint:99
+#: apps/desktop/ui/translations.slint:108
 msgctxt "settings.diagnostics.status.export-failed"
 msgid "Could not export the report. Try again."
 msgstr ""
 
-#: apps/desktop/ui/translations.slint:100
+#: apps/desktop/ui/translations.slint:109
 msgctxt "settings.diagnostics.status.export-start-failed"
 msgid "Could not start the report export"
 msgstr ""
 
-#: apps/desktop/ui/translations.slint:101
+#: apps/desktop/ui/translations.slint:110
 msgctxt "settings.diagnostics.status.open-data-folder-failed"
 msgid "Could not open the data folder"
 msgstr ""
 
-#: apps/desktop/ui/translations.slint:102
+#: apps/desktop/ui/translations.slint:111
 msgctxt "settings.diagnostics.report.file-name"
 msgid "Saymore Diagnostic Report.txt"
 msgstr ""
 
-#: apps/desktop/ui/translations.slint:103
+#: apps/desktop/ui/translations.slint:112
 msgctxt "settings.diagnostics.report.name"
 msgid "Diagnostic Report"
 msgstr ""
 
-#: apps/desktop/ui/translations.slint:104
+#: apps/desktop/ui/translations.slint:113
 msgctxt "diagnostics.report.title"
 msgid "Saymore Diagnostic Report"
 msgstr ""
 
-#: apps/desktop/ui/translations.slint:105
+#: apps/desktop/ui/translations.slint:114
 msgctxt "diagnostics.report.privacy"
 msgid ""
 "Privacy: This report contains only diagnostic event identifiers. It does not "
 "include recognized text, API keys, or sensitive configuration."
 msgstr ""
 
-#: apps/desktop/ui/translations.slint:106
+#: apps/desktop/ui/translations.slint:115
 msgctxt "diagnostics.report.events"
 msgid "Events:"
 msgstr ""
 
-#: apps/desktop/ui/translations.slint:107
+#: apps/desktop/ui/translations.slint:116
 msgctxt "diagnostics.report.no-events"
 msgid "No diagnostic events recorded."
 msgstr ""
 
-#: apps/desktop/ui/translations.slint:108
+#: apps/desktop/ui/translations.slint:117
 msgctxt "settings.update.error.service-unavailable"
 msgid "Could not connect to the update service"
 msgstr ""
 
-#: apps/desktop/ui/translations.slint:109
+#: apps/desktop/ui/translations.slint:118
 msgctxt "settings.update.error.check-start-failed"
 msgid "Could not start the update check"
 msgstr ""
 
-#: apps/desktop/ui/translations.slint:110
+#: apps/desktop/ui/translations.slint:119
 msgctxt "settings.update.error.download-url-unavailable"
 msgid "The update download link is unavailable"
 msgstr ""
 
-#: apps/desktop/ui/translations.slint:111
+#: apps/desktop/ui/translations.slint:120
 msgctxt "settings.update.error.open-download-failed"
 msgid "Could not open the download page"
 msgstr ""
 
-#: apps/desktop/ui/translations.slint:112
+#: apps/desktop/ui/translations.slint:121
 msgctxt "settings.microphone.system-fallback"
 msgid "Temporarily using the system default microphone"
 msgstr ""
 
-#: apps/desktop/ui/translations.slint:113
+#: apps/desktop/ui/translations.slint:122
 msgctxt "recording.status.cancelled"
 msgid "Recording cancelled"
 msgstr ""
 
-#: apps/desktop/ui/translations.slint:114
+#: apps/desktop/ui/translations.slint:123
 msgctxt "recording.cancel.undo-hint"
 msgid "You can undo for 2 seconds"
 msgstr ""
 
-#: apps/desktop/ui/translations.slint:116
+#: apps/desktop/ui/translations.slint:125
 msgctxt "recording.processing.refining"
 msgid "Polishing"
 msgstr ""
 
-#: apps/desktop/ui/translations.slint:119
+#: apps/desktop/ui/translations.slint:126
+msgctxt "dictionary.status.import-failed"
+msgid "Could not import this CSV file"
+msgstr ""
+
+#: apps/desktop/ui/translations.slint:129
 msgctxt "recording.detail.samples"
 msgid "{} · {} input sample"
 msgid_plural "{} · {} input samples"
 msgstr[0] ""
 msgstr[1] ""
 
-#: apps/desktop/ui/translations.slint:122
+#: apps/desktop/ui/translations.slint:132
 msgctxt "recording.detail.completion"
 msgid "{} · {} character · {}"
 msgid_plural "{} · {} characters · {}"
 msgstr[0] ""
 msgstr[1] ""
 
-#: apps/desktop/ui/translations.slint:125
+#: apps/desktop/ui/translations.slint:135
 msgctxt "common.duration.seconds"
 msgid "{} sec"
 msgstr ""
 
-#: apps/desktop/ui/translations.slint:128
+#: apps/desktop/ui/translations.slint:138
 msgctxt "history.duration.seconds"
 msgid "{} sec"
 msgstr ""
 
-#: apps/desktop/ui/translations.slint:131
+#: apps/desktop/ui/translations.slint:141
 msgctxt "dictionary.status.saved"
 msgid "Saved {} entry"
 msgid_plural "Saved {} entries"
 msgstr[0] ""
 msgstr[1] ""
 
-#: apps/desktop/ui/translations.slint:134
+#: apps/desktop/ui/translations.slint:144
+msgctxt "dictionary.status.imported"
+msgid "Imported {} entries · skipped {}"
+msgstr ""
+
+#: apps/desktop/ui/translations.slint:147
 msgctxt "settings.microphone.system-default-named"
 msgid "Automatic (system default: {})"
 msgstr ""
 
-#: apps/desktop/ui/translations.slint:137
+#: apps/desktop/ui/translations.slint:150
 msgctxt "settings.microphone.disconnected"
 msgid "{} (disconnected)"
 msgstr ""
 
-#: apps/desktop/ui/translations.slint:140
+#: apps/desktop/ui/translations.slint:153
 msgctxt "models.fetch.status.complete"
 msgid "Fetched {} model"
 msgid_plural "Fetched {} models"
 msgstr[0] ""
 msgstr[1] ""
 
-#: apps/desktop/ui/translations.slint:143
+#: apps/desktop/ui/translations.slint:156
 msgctxt "settings.diagnostics.status.exported"
 msgid "Exported {}"
 msgstr ""
 
-#: apps/desktop/ui/translations.slint:146
+#: apps/desktop/ui/translations.slint:159
 msgctxt "dictionary.status.automatically-added"
 msgid "Added {} automatically"
 msgstr ""
 
-#: apps/desktop/ui/translations.slint:149
+#: apps/desktop/ui/translations.slint:162
 msgctxt "diagnostics.report.version"
 msgid "Version: v{}"
 msgstr ""
 
-#: apps/desktop/ui/translations.slint:152
+#: apps/desktop/ui/translations.slint:165
 msgctxt "diagnostics.report.generated"
 msgid "Generated: {}"
+msgstr ""
+
+#: apps/desktop/ui/pages/dictionary.slint:123
+msgctxt "common.delete"
+msgid "Delete"
+msgstr ""
+
+#: apps/desktop/ui/pages/dictionary.slint:155
+msgctxt "common.reload"
+msgid "Reload"
+msgstr ""
+
+#: apps/desktop/ui/pages/dictionary.slint:186
+msgctxt "dictionary.entry-count"
+msgid "{} entry"
+msgid_plural "{} entries"
+msgstr[0] ""
+msgstr[1] ""
+
+#: apps/desktop/ui/pages/dictionary.slint:187
+msgctxt "dictionary.search-result-count"
+msgid "{} search result"
+msgid_plural "{} search results"
+msgstr[0] ""
+msgstr[1] ""
+
+#: apps/desktop/ui/pages/dictionary.slint:200
+msgctxt "dictionary.title"
+msgid "Dictionary"
+msgstr ""
+
+#: apps/desktop/ui/pages/dictionary.slint:209
+msgctxt "dictionary.subtitle"
+msgid "Save names and terms you use often to improve voice input accuracy."
+msgstr ""
+
+#: apps/desktop/ui/pages/dictionary.slint:225
+#: apps/desktop/ui/pages/dictionary.slint:225
+msgctxt "dictionary.import-csv"
+msgid "Import CSV"
+msgstr ""
+
+#: apps/desktop/ui/pages/dictionary.slint:229
+msgctxt "dictionary.importing"
+msgid "Importing…"
+msgstr ""
+
+#: apps/desktop/ui/pages/dictionary.slint:240
+#: apps/desktop/ui/pages/dictionary.slint:240
+#: apps/desktop/ui/pages/dictionary.slint:240
+msgctxt "dictionary.add-entry"
+msgid "Add entry"
+msgstr ""
+
+#: apps/desktop/ui/pages/dictionary.slint:259
+msgctxt "dictionary.filter.all"
+msgid "All"
+msgstr ""
+
+#: apps/desktop/ui/pages/dictionary.slint:260
+msgctxt "dictionary.filter.automatic"
+msgid "Automatic"
+msgstr ""
+
+#: apps/desktop/ui/pages/dictionary.slint:261
+msgctxt "dictionary.filter.manual"
+msgid "Manual"
+msgstr ""
+
+#: apps/desktop/ui/pages/dictionary.slint:275
+msgctxt "dictionary.search.placeholder"
+msgid "Search entries"
+msgstr ""
+
+#: apps/desktop/ui/pages/dictionary.slint:321
+msgctxt "dictionary.local-only"
+msgid "Dictionary entries are stored only on this device"
+msgstr ""
+
+#: apps/desktop/ui/pages/dictionary.slint:341
+msgctxt "dictionary.loading.title"
+msgid "Loading dictionary"
+msgstr ""
+
+#: apps/desktop/ui/pages/dictionary.slint:342
+msgctxt "dictionary.loading.detail"
+msgid "Reading entries stored on this device."
+msgstr ""
+
+#: apps/desktop/ui/pages/dictionary.slint:350
+msgctxt "dictionary.load-failed.title"
+msgid "Dictionary unavailable"
+msgstr ""
+
+#: apps/desktop/ui/pages/dictionary.slint:351
+msgctxt "dictionary.load-failed.detail"
+msgid "Check local storage and try again."
+msgstr ""
+
+#: apps/desktop/ui/pages/dictionary.slint:361
+msgctxt "dictionary.empty.title"
+msgid "No entries yet"
+msgstr ""
+
+#: apps/desktop/ui/pages/dictionary.slint:361
+msgctxt "dictionary.no-results.title"
+msgid "No matching entries"
+msgstr ""
+
+#: apps/desktop/ui/pages/dictionary.slint:363
+msgctxt "dictionary.empty.detail"
+msgid "Add an entry so Saymore remembers how you write it."
+msgstr ""
+
+#: apps/desktop/ui/pages/dictionary.slint:363
+msgctxt "dictionary.filter-empty.detail"
+msgid "No entries match this filter."
+msgstr ""
+
+#: apps/desktop/ui/pages/dictionary.slint:364
+msgctxt "dictionary.no-results.detail"
+msgid "Try a different search term."
+msgstr ""
+
+#: apps/desktop/ui/pages/dictionary.slint:419
+msgctxt "dictionary.entry-field"
+msgid "Entry"
+msgstr ""
+
+#: apps/desktop/ui/pages/dictionary.slint:448
+msgctxt "dictionary.entry.placeholder"
+msgid "For example: Volcano Engine"
+msgstr ""
+
+#: apps/desktop/ui/pages/dictionary.slint:484
+msgctxt "dictionary.add-another-entry"
+msgid "Add another entry"
+msgstr ""
+
+#: apps/desktop/ui/pages/dictionary.slint:507
+#: apps/desktop/ui/pages/dictionary.slint:507
+#: apps/desktop/ui/pages/dictionary.slint:507
+#: apps/desktop/ui/pages/dictionary.slint:507
+msgctxt "common.cancel"
+msgid "Cancel"
+msgstr ""
+
+#: apps/desktop/ui/pages/dictionary.slint:517
+msgctxt "common.saving"
+msgid "Saving…"
+msgstr ""
+
+#: apps/desktop/ui/pages/dictionary.slint:517
+msgctxt "dictionary.save-entry-count"
+msgid "Save {} entry"
+msgid_plural "Save {} entries"
+msgstr[0] ""
+msgstr[1] ""
+
+#: apps/desktop/ui/pages/history.slint:148
+msgctxt "history.clear.title"
+msgid "Clear all history?"
+msgstr ""
+
+#: apps/desktop/ui/pages/history.slint:149
+msgctxt "history.clear.detail"
+msgid ""
+"All records will be permanently deleted from this device. This cannot be "
+"undone."
+msgstr ""
+
+#: apps/desktop/ui/pages/history.slint:154
+msgctxt "history.clear.action"
+msgid "Clear"
+msgstr ""
+
+#: apps/desktop/ui/pages/history.slint:161
+msgctxt "history.reset.title"
+msgid "Reset history?"
+msgstr ""
+
+#: apps/desktop/ui/pages/history.slint:162
+msgctxt "history.reset.detail"
+msgid "Existing history will be permanently deleted and cannot be recovered."
+msgstr ""
+
+#: apps/desktop/ui/pages/history.slint:163
+msgctxt "history.reset.unaffected"
+msgid ""
+"Your dictionary, model configuration, and other settings will not be "
+"affected."
+msgstr ""
+
+#: apps/desktop/ui/pages/history.slint:168
+msgctxt "history.reset.action"
+msgid "Delete and reset"
+msgstr ""
+
+#: apps/desktop/ui/pages/history.slint:177
+msgctxt "history.detail.title"
+msgid "Record details"
+msgstr ""
+
+#: apps/desktop/ui/pages/history.slint:180
+msgctxt "history.detail.content"
+msgid "Content"
+msgstr ""
+
+#: apps/desktop/ui/pages/history.slint:207
+msgctxt "history.detail.record-info"
+msgid "Record information"
+msgstr ""
+
+#: apps/desktop/ui/pages/history.slint:215
+msgctxt "history.detail.summary"
+msgid "{}  ·  {}  ·  {}"
+msgstr ""
+
+#: apps/desktop/ui/pages/history.slint:216
+msgctxt "history.detail.asr-model"
+msgid "Speech model"
+msgstr ""
+
+#: apps/desktop/ui/pages/history.slint:218
+msgctxt "history.detail.llm-model"
+msgid "Polishing model"
+msgstr ""
+
+#: apps/desktop/ui/pages/history.slint:228
+#: apps/desktop/ui/pages/history.slint:228
+msgctxt "history.delete-record"
+msgid "Delete record"
+msgstr ""
+
+#: apps/desktop/ui/pages/history.slint:231
+#: apps/desktop/ui/pages/history.slint:231
+msgctxt "common.copied"
+msgid "Copied"
+msgstr ""
+
+#: apps/desktop/ui/pages/history.slint:231
+#: apps/desktop/ui/pages/history.slint:231
+msgctxt "history.copy-content"
+msgid "Copy content"
+msgstr ""
+
+#: apps/desktop/ui/pages/history.slint:267
+msgctxt "history.retention.never"
+msgid "Never save"
+msgstr ""
+
+#: apps/desktop/ui/pages/history.slint:268
+msgctxt "history.retention.one-day"
+msgid "Keep for 24 hours"
+msgstr ""
+
+#: apps/desktop/ui/pages/history.slint:269
+msgctxt "history.retention.thirty-days"
+msgid "Keep for 1 month"
+msgstr ""
+
+#: apps/desktop/ui/pages/history.slint:270
+msgctxt "history.retention.forever"
+msgid "Keep forever"
+msgstr ""
+
+#: apps/desktop/ui/pages/history.slint:271
+msgctxt "history.retention.seven-days"
+msgid "Keep for 1 week"
+msgstr ""
+
+#: apps/desktop/ui/pages/history.slint:283
+msgctxt "history.title"
+msgid "History"
+msgstr ""
+
+#: apps/desktop/ui/pages/history.slint:302
+msgctxt "history.search.placeholder"
+msgid "Search history"
+msgstr ""
+
+#: apps/desktop/ui/pages/history.slint:327
+msgctxt "common.more-actions"
+msgid "More actions"
+msgstr ""
+
+#: apps/desktop/ui/pages/history.slint:334
+msgctxt "history.local-only"
+msgid "History is stored only on this device"
+msgstr ""
+
+#: apps/desktop/ui/pages/history.slint:377
+msgctxt "history.item.summary"
+msgid "{}  ·  {}  ·  {}"
+msgstr ""
+
+#: apps/desktop/ui/pages/history.slint:391
+msgctxt "history.load-more"
+msgid "Load more"
+msgstr ""
+
+#: apps/desktop/ui/pages/history.slint:402
+msgctxt "history.loading.title"
+msgid "Loading history"
+msgstr ""
+
+#: apps/desktop/ui/pages/history.slint:403
+msgctxt "history.loading.detail"
+msgid "Reading content saved on this device"
+msgstr ""
+
+#: apps/desktop/ui/pages/history.slint:405
+msgctxt "history.load-failed.title"
+msgid "Local history is unavailable"
+msgstr ""
+
+#: apps/desktop/ui/pages/history.slint:406
+#: apps/desktop/ui/pages/history.slint:406
+msgctxt "common.reload"
+msgid "Reload ↗"
+msgstr ""
+
+#: apps/desktop/ui/pages/history.slint:408
+msgctxt "history.locked.title"
+msgid "History is locked"
+msgstr ""
+
+#: apps/desktop/ui/pages/history.slint:409
+msgctxt "history.locked.detail"
+msgid ""
+"The history key is unavailable. Settings and dictionary remain available."
+msgstr ""
+
+#: apps/desktop/ui/pages/history.slint:410
+msgctxt "history.locked.reset-action"
+msgid "Delete old history and reset"
+msgstr ""
+
+#: apps/desktop/ui/pages/history.slint:412
+msgctxt "history.empty.title"
+msgid "No history yet"
+msgstr ""
+
+#: apps/desktop/ui/pages/history.slint:413
+msgctxt "history.empty.detail"
+msgid "Completed voice input will be saved here securely"
+msgstr ""
+
+#: apps/desktop/ui/pages/history.slint:415
+msgctxt "history.no-results.title"
+msgid "No results for “{}”"
+msgstr ""
+
+#: apps/desktop/ui/pages/history.slint:416
+msgctxt "history.no-results.detail"
+msgid "Try a shorter search term or check your spelling"
+msgstr ""
+
+#: apps/desktop/ui/pages/history.slint:429
+msgctxt "history.retention.option.never"
+msgid "Never"
+msgstr ""
+
+#: apps/desktop/ui/pages/history.slint:430
+msgctxt "history.retention.option.one-day"
+msgid "24 hours"
+msgstr ""
+
+#: apps/desktop/ui/pages/history.slint:431
+msgctxt "history.retention.option.seven-days"
+msgid "1 week"
+msgstr ""
+
+#: apps/desktop/ui/pages/history.slint:432
+msgctxt "history.retention.option.thirty-days"
+msgid "1 month"
+msgstr ""
+
+#: apps/desktop/ui/pages/history.slint:433
+msgctxt "history.retention.option.forever"
+msgid "Forever"
+msgstr ""
+
+#: apps/desktop/ui/pages/history.slint:441
+msgctxt "history.refresh"
+msgid "Refresh history"
+msgstr ""
+
+#: apps/desktop/ui/pages/history.slint:442
+msgctxt "history.clear-all"
+msgid "Clear all history"
+msgstr ""
+
+#: apps/desktop/ui/pages/history.slint:472
+msgctxt "history.deleted-one"
+msgid "1 record deleted"
+msgstr ""
+
+#: apps/desktop/ui/pages/home.slint:93
+msgctxt "home.shortcut.title"
+msgid "Voice input shortcut"
+msgstr ""
+
+#: apps/desktop/ui/pages/home.slint:94
+msgctxt "home.issue.microphone.title"
+msgid "Microphone access is off"
+msgstr ""
+
+#: apps/desktop/ui/pages/home.slint:95
+msgctxt "home.issue.asr-invalid.title"
+msgid "Voice recognition configuration needs attention"
+msgstr ""
+
+#: apps/desktop/ui/pages/home.slint:95
+msgctxt "home.issue.asr-missing.title"
+msgid "Voice recognition is not configured"
+msgstr ""
+
+#: apps/desktop/ui/pages/home.slint:96
+msgctxt "home.issue.accessibility.title"
+msgid "Accessibility access is off"
+msgstr ""
+
+#: apps/desktop/ui/pages/home.slint:97
+msgctxt "home.issue.microphone.detail"
+msgid "Voice input cannot start yet"
+msgstr ""
+
+#: apps/desktop/ui/pages/home.slint:98
+msgctxt "home.issue.asr-missing.detail"
+msgid "Finish setup before using voice input"
+msgstr ""
+
+#: apps/desktop/ui/pages/home.slint:99
+msgctxt "home.issue.accessibility.detail"
+msgid "Recognized text cannot be entered at the current cursor"
+msgstr ""
+
+#: apps/desktop/ui/pages/home.slint:100
+msgctxt "home.issue.models.action"
+msgid "Open model settings"
+msgstr ""
+
+#: apps/desktop/ui/pages/home.slint:108
+msgctxt "home.headline"
+msgid "Speak your mind, hands-free"
+msgstr ""
+
+#: apps/desktop/ui/pages/home.slint:126
+msgctxt "home.shortcut.current"
+msgid "Current setting"
+msgstr ""
+
+#: apps/desktop/ui/pages/home.slint:147
+#: apps/desktop/ui/pages/home.slint:147
+msgctxt "common.enabled"
+msgid "Enabled"
+msgstr ""
+
+#: apps/desktop/ui/pages/home.slint:147
+#: apps/desktop/ui/pages/home.slint:147
+msgctxt "common.disabled"
+msgid "Disabled"
+msgstr ""
+
+#: apps/desktop/ui/pages/home.slint:155
+msgctxt "home.configuration-status.title"
+msgid "Dictation availability"
+msgstr ""
+
+#: apps/desktop/ui/pages/home.slint:168
+msgctxt "home.health.configured"
+msgid "Voice recognition configured · Microphone allowed · Text delivery ready"
+msgstr ""
+
+#: apps/desktop/ui/pages/home.slint:168
+msgctxt "home.health.connected"
+msgid "Model connected · Microphone allowed · Text delivery ready"
+msgstr ""
+
+#: apps/desktop/ui/pages/home.slint:181
+msgctxt "home.health.ready"
+msgid "●  Ready"
+msgstr ""
+
+#: apps/desktop/ui/pages/home.slint:181
+msgctxt "home.health.all-good"
+msgid "●  All good"
+msgstr ""
+
+#: apps/desktop/ui/pages/home.slint:225
+msgctxt "home.usage.title"
+msgid "Usage overview"
+msgstr ""
+
+#: apps/desktop/ui/pages/home.slint:235
+msgctxt "home.usage.loading"
+msgid "Usage overview · Loading"
+msgstr ""
+
+#: apps/desktop/ui/pages/home.slint:235
+msgctxt "home.usage.failed"
+msgid "Usage overview · Could not load"
+msgstr ""
+
+#: apps/desktop/ui/pages/home.slint:235
+msgctxt "home.usage.totals"
+msgid "All-time totals"
+msgstr ""
+
+#: apps/desktop/ui/pages/home.slint:238
+msgctxt "home.usage.minutes.unit"
+msgid "min"
+msgstr ""
+
+#: apps/desktop/ui/pages/home.slint:238
+msgctxt "home.usage.local-unavailable"
+msgid "Local stats are temporarily unavailable"
+msgstr ""
+
+#: apps/desktop/ui/pages/home.slint:238
+msgctxt "home.usage.dictation-total"
+msgid "Voice input time"
+msgstr ""
+
+#: apps/desktop/ui/pages/home.slint:239
+msgctxt "home.usage.characters.unit"
+msgid "characters"
+msgstr ""
+
+#: apps/desktop/ui/pages/home.slint:239
+msgctxt "home.usage.input-unaffected"
+msgid "Voice input is unaffected"
+msgstr ""
+
+#: apps/desktop/ui/pages/home.slint:239
+msgctxt "home.usage.characters-total"
+msgid "Characters entered"
+msgstr ""
+
+#: apps/desktop/ui/pages/home.slint:240
+msgctxt "home.usage.speed.unit"
+msgid "chars/min"
+msgstr ""
+
+#: apps/desktop/ui/pages/home.slint:240
+msgctxt "home.usage.average-speed"
+msgid "Average speed"
+msgstr ""
+
+#: apps/desktop/ui/pages/home.slint:247
+msgctxt "home.usage.seven-day-trend"
+msgid "Last 7 days"
+msgstr ""
+
+#: apps/desktop/ui/pages/models.slint:77
+msgctxt "models.polishing.enable.accessible-label"
+msgid "Enable text polishing"
+msgstr ""
+
+#: apps/desktop/ui/pages/models.slint:151
+msgctxt "common.value-entered"
+msgid "Entered"
+msgstr ""
+
+#: apps/desktop/ui/pages/models.slint:181
+msgctxt "models.polishing.consent.title"
+msgid "Enable text polishing?"
+msgstr ""
+
+#: apps/desktop/ui/pages/models.slint:182
+msgctxt "models.polishing.consent.intro"
+msgid "Before enabling it, review what text will be sent."
+msgstr ""
+
+#: apps/desktop/ui/pages/models.slint:188
+msgctxt "models.polishing.consent.sent-content"
+msgid ""
+"Saymore sends the current transcript for polishing and may send a short "
+"local correction fragment to judge dictionary candidates."
+msgstr ""
+
+#: apps/desktop/ui/pages/models.slint:191
+msgctxt "models.polishing.consent.destination"
+msgid "Data destination"
+msgstr ""
+
+#: apps/desktop/ui/pages/models.slint:194
+msgctxt "models.polishing.consent.dictionary-excluded"
+msgid "Confirmed dictionary entries and complete input fields are not sent."
+msgstr ""
+
+#: apps/desktop/ui/pages/models.slint:200
+msgctxt "models.polishing.consent.accept"
+msgid "I understand and agree to send the content described above"
+msgstr ""
+
+#: apps/desktop/ui/pages/models.slint:206
+msgctxt "models.polishing.consent.confirm-and-test"
+msgid "Confirm and test"
+msgstr ""
+
+#: apps/desktop/ui/pages/models.slint:271
+#: apps/desktop/ui/pages/models.slint:271
+msgctxt "models.volcengine.model-v1"
+msgid "Doubao Streaming Speech Recognition 1.0"
+msgstr ""
+
+#: apps/desktop/ui/pages/models.slint:271
+#: apps/desktop/ui/pages/models.slint:271
+msgctxt "models.volcengine.model-v2"
+msgid "Doubao Streaming Speech Recognition 2.0"
+msgstr ""
+
+#: apps/desktop/ui/pages/models.slint:274
+#: apps/desktop/ui/pages/models.slint:274
+#: apps/desktop/ui/pages/models.slint:274
+msgctxt "models.provider.custom-compatible"
+msgid "Custom compatible API"
+msgstr ""
+
+#: apps/desktop/ui/pages/models.slint:274
+#: apps/desktop/ui/pages/models.slint:274
+msgctxt "models.provider.volcengine"
+msgid "Volcengine"
+msgstr ""
+
+#: apps/desktop/ui/pages/models.slint:286
+msgctxt "models.status.testing"
+msgid "●  Testing"
+msgstr ""
+
+#: apps/desktop/ui/pages/models.slint:286
+msgctxt "models.status.connection-failed"
+msgid "●  Connection failed"
+msgstr ""
+
+#: apps/desktop/ui/pages/models.slint:286
+msgctxt "models.status.awaiting-connection-test"
+msgid "●  Awaiting connection test"
+msgstr ""
+
+#: apps/desktop/ui/pages/models.slint:286
+msgctxt "models.status.connected"
+msgid "●  Connected"
+msgstr ""
+
+#: apps/desktop/ui/pages/models.slint:286
+msgctxt "models.status.not-configured"
+msgid "●  Not configured"
+msgstr ""
+
+#: apps/desktop/ui/pages/models.slint:307
+msgctxt "models.title"
+msgid "Models"
+msgstr ""
+
+#: apps/desktop/ui/pages/models.slint:308
+msgctxt "models.tab.speech-recognition"
+msgid "Transcription"
+msgstr ""
+
+#: apps/desktop/ui/pages/models.slint:309
+msgctxt "models.tab.text-polishing"
+msgid "Polishing"
+msgstr ""
+
+#: apps/desktop/ui/pages/models.slint:312
+msgctxt "models.speech-service"
+msgid "Speech recognition service"
+msgstr ""
+
+#: apps/desktop/ui/pages/models.slint:312
+msgctxt "models.polishing-service"
+msgid "Text polishing service"
+msgstr ""
+
+#: apps/desktop/ui/pages/models.slint:329
+msgctxt "models.api-key.not-configured"
+msgid "API key not configured"
+msgstr ""
+
+#: apps/desktop/ui/pages/models.slint:329
+msgctxt "models.model.saved-not-enabled"
+msgid "{} · Connection not tested"
+msgstr ""
+
+#: apps/desktop/ui/pages/models.slint:329
+msgctxt "models.model.current-default"
+msgid "{} · Current default"
+msgstr ""
+
+#: apps/desktop/ui/pages/models.slint:336
+msgctxt "models.connection-settings"
+msgid "Connection settings"
+msgstr ""
+
+#: apps/desktop/ui/pages/models.slint:345
+#: apps/desktop/ui/pages/models.slint:345
+msgctxt "models.get-api-key"
+msgid "Get API key"
+msgstr ""
+
+#: apps/desktop/ui/pages/models.slint:355
+msgctxt "models.volcengine-api-key"
+msgid "Volcengine API key"
+msgstr ""
+
+#: apps/desktop/ui/pages/models.slint:361
+msgctxt "models.custom-speech-api-key"
+msgid "Custom speech recognition API key"
+msgstr ""
+
+#: apps/desktop/ui/pages/models.slint:366
+msgctxt "models.sensenova-api-key"
+msgid "SenseNova API key"
+msgstr ""
+
+#: apps/desktop/ui/pages/models.slint:376
+msgctxt "models.custom-llm-api-key"
+msgid "Custom polishing API key (optional for local services)"
+msgstr ""
+
+#: apps/desktop/ui/pages/models.slint:381
+msgctxt "models.model-field"
+msgid "Model"
+msgstr ""
+
+#: apps/desktop/ui/pages/models.slint:386
+msgctxt "models.fetch.loading-accessible"
+msgid "Fetching models"
+msgstr ""
+
+#: apps/desktop/ui/pages/models.slint:386
+#: apps/desktop/ui/pages/models.slint:386
+msgctxt "models.fetch.action"
+msgid "Fetch models"
+msgstr ""
+
+#: apps/desktop/ui/pages/models.slint:387
+msgctxt "models.fetch.loading"
+msgid "Fetching…"
+msgstr ""
+
+#: apps/desktop/ui/pages/models.slint:393
+msgctxt "models.model-id.placeholder"
+msgid "Enter the model ID from your provider"
+msgstr ""
+
+#: apps/desktop/ui/pages/models.slint:405
+#: apps/desktop/ui/pages/models.slint:405
+msgctxt "models.advanced-settings"
+msgid "Advanced settings"
+msgstr ""
+
+#: apps/desktop/ui/pages/models.slint:407
+#: apps/desktop/ui/pages/models.slint:407
+msgctxt "models.base-url"
+msgid "Service URL"
+msgstr ""
+
+#: apps/desktop/ui/pages/models.slint:425
+msgctxt "models.save-configuration"
+msgid "Save configuration"
+msgstr ""
+
+#: apps/desktop/ui/pages/models.slint:435
+msgctxt "models.test.testing"
+msgid "Testing…"
+msgstr ""
+
+#: apps/desktop/ui/pages/models.slint:435
+msgctxt "models.test.retry"
+msgid "Test again"
+msgstr ""
+
+#: apps/desktop/ui/pages/models.slint:435
+msgctxt "models.test.action"
+msgid "Test connection"
+msgstr ""
+
+#: apps/desktop/ui/pages/models.slint:438
+msgctxt "models.api-key.auto-hide"
+msgid "Hides automatically in 5 seconds"
+msgstr ""
+
+#: apps/desktop/ui/pages/models.slint:438
+msgctxt "models.test.testing-connection"
+msgid "Testing connection"
+msgstr ""
+
+#: apps/desktop/ui/pages/models.slint:438
+msgctxt "models.saved-awaiting-test"
+msgid "Configuration saved, awaiting connection test"
+msgstr ""
+
+#: apps/desktop/ui/pages/models.slint:488
+msgctxt "models.list.load-failed"
+msgid "Could not load models. Check your network connection."
+msgstr ""
+
+#: apps/desktop/ui/pages/models.slint:494
+msgctxt "models.list.not-fetched"
+msgid "Models have not been fetched yet"
+msgstr ""
+
+#: apps/desktop/ui/pages/models.slint:504
+msgctxt "models.model.manual-entry"
+msgid "Enter model name manually"
+msgstr ""
+
+#: apps/desktop/ui/pages/settings.slint:106
+#: apps/desktop/ui/pages/settings.slint:106
+msgctxt "settings.shortcut.capture.prompt"
+msgid "Press a new shortcut"
+msgstr ""
+
+#: apps/desktop/ui/pages/settings.slint:106
+#: apps/desktop/ui/pages/settings.slint:106
+msgctxt "settings.shortcut.add-another"
+msgid "Add another"
+msgstr ""
+
+#: apps/desktop/ui/pages/settings.slint:137
+msgctxt "settings.shortcut.edit"
+msgid "Edit shortcut"
+msgstr ""
+
+#: apps/desktop/ui/pages/settings.slint:146
+msgctxt "settings.shortcut.remove"
+msgid "Remove shortcut"
+msgstr ""
+
+#: apps/desktop/ui/pages/settings.slint:190
+msgctxt "settings.microphone.select-accessible"
+msgid "Select microphone: {}"
+msgstr ""
+
+#: apps/desktop/ui/pages/settings.slint:195
+msgctxt "settings.microphone.loading"
+msgid "Loading microphones…"
+msgstr ""
+
+#: apps/desktop/ui/pages/settings.slint:250
+msgctxt "settings.language.follow-system-zh"
+msgid "Follow System (Simplified Chinese)"
+msgstr ""
+
+#: apps/desktop/ui/pages/settings.slint:251
+msgctxt "settings.language.follow-system-en"
+msgid "Follow System (English)"
+msgstr ""
+
+#: apps/desktop/ui/pages/settings.slint:255
+#: apps/desktop/ui/pages/settings.slint:255
+msgctxt "settings.language.english"
+msgid "English"
+msgstr ""
+
+#: apps/desktop/ui/pages/settings.slint:256
+#: apps/desktop/ui/pages/settings.slint:256
+msgctxt "settings.language.simplified-chinese"
+msgid "Simplified Chinese"
+msgstr ""
+
+#: apps/desktop/ui/pages/settings.slint:264
+msgctxt "settings.language.accessible-label"
+msgid "Interface language: {}"
+msgstr ""
+
+#: apps/desktop/ui/pages/settings.slint:270
+msgctxt "settings.language.saving"
+msgid "Saving…"
+msgstr ""
+
+#: apps/desktop/ui/pages/settings.slint:350
+msgctxt "settings.title"
+msgid "Settings"
+msgstr ""
+
+#: apps/desktop/ui/pages/settings.slint:357
+#: apps/desktop/ui/pages/settings.slint:357
+msgctxt "settings.back-home"
+msgid "Back to Home"
+msgstr ""
+
+#: apps/desktop/ui/pages/settings.slint:364
+msgctxt "settings.nav.general"
+msgid "General"
+msgstr ""
+
+#: apps/desktop/ui/pages/settings.slint:365
+msgctxt "settings.nav.shortcuts"
+msgid "Shortcuts"
+msgstr ""
+
+#: apps/desktop/ui/pages/settings.slint:366
+msgctxt "settings.nav.permissions"
+msgid "Permissions"
+msgstr ""
+
+#: apps/desktop/ui/pages/settings.slint:367
+msgctxt "settings.nav.privacy"
+msgid "Privacy"
+msgstr ""
+
+#: apps/desktop/ui/pages/settings.slint:368
+msgctxt "settings.nav.about"
+msgid "About"
+msgstr ""
+
+#: apps/desktop/ui/pages/settings.slint:435
+msgctxt "settings.section.general"
+msgid "General"
+msgstr ""
+
+#: apps/desktop/ui/pages/settings.slint:435
+msgctxt "settings.section.shortcuts-audio"
+msgid "Shortcuts & Audio"
+msgstr ""
+
+#: apps/desktop/ui/pages/settings.slint:435
+msgctxt "settings.section.delivery-permissions"
+msgid "Delivery & Permissions"
+msgstr ""
+
+#: apps/desktop/ui/pages/settings.slint:435
+msgctxt "settings.section.privacy-data"
+msgid "Privacy & Data"
+msgstr ""
+
+#: apps/desktop/ui/pages/settings.slint:435
+msgctxt "settings.section.about-updates"
+msgid "About & Updates"
+msgstr ""
+
+#: apps/desktop/ui/pages/settings.slint:436
+msgctxt "settings.general.detail"
+msgid "Control how Saymore starts, appears, and looks on this device."
+msgstr ""
+
+#: apps/desktop/ui/pages/settings.slint:436
+msgctxt "settings.shortcuts-audio.detail"
+msgid "Choose how voice input starts and how audio feedback works."
+msgstr ""
+
+#: apps/desktop/ui/pages/settings.slint:436
+msgctxt "settings.delivery-permissions.detail"
+msgid "Choose how recognized text is delivered and review system permissions."
+msgstr ""
+
+#: apps/desktop/ui/pages/settings.slint:436
+msgctxt "settings.privacy-data.detail"
+msgid "Review local data storage and manage diagnostics."
+msgstr ""
+
+#: apps/desktop/ui/pages/settings.slint:436
+msgctxt "settings.about-updates.detail"
+msgid "View version information, update status, and product links."
+msgstr ""
+
+#: apps/desktop/ui/pages/settings.slint:438
+msgctxt "settings.diagnostics.exporting"
+msgid "Exporting…"
+msgstr ""
+
+#: apps/desktop/ui/pages/settings.slint:438
+msgctxt "settings.diagnostics.exported"
+msgid "Exported"
+msgstr ""
+
+#: apps/desktop/ui/pages/settings.slint:438
+msgctxt "settings.diagnostics.export-again"
+msgid "Export again"
+msgstr ""
+
+#: apps/desktop/ui/pages/settings.slint:438
+msgctxt "settings.diagnostics.export-report"
+msgid "Export report"
+msgstr ""
+
+#: apps/desktop/ui/pages/settings.slint:439
+msgctxt "settings.update.checking"
+msgid "Checking…"
+msgstr ""
+
+#: apps/desktop/ui/pages/settings.slint:439
+msgctxt "settings.update.check-again"
+msgid "Check again"
+msgstr ""
+
+#: apps/desktop/ui/pages/settings.slint:439
+msgctxt "settings.update.check"
+msgid "Check for updates"
+msgstr ""
+
+#: apps/desktop/ui/pages/settings.slint:440
+msgctxt "settings.update.checking-detail"
+msgid "Checking for updates…"
+msgstr ""
+
+#: apps/desktop/ui/pages/settings.slint:440
+msgctxt "settings.update.latest"
+msgid "You’re up to date"
+msgstr ""
+
+#: apps/desktop/ui/pages/settings.slint:440
+msgctxt "settings.update.available"
+msgid "Saymore {} is available"
+msgstr ""
+
+#: apps/desktop/ui/pages/settings.slint:440
+msgctxt "settings.update.not-checked"
+msgid "Updates have not been checked yet"
+msgstr ""
+
+#: apps/desktop/ui/pages/settings.slint:470
+msgctxt "settings.startup-display.title"
+msgid "Startup & Display"
+msgstr ""
+
+#: apps/desktop/ui/pages/settings.slint:477
+#: apps/desktop/ui/pages/settings.slint:477
+msgctxt "settings.launch-at-login.title"
+msgid "Launch at login"
+msgstr ""
+
+#: apps/desktop/ui/pages/settings.slint:478
+#: apps/desktop/ui/pages/settings.slint:478
+msgctxt "settings.launch-at-login.detail"
+msgid "Prepare voice input in the background after you sign in."
+msgstr ""
+
+#: apps/desktop/ui/pages/settings.slint:484
+#: apps/desktop/ui/pages/settings.slint:484
+msgctxt "settings.show-in-dock.title"
+msgid "Show in Dock"
+msgstr ""
+
+#: apps/desktop/ui/pages/settings.slint:485
+#: apps/desktop/ui/pages/settings.slint:485
+msgctxt "settings.show-in-dock.detail"
+msgid "Keep the Dock icon visible for quick access."
+msgstr ""
+
+#: apps/desktop/ui/pages/settings.slint:507
+msgctxt "settings.appearance.title"
+msgid "Appearance"
+msgstr ""
+
+#: apps/desktop/ui/pages/settings.slint:511
+msgctxt "settings.language.title"
+msgid "Interface language"
+msgstr ""
+
+#: apps/desktop/ui/pages/settings.slint:512
+msgctxt "settings.language.detail"
+msgid "Language used by the application interface"
+msgstr ""
+
+#: apps/desktop/ui/pages/settings.slint:515
+msgctxt "settings.theme.title"
+msgid "Theme"
+msgstr ""
+
+#: apps/desktop/ui/pages/settings.slint:516
+msgctxt "settings.theme.detail"
+msgid "Match this device’s appearance setting"
+msgstr ""
+
+#: apps/desktop/ui/pages/settings.slint:517
+msgctxt "common.follow-system"
+msgid "Follow System"
+msgstr ""
+
+#: apps/desktop/ui/pages/settings.slint:519
+msgctxt "settings.software.title"
+msgid "Software"
+msgstr ""
+
+#: apps/desktop/ui/pages/settings.slint:523
+msgctxt "settings.auto-update.title"
+msgid "Automatically check for updates"
+msgstr ""
+
+#: apps/desktop/ui/pages/settings.slint:524
+msgctxt "settings.auto-update.detail"
+msgid "Notify you when a new version is available."
+msgstr ""
+
+#: apps/desktop/ui/pages/settings.slint:530
+msgctxt "settings.onboarding.title"
+msgid "Run setup again"
+msgstr ""
+
+#: apps/desktop/ui/pages/settings.slint:531
+msgctxt "settings.onboarding.detail"
+msgid "Review microphone, shortcut, and Accessibility setup."
+msgstr ""
+
+#: apps/desktop/ui/pages/settings.slint:532
+msgctxt "settings.onboarding.open"
+msgid "Open setup"
+msgstr ""
+
+#: apps/desktop/ui/pages/settings.slint:538
+msgctxt "settings.shortcuts.title"
+msgid "Shortcuts"
+msgstr ""
+
+#: apps/desktop/ui/pages/settings.slint:542
+msgctxt "settings.shortcut.global.title"
+msgid "Global voice input shortcut"
+msgstr ""
+
+#: apps/desktop/ui/pages/settings.slint:543
+msgctxt "settings.shortcut.global.detail"
+msgid "Press to start or finish voice input."
+msgstr ""
+
+#: apps/desktop/ui/pages/settings.slint:562
+msgctxt "settings.shortcut.cancel"
+msgid "Esc to cancel"
+msgstr ""
+
+#: apps/desktop/ui/pages/settings.slint:564
+msgctxt "settings.audio.title"
+msgid "Audio"
+msgstr ""
+
+#: apps/desktop/ui/pages/settings.slint:568
+msgctxt "settings.microphone.input-device"
+msgid "Input device"
+msgstr ""
+
+#: apps/desktop/ui/pages/settings.slint:569
+msgctxt "settings.microphone.input-device-detail"
+msgid "Use the system default microphone or choose another device."
+msgstr ""
+
+#: apps/desktop/ui/pages/settings.slint:586
+#: apps/desktop/ui/pages/settings.slint:586
+msgctxt "settings.audio.cue.title"
+msgid "Voice input sounds"
+msgstr ""
+
+#: apps/desktop/ui/pages/settings.slint:586
+#: apps/desktop/ui/pages/settings.slint:586
+msgctxt "settings.audio.cue.detail"
+msgid "Play a short sound when voice input starts and finishes."
+msgstr ""
+
+#: apps/desktop/ui/pages/settings.slint:596
+msgctxt "settings.delivery.title"
+msgid "Delivery"
+msgstr ""
+
+#: apps/desktop/ui/pages/settings.slint:600
+msgctxt "settings.delivery.auto-insert.title"
+msgid "Automatically insert recognized text"
+msgstr ""
+
+#: apps/desktop/ui/pages/settings.slint:601
+msgctxt "settings.delivery.auto-insert.detail"
+msgid "Insert completed text into the app you are currently using."
+msgstr ""
+
+#: apps/desktop/ui/pages/settings.slint:602
+msgctxt "settings.delivery.copy.title"
+msgid "Also copy to clipboard"
+msgstr ""
+
+#: apps/desktop/ui/pages/settings.slint:603
+msgctxt "settings.delivery.copy.detail"
+msgid "Keep a copy so you can paste it manually when needed."
+msgstr ""
+
+#: apps/desktop/ui/pages/settings.slint:606
+msgctxt "settings.permissions.title"
+msgid "System Permissions"
+msgstr ""
+
+#: apps/desktop/ui/pages/settings.slint:609
+#: apps/desktop/ui/pages/settings.slint:609
+msgctxt "settings.permissions.microphone.title"
+msgid "Microphone"
+msgstr ""
+
+#: apps/desktop/ui/pages/settings.slint:609
+#: apps/desktop/ui/pages/settings.slint:609
+msgctxt "settings.permissions.microphone.granted-detail"
+msgid "Captures your voice only while voice input is active."
+msgstr ""
+
+#: apps/desktop/ui/pages/settings.slint:609
+#: apps/desktop/ui/pages/settings.slint:609
+msgctxt "settings.permissions.microphone.required-detail"
+msgid "Allow microphone access to start voice input."
+msgstr ""
+
+#: apps/desktop/ui/pages/settings.slint:610
+#: apps/desktop/ui/pages/settings.slint:610
+msgctxt "settings.permissions.accessibility.title"
+msgid "Accessibility"
+msgstr ""
+
+#: apps/desktop/ui/pages/settings.slint:610
+#: apps/desktop/ui/pages/settings.slint:610
+msgctxt "settings.permissions.accessibility.granted-detail"
+msgid "Inserts recognized text into the app you are using."
+msgstr ""
+
+#: apps/desktop/ui/pages/settings.slint:610
+#: apps/desktop/ui/pages/settings.slint:610
+msgctxt "settings.permissions.accessibility.required-detail"
+msgid "Allow Accessibility access to insert recognized text automatically."
+msgstr ""
+
+#: apps/desktop/ui/pages/settings.slint:617
+msgctxt "settings.permissions.system-managed"
+msgid "Permission status is managed by the system and refreshes automatically."
+msgstr ""
+
+#: apps/desktop/ui/pages/settings.slint:622
+msgctxt "settings.local-data.title"
+msgid "Local Data"
+msgstr ""
+
+#: apps/desktop/ui/pages/settings.slint:626
+msgctxt "settings.local-data.device-only.title"
+msgid "Data stays on this device"
+msgstr ""
+
+#: apps/desktop/ui/pages/settings.slint:627
+msgctxt "settings.local-data.device-only.detail"
+msgid ""
+"History, dictionary entries, and configuration are stored only on this "
+"device by default."
+msgstr ""
+
+#: apps/desktop/ui/pages/settings.slint:628
+msgctxt "settings.local-data.usage"
+msgid "Currently using {}"
+msgstr ""
+
+#: apps/desktop/ui/pages/settings.slint:629
+msgctxt "settings.local-data.open-folder"
+msgid "Open data folder"
+msgstr ""
+
+#: apps/desktop/ui/pages/settings.slint:630
+msgctxt "settings.local-data.no-cloud-sync"
+msgid "Saymore does not sync this content to the cloud."
+msgstr ""
+
+#: apps/desktop/ui/pages/settings.slint:632
+msgctxt "settings.diagnostics.title"
+msgid "Diagnostics & Support"
+msgstr ""
+
+#: apps/desktop/ui/pages/settings.slint:638
+#: apps/desktop/ui/pages/settings.slint:638
+msgctxt "settings.diagnostics.logging.title"
+msgid "Diagnostic logging"
+msgstr ""
+
+#: apps/desktop/ui/pages/settings.slint:640
+#: apps/desktop/ui/pages/settings.slint:640
+msgctxt "settings.diagnostics.logging.detail"
+msgid "Records runtime status and errors, never recognized text."
+msgstr ""
+
+#: apps/desktop/ui/pages/settings.slint:645
+#: apps/desktop/ui/pages/settings.slint:645
+msgctxt "settings.diagnostics.report.title"
+msgid "Diagnostic report"
+msgstr ""
+
+#: apps/desktop/ui/pages/settings.slint:647
+#: apps/desktop/ui/pages/settings.slint:647
+msgctxt "settings.diagnostics.report.detail"
+msgid "Export a report without sensitive content when you need support."
+msgstr ""
+
+#: apps/desktop/ui/pages/settings.slint:655
+msgctxt "settings.policy.title"
+msgid "Policy"
+msgstr ""
+
+#: apps/desktop/ui/pages/settings.slint:656
+#: apps/desktop/ui/pages/settings.slint:656
+msgctxt "settings.privacy-policy.title"
+msgid "Privacy Policy"
+msgstr ""
+
+#: apps/desktop/ui/pages/settings.slint:656
+msgctxt "settings.privacy-policy.detail"
+msgid "Learn how Saymore handles and protects your data."
+msgstr ""
+
+#: apps/desktop/ui/pages/settings.slint:661
+msgctxt "settings.product.title"
+msgid "Product"
+msgstr ""
+
+#: apps/desktop/ui/pages/settings.slint:666
+msgctxt "settings.product.tagline"
+msgid "Speak your mind, hands-free."
+msgstr ""
+
+#: apps/desktop/ui/pages/settings.slint:669
+msgctxt "settings.update.download-install"
+msgid "Download and install"
+msgstr ""
+
+#: apps/desktop/ui/pages/settings.slint:672
+msgctxt "settings.update.title"
+msgid "Updates"
+msgstr ""
+
+#: apps/desktop/ui/pages/settings.slint:673
+msgctxt "settings.release-notes.title"
+msgid "Release notes"
+msgstr ""
+
+#: apps/desktop/ui/pages/settings.slint:673
+msgctxt "settings.release-notes.detail"
+msgid "See what changed in this release."
+msgstr ""
+
+#: apps/desktop/ui/pages/settings.slint:673
+msgctxt "settings.release-notes.view"
+msgid "View release notes"
+msgstr ""
+
+#: apps/desktop/ui/pages/settings.slint:674
+msgctxt "settings.links-support.title"
+msgid "Links & Support"
+msgstr ""
+
+#: apps/desktop/ui/pages/settings.slint:675
+msgctxt "settings.link.website"
+msgid "Website"
+msgstr ""
+
+#: apps/desktop/ui/pages/settings.slint:675
+msgctxt "settings.link.feedback"
+msgid "Feedback"
+msgstr ""
+
+#: apps/desktop/ui/pages/settings.slint:675
+msgctxt "settings.link.terms"
+msgid "Terms of Service"
 msgstr ""

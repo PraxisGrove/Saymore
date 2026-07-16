@@ -209,16 +209,16 @@ fn enables_only_the_provider_that_remains_selected_and_unchanged() {
     assert_eq!(
         Ok(false),
         store.enable_llm_provider_if_unchanged(
-            LlmProviderPreset::SenseNova,
             "sensenova",
+            LlmProviderPreset::SenseNova.base_url(),
             "sense-key"
         )
     );
     assert_eq!(
         Ok(true),
         store.enable_llm_provider_if_unchanged(
-            LlmProviderPreset::DeepSeek,
             "deepseek",
+            LlmProviderPreset::DeepSeek.base_url(),
             "deepseek-key"
         )
     );
@@ -231,6 +231,32 @@ fn enables_only_the_provider_that_remains_selected_and_unchanged() {
         settings.llm.confirmed_base_url
     );
     assert_eq!("deepseek-key", settings.llm.chat_completions.api_key);
+    let _ = fs::remove_dir_all(directory);
+}
+
+#[test]
+fn custom_llm_provider_round_trips_and_can_enable_without_a_local_api_key() {
+    let directory = test_directory();
+    let store = JsonSettingsStore::at_path(directory.join("config.json"));
+    let mut catalog = ProviderCatalog::default();
+    catalog.save_custom_llm_provider_config("http://localhost:11434/v1", "", "qwen3:8b");
+    catalog.select_llm_provider(LlmProviderPreset::Custom);
+    assert_eq!(Ok(()), store.save_catalog(&catalog));
+
+    assert_eq!(
+        Ok(true),
+        store.enable_llm_provider_if_unchanged("custom", "http://localhost:11434/v1", "")
+    );
+    let Ok(settings) = store.load() else {
+        panic!("custom LLM settings should remain readable");
+    };
+    assert!(settings.llm.enabled);
+    assert_eq!(
+        "http://localhost:11434/v1",
+        settings.llm.chat_completions.base_url
+    );
+    assert_eq!("qwen3:8b", settings.llm.chat_completions.model);
+    assert!(settings.llm.chat_completions.api_key.is_empty());
     let _ = fs::remove_dir_all(directory);
 }
 

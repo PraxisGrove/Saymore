@@ -27,10 +27,12 @@ pub(super) fn wire(ui: &AppWindow) {
             } else {
                 ui.get_asr_api_key()
             }
-        } else if ui.get_llm_provider() == UiLlmProvider::Deepseek {
-            ui.get_deepseek_api_key()
         } else {
-            ui.get_sensenova_api_key()
+            match ui.get_llm_provider() {
+                UiLlmProvider::Sensenova => ui.get_sensenova_api_key(),
+                UiLlmProvider::Deepseek => ui.get_deepseek_api_key(),
+                UiLlmProvider::Custom => ui.get_custom_llm_api_key(),
+            }
         };
         if tab == 0 && ui.get_asr_provider() == UiAsrProvider::Volcengine {
             apply_models(
@@ -40,7 +42,8 @@ pub(super) fn wire(ui: &AppWindow) {
             );
             return;
         }
-        if api_key.trim().is_empty() {
+        let custom_llm = tab == 1 && ui.get_llm_provider() == UiLlmProvider::Custom;
+        if api_key.trim().is_empty() && !custom_llm {
             ui.set_model_discovery_status(
                 ui.global::<Translations>().get_models_fetch_enter_api_key(),
             );
@@ -51,6 +54,14 @@ pub(super) fn wire(ui: &AppWindow) {
             && ui.get_asr_provider() == UiAsrProvider::Custom
             && ui.get_custom_asr_base_url().trim().is_empty()
         {
+            ui.set_model_discovery_status(
+                ui.global::<Translations>()
+                    .get_models_fetch_enter_service_url(),
+            );
+            ui.set_model_discovery_error(false);
+            return;
+        }
+        if custom_llm && ui.get_custom_llm_base_url().trim().is_empty() {
             ui.set_model_discovery_status(
                 ui.global::<Translations>()
                     .get_models_fetch_enter_service_url(),
@@ -75,6 +86,10 @@ pub(super) fn wire(ui: &AppWindow) {
                     ui.get_custom_asr_base_url().trim().trim_end_matches('/')
                 )
             }
+            DiscoveryTarget::Llm(LlmProviderPreset::Custom) => format!(
+                "{}/models",
+                ui.get_custom_llm_base_url().trim().trim_end_matches('/')
+            ),
             DiscoveryTarget::Llm(provider) => provider.model_list_url().to_owned(),
         };
         let api_key = api_key.to_string();
@@ -123,6 +138,7 @@ fn apply_models(ui: &AppWindow, target: DiscoveryTarget, models: Vec<String>) {
         DiscoveryTarget::CustomAsr => ui.get_custom_asr_model(),
         DiscoveryTarget::Llm(LlmProviderPreset::SenseNova) => ui.get_sensenova_model(),
         DiscoveryTarget::Llm(LlmProviderPreset::DeepSeek) => ui.get_deepseek_model(),
+        DiscoveryTarget::Llm(LlmProviderPreset::Custom) => ui.get_custom_llm_model(),
     };
     if !models.iter().any(|model| model == current.as_str())
         && let Some(first) = models.first()
@@ -135,6 +151,9 @@ fn apply_models(ui: &AppWindow, target: DiscoveryTarget, models: Vec<String>) {
             }
             DiscoveryTarget::Llm(LlmProviderPreset::DeepSeek) => {
                 ui.set_deepseek_model(SharedString::from(first));
+            }
+            DiscoveryTarget::Llm(LlmProviderPreset::Custom) => {
+                ui.set_custom_llm_model(SharedString::from(first));
             }
         }
     }

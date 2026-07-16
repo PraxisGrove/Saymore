@@ -34,10 +34,15 @@ use template_app::{
     TextDeliverer, TextDeliveryError, TextDeliveryOutcome, TextEditObserver,
 };
 
+mod capabilities;
 mod clipboard;
 mod keyboard;
 mod observation;
 
+pub use capabilities::{
+    MacOsCorrectionObservationSupport, MacOsFocusedTextControlCapabilities,
+    focused_text_control_capabilities, text_control_capabilities_for_process,
+};
 use clipboard::TemporaryPasteboard;
 use observation::CorrectionObservationTarget;
 #[cfg(test)]

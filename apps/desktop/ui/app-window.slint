@@ -10,7 +10,11 @@ import { Translations } from "translations.slint";
 export { Translations } from "translations.slint";
 export { RecordingOverlay } from "recording-overlay.slint";
 export { ResultOverlay } from "result-overlay.slint";
+export { DictionaryAddedOverlay } from "dictionary-added-overlay.slint";
+export { RecordingLimitOverlay } from "recording-limit-overlay.slint";
 export { MicrophoneIntroOverlay, MicrophonePermissionOverlay } from "microphone-access.slint";
+export { StatusTray } from "status-tray.slint";
+export { OnboardingWindow } from "onboarding.slint";
 export { LlmProvider } from "components.slint";
 export { AsrProvider } from "components.slint";
 
@@ -54,6 +58,12 @@ export component AppWindow inherits Window {
     in property <string> automatic-update-status: "";
     in-out property <bool> feedback-sounds-enabled: true;
     in property <string> feedback-sounds-status: "";
+    in-out property <bool> copy-to-clipboard: false;
+    in property <string> copy-to-clipboard-status: "";
+    in-out property <bool> launch-at-login: false;
+    in property <string> launch-at-login-status: "";
+    in-out property <bool> show-in-dock: true;
+    in property <string> show-in-dock-status: "";
     in property <bool> recording-active: false;
     in property <bool> recording-failed: false;
     in property <bool> recording-complete: false;
@@ -62,6 +72,9 @@ export component AppWindow inherits Window {
     in property <string> recording-status: @tr("recording.status.ready" => "Ready for voice input");
     in property <string> recording-detail: @tr("recording.start-hint" => "Press Right Command to start");
     in property <string> shortcut-label: @tr("shortcut.right-command" => "Right Command");
+    in property <[string]> shortcut-labels;
+    in property <string> shortcut-status: "";
+    in-out property <bool> shortcut-capturing: false;
     in property <bool> shortcut-enabled: true;
     in property <string> usage-total-minutes: "0";
     in property <string> usage-total-characters: "0";
@@ -94,6 +107,10 @@ export component AppWindow inherits Window {
     in property <bool> deepseek-configured: false;
     in-out property <string> sensenova-model: "";
     in-out property <string> deepseek-model: "";
+    in-out property <string> custom-llm-api-key: "";
+    in-out property <string> custom-llm-base-url: "";
+    in-out property <string> custom-llm-model: "";
+    in property <bool> custom-llm-configured: false;
     in property <string> llm-provider-target: "";
     in property <bool> llm-provider-local: false;
     in property <string> llm-config-status: @tr("models.status.not-enabled" => "Not enabled");
@@ -133,6 +150,7 @@ export component AppWindow inherits Window {
     in property <DictionaryFilterKind> dictionary-filter: DictionaryFilterKind.all;
     in property <bool> dictionary-loading: false;
     in property <bool> dictionary-load-failed: false;
+    in property <bool> dictionary-importing: false;
     in property <bool> dictionary-saving: false;
     in property <bool> dictionary-save-failed: false;
     in-out property <bool> dictionary-add-visible: false;
@@ -152,13 +170,20 @@ export component AppWindow inherits Window {
     callback download-update();
     callback set-automatic-update-checks(bool);
     callback set-feedback-sounds-enabled(bool);
+    callback set-copy-to-clipboard(bool);
+    callback set-launch-at-login(bool);
+    callback set-show-in-dock(bool);
+    callback begin-shortcut-capture();
+    callback edit-shortcut(int);
+    callback remove-shortcut(int);
+    callback rerun-onboarding();
     callback refresh-usage();
     callback save-asr-config(AsrProvider, string, string, string);
     callback select-asr-provider(AsrProvider);
     callback delete-asr-config();
     callback request-llm-enable();
     callback set-llm-enabled(bool, string);
-    callback save-llm-config(LlmProvider, string, string);
+    callback save-llm-config(LlmProvider, string, string, string);
     callback select-llm-provider(LlmProvider);
     callback refresh-models();
     callback request-asr-test();
@@ -176,12 +201,14 @@ export component AppWindow inherits Window {
     callback search-dictionary(string);
     callback set-dictionary-layout-width(length);
     callback open-dictionary-add();
+    callback import-dictionary-csv();
     callback close-dictionary-add();
     callback add-dictionary-draft();
     callback update-dictionary-draft(int, string);
     callback remove-dictionary-draft(int);
     callback save-dictionary-drafts();
     callback delete-dictionary-word(string);
+    callback show-dictionary-added(string, string);
     callback set-history-enabled(bool);
     callback set-history-retention(HistoryRetentionOption);
 
@@ -236,6 +263,10 @@ export component AppWindow inherits Window {
                 usage-error: root.usage-error;
                 refresh-usage => { root.refresh-usage(); }
                 open-model-settings => { root.focus-asr-config = true; root.current-page = AppPage.models; }
+                open-shortcut-settings => {
+                    root.settings-section = SettingsSection.shortcuts-audio;
+                    root.current-page = AppPage.settings;
+                }
                 open-microphone-settings => { root.open-microphone-settings(); }
                 open-accessibility-settings => { root.open-accessibility-settings(); }
             }
@@ -265,6 +296,10 @@ export component AppWindow inherits Window {
                 deepseek-configured: root.deepseek-configured;
                 sensenova-model <=> root.sensenova-model;
                 deepseek-model <=> root.deepseek-model;
+                custom-llm-api-key <=> root.custom-llm-api-key;
+                custom-llm-base-url <=> root.custom-llm-base-url;
+                custom-llm-model <=> root.custom-llm-model;
+                custom-llm-configured: root.custom-llm-configured;
                 llm-provider-target: root.llm-provider-target;
                 llm-provider-local: root.llm-provider-local;
                 llm-config-status: root.llm-config-status;
@@ -280,7 +315,7 @@ export component AppWindow inherits Window {
                 delete-asr-config => { root.delete-asr-config(); }
                 request-llm-enable => { root.request-llm-enable(); }
                 set-llm-enabled(enabled, base-url) => { root.set-llm-enabled(enabled, base-url); }
-                save-llm-config(provider, api-key, model) => { root.save-llm-config(provider, api-key, model); }
+                save-llm-config(provider, api-key, base-url, model) => { root.save-llm-config(provider, api-key, base-url, model); }
                 select-llm-provider(provider) => { root.select-llm-provider(provider); }
                 refresh-models => { root.refresh-models(); }
                 request-asr-test => { root.request-asr-test(); }
@@ -329,6 +364,7 @@ export component AppWindow inherits Window {
                 status-text: root.dictionary-status;
                 loading: root.dictionary-loading;
                 load-failed: root.dictionary-load-failed;
+                importing: root.dictionary-importing;
                 development-environment: root.development-environment;
                 evidence-items: root.dictionary-evidence-items;
                 refresh => { root.refresh-dictionary(); }
@@ -336,6 +372,7 @@ export component AppWindow inherits Window {
                 search(query) => { root.search-dictionary(query); }
                 layout-width-changed(width) => { root.set-dictionary-layout-width(width); }
                 open-add => { root.open-dictionary-add(); }
+                import-csv => { root.import-dictionary-csv(); }
                 delete-word(id) => { root.delete-dictionary-word(id); }
             }
 
@@ -372,6 +409,15 @@ export component AppWindow inherits Window {
         automatic-update-status: root.automatic-update-status;
         feedback-sounds-enabled <=> root.feedback-sounds-enabled;
         feedback-sounds-status: root.feedback-sounds-status;
+        copy-to-clipboard <=> root.copy-to-clipboard;
+        copy-to-clipboard-status: root.copy-to-clipboard-status;
+        launch-at-login <=> root.launch-at-login;
+        launch-at-login-status: root.launch-at-login-status;
+        show-in-dock <=> root.show-in-dock;
+        show-in-dock-status: root.show-in-dock-status;
+        shortcut-labels: root.shortcut-labels;
+        shortcut-status: root.shortcut-status;
+        shortcut-capturing <=> root.shortcut-capturing;
         back-to-app => { root.current-page = AppPage.home; }
         open-microphone-settings => { root.open-microphone-settings(); }
         open-accessibility-settings => { root.open-accessibility-settings(); }
@@ -385,6 +431,13 @@ export component AppWindow inherits Window {
         download-update => { root.download-update(); }
         set-automatic-update-checks(enabled) => { root.set-automatic-update-checks(enabled); }
         set-feedback-sounds-enabled(enabled) => { root.set-feedback-sounds-enabled(enabled); }
+        set-copy-to-clipboard(enabled) => { root.set-copy-to-clipboard(enabled); }
+        set-launch-at-login(enabled) => { root.set-launch-at-login(enabled); }
+        set-show-in-dock(enabled) => { root.set-show-in-dock(enabled); }
+        begin-shortcut-capture => { root.begin-shortcut-capture(); }
+        edit-shortcut(index) => { root.edit-shortcut(index); }
+        remove-shortcut(index) => { root.remove-shortcut(index); }
+        rerun-onboarding => { root.rerun-onboarding(); }
     }
 
     if root.development-environment && root.current-page != AppPage.settings: Rectangle {
