@@ -199,11 +199,11 @@ fn complete_delivery(pending: ReadyDeliveryRequest) {
                     );
                     ui.invoke_refresh_dictionary();
                 }
-                Ok(
-                    DictionaryLearningOutcome::Pending { .. }
-                    | DictionaryLearningOutcome::Rejected
-                    | DictionaryLearningOutcome::Suppressed,
-                ) => {}
+                Ok(DictionaryLearningOutcome::Pending { .. }) => {
+                    ui.invoke_refresh_dictionary();
+                }
+                Ok(DictionaryLearningOutcome::Rejected | DictionaryLearningOutcome::Suppressed) => {
+                }
                 Err(error) => {
                     tracing::warn!(event = "dictionary.learning_failed", reason = %error);
                 }
