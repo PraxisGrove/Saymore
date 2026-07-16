@@ -262,10 +262,13 @@ mod tests {
         minute: u32,
         second: u32,
     ) -> DateTime<Local> {
-        Local
+        match Local
             .with_ymd_and_hms(year, month, day, hour, minute, second)
             .single()
-            .expect("test date should be valid in the local time zone")
+        {
+            Some(value) => value,
+            None => panic!("test date should be valid in the local time zone"),
+        }
     }
 
     #[test]
