@@ -277,8 +277,8 @@ component SettingsSidebar inherits Rectangle {
     callback back-to-app();
 
     width: root.compact ? 176px : root.wide ? 225px : 205px;
-    border-radius: 12px;
-    background: AppColors.surface-warm;
+    border-radius: 18px;
+    background: AppColors.sidebar;
 
     VerticalLayout {
         padding-left: root.compact ? 16px : 26px;
@@ -332,6 +332,10 @@ export component SettingsPage inherits Rectangle {
     in property <string> update-status: "idle";
     in property <string> update-version: "";
     in property <string> update-detail: "";
+    in-out property <bool> automatic-update-checks: false;
+    in property <string> automatic-update-status: "";
+    in-out property <bool> feedback-sounds-enabled: true;
+    in property <string> feedback-sounds-status: "";
     in-out property <SettingsSection> current-section: SettingsSection.general;
     callback back-to-app();
     callback open-microphone-settings();
@@ -344,6 +348,8 @@ export component SettingsPage inherits Rectangle {
     callback open-data-directory();
     callback check-for-updates();
     callback download-update();
+    callback set-automatic-update-checks(bool);
+    callback set-feedback-sounds-enabled(bool);
 
     private property <bool> compact: root.width < 820px;
     private property <bool> wide: root.width >= 1120px;
@@ -391,7 +397,6 @@ export component SettingsPage inherits Rectangle {
                                     SettingsIcon { x: 20px; y: 20px; source: @image-url("../../icons/lucide/settings.svg"); }
                                     Text { x: 20px; y: 72px; text: @tr("settings.launch-at-login.title" => "Launch at login"); color: AppColors.ink; font-size: 13px; font-weight: 650; }
                                     Text { x: 20px; y: 96px; width: parent.width - 40px; text: @tr("settings.launch-at-login.detail" => "Prepare voice input in the background after you sign in."); color: AppColors.text-muted; font-size: 11px; overflow: elide; }
-                                    SettingSwitch { x: parent.width - 62px; y: 20px; checked: false; enabled: false; }
                                     Text { x: parent.width - 62px; y: 52px; width: 42px; text: @tr("common.off" => "Off"); color: AppColors.text-muted; font-size: 10px; horizontal-alignment: center; }
                                 }
                                 Rectangle {
@@ -399,7 +404,6 @@ export component SettingsPage inherits Rectangle {
                                     SettingsIcon { x: 20px; y: 20px; source: @image-url("../../icons/lucide/folder-open.svg"); }
                                     Text { x: 20px; y: 72px; text: @tr("settings.show-in-dock.title" => "Show in Dock"); color: AppColors.ink; font-size: 13px; font-weight: 650; }
                                     Text { x: 20px; y: 96px; width: parent.width - 40px; text: @tr("settings.show-in-dock.detail" => "Keep the Dock icon visible for quick access."); color: AppColors.text-muted; font-size: 11px; overflow: elide; }
-                                    SettingSwitch { x: parent.width - 62px; y: 20px; checked: true; enabled: false; }
                                     Text { x: parent.width - 62px; y: 52px; width: 42px; text: @tr("common.show" => "Show"); color: AppColors.text-muted; font-size: 10px; horizontal-alignment: center; }
                                 }
                             }
@@ -411,14 +415,12 @@ export component SettingsPage inherits Rectangle {
                                     SettingsIcon { x: 20px; y: 20px; source: @image-url("../../icons/lucide/settings.svg"); }
                                     Text { x: 20px; y: 72px; text: @tr("settings.launch-at-login.title" => "Launch at login"); color: AppColors.ink; font-size: 13px; font-weight: 650; }
                                     Text { x: 20px; y: 96px; width: parent.width - 40px; text: @tr("settings.launch-at-login.detail" => "Prepare voice input in the background after you sign in."); color: AppColors.text-muted; font-size: 11px; overflow: elide; }
-                                    SettingSwitch { x: parent.width - 62px; y: 20px; checked: false; enabled: false; }
                                 }
                                 Rectangle {
                                     height: 132px; border-radius: 10px; background: AppColors.surface;
                                     SettingsIcon { x: 20px; y: 20px; source: @image-url("../../icons/lucide/folder-open.svg"); }
                                     Text { x: 20px; y: 72px; text: @tr("settings.show-in-dock.title" => "Show in Dock"); color: AppColors.ink; font-size: 13px; font-weight: 650; }
                                     Text { x: 20px; y: 96px; width: parent.width - 40px; text: @tr("settings.show-in-dock.detail" => "Keep the Dock icon visible for quick access."); color: AppColors.text-muted; font-size: 11px; overflow: elide; }
-                                    SettingSwitch { x: parent.width - 62px; y: 20px; checked: true; enabled: false; }
                                 }
                             }
                             Text { height: 20px; text: @tr("settings.appearance.title" => "Appearance"); color: AppColors.text; font-size: 13px; font-weight: 650; vertical-alignment: center; }
@@ -438,8 +440,8 @@ export component SettingsPage inherits Rectangle {
                                 height: 67px; border-radius: 10px; background: AppColors.surface;
                                 Image { x: 24px; y: 25px; width: 16px; height: 16px; source: @image-url("../../icons/lucide/refresh-cw.svg"); colorize: AppColors.text-muted; }
                                 Text { x: 54px; y: 15px; text: @tr("settings.auto-update.title" => "Automatically check for updates"); color: AppColors.ink; font-size: 13px; font-weight: 650; }
-                                Text { x: 54px; y: 37px; text: @tr("settings.auto-update.detail" => "Notify you when a new version is available."); color: AppColors.text-muted; font-size: 10px; }
-                                SettingSwitch { x: parent.width - 62px; y: 21px; checked: false; enabled: false; }
+                                Text { x: 54px; y: 37px; text: root.automatic-update-status.is-empty ? @tr("settings.auto-update.detail" => "Notify you when a new version is available.") : root.automatic-update-status; color: root.automatic-update-status.is-empty ? AppColors.text-muted : AppColors.danger; font-size: 10px; }
+                                SettingSwitch { x: parent.width - 62px; y: 21px; checked: root.automatic-update-checks; toggled(value) => { root.set-automatic-update-checks(value); } }
                             }
                         }
 
@@ -451,7 +453,7 @@ export component SettingsPage inherits Rectangle {
                                 SettingsIcon { x: 20px; y: 25px; source: @image-url("../../icons/lucide/settings.svg"); }
                                 Text { x: 70px; y: 20px; text: @tr("settings.shortcut.global.title" => "Global voice input shortcut"); color: AppColors.ink; font-size: 14px; font-weight: 650; }
                                 Text { x: 70px; y: 45px; text: @tr("settings.shortcut.global.detail" => "Press to start or finish voice input."); color: AppColors.text-muted; font-size: 11px; }
-                                Rectangle { x: parent.width - 178px; y: 21px; width: 158px; height: 40px; border-radius: 8px; background: AppColors.sidebar; Text { x: 14px; width: parent.width - 28px; text: @tr("shortcut.right-command" => "Right Command"); color: AppColors.text; font-size: 12px; vertical-alignment: center; horizontal-alignment: center; } }
+                                Text { x: parent.width - 178px; y: 21px; width: 158px; height: 40px; text: @tr("shortcut.right-command" => "Right Command"); color: AppColors.text-muted; font-size: 12px; vertical-alignment: center; horizontal-alignment: right; }
                                 Text { x: 70px; y: 77px; text: @tr("settings.shortcut.cancel" => "Esc to cancel"); color: AppColors.text-muted; font-size: 10px; }
                             }
                             Text { height: 20px; text: @tr("settings.audio.title" => "Audio"); color: AppColors.text; font-size: 13px; font-weight: 650; vertical-alignment: center; }
@@ -476,13 +478,11 @@ export component SettingsPage inherits Rectangle {
                             if root.microphone-selection-status != "": Text { height: 18px; text: root.microphone-selection-status; color: AppColors.text-muted; font-size: 10px; }
                             if !root.compact: HorizontalLayout {
                                 height: 128px; spacing: 16px;
-                                Rectangle { horizontal-stretch: 1; border-radius: 10px; background: AppColors.surface; SettingsIcon { x: 20px; y: 20px; source: @image-url("../../icons/lucide/audio-lines.svg"); } Text { x: 20px; y: 72px; text: @tr("settings.audio.cue.title" => "Voice input sounds"); color: AppColors.ink; font-size: 13px; font-weight: 650; } Text { x: 20px; y: 96px; text: @tr("settings.audio.cue.detail" => "Play a short sound when voice input starts and finishes."); color: AppColors.text-muted; font-size: 10px; } SettingSwitch { x: parent.width - 62px; y: 20px; checked: true; enabled: false; } }
-                                Rectangle { horizontal-stretch: 1; border-radius: 10px; background: AppColors.surface; SettingsIcon { x: 20px; y: 20px; source: @image-url("../../icons/lucide/audio-lines.svg"); } Text { x: 20px; y: 72px; text: @tr("settings.audio.mute-system.title" => "Mute system audio during voice input"); color: AppColors.ink; font-size: 13px; font-weight: 650; } Text { x: 20px; y: 96px; text: @tr("settings.audio.mute-system.detail" => "Temporarily mute system audio only while listening."); color: AppColors.text-muted; font-size: 10px; } SettingSwitch { x: parent.width - 62px; y: 20px; checked: false; enabled: false; } }
+                                Rectangle { horizontal-stretch: 1; border-radius: 10px; background: AppColors.surface; SettingsIcon { x: 20px; y: 20px; source: @image-url("../../icons/lucide/audio-lines.svg"); } Text { x: 20px; y: 72px; text: @tr("settings.audio.cue.title" => "Voice input sounds"); color: AppColors.ink; font-size: 13px; font-weight: 650; } Text { x: 20px; y: 96px; text: root.feedback-sounds-status.is-empty ? @tr("settings.audio.cue.detail" => "Play a short sound when voice input starts and finishes.") : root.feedback-sounds-status; color: root.feedback-sounds-status.is-empty ? AppColors.text-muted : AppColors.danger; font-size: 10px; } SettingSwitch { x: parent.width - 62px; y: 20px; checked: root.feedback-sounds-enabled; toggled(value) => { root.set-feedback-sounds-enabled(value); } } }
                             }
                             if root.compact: VerticalLayout {
                                 height: 272px; spacing: 16px;
-                                Rectangle { height: 128px; border-radius: 10px; background: AppColors.surface; SettingsIcon { x: 20px; y: 20px; source: @image-url("../../icons/lucide/audio-lines.svg"); } Text { x: 20px; y: 72px; text: @tr("settings.audio.cue.title" => "Voice input sounds"); color: AppColors.ink; font-size: 13px; font-weight: 650; } Text { x: 20px; y: 96px; text: @tr("settings.audio.cue.detail" => "Play a short sound when voice input starts and finishes."); color: AppColors.text-muted; font-size: 10px; } SettingSwitch { x: parent.width - 62px; y: 20px; checked: true; enabled: false; } }
-                                Rectangle { height: 128px; border-radius: 10px; background: AppColors.surface; SettingsIcon { x: 20px; y: 20px; source: @image-url("../../icons/lucide/audio-lines.svg"); } Text { x: 20px; y: 72px; text: @tr("settings.audio.mute-system.title" => "Mute system audio during voice input"); color: AppColors.ink; font-size: 13px; font-weight: 650; } Text { x: 20px; y: 96px; text: @tr("settings.audio.mute-system.detail" => "Temporarily mute system audio only while listening."); color: AppColors.text-muted; font-size: 10px; } SettingSwitch { x: parent.width - 62px; y: 20px; checked: false; enabled: false; } }
+                                Rectangle { height: 128px; border-radius: 10px; background: AppColors.surface; SettingsIcon { x: 20px; y: 20px; source: @image-url("../../icons/lucide/audio-lines.svg"); } Text { x: 20px; y: 72px; text: @tr("settings.audio.cue.title" => "Voice input sounds"); color: AppColors.ink; font-size: 13px; font-weight: 650; } Text { x: 20px; y: 96px; text: root.feedback-sounds-status.is-empty ? @tr("settings.audio.cue.detail" => "Play a short sound when voice input starts and finishes.") : root.feedback-sounds-status; color: root.feedback-sounds-status.is-empty ? AppColors.text-muted : AppColors.danger; font-size: 10px; } SettingSwitch { x: parent.width - 62px; y: 20px; checked: root.feedback-sounds-enabled; toggled(value) => { root.set-feedback-sounds-enabled(value); } } }
                             }
                         }
 
@@ -494,10 +494,8 @@ export component SettingsPage inherits Rectangle {
                                 SettingsIcon { x: 20px; y: 20px; source: @image-url("../../icons/lucide/check.svg"); }
                                 Text { x: 70px; y: 20px; text: @tr("settings.delivery.auto-insert.title" => "Automatically insert recognized text"); color: AppColors.ink; font-size: 14px; font-weight: 650; }
                                 Text { x: 70px; y: 45px; width: parent.width - 150px; text: @tr("settings.delivery.auto-insert.detail" => "Insert completed text into the app you are currently using."); color: AppColors.text-muted; font-size: 11px; }
-                                SettingSwitch { x: parent.width - 62px; y: 21px; checked: root.authorized; enabled: false; }
                                 Text { x: 20px; y: 87px; text: @tr("settings.delivery.copy.title" => "Also copy to clipboard"); color: AppColors.ink; font-size: 13px; font-weight: 650; }
                                 Text { x: 20px; y: 112px; text: @tr("settings.delivery.copy.detail" => "Keep a copy so you can paste it manually when needed."); color: AppColors.text-muted; font-size: 11px; }
-                                SettingSwitch { x: parent.width - 62px; y: 93px; checked: true; enabled: false; }
                             }
                             Text { height: 20px; text: @tr("settings.permissions.title" => "System Permissions"); color: AppColors.text; font-size: 13px; font-weight: 650; vertical-alignment: center; }
                             if !root.compact: HorizontalLayout {

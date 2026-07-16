@@ -8,7 +8,8 @@ pub(super) fn load(connection: &Connection) -> Result<LocalSettings, StorageErro
         .query_row(
             "SELECT history_enabled, history_retention_days,
                     preferred_microphone_id, preferred_microphone_name,
-                    diagnostics_logging_enabled, ui_language
+                    diagnostics_logging_enabled, ui_language,
+                    automatic_update_checks, feedback_sounds_enabled
              FROM app_settings WHERE singleton = 1",
             [],
             |row| {
@@ -19,6 +20,8 @@ pub(super) fn load(connection: &Connection) -> Result<LocalSettings, StorageErro
                     row.get::<_, Option<String>>(3)?,
                     row.get::<_, bool>(4)?,
                     row.get::<_, String>(5)?,
+                    row.get::<_, bool>(6)?,
+                    row.get::<_, bool>(7)?,
                 ))
             },
         )
@@ -33,6 +36,8 @@ pub(super) fn load(connection: &Connection) -> Result<LocalSettings, StorageErro
                 microphone_name,
                 diagnostics_logging_enabled,
                 ui_language,
+                automatic_update_checks,
+                feedback_sounds_enabled,
             )| {
                 Ok(LocalSettings {
                     history_enabled,
@@ -46,6 +51,8 @@ pub(super) fn load(connection: &Connection) -> Result<LocalSettings, StorageErro
                                 "unsupported UI language preference: {ui_language}"
                             ))
                         })?,
+                    automatic_update_checks,
+                    feedback_sounds_enabled,
                 })
             },
         )
@@ -63,7 +70,9 @@ pub(super) fn save(
                 preferred_microphone_id = ?3,
                 preferred_microphone_name = ?4,
                 diagnostics_logging_enabled = ?5,
-                ui_language = ?6
+                ui_language = ?6,
+                automatic_update_checks = ?7,
+                feedback_sounds_enabled = ?8
              WHERE singleton = 1",
             params![
                 settings.history_enabled,
@@ -72,6 +81,8 @@ pub(super) fn save(
                 settings.preferred_microphone_name,
                 settings.diagnostics_logging_enabled,
                 settings.ui_language.storage_value(),
+                settings.automatic_update_checks,
+                settings.feedback_sounds_enabled,
             ],
         )
         .map_err(unavailable)?;

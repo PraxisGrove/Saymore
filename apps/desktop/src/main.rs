@@ -120,6 +120,7 @@ pub(crate) struct TextProcessingServices {
     pub(crate) refinement: Arc<RefinementRuntime>,
     pub(crate) storage: Arc<SqliteStorage>,
     pub(crate) provider_config: Arc<JsonSettingsStore>,
+    pub(crate) feedback_sounds_enabled: Arc<AtomicBool>,
 }
 
 #[cfg(target_os = "macos")]
@@ -175,6 +176,8 @@ fn run() -> Result<(), Box<dyn Error>> {
     };
     let ui = AppWindow::new()?;
     let language_context = i18n::initialize(&ui, local_settings.ui_language)?;
+    ui.set_automatic_update_checks(local_settings.automatic_update_checks);
+    ui.set_feedback_sounds_enabled(local_settings.feedback_sounds_enabled);
     ui.set_development_environment(environment == AppEnvironment::Development);
     let overlay = RecordingOverlay::new()?;
     let result_overlay = ResultOverlay::new()?;
@@ -204,6 +207,7 @@ fn run() -> Result<(), Box<dyn Error>> {
         });
     let recording_active = Arc::new(AtomicBool::new(false));
     let recording_starting = Arc::new(AtomicBool::new(false));
+    let feedback_sounds_enabled = Arc::new(AtomicBool::new(local_settings.feedback_sounds_enabled));
     if let Err(error) = MacOsFeedbackSoundPlayer.preload() {
         tracing::warn!(event = "feedback.preload_failed", reason = %error);
     }
@@ -218,6 +222,7 @@ fn run() -> Result<(), Box<dyn Error>> {
         refinement,
         storage: Arc::clone(&local_storage),
         provider_config: Arc::clone(&settings_store),
+        feedback_sounds_enabled: Arc::clone(&feedback_sounds_enabled),
     };
     let cancelled = Arc::new(Mutex::new(CancelledRecordingStore::new(CANCEL_UNDO_WINDOW)));
     update_authorizations(&ui, deliverer.authorization(), microphone.authorization());
@@ -246,14 +251,18 @@ fn run() -> Result<(), Box<dyn Error>> {
         Arc::clone(&recorder),
         Arc::clone(&local_settings_guard),
     );
+    update_check::wire(&ui);
     settings_actions::wire(
         &ui,
         Arc::clone(&local_storage),
         local_settings_guard,
+        Arc::clone(&feedback_sounds_enabled),
         diagnostics,
         paths.data_directory().to_path_buf(),
     );
-    update_check::wire(&ui);
+    if local_settings.automatic_update_checks {
+        ui.invoke_check_for_updates();
+    }
     let authorization_poll = authorization_ui::wire(&ui, deliverer, microphone);
 
     let first_recording = Arc::new(AtomicBool::new(true));
@@ -408,6 +417,7 @@ fn begin_recording(
     let recording_starting = Arc::clone(&runtime.recording_starting);
     let show_device = first_recording.load(Ordering::Relaxed);
     let failed_asr = Arc::clone(&runtime.processing.asr);
+    let feedback_sounds_enabled = Arc::clone(&runtime.processing.feedback_sounds_enabled);
     let ui_queued = Instant::now();
     let _ = event_ui.upgrade_in_event_loop(move |ui| {
         let outcome = if result.is_ok() { "ready" } else { "failed" };
@@ -423,7 +433,9 @@ fn begin_recording(
         match result {
             Ok(started) => {
                 let feedback_started = Instant::now();
-                play_feedback_sound(FeedbackSound::Start);
+                if feedback_sounds_enabled.load(Ordering::Acquire) {
+                    play_feedback_sound(FeedbackSound::Start);
+                }
                 tracing::info!(
                     target: "saymore::diagnostics",
                     event = "recording.feedback_started",
@@ -694,6 +706,7 @@ fn undo_cancelled_recording(
     let failure_ui = ui.clone();
     let failure_overlay = overlay.clone();
     let failure_recording_active = Arc::clone(&recording_active);
+    let feedback_sounds_enabled = Arc::clone(&processing.feedback_sounds_enabled);
     let spawn_result = std::thread::Builder::new()
         .name("saymore-undo-dictation".to_owned())
         .spawn(move || {
@@ -747,6 +760,7 @@ fn undo_cancelled_recording(
                         processed,
                         history: history.record,
                         storage: processing.storage,
+                        feedback_sounds_enabled: feedback_sounds_enabled.load(Ordering::Acquire),
                     });
                 }
                 Err(error) => {

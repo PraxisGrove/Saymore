@@ -50,6 +50,7 @@ pub(crate) struct DeliveryRequest {
     pub processed: ProcessedText,
     pub history: Option<NewHistoryRecord>,
     pub storage: Arc<SqliteStorage>,
+    pub feedback_sounds_enabled: bool,
 }
 
 #[derive(Clone)]
@@ -62,6 +63,7 @@ struct ReadyDeliveryRequest {
     processed: ProcessedText,
     history_id: Option<String>,
     storage: Arc<SqliteStorage>,
+    feedback_sounds_enabled: bool,
 }
 
 impl DeliveryRequest {
@@ -75,6 +77,7 @@ impl DeliveryRequest {
             processed: self.processed,
             history_id,
             storage: self.storage,
+            feedback_sounds_enabled: self.feedback_sounds_enabled,
         }
     }
 }
@@ -201,7 +204,7 @@ fn complete_delivery(pending: ReadyDeliveryRequest) {
         requires_recovery
     );
     let history_action = history_delivery_action(&delivery);
-    if delivery.is_ok() {
+    if delivery.is_ok() && pending.feedback_sounds_enabled {
         play_feedback_sound(FeedbackSound::Finish);
     }
     if let Some(overlay) = pending.status_overlay.upgrade()

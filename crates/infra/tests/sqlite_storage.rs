@@ -101,6 +101,8 @@ fn settings_are_typed_and_persisted_across_restarts() -> Result<(), Box<dyn std:
         preferred_microphone_name: Some("MacBook 麦克风".to_owned()),
         diagnostics_logging_enabled: true,
         ui_language: UiLanguagePreference::English,
+        automatic_update_checks: true,
+        feedback_sounds_enabled: false,
     };
     store.save_settings(changed.clone())?;
     drop(store);
@@ -531,7 +533,7 @@ fn dictionary_identity_preserves_token_boundaries_across_v3_migration()
 
     let connection = rusqlite::Connection::open(path)?;
     let version: u32 = connection.query_row("PRAGMA user_version", [], |row| row.get(0))?;
-    assert_eq!(8, version);
+    assert_eq!(9, version);
     let spaced_key: String = connection.query_row(
         "SELECT canonical_key FROM dictionary_entries WHERE canonical = 'Open AI'",
         [],

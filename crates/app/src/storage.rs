@@ -57,6 +57,8 @@ pub struct LocalSettings {
     pub preferred_microphone_name: Option<String>,
     pub diagnostics_logging_enabled: bool,
     pub ui_language: UiLanguagePreference,
+    pub automatic_update_checks: bool,
+    pub feedback_sounds_enabled: bool,
 }
 
 impl Default for LocalSettings {
@@ -68,6 +70,8 @@ impl Default for LocalSettings {
             preferred_microphone_name: None,
             diagnostics_logging_enabled: false,
             ui_language: UiLanguagePreference::System,
+            automatic_update_checks: false,
+            feedback_sounds_enabled: true,
         }
     }
 }

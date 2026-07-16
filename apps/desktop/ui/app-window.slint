@@ -50,6 +50,10 @@ export component AppWindow inherits Window {
     in property <string> update-status: "idle";
     in property <string> update-version: "";
     in property <string> update-detail: "";
+    in-out property <bool> automatic-update-checks: false;
+    in property <string> automatic-update-status: "";
+    in-out property <bool> feedback-sounds-enabled: true;
+    in property <string> feedback-sounds-status: "";
     in property <bool> recording-active: false;
     in property <bool> recording-failed: false;
     in property <bool> recording-complete: false;
@@ -145,6 +149,8 @@ export component AppWindow inherits Window {
     callback open-data-directory();
     callback check-for-updates();
     callback download-update();
+    callback set-automatic-update-checks(bool);
+    callback set-feedback-sounds-enabled(bool);
     callback refresh-usage();
     callback save-asr-config(AsrProvider, string, string, string);
     callback select-asr-provider(AsrProvider);
@@ -155,6 +161,7 @@ export component AppWindow inherits Window {
     callback select-llm-provider(LlmProvider);
     callback refresh-models();
     callback request-asr-test();
+    callback open-current-provider-key-page();
     callback refresh-history();
     callback search-history(string);
     callback load-more-history();
@@ -276,6 +283,7 @@ export component AppWindow inherits Window {
                 select-llm-provider(provider) => { root.select-llm-provider(provider); }
                 refresh-models => { root.refresh-models(); }
                 request-asr-test => { root.request-asr-test(); }
+                open-key-page => { root.open-current-provider-key-page(); }
             }
 
             if root.current-page == AppPage.history: HistoryPage {
@@ -357,6 +365,10 @@ export component AppWindow inherits Window {
         update-status: root.update-status;
         update-version: root.update-version;
         update-detail: root.update-detail;
+        automatic-update-checks <=> root.automatic-update-checks;
+        automatic-update-status: root.automatic-update-status;
+        feedback-sounds-enabled <=> root.feedback-sounds-enabled;
+        feedback-sounds-status: root.feedback-sounds-status;
         back-to-app => { root.current-page = AppPage.home; }
         open-microphone-settings => { root.open-microphone-settings(); }
         open-accessibility-settings => { root.open-accessibility-settings(); }
@@ -368,6 +380,8 @@ export component AppWindow inherits Window {
         open-data-directory => { root.open-data-directory(); }
         check-for-updates => { root.check-for-updates(); }
         download-update => { root.download-update(); }
+        set-automatic-update-checks(enabled) => { root.set-automatic-update-checks(enabled); }
+        set-feedback-sounds-enabled(enabled) => { root.set-feedback-sounds-enabled(enabled); }
     }
 
     if root.development-environment && root.current-page != AppPage.settings: Rectangle {

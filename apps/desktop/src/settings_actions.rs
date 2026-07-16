@@ -1,7 +1,10 @@
 use std::{
     path::PathBuf,
     process::Command,
-    sync::{Arc, Mutex},
+    sync::{
+        Arc, Mutex,
+        atomic::{AtomicBool, Ordering},
+    },
     thread,
 };
 
@@ -18,6 +21,7 @@ pub fn wire(
     ui: &AppWindow,
     storage: Arc<SqliteStorage>,
     settings_guard: Arc<Mutex<()>>,
+    feedback_sounds_enabled: Arc<AtomicBool>,
     diagnostics: DiagnosticsController,
     data_directory: PathBuf,
 ) {
@@ -35,6 +39,32 @@ pub fn wire(
         );
     });
 
+    let update_ui = ui.as_weak();
+    let update_storage = Arc::clone(&storage);
+    let update_guard = Arc::clone(&settings_guard);
+    ui.on_set_automatic_update_checks(move |enabled| {
+        set_automatic_update_checks(
+            update_ui.clone(),
+            Arc::clone(&update_storage),
+            Arc::clone(&update_guard),
+            enabled,
+        );
+    });
+
+    let feedback_ui = ui.as_weak();
+    let feedback_storage = Arc::clone(&storage);
+    let feedback_guard = Arc::clone(&settings_guard);
+    let feedback_state = Arc::clone(&feedback_sounds_enabled);
+    ui.on_set_feedback_sounds_enabled(move |enabled| {
+        set_feedback_sounds_enabled(
+            feedback_ui.clone(),
+            Arc::clone(&feedback_storage),
+            Arc::clone(&feedback_guard),
+            Arc::clone(&feedback_state),
+            enabled,
+        );
+    });
+
     let export_ui = ui.as_weak();
     let export_diagnostics = diagnostics;
     ui.on_export_diagnostics_report(move || {
@@ -48,6 +78,100 @@ pub fn wire(
 
     if let Ok(settings) = storage.load_settings() {
         ui.set_diagnostics_enabled(settings.diagnostics_logging_enabled);
+        ui.set_automatic_update_checks(settings.automatic_update_checks);
+        ui.set_feedback_sounds_enabled(settings.feedback_sounds_enabled);
+        feedback_sounds_enabled.store(settings.feedback_sounds_enabled, Ordering::Release);
+    }
+}
+
+fn set_automatic_update_checks(
+    ui: slint::Weak<AppWindow>,
+    storage: Arc<SqliteStorage>,
+    settings_guard: Arc<Mutex<()>>,
+    enabled: bool,
+) {
+    let Some(window) = ui.upgrade() else {
+        return;
+    };
+    let previous = window.get_automatic_update_checks();
+    window.set_automatic_update_status(SharedString::new());
+    let failure_ui = ui.clone();
+    if thread::Builder::new()
+        .name("saymore-save-update-check-setting".to_owned())
+        .spawn(move || {
+            let result = settings_guard.lock().map_err(|_| ()).and_then(|_guard| {
+                let mut settings = storage.load_settings().map_err(|_| ())?;
+                settings.automatic_update_checks = enabled;
+                storage.save_settings(settings).map_err(|_| ())
+            });
+            let _ = ui.upgrade_in_event_loop(move |window| match result {
+                Ok(()) => {
+                    window.set_automatic_update_checks(enabled);
+                    window.set_automatic_update_status(SharedString::new());
+                    if enabled {
+                        window.invoke_check_for_updates();
+                    }
+                }
+                Err(()) => {
+                    window.set_automatic_update_checks(previous);
+                    window.set_automatic_update_status(
+                        window.global::<Translations>().get_settings_save_failed(),
+                    );
+                }
+            });
+        })
+        .is_err()
+        && let Some(window) = failure_ui.upgrade()
+    {
+        window.set_automatic_update_checks(previous);
+        window.set_automatic_update_status(
+            window.global::<Translations>().get_settings_save_failed(),
+        );
+    }
+}
+
+fn set_feedback_sounds_enabled(
+    ui: slint::Weak<AppWindow>,
+    storage: Arc<SqliteStorage>,
+    settings_guard: Arc<Mutex<()>>,
+    feedback_sounds_enabled: Arc<AtomicBool>,
+    enabled: bool,
+) {
+    let Some(window) = ui.upgrade() else {
+        return;
+    };
+    let previous = feedback_sounds_enabled.load(Ordering::Acquire);
+    window.set_feedback_sounds_status(SharedString::new());
+    let failure_ui = ui.clone();
+    if thread::Builder::new()
+        .name("saymore-save-feedback-sound-setting".to_owned())
+        .spawn(move || {
+            let result = settings_guard.lock().map_err(|_| ()).and_then(|_guard| {
+                let mut settings = storage.load_settings().map_err(|_| ())?;
+                settings.feedback_sounds_enabled = enabled;
+                storage.save_settings(settings).map_err(|_| ())
+            });
+            let _ = ui.upgrade_in_event_loop(move |window| match result {
+                Ok(()) => {
+                    feedback_sounds_enabled.store(enabled, Ordering::Release);
+                    window.set_feedback_sounds_enabled(enabled);
+                    window.set_feedback_sounds_status(SharedString::new());
+                }
+                Err(()) => {
+                    feedback_sounds_enabled.store(previous, Ordering::Release);
+                    window.set_feedback_sounds_enabled(previous);
+                    window.set_feedback_sounds_status(
+                        window.global::<Translations>().get_settings_save_failed(),
+                    );
+                }
+            });
+        })
+        .is_err()
+        && let Some(window) = failure_ui.upgrade()
+    {
+        window.set_feedback_sounds_enabled(previous);
+        window
+            .set_feedback_sounds_status(window.global::<Translations>().get_settings_save_failed());
     }
 }
 

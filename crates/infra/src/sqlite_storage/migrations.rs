@@ -3,7 +3,7 @@ use template_app::{StorageError, dictionary_comparison_key};
 
 use super::unavailable;
 
-const CURRENT_SCHEMA_VERSION: u32 = 8;
+const CURRENT_SCHEMA_VERSION: u32 = 9;
 
 pub(super) fn apply(connection: &mut Connection) -> Result<(), StorageError> {
     let version: u32 = connection
@@ -36,7 +36,36 @@ pub(super) fn apply(connection: &mut Connection) -> Result<(), StorageError> {
     if version < 8 {
         add_ui_language_setting(connection)?;
     }
+    if version < 9 {
+        add_runtime_preference_settings(connection)?;
+    }
     Ok(())
+}
+
+fn add_runtime_preference_settings(connection: &mut Connection) -> Result<(), StorageError> {
+    let transaction = connection.transaction().map_err(unavailable)?;
+    if !app_settings_has_column(&transaction, "automatic_update_checks")? {
+        transaction
+            .execute_batch(
+                "ALTER TABLE app_settings
+                 ADD COLUMN automatic_update_checks INTEGER NOT NULL DEFAULT 0
+                 CHECK (automatic_update_checks IN (0, 1));",
+            )
+            .map_err(unavailable)?;
+    }
+    if !app_settings_has_column(&transaction, "feedback_sounds_enabled")? {
+        transaction
+            .execute_batch(
+                "ALTER TABLE app_settings
+                 ADD COLUMN feedback_sounds_enabled INTEGER NOT NULL DEFAULT 1
+                 CHECK (feedback_sounds_enabled IN (0, 1));",
+            )
+            .map_err(unavailable)?;
+    }
+    transaction
+        .execute_batch("PRAGMA user_version = 9;")
+        .map_err(unavailable)?;
+    transaction.commit().map_err(unavailable)
 }
 
 fn add_ui_language_setting(connection: &mut Connection) -> Result<(), StorageError> {
