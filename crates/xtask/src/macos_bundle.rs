@@ -205,32 +205,29 @@ mod tests {
     }
 
     #[test]
-    fn writes_localized_microphone_usage_descriptions() {
+    fn writes_localized_microphone_usage_descriptions() -> Result<(), Box<dyn std::error::Error>> {
         let resources = std::env::temp_dir().join(format!(
             "saymore-xtask-localizations-{}",
             std::process::id()
         ));
         let _ = fs::remove_dir_all(&resources);
-        assert!(write_localized_info_plist_strings(&resources).is_ok());
+        write_localized_info_plist_strings(&resources)?;
 
-        let Ok(english) = fs::read_to_string(resources.join("en.lproj/InfoPlist.strings")) else {
-            panic!("English InfoPlist.strings should be readable");
-        };
-        let Ok(simplified_chinese) =
-            fs::read_to_string(resources.join("zh-Hans.lproj/InfoPlist.strings"))
-        else {
-            panic!("Simplified Chinese InfoPlist.strings should be readable");
-        };
-        assert_eq!(
-            format!("\"NSMicrophoneUsageDescription\" = \"{MICROPHONE_USAGE_DESCRIPTION_EN}\";\n"),
-            english
+        let english = fs::read_to_string(resources.join("en.lproj/InfoPlist.strings"))?;
+        let simplified_chinese =
+            fs::read_to_string(resources.join("zh-Hans.lproj/InfoPlist.strings"))?;
+        let expected_english =
+            format!("\"NSMicrophoneUsageDescription\" = \"{MICROPHONE_USAGE_DESCRIPTION_EN}\";\n");
+        let expected_simplified_chinese = format!(
+            "\"NSMicrophoneUsageDescription\" = \"{MICROPHONE_USAGE_DESCRIPTION_ZH_HANS}\";\n"
         );
-        assert_eq!(
-            format!(
-                "\"NSMicrophoneUsageDescription\" = \"{MICROPHONE_USAGE_DESCRIPTION_ZH_HANS}\";\n"
-            ),
-            simplified_chinese
-        );
+        if english != expected_english {
+            return Err("English microphone usage description should match".into());
+        }
+        if simplified_chinese != expected_simplified_chinese {
+            return Err("Simplified Chinese microphone usage description should match".into());
+        }
         let _ = fs::remove_dir_all(resources);
+        Ok(())
     }
 }
