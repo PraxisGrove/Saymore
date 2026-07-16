@@ -52,32 +52,33 @@ Use `cargo fmt --all` to apply formatting.
 
 ## Workspace Architecture
 
-Default template layout:
+Saymore workspace layout:
 
 ```text
 crates/
-  domain/
   app/
   infra/
-  cli/
   xtask/
+apps/
+  desktop/
 ```
 
 Responsibilities:
 
-- `domain`: business types, invariants, and pure rules.
-- `app`: use cases and port traits.
+- `app`: business types, invariants, pure rules, use cases, and port traits.
 - `infra`: concrete implementations of app ports.
-- `cli`: entrypoint, argument parsing, dependency wiring, and process behavior.
+- `desktop`: Slint UI, dependency wiring, and process behavior.
+- `xtask`: repository maintenance and packaging automation.
 
 Dependency direction:
 
 ```text
-cli -> app -> domain
-cli -> infra -> app
+desktop -> app
+desktop -> infra -> app
 ```
 
-Keep `domain` free of infrastructure and entrypoint concerns.
+Keep `app` free of UI and concrete infrastructure concerns. Add another crate
+only when a substantial independent interface justifies it.
 
 ## Dependency Management
 

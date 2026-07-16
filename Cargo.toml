@@ -2,8 +2,6 @@
 members = [
     "apps/desktop",
     "crates/app",
-    "crates/cli",
-    "crates/domain",
     "crates/infra",
     "crates/xtask",
 ]
@@ -16,23 +14,19 @@ license = "MIT OR Apache-2.0"
 version = "0.1.0"
 
 [workspace.dependencies]
-anyhow = "1"
 async-trait = "0.1"
 aes-gcm = "0.10.3"
-assert_cmd = "2"
 cpal = "0.18.1"
 chrono = { version = "0.4", default-features = false, features = ["clock", "unstable-locales"] }
 csv = "1"
 flate2 = "1.1.9"
 fs2 = "0.4"
 futures-util = "0.3.32"
-predicates = "3"
 rusqlite = { version = "0.37.0", features = ["bundled"] }
 raw-window-handle = "0.6"
 rfd = "0.15"
 reqwest = { version = "0.13.4", default-features = false, features = ["json", "multipart", "rustls-no-provider", "stream"] }
 rustls = { version = "0.23.41", default-features = false, features = ["ring", "std"] }
-rstest = "0.26"
 httpmock = "0.8.3"
 num-format = "0.4.4"
 serde = { version = "1", features = ["derive"] }
@@ -43,7 +37,6 @@ slint-build = "1.17.1"
 sys-locale = "0.3.2"
 rspolib = "0.1.2"
 template-app = { path = "crates/app", version = "0.1.0" }
-template-domain = { path = "crates/domain", version = "0.1.0" }
 template-infra = { path = "crates/infra", version = "0.1.0" }
 thiserror = "2"
 tempfile = "3"
@@ -79,14 +72,3 @@ codegen-units = 4
 debug = "line-tables-only"
 lto = "thin"
 strip = false
-
-# only works with cargo-release
-[workspace.metadata.release]
-pre-release-replacements = [
-    # Update inline-table dependency snippets like:
-    # template = { version = "0.2", features = ["custom"] }
-    { file = "README.md", search = "template\\s*=\\s*\\{\\s*version\\s*=\\s*\"[0-9]+\\.[0-9]+(\\.[0-9]+)?(-[0-9A-Za-z.-]+)?\"", replace = "template = { version = \"{{version}}\"" },
-    # Update plain dependency snippets like:
-    # template = "0.2"
-    { file = "README.md", search = "template\\s*=\\s*\"[0-9]+\\.[0-9]+(\\.[0-9]+)?(-[0-9A-Za-z.-]+)?\"", replace = "template = \"{{version}}\"", min = 0 },
-]

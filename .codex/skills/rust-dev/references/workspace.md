@@ -3,19 +3,18 @@
 Goal: keep dependency direction clear, crate responsibilities focused, and
 workspace configuration centralized.
 
-## Recommended Layers
+## Saymore Layers
 
-- `domain`: business types, invariants, and pure rules.
-- `app`: use cases and port traits.
+- `app`: business types, invariants, pure rules, use cases, and port traits.
 - `infra`: concrete implementations for filesystem, database, HTTP, process, or
   other external capabilities.
-- `cli` or `adapters-*`: entrypoints and dependency wiring.
+- `desktop`: Slint entrypoint and dependency wiring.
+- `xtask`: repository maintenance and packaging automation.
 
 Hard constraints:
 
-- `domain` must not depend on `infra` or entrypoint crates.
-- `app` must not depend on entrypoint crates.
-- Entry points may depend on both `app` and `infra` to wire dependencies.
+- `app` must not depend on `infra` or entrypoint crates.
+- `desktop` may depend on both `app` and `infra` to wire dependencies.
 
 ## Root Cargo.toml
 
@@ -23,7 +22,7 @@ Use the workspace root to centralize metadata:
 
 ```toml
 [workspace]
-members = ["crates/domain", "crates/app", "crates/infra", "crates/cli"]
+members = ["apps/desktop", "crates/app", "crates/infra", "crates/xtask"]
 resolver = "2"
 
 [workspace.package]
@@ -31,8 +30,6 @@ edition = "2024"
 license = "MIT OR Apache-2.0"
 version = "0.1.0"
 
-[workspace.dependencies]
-anyhow = "1"
 ```
 
 Member crates should inherit:

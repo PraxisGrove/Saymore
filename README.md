@@ -14,10 +14,8 @@ The production desktop stack is Rust with Slint. See `docs/technology-stack.md` 
 
 ```text
 crates/
-  domain/  # business types and rules
-  app/     # use cases and ports
+  app/     # business rules, use cases, and ports
   infra/   # concrete implementations for app ports
-  cli/     # binary entrypoint and dependency wiring
   xtask/   # Rust-only project maintenance tasks
 apps/
   desktop/ # Slint desktop entrypoint and UI
@@ -26,12 +24,12 @@ apps/
 The intended dependency direction is:
 
 ```text
-cli -> app -> domain
-cli -> infra -> app
+desktop -> app
+desktop -> infra -> app
 ```
 
-Keep `domain` free of infrastructure and entrypoint concerns. Put traits that
-describe required capabilities near the use cases that consume them.
+Keep business rules and port traits in `app`, concrete adapters in `infra`, and
+Slint plus process wiring in `desktop`.
 
 ## Tooling Policy
 
@@ -78,12 +76,6 @@ When you want Cargo to format the code:
 
 ```bash
 cargo fmt --all
-```
-
-Run the sample CLI:
-
-```bash
-cargo run -p template-cli -- workspace
 ```
 
 ## Workspace Conventions
@@ -153,5 +145,5 @@ cargo nextest run --workspace --all-targets
 cargo test --workspace --doc
 ```
 
-Add end-to-end tests only when the project needs them. Keep the base template
-Rust-only; project-specific e2e tooling should be introduced deliberately.
+Add end-to-end tests only when the project needs them. Project-specific e2e
+tooling should be introduced deliberately.

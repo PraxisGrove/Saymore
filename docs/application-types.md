@@ -30,10 +30,10 @@ workspace.
 
 ## Policy
 
-- Keep the base template dependency-light.
+- Keep the workspace dependency-light.
 - Do not add framework dependencies for every possible application type.
 - Add dependencies when the chosen application type actually needs them.
-- Keep `domain`, `app`, `infra`, `cli`, and `xtask` boundaries unless there is
-  a concrete reason to split or rename crates.
+- Keep the current `app`, `infra`, `desktop`, and `xtask` responsibilities clear.
+  Split another crate only when a concrete product boundary justifies it.
 - Document application-specific choices in `docs/technology-stack.md` and
   `docs/architecture.md` when the project commits to them.

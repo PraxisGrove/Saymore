@@ -1,9 +1,7 @@
 # AGENTS.md
 
-This repository is a Rust workspace template optimized for AI-assisted
-development. It is not an AI application framework. Keep the template useful
-for ordinary Rust projects while making it easy for humans and coding agents to
-understand, modify, verify, and review changes.
+This repository contains the Saymore Rust desktop application. Keep it easy for
+humans and coding agents to understand, modify, verify, and review.
 
 ## Verification Workflow
 
@@ -41,14 +39,12 @@ code, rerun the affected checks; rerun the full gate when the changes are broad.
 
 ## Architecture Rules
 
-- Keep crate boundaries clear: `domain`, `app`, `infra`, and `cli` have distinct
-  responsibilities.
-- Keep `domain` free of infrastructure, entrypoint, filesystem, network, and
-  process concerns.
-- Put use cases and port traits in `app`; put concrete implementations in
-  `infra`.
-- Keep `cli` focused on input parsing, dependency wiring, and process exit
-  behavior.
+- Keep crate boundaries clear: `app`, `infra`, `desktop`, and `xtask` have
+  distinct responsibilities.
+- Put business rules, use cases, and port traits in `app`; keep it free of UI,
+  filesystem, network, and process implementations.
+- Put concrete implementations in `infra`.
+- Keep `desktop` focused on Slint UI, dependency wiring, and process behavior.
 - Prefer adding a focused module or crate over growing a central catch-all file.
 - Keep public crate APIs small. Export intent, not implementation details.
 
@@ -98,10 +94,10 @@ code, rerun the affected checks; rerun the full gate when the changes are broad.
 
 ## Technology Choices
 
-- Keep the base template dependency-light.
+- Keep the workspace dependency-light.
 - Prefer `thiserror` for library errors and `anyhow` for binary/xtask boundary
   errors.
 - Prefer `tracing` for observability once runtime diagnostics are needed.
 - Prefer `tokio` for async Rust and `axum` for new HTTP services when a project
   actually needs a web framework.
-- Required template automation belongs in Rust under `crates/xtask`.
+- Required project automation belongs in Rust under `crates/xtask`.

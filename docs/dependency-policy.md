@@ -17,7 +17,7 @@ Document:
 
 - Put shared versions in `[workspace.dependencies]`.
 - Member crates should use `workspace = true`.
-- Keep heavy dependencies away from `domain`.
+- Keep heavy infrastructure dependencies out of `app`.
 - Prefer dependency boundaries at crate edges.
 - Run `cargo tree -d` when duplicate versions appear.
 
@@ -28,7 +28,7 @@ Run `cargo deny check` as part of the pre-push gate. The repository-level
 dependency policy. During implementation, run it early when dependency metadata
 changes.
 
-Required template tasks should be implemented in Rust under `crates/xtask`.
+Required project tasks should be implemented in Rust under `crates/xtask`.
 
 ## Slint License
 
@@ -90,7 +90,7 @@ request identifiers. The standard library does not provide TLS, WebSockets, or
 gzip. A blocking WebSocket was rejected because microphone audio and provider
 responses must progress concurrently without blocking the audio callback or UI
 thread. These dependencies are confined to `infra`; provider types do not leak
-into `domain` or `app`.
+into `app`.
 
 Rustls uses Mozilla's CA root dataset through `webpki-roots`. The dataset is
 licensed under `CDLA-Permissive-2.0`, which is explicitly allowed in
@@ -139,4 +139,4 @@ MIT. Their default features are enabled: `tracing` uses `std` and `attributes`;
 `tracing-subscriber` uses its formatting, ANSI, registry, smallvec, tracing-log,
 and thread-local support. The installed subscriber filters on Saymore's explicit
 diagnostic target, disables ANSI output, and writes through the bounded local log
-adapter. Neither dependency enters the `domain` or `app` crates.
+adapter. Neither dependency enters the `app` crate.

@@ -15,7 +15,6 @@ const DEFAULT_WARN_FILE_LINES: usize = 600;
 const DEFAULT_MAX_FILE_LINES: usize = 800;
 const DEFAULT_WARN_FN_LINES: usize = 80;
 const DEFAULT_MAX_FN_LINES: usize = 150;
-const README_DEPENDENCY_NAME: &str = "template";
 
 fn main() -> ExitCode {
     match run(env::args().skip(1).collect()) {
@@ -39,7 +38,6 @@ fn run(args: Vec<String>) -> Result<(), Box<dyn Error>> {
         #[cfg(target_os = "macos")]
         "preview-macos" => macos_preview::run(&args[1..]),
         "size" => run_size_gate(SizeConfig::from_args(&args[1..])?),
-        "update-readme-version" => update_readme_version(&args[1..]),
         "help" | "-h" | "--help" => {
             print_help();
             Ok(())
@@ -57,7 +55,6 @@ fn print_help() {
     println!(
         "  size [--root <dir>] [--glob <glob>] [--warn-file-lines <n>] [--max-file-lines <n>] [--warn-fn-lines <n>] [--max-fn-lines <n>]"
     );
-    println!("  update-readme-version <version>");
 }
 
 #[derive(Debug, Clone)]
@@ -362,40 +359,4 @@ fn print_fn_findings(title: &str, findings: &[FunctionFinding]) {
             finding.body_lines, finding.relpath, finding.start_line, finding.name
         );
     }
-}
-
-fn update_readme_version(args: &[String]) -> Result<(), Box<dyn Error>> {
-    let Some(version) = args.first() else {
-        return Err("usage: cargo run -p xtask -- update-readme-version <version>".into());
-    };
-
-    let readme = Path::new("README.md");
-    let source = fs::read_to_string(readme)?;
-    let updated = source
-        .lines()
-        .map(|line| update_readme_version_line(line, version))
-        .collect::<Vec<_>>()
-        .join("\n");
-
-    fs::write(readme, format!("{updated}\n"))?;
-    println!("[INFO] updated README.md version snippets to {version}");
-    Ok(())
-}
-
-fn update_readme_version_line(line: &str, version: &str) -> String {
-    let plain_prefix = format!("{README_DEPENDENCY_NAME} = \"");
-    if line.trim_start().starts_with(&plain_prefix) {
-        return format!("{README_DEPENDENCY_NAME} = \"{version}\"");
-    }
-
-    let inline_prefix = [README_DEPENDENCY_NAME, " = ", "{", " version = \""].concat();
-    if line.contains(&inline_prefix) {
-        return format!(
-            "{README_DEPENDENCY_NAME} = {open} version = \"{version}\" {close}",
-            open = "{",
-            close = "}"
-        );
-    }
-
-    line.to_owned()
 }

@@ -5,8 +5,8 @@ Date: 2026-07-12
 
 ## Context
 
-Saymore targets macOS and Windows and already keeps its domain, application,
-and platform behavior in a Rust workspace. The first desktop prototype used
+Saymore targets macOS and Windows and already keeps its application and platform
+behavior in a Rust workspace. The first desktop prototype used
 Tauri 2 with React, TypeScript, and Vite. That prototype validated macOS
 permissions, global-shortcut capture, and text delivery, but it also introduced
 a WebView boundary and a separate frontend toolchain.
@@ -23,8 +23,8 @@ TypeScript, Vite, Node.js, HTML, CSS, and the WebView from the production app
 after the Slint replacement reaches behavioral parity.
 
 Slint `.slint` files are permitted as compiled UI declarations. They may refer
-only to UI-facing properties, callbacks, and view models. Domain and
-application crates remain framework-independent.
+only to UI-facing properties, callbacks, and view models. The application crate
+remains framework-independent.
 
 The same Slint component system serves macOS and Windows. OS capabilities such
 as Accessibility/UI Automation, global shortcuts, credentials, login startup,

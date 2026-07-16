@@ -17,8 +17,8 @@ understand. Prefer stable contracts over implementation details.
 Use unit tests for pure logic and edge cases close to the owning module.
 
 Use integration tests in the owning crate's `tests/` directory for public
-behavior and binary workflows. For example, CLI smoke tests live under
-`crates/cli/tests/`.
+behavior and binary workflows. Desktop integration tests live under
+`apps/desktop/tests/`.
 
 When test helpers become shared across crates, move them into a dedicated
 test-support crate instead of duplicating setup or exposing production internals.

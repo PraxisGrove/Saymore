@@ -26,9 +26,9 @@ The decision and migration consequences are recorded in
 | Local database | SQLite through `rusqlite` | Settings, history, dictionary, and model metadata |
 | Provider configuration | Versioned JSON restricted to the current user | Provider activation, model, and user-supplied API keys |
 | Secrets | OS credential-store adapters behind `SecretStore` | Account/session credentials and the local history data key |
-| Errors | `thiserror`; `anyhow` at binary and xtask boundaries | Explicit library errors and entrypoint context |
+| Errors | `thiserror`; standard error composition at binary and xtask boundaries | Explicit library errors and entrypoint context |
 | Observability | `tracing`, `tracing-subscriber` | Local diagnostics without user-content logging |
-| Tests | Cargo test, `cargo-nextest`, `rstest` | Unit, integration, and provider contract tests |
+| Tests | Cargo test and `cargo-nextest` | Unit, integration, and provider contract tests |
 | Dependency policy | `cargo-deny` | License, advisory, source, and duplicate checks |
 | Packaging automation | Rust in `xtask` plus platform signing tools | `.app`/DMG on macOS and installer artifacts on Windows |
 
@@ -54,9 +54,9 @@ does not own speech recognition, persistence, permissions, shortcuts, text
 delivery, or provider calls.
 
 The desktop binary wires Slint callbacks to `app` use cases and converts
-application state into small UI view models. `domain` and `app` must not depend
-on Slint types. Platform adapters and framework-specific handles stay in the
-desktop entrypoint or `infra`.
+application state into small UI view models. `app` must not depend on Slint
+types. Platform adapters and framework-specific handles stay in the desktop
+entrypoint or `infra`.
 
 Slint is a custom-rendered cross-platform UI toolkit. It produces native
 desktop binaries, but it does not make every control an AppKit or WinUI widget.
@@ -112,7 +112,7 @@ build script, so UI compiler errors fail the standard Cargo gate.
 - React, TypeScript, Vite, HTML, and CSS for production UI.
 - Electron or another bundled browser runtime.
 - A second UI implementation per operating system.
-- Slint types leaking into `domain` or `app`.
+- Slint types leaking into `app`.
 - Blocking audio, network, model, or database work on the UI event loop.
 
 ## Migration Status

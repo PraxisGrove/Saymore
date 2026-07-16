@@ -7,53 +7,47 @@ be renamed or expanded only when a product boundary needs it.
 
 ```text
 crates/
-  domain/
   app/
   infra/
-  cli/
+  xtask/
 apps/
   desktop/
 ```
 
-`domain` owns business types, value objects, invariants, and pure rules. It
-should not depend on infrastructure, user interfaces, process environment,
-filesystems, network clients, or concrete persistence.
-
-`app` owns use cases and orchestration. It may define port traits for external
-capabilities that a use case needs. It should depend on `domain`, but should not
-know which concrete adapter will satisfy a port.
+`app` owns business types, invariants, pure rules, use cases, orchestration, and
+port traits for external capabilities. It must not know which concrete adapter
+will satisfy a port or depend on UI and operating-system implementations.
 
 `infra` owns concrete implementations for app ports, such as filesystem,
-database, HTTP, environment, or process adapters. It may depend on `app` and
-`domain`.
-
-`cli` owns command-line entrypoints, argument parsing, dependency wiring, and
-process-level behavior. Keep business decisions out of the binary crate.
+database, HTTP, environment, or process adapters. It may depend on `app`.
 
 `apps/desktop` owns the Slint entrypoint, compiled `.slint` components, UI view
 models, callback wiring, and process lifecycle for the macOS and Windows app.
-It may depend on `app` and `infra`; `domain`, `app`, and reusable infrastructure
-must not depend on Slint.
+It may depend on `app` and `infra`; those reusable crates must not depend on
+Slint.
+
+`xtask` owns repository maintenance, preview, packaging, and size-gate commands.
 
 ## Dependency Direction
 
 The intended dependency direction is:
 
 ```text
-cli -> app -> domain
-cli -> infra -> app
-desktop -> app -> domain
+desktop -> app
 desktop -> infra -> app
 ```
 
-Avoid reverse dependencies. If `domain` needs something from `infra`, define a
-domain or app concept that can be implemented by infra instead.
+Avoid reverse dependencies. If `app` needs an external capability, define an
+app port that can be implemented by `infra` instead.
 
 ## Adding Crates
 
 Add a new crate when it creates a clear ownership boundary, reduces coupling, or
 prevents a central crate from becoming a catch-all. Do not add a crate only to
 avoid a small module.
+
+In particular, do not recreate a `domain` crate until pure business concepts
+form a substantial reusable interface distinct from application use cases.
 
 Good reasons to add a crate:
 
