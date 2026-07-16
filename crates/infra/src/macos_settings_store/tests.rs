@@ -5,7 +5,7 @@ use std::{
 };
 
 use super::*;
-use template_app::LlmProviderPreset;
+use template_app::{ActiveProviders, ChatCompletionsLlmSettings, LlmProviderPreset};
 
 static TEST_ID: AtomicUsize = AtomicUsize::new(0);
 
