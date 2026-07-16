@@ -51,6 +51,11 @@ msgctxt "models.status.not-enabled"
 msgid "Not enabled"
 msgstr "未启用"
 
+#: apps/desktop/ui/translations.slint
+msgctxt "models.key-page.open-failed"
+msgid "Could not open the API key page"
+msgstr "无法打开 API Key 页面"
+
 #: apps/desktop/ui/components.slint:261
 msgctxt "common.select-value.accessible-label"
 msgid "Select {}"
@@ -533,7 +538,7 @@ msgstr "打开模型设置"
 #: apps/desktop/ui/pages/home.slint:106
 msgctxt "home.headline"
 msgid "Speak your mind, hands-free"
-msgstr "用嘴巴说，解放双手"
+msgstr "解放双手，说出所想"
 
 #: apps/desktop/ui/pages/home.slint:120
 msgctxt "home.shortcut.title"
@@ -557,8 +562,8 @@ msgstr "已关闭"
 
 #: apps/desktop/ui/pages/home.slint:146
 msgctxt "home.configuration-status.title"
-msgid "Configuration status"
-msgstr "配置状态"
+msgid "Dictation availability"
+msgstr "听写可用状态"
 
 #: apps/desktop/ui/pages/home.slint:159
 msgctxt "home.health.configured"
@@ -723,9 +728,9 @@ msgid "●  Connection failed"
 msgstr "●  连接失败"
 
 #: apps/desktop/ui/pages/models.slint:277
-msgctxt "models.status.saved"
-msgid "●  Saved"
-msgstr "●  已保存"
+msgctxt "models.status.awaiting-connection-test"
+msgid "●  Awaiting connection test"
+msgstr "●  等待连接测试"
 
 #: apps/desktop/ui/pages/models.slint:277
 msgctxt "models.status.connected"
@@ -769,8 +774,8 @@ msgstr "尚未配置 API Key"
 
 #: apps/desktop/ui/pages/models.slint:317
 msgctxt "models.model.saved-not-enabled"
-msgid "{} · Not enabled yet"
-msgstr "{} · 尚未启用"
+msgid "{} · Connection not tested"
+msgstr "{} · 尚未测试连接"
 
 #: apps/desktop/ui/pages/models.slint:317
 msgctxt "models.model.current-default"
@@ -885,8 +890,8 @@ msgstr "正在测试连接"
 
 #: apps/desktop/ui/pages/models.slint:413
 msgctxt "models.saved-awaiting-test"
-msgid "Saved, awaiting connection test"
-msgstr "已保存，等待连接测试"
+msgid "Configuration saved, awaiting connection test"
+msgstr "配置已保存，等待连接测试"
 
 #: apps/desktop/ui/pages/models.slint:455
 msgctxt "models.list.load-failed"
@@ -1703,9 +1708,9 @@ msgid "Speech recognition timed out"
 msgstr "语音识别超时"
 
 #: apps/desktop/ui/translations.slint:41
-msgctxt "history.group.today"
-msgid "Today"
-msgstr "今天"
+msgctxt "history.group.last-day"
+msgid "Last 24 hours"
+msgstr "24 小时内"
 
 #: apps/desktop/ui/translations.slint:42
 msgctxt "history.group.week"

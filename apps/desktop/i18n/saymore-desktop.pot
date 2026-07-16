@@ -55,6 +55,11 @@ msgctxt "models.status.not-enabled"
 msgid "Not enabled"
 msgstr ""
 
+#: apps/desktop/ui/translations.slint
+msgctxt "models.key-page.open-failed"
+msgid "Could not open the API key page"
+msgstr ""
+
 #: apps/desktop/ui/components.slint:261
 msgctxt "common.select-value.accessible-label"
 msgid "Select {}"
@@ -579,7 +584,7 @@ msgstr ""
 
 #: apps/desktop/ui/pages/home.slint:146
 msgctxt "home.configuration-status.title"
-msgid "Configuration status"
+msgid "Dictation availability"
 msgstr ""
 
 #: apps/desktop/ui/pages/home.slint:159
@@ -749,8 +754,8 @@ msgid "●  Connection failed"
 msgstr ""
 
 #: apps/desktop/ui/pages/models.slint:277
-msgctxt "models.status.saved"
-msgid "●  Saved"
+msgctxt "models.status.awaiting-connection-test"
+msgid "●  Awaiting connection test"
 msgstr ""
 
 #: apps/desktop/ui/pages/models.slint:277
@@ -795,7 +800,7 @@ msgstr ""
 
 #: apps/desktop/ui/pages/models.slint:317
 msgctxt "models.model.saved-not-enabled"
-msgid "{} · Not enabled yet"
+msgid "{} · Connection not tested"
 msgstr ""
 
 #: apps/desktop/ui/pages/models.slint:317
@@ -915,7 +920,7 @@ msgstr ""
 
 #: apps/desktop/ui/pages/models.slint:413
 msgctxt "models.saved-awaiting-test"
-msgid "Saved, awaiting connection test"
+msgid "Configuration saved, awaiting connection test"
 msgstr ""
 
 #: apps/desktop/ui/pages/models.slint:455
@@ -1762,8 +1767,8 @@ msgid "Speech recognition timed out"
 msgstr ""
 
 #: apps/desktop/ui/translations.slint:41
-msgctxt "history.group.today"
-msgid "Today"
+msgctxt "history.group.last-day"
+msgid "Last 24 hours"
 msgstr ""
 
 #: apps/desktop/ui/translations.slint:42
