@@ -1,4 +1,4 @@
-use rusqlite::{OptionalExtension, params};
+use rusqlite::{OptionalExtension, Transaction, params};
 use template_app::{
     CandidateAssessmentSource, CandidateDecision, DictionaryCandidateAssessment,
     DictionaryCandidateEvidence, DictionaryCandidateKind, DictionaryCandidateState,
@@ -24,6 +24,27 @@ pub(super) fn record(
     if is_suppressed(&transaction, &normalized)? {
         return Ok(DictionaryLearningOutcome::Suppressed);
     }
+    let (occurrence_count, dictation_count) = record_evidence(&transaction, &normalized)?;
+    if occurrence_count < required_occurrences || dictation_count < required_dictations {
+        transaction.commit().map_err(unavailable)?;
+        return Ok(DictionaryLearningOutcome::Pending {
+            occurrence_count,
+            dictation_count,
+        });
+    }
+    let id = promote_candidate(&transaction, &normalized, occurrence_count, dictation_count)?;
+    transaction.commit().map_err(unavailable)?;
+    dictionary::find_by_id(connection, &id)?
+        .map(DictionaryLearningOutcome::Added)
+        .ok_or_else(|| {
+            StorageError::Invalid("automatic dictionary entry was not created".to_owned())
+        })
+}
+
+fn record_evidence(
+    transaction: &Transaction<'_>,
+    normalized: &NormalizedObservation,
+) -> Result<(u32, u32), StorageError> {
     transaction
         .execute(
             "DELETE FROM term_observations WHERE observed_at_ms < ?1",
@@ -50,7 +71,7 @@ pub(super) fn record(
             ],
         )
         .map_err(unavailable)?;
-    let (occurrence_count, dictation_count) = aggregate(&transaction, &normalized)?;
+    let (occurrence_count, dictation_count) = aggregate(transaction, normalized)?;
     transaction
         .execute(
             "INSERT INTO dictionary_candidates(
@@ -71,21 +92,23 @@ pub(super) fn record(
         )
         .map_err(unavailable)?;
     upsert_evidence(
-        &transaction,
-        &normalized,
+        transaction,
+        normalized,
         occurrence_count,
         dictation_count,
         DictionaryCandidateState::Pending,
     )?;
-    if occurrence_count < required_occurrences || dictation_count < required_dictations {
-        transaction.commit().map_err(unavailable)?;
-        return Ok(DictionaryLearningOutcome::Pending {
-            occurrence_count,
-            dictation_count,
-        });
-    }
+    Ok((occurrence_count, dictation_count))
+}
+
+fn promote_candidate(
+    transaction: &Transaction<'_>,
+    normalized: &NormalizedObservation,
+    occurrence_count: u32,
+    dictation_count: u32,
+) -> Result<String, StorageError> {
     let id = dictionary::upsert_in_transaction(
-        &transaction,
+        transaction,
         NewDictionaryEntry {
             canonical: normalized.canonical.clone(),
             language: normalized.language.clone(),
@@ -101,8 +124,8 @@ pub(super) fn record(
         )
         .map_err(unavailable)?;
     upsert_evidence(
-        &transaction,
-        &normalized,
+        transaction,
+        normalized,
         occurrence_count,
         dictation_count,
         DictionaryCandidateState::Promoted,
@@ -114,12 +137,7 @@ pub(super) fn record(
             params![normalized.language, normalized.canonical_key],
         )
         .map_err(unavailable)?;
-    transaction.commit().map_err(unavailable)?;
-    dictionary::find_by_id(connection, &id)?
-        .map(DictionaryLearningOutcome::Added)
-        .ok_or_else(|| {
-            StorageError::Invalid("automatic dictionary entry was not created".to_owned())
-        })
+    Ok(id)
 }
 
 pub(super) fn list_evidence(

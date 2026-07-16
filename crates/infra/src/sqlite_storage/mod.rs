@@ -300,87 +300,93 @@ fn run_worker(
         return;
     }
     for command in receiver {
-        match command {
-            Command::LoadSettings(response) => {
-                let _ = response.send(settings::load(&database.connection));
-            }
-            Command::SaveSettings { settings, response } => {
-                let result = settings::save(&mut database.connection, &settings).and_then(|()| {
-                    history::cleanup(&mut database.connection, history::now_ms()).map(|_| ())
-                });
-                let _ = response.send(result);
-            }
-            Command::InsertHistory { record, response } => {
-                let _ = response.send(history::insert(&mut database, record));
-            }
-            Command::HistoryPage {
-                cursor,
-                limit,
-                response,
-            } => {
-                let _ = response.send(history::page(&mut database, cursor, limit));
-            }
-            Command::SearchHistoryPage {
-                cursor,
-                limit,
-                query,
-                response,
-            } => {
-                let _ = response.send(history_search::page(&mut database, cursor, limit, &query));
-            }
-            Command::DeleteHistory { id, response } => {
-                let _ = response.send(history::delete(&mut database.connection, &id));
-            }
-            Command::UpdateHistoryDelivery {
-                id,
-                delivery,
-                response,
-            } => {
-                let _ = response.send(history::update_delivery(&mut database, &id, delivery));
-            }
-            Command::ClearHistory(response) => {
-                let _ = response.send(history::clear(&mut database.connection));
-            }
-            Command::ResetHistory(response) => {
-                let _ = response.send(history::reset(&mut database));
-            }
-            Command::CleanupHistory { now_ms, response } => {
-                let _ = response.send(history::cleanup(&mut database.connection, now_ms));
-            }
-            Command::ListDictionary(response) => {
-                let _ = response.send(dictionary::list(&database.connection));
-            }
-            Command::UpsertDictionary {
-                entry,
-                now_ms,
-                response,
-            } => {
-                let _ = response.send(dictionary::upsert(&mut database.connection, entry, now_ms));
-            }
-            Command::DeleteDictionary { id, response } => {
-                let _ = response.send(dictionary::delete(&mut database.connection, &id));
-            }
-            Command::RecordDictionaryObservation {
-                observation,
-                response,
-            } => {
-                let _ = response.send(dictionary_learning::record(
-                    &mut database.connection,
-                    observation,
-                ));
-            }
-            Command::ListDictionaryCandidateEvidence(response) => {
-                let _ = response.send(dictionary_learning::list_evidence(&database.connection));
-            }
-            Command::ListInstalledModels(response) => {
-                let _ = response.send(models::list(&database.connection));
-            }
-            Command::SaveInstalledModel { model, response } => {
-                let _ = response.send(models::save(&mut database.connection, model));
-            }
-            Command::Shutdown => break,
+        if !process_command(&mut database, command) {
+            break;
         }
     }
+}
+
+fn process_command(database: &mut Database, command: Command) -> bool {
+    match command {
+        Command::LoadSettings(response) => {
+            send_result(response, settings::load(&database.connection))
+        }
+        Command::SaveSettings { settings, response } => {
+            let result = settings::save(&mut database.connection, &settings).and_then(|()| {
+                history::cleanup(&mut database.connection, history::now_ms()).map(|_| ())
+            });
+            send_result(response, result)
+        }
+        Command::InsertHistory { record, response } => {
+            send_result(response, history::insert(database, record))
+        }
+        Command::HistoryPage {
+            cursor,
+            limit,
+            response,
+        } => send_result(response, history::page(database, cursor, limit)),
+        Command::SearchHistoryPage {
+            cursor,
+            limit,
+            query,
+            response,
+        } => send_result(
+            response,
+            history_search::page(database, cursor, limit, &query),
+        ),
+        Command::DeleteHistory { id, response } => {
+            send_result(response, history::delete(&mut database.connection, &id))
+        }
+        Command::UpdateHistoryDelivery {
+            id,
+            delivery,
+            response,
+        } => send_result(response, history::update_delivery(database, &id, delivery)),
+        Command::ClearHistory(response) => {
+            send_result(response, history::clear(&mut database.connection))
+        }
+        Command::ResetHistory(response) => send_result(response, history::reset(database)),
+        Command::CleanupHistory { now_ms, response } => {
+            send_result(response, history::cleanup(&mut database.connection, now_ms))
+        }
+        Command::ListDictionary(response) => {
+            send_result(response, dictionary::list(&database.connection))
+        }
+        Command::UpsertDictionary {
+            entry,
+            now_ms,
+            response,
+        } => send_result(
+            response,
+            dictionary::upsert(&mut database.connection, entry, now_ms),
+        ),
+        Command::DeleteDictionary { id, response } => {
+            send_result(response, dictionary::delete(&mut database.connection, &id))
+        }
+        Command::RecordDictionaryObservation {
+            observation,
+            response,
+        } => send_result(
+            response,
+            dictionary_learning::record(&mut database.connection, observation),
+        ),
+        Command::ListDictionaryCandidateEvidence(response) => send_result(
+            response,
+            dictionary_learning::list_evidence(&database.connection),
+        ),
+        Command::ListInstalledModels(response) => {
+            send_result(response, models::list(&database.connection))
+        }
+        Command::SaveInstalledModel { model, response } => {
+            send_result(response, models::save(&mut database.connection, model))
+        }
+        Command::Shutdown => return false,
+    }
+    true
+}
+
+fn send_result<T>(response: SyncSender<Result<T, StorageError>>, result: Result<T, StorageError>) {
+    let _ = response.send(result);
 }
 
 fn open_database(path: PathBuf, secrets: Arc<dyn SecretStore>) -> Result<Database, StorageError> {

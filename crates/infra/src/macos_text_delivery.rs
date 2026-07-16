@@ -153,54 +153,64 @@ fn deliver_attempt(text: &str) -> Result<DeliveryAttempt, TextDeliveryError> {
 
     let target = current_delivery_target();
     let focused = target.focused;
-
-    match delivery_target_action(DeliveryTargetState {
+    let action = delivery_target_action(DeliveryTargetState {
         external_target: target.external_target,
         secure_input,
         focused_control: focused.is_some(),
-    }) {
+    });
+    if let Some(attempt) = immediate_delivery_attempt(action, secure_input, text)? {
+        return Ok(attempt);
+    }
+
+    let focused = focused.ok_or(TextDeliveryError::NoFocusedControl)?;
+    deliver_to_focused_control(focused, text)
+}
+
+fn immediate_delivery_attempt(
+    action: DeliveryTargetAction,
+    secure_input: bool,
+    text: &str,
+) -> Result<Option<DeliveryAttempt>, TextDeliveryError> {
+    match action {
         DeliveryTargetAction::PasteWithoutVerification => {
-            return paste_with_clipboard(PasteVerification::Unobservable, text).map(|outcome| {
-                DeliveryAttempt {
+            paste_with_clipboard(PasteVerification::Unobservable, text).map(|outcome| {
+                Some(DeliveryAttempt {
                     outcome,
                     observation: None,
-                }
-            });
+                })
+            })
         }
-        DeliveryTargetAction::PasteSecurely => {
-            return paste_securely(text).map(|outcome| DeliveryAttempt {
+        DeliveryTargetAction::PasteSecurely => paste_securely(text).map(|outcome| {
+            Some(DeliveryAttempt {
                 outcome,
                 observation: None,
-            });
+            })
+        }),
+        DeliveryTargetAction::RejectNoTarget if secure_input => {
+            Err(TextDeliveryError::SecureDeliveryFailed(
+                "no external delivery target was found".to_owned(),
+            ))
         }
-        DeliveryTargetAction::RejectNoTarget => {
-            return if secure_input {
-                Err(TextDeliveryError::SecureDeliveryFailed(
-                    "no external delivery target was found".to_owned(),
-                ))
-            } else {
-                Err(TextDeliveryError::NoFocusedControl)
-            };
-        }
-        DeliveryTargetAction::UseFocusedControl => {}
+        DeliveryTargetAction::RejectNoTarget => Err(TextDeliveryError::NoFocusedControl),
+        DeliveryTargetAction::UseFocusedControl => Ok(None),
+    }
+}
+
+fn deliver_to_focused_control(
+    focused: OwnedAxElement,
+    text: &str,
+) -> Result<DeliveryAttempt, TextDeliveryError> {
+    if matches!(
+        focused.attribute_string(kAXSubroleAttribute),
+        Ok(Some(subrole)) if subrole == kAXSecureTextFieldSubrole
+    ) {
+        return paste_securely(text).map(|outcome| DeliveryAttempt {
+            outcome,
+            observation: None,
+        });
     }
 
-    let Some(focused) = focused else {
-        return Err(TextDeliveryError::NoFocusedControl);
-    };
-
-    match focused.attribute_string(kAXSubroleAttribute) {
-        Ok(Some(subrole)) if subrole == kAXSecureTextFieldSubrole => {
-            return paste_securely(text).map(|outcome| DeliveryAttempt {
-                outcome,
-                observation: None,
-            });
-        }
-        Ok(Some(_)) | Ok(None) | Err(_) => {}
-    }
-
-    let initial_range = focused.selected_text_range().ok().flatten();
-    let Some(initial_range) = initial_range else {
+    let Some(initial_range) = focused.selected_text_range().ok().flatten() else {
         return paste_with_clipboard(PasteVerification::Unobservable, text).map(|outcome| {
             DeliveryAttempt {
                 outcome,
@@ -221,41 +231,36 @@ fn deliver_attempt(text: &str) -> Result<DeliveryAttempt, TextDeliveryError> {
                 observation: CorrectionObservationTarget::capture(focused, initial_range, text),
             }),
             InsertionVerification::Unchanged => {
-                let outcome = paste_with_clipboard(
-                    PasteVerification::Observable {
-                        focused: &focused,
-                        initial_range,
-                    },
-                    text,
-                )?;
-                let observation = (outcome == TextDeliveryOutcome::ClipboardVerified)
-                    .then(|| CorrectionObservationTarget::capture(focused, initial_range, text))
-                    .flatten();
-                Ok(DeliveryAttempt {
-                    outcome,
-                    observation,
-                })
+                observable_clipboard_attempt(focused, initial_range, text)
             }
             InsertionVerification::Unverified => Err(TextDeliveryError::AccessibilityUnverified),
         },
         Err(TextDeliveryError::UnsupportedControl | TextDeliveryError::System(_)) => {
-            let outcome = paste_with_clipboard(
-                PasteVerification::Observable {
-                    focused: &focused,
-                    initial_range,
-                },
-                text,
-            )?;
-            let observation = (outcome == TextDeliveryOutcome::ClipboardVerified)
-                .then(|| CorrectionObservationTarget::capture(focused, initial_range, text))
-                .flatten();
-            Ok(DeliveryAttempt {
-                outcome,
-                observation,
-            })
+            observable_clipboard_attempt(focused, initial_range, text)
         }
         Err(error) => Err(error),
     }
+}
+
+fn observable_clipboard_attempt(
+    focused: OwnedAxElement,
+    initial_range: TextRange,
+    text: &str,
+) -> Result<DeliveryAttempt, TextDeliveryError> {
+    let outcome = paste_with_clipboard(
+        PasteVerification::Observable {
+            focused: &focused,
+            initial_range,
+        },
+        text,
+    )?;
+    let observation = (outcome == TextDeliveryOutcome::ClipboardVerified)
+        .then(|| CorrectionObservationTarget::capture(focused, initial_range, text))
+        .flatten();
+    Ok(DeliveryAttempt {
+        outcome,
+        observation,
+    })
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
