@@ -56,6 +56,21 @@ nor `cpal` owns the operating-system permission prompt. A handwritten
 Objective-C bridge was rejected because it would add unsafe FFI without
 reducing product dependencies. The `objc2` family is dual MIT/Apache-2.0.
 
+## macOS Desktop Integration
+
+The infrastructure crate uses `objc2-service-management` 0.3 with only the
+`SMAppService` bindings needed to register the packaged application for login.
+Rust's standard library and Slint do not expose Apple's supported login-item
+API. Shelling out to legacy preference tools was rejected because it bypasses
+the user's Login Items controls and does not match current macOS behavior.
+
+Dock visibility and application activation use the existing `objc2-app-kit`
+dependency with the focused `NSApplication`, `NSResponder`, and
+`NSRunningApplication` features. Slint's `system-tray` feature provides the
+portable status-item and menu lifecycle; handwritten AppKit menu ownership was
+rejected because it would duplicate Slint's event-loop integration. The
+`objc2` family is actively maintained and dual MIT/Apache-2.0.
+
 ## JSON Provider Configuration
 
 The infrastructure crate uses `serde_json` to read and atomically write the

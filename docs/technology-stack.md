@@ -130,5 +130,6 @@ The desktop UI migration completed on 2026-07-12:
 The first cloud ASR vertical slice now streams 16 kHz PCM to Volcengine over a
 background WebSocket session, keeps provider partial results in memory, and
 delivers one normalized final transcript through the existing macOS text
-delivery adapter. Windows adapters remain the next platform boundary against
-the same app use cases and Slint UI.
+delivery adapter. Windows platform work starts only after the macOS product is
+stable enough for formal packaging and release; it will reuse the same app use
+cases and Slint UI while adding the platform-specific adapters.

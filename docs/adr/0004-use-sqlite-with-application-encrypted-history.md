@@ -61,10 +61,10 @@ reset. Saymore does not create hidden database backups.
 | `app_settings` | 应用设置 | Typed, implemented product settings such as history retention |
 | `trigger_bindings` | 触发器绑定 | Stable keyboard or mouse trigger definitions |
 | `dictionary_entries` | 词典词条 | Standard spelling, normalized key, language, origin, and timestamps |
-| `dictionary_variants` | 识别变体 | Compatibility data reserved for a future high-confidence correction design; not used by the current runtime |
-| `term_observations` | 词汇观察 | Compatibility data reserved for future high-confidence user correction signals; current runtime does not write it |
-| `dictionary_candidates` | 候选聚合 | Compatibility data reserved for future automatic dictionary addition; it is not a current user review queue |
-| `dictionary_suppressions` | 词典静默 | Compatibility data reserved for a future undo and suppression policy |
+| `dictionary_variants` | 识别变体 | Compatibility data only; the runtime does not use variants as deterministic replacement mappings |
+| `term_observations` | 词汇观察 | Minimal evidence from user edits to the local range Saymore just delivered |
+| `dictionary_candidates` | 候选聚合 | Internal evidence counts and decision state for automatic dictionary learning; not a normal user review queue |
+| `dictionary_suppressions` | 词典静默 | Prevents a deleted automatic term from being learned again without explicit user authorization |
 | `transcript_history` | 听写历史 | UUID, time, crypto versions, nonce, and encrypted payload |
 | `history_key_validation` | 历史密钥校验 | Authenticated sentinel used to distinguish the wrong key from a corrupt history row |
 | `installed_models` | 已安装模型 | Metadata only for models already installed by trusted runtime flows; no Model Hub behavior |
@@ -111,13 +111,13 @@ OS account, an administrator, or plaintext already present in application memory
 
 ### History behavior
 
-After a usable final result exists, preflight the currently focused target's privacy
-on the UI thread. A sensitive or unknown secure target never creates a history row.
-For a standard target, create the encrypted history row on the bounded storage
-worker before attempting delivery and update the encrypted delivery status
-afterward. If the target becomes secure between preflight and delivery, delete the
-provisional record. Cancellation, empty speech, history disabled, and failed
-recognition do not create a record.
+After a usable final result exists, attempt delivery before inserting history. A
+restricted paste to a sensitive target keeps its transcript and clipboard snapshot
+transient and never creates a history row, regardless of whether the unverified
+paste succeeds. Standard targets create one encrypted history row after the delivery
+outcome is known, with the corresponding delivered or not-delivered status.
+Cancellation, empty speech, history disabled, and failed recognition do not create a
+record.
 
 History is enabled by default with seven-day retention. Choices are one day, seven
 days, thirty days, and permanent. Cleanup runs after migrations at startup, in the
@@ -142,14 +142,29 @@ while case, Unicode width, and repeated whitespace remain normalized for duplica
 detection. Schema version 4 recomputes canonical keys for existing confirmed entries
 without changing legacy observations, candidates, suppressions, or variants.
 
-Automatic dictionary addition remains a long-term core product capability. The
-current ASR-versus-LLM/final diff mechanism is disabled because a model rewrite is
-not a high-confidence user correction signal. The runtime does not create new term
-observations, candidates, suppressions, or automatic entries, and does not show the
-old undo toast. Existing tables and compatible rows remain in place so migrations
-do not destroy user data. Re-enabling automatic addition requires a separately
-designed high-confidence user correction signal, confidence policy, privacy model,
-and undo behavior.
+Automatic dictionary addition is an active core product capability. The retired
+ASR-versus-LLM/final diff mechanism remains disabled because a model rewrite is not
+a user correction signal. The active signal is a stable local edit made by the user
+to the range Saymore just delivered in the same editable control. The runtime may
+persist the resulting canonical candidate, evidence counts, decision metadata, and
+timestamps, but not the complete input field or surrounding document.
+
+Automatic promotion uses confidence bands rather than treating every short edit as
+a term. Local privacy and attribution checks run first. A dedicated dictionary
+candidate classifier may then perform sentence-structure analysis, candidate
+extraction, part-of-speech/type classification, and reusable-term judgment in one
+structured call. It is separate from the transcription refinement prompt and is
+one signal rather than the sole authority: strong identifier/name morphology and
+repeated independent corrections must still work without a configured LLM, while
+ambiguous candidates require more evidence. High-confidence candidates are added
+automatically; medium-confidence evidence remains internal and is visible only in
+Development diagnostics; low-confidence sentence edits are rejected.
+
+Cloud classification requires an explicit Provider data confirmation for the
+minimal correction fragment and bounded local context. The classifier never
+receives the full input control by default. Deleting an automatic entry creates
+suppression, and manually adding the same term clears that suppression. No implicit
+observation creates a deterministic error-form-to-canonical replacement rule.
 
 The current runtime only supplies confirmed entries whose canonical spelling occurs
 in the transcript in a case- or width-equivalent form, with a maximum of 50 entries.
