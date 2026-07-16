@@ -19,7 +19,7 @@ use slint::{SharedString, Timer};
 use template_app::{
     AudioRecorder, CancelledRecordingStore, DictationSession, DictationToggleAction,
     DictionaryStore, LocalSettingsStore, MicrophonePermissionProvider, PcmChunk, RecordingError,
-    RecordingMetrics,
+    RecordingMetrics, RecordingStarted,
 };
 #[cfg(target_os = "macos")]
 use template_app::{FeedbackSound, TextDeliverer};
@@ -209,147 +209,260 @@ fn main() -> ExitCode {
 
 #[cfg(target_os = "macos")]
 fn run() -> Result<(), Box<dyn Error>> {
-    let environment = app_environment::resolve()?;
-    let paths = AppPaths::for_current_user(environment)?;
-    let _instance_guard = AppInstanceGuard::acquire(&paths.instance_lock())?;
-    let _ax_compatibility_server = match environment {
-        AppEnvironment::Development => Some(ax_compatibility_server::start()?),
-        AppEnvironment::Production => None,
-    };
-    let settings_store = Arc::new(JsonSettingsStore::at_path(paths.provider_config()));
-    settings_store.ensure_exists()?;
-    let local_storage = open_local_storage(&paths, environment)?;
-    let local_settings = load_local_settings(&local_storage);
-    let shortcuts = local_settings
-        .dictation_shortcuts
-        .iter()
-        .filter_map(|value| MacOsShortcut::from_storage_value(value).ok())
-        .collect();
-    let shortcut_controller = MacOsShortcutController::new(shortcuts);
-    let diagnostics = initialize_diagnostics(&paths, local_settings.diagnostics_logging_enabled);
-    let ui = AppWindow::new()?;
-    let _reopen_handler = install_application_reopen_handler(&ui)?;
-    let language_context = main_window::initialize(&ui, &local_settings, environment)?;
-    let overlay = RecordingOverlay::new()?;
-    let result_overlay = ResultOverlay::new()?;
-    let recording_limit_overlay = RecordingLimitOverlay::new()?;
-    let dictionary_added_overlay = DictionaryAddedOverlay::new()?;
-    let microphone_intro_overlay = MicrophoneIntroOverlay::new()?;
-    let microphone_permission_overlay = MicrophonePermissionOverlay::new()?;
+    let bootstrap = DesktopBootstrap::initialize()?;
+    let windows = DesktopWindows::initialize(&bootstrap)?;
     let deliverer = MacOsTextDeliverer;
     let microphone = MacOsMicrophonePermission;
+    let core = wire_core_services(&bootstrap, &windows, deliverer, microphone)?;
+    run_wired_desktop(bootstrap, windows, core)
+}
+
+#[cfg(target_os = "macos")]
+struct DesktopBootstrap {
+    environment: AppEnvironment,
+    paths: AppPaths,
+    settings_store: Arc<JsonSettingsStore>,
+    local_storage: Arc<SqliteStorage>,
+    local_settings: template_app::LocalSettings,
+    shortcut_controller: MacOsShortcutController,
+    diagnostics: diagnostics::DiagnosticsController,
+    _instance_guard: AppInstanceGuard,
+    _ax_compatibility_server: Option<ax_compatibility_server::AxCompatibilityServer>,
+}
+
+#[cfg(target_os = "macos")]
+impl DesktopBootstrap {
+    fn initialize() -> Result<Self, Box<dyn Error>> {
+        let environment = app_environment::resolve()?;
+        let paths = AppPaths::for_current_user(environment)?;
+        let instance_guard = AppInstanceGuard::acquire(&paths.instance_lock())?;
+        let ax_compatibility_server = match environment {
+            AppEnvironment::Development => Some(ax_compatibility_server::start()?),
+            AppEnvironment::Production => None,
+        };
+        let settings_store = Arc::new(JsonSettingsStore::at_path(paths.provider_config()));
+        settings_store.ensure_exists()?;
+        let local_storage = open_local_storage(&paths, environment)?;
+        let local_settings = load_local_settings(&local_storage);
+        let shortcuts = local_settings
+            .dictation_shortcuts
+            .iter()
+            .filter_map(|value| MacOsShortcut::from_storage_value(value).ok())
+            .collect();
+        let shortcut_controller = MacOsShortcutController::new(shortcuts);
+        let diagnostics =
+            initialize_diagnostics(&paths, local_settings.diagnostics_logging_enabled);
+        Ok(Self {
+            environment,
+            paths,
+            settings_store,
+            local_storage,
+            local_settings,
+            shortcut_controller,
+            diagnostics,
+            _instance_guard: instance_guard,
+            _ax_compatibility_server: ax_compatibility_server,
+        })
+    }
+}
+
+#[cfg(target_os = "macos")]
+struct DesktopWindows {
+    ui: AppWindow,
+    overlay: RecordingOverlay,
+    result_overlay: ResultOverlay,
+    recording_limit_overlay: RecordingLimitOverlay,
+    dictionary_added_overlay: DictionaryAddedOverlay,
+    microphone_intro_overlay: MicrophoneIntroOverlay,
+    microphone_permission_overlay: MicrophonePermissionOverlay,
+    language_context: i18n::LanguageContext,
+    _reopen_handler: Option<MacOsApplicationReopenHandler>,
+}
+
+#[cfg(target_os = "macos")]
+impl DesktopWindows {
+    fn initialize(bootstrap: &DesktopBootstrap) -> Result<Self, Box<dyn Error>> {
+        let ui = AppWindow::new()?;
+        let reopen_handler = install_application_reopen_handler(&ui)?;
+        let language_context =
+            main_window::initialize(&ui, &bootstrap.local_settings, bootstrap.environment)?;
+        Ok(Self {
+            ui,
+            overlay: RecordingOverlay::new()?,
+            result_overlay: ResultOverlay::new()?,
+            recording_limit_overlay: RecordingLimitOverlay::new()?,
+            dictionary_added_overlay: DictionaryAddedOverlay::new()?,
+            microphone_intro_overlay: MicrophoneIntroOverlay::new()?,
+            microphone_permission_overlay: MicrophonePermissionOverlay::new()?,
+            language_context,
+            _reopen_handler: reopen_handler,
+        })
+    }
+}
+
+#[cfg(target_os = "macos")]
+struct WiredCore {
+    recorder: Arc<Mutex<MacOsAudioRecorder>>,
+    session: Arc<DictationSession>,
+    cancelled: Arc<Mutex<CancelledRecordingStore>>,
+    feedback_sounds_enabled: Arc<AtomicBool>,
+    processing: TextProcessingServices,
+    microphone_access: microphone_access::MicrophoneAccess,
+    onboarding: onboarding::OnboardingRuntime,
+    authorization_poll: authorization_ui::AuthorizationPoll,
+    local_settings_guard: Arc<Mutex<()>>,
+}
+
+#[cfg(target_os = "macos")]
+fn wire_core_services(
+    bootstrap: &DesktopBootstrap,
+    windows: &DesktopWindows,
+    deliverer: MacOsTextDeliverer,
+    microphone: MacOsMicrophonePermission,
+) -> Result<WiredCore, Box<dyn Error>> {
     let recorder = Arc::new(Mutex::new(
         MacOsAudioRecorder::with_preferred_input_device_id(
-            local_settings.preferred_microphone_id.clone(),
+            bootstrap.local_settings.preferred_microphone_id.clone(),
         ),
     ));
     prewarm_audio_recorder(&recorder);
     let (session, cancelled) = recording_state::initialize(CANCEL_UNDO_WINDOW);
     let feedback_sounds_enabled =
-        initialize_feedback_sounds(local_settings.feedback_sounds_enabled);
-    let processing =
-        create_text_processing_services(&settings_store, &local_storage, &feedback_sounds_enabled)?;
-    update_authorizations(&ui, deliverer.authorization(), microphone.authorization());
+        initialize_feedback_sounds(bootstrap.local_settings.feedback_sounds_enabled);
+    let processing = create_text_processing_services(
+        &bootstrap.settings_store,
+        &bootstrap.local_storage,
+        &feedback_sounds_enabled,
+    )?;
+    update_authorizations(
+        &windows.ui,
+        deliverer.authorization(),
+        microphone.authorization(),
+    );
     let microphone_access = microphone_access::wire(
-        &ui,
-        &microphone_intro_overlay,
-        &microphone_permission_overlay,
+        &windows.ui,
+        &windows.microphone_intro_overlay,
+        &windows.microphone_permission_overlay,
         microphone,
     );
-    settings_ui::wire(&ui, Arc::clone(&settings_store));
+    settings_ui::wire(&windows.ui, Arc::clone(&bootstrap.settings_store));
     let local_settings_guard = Arc::new(Mutex::new(()));
     i18n::wire(
-        &ui,
-        Arc::clone(&local_storage),
+        &windows.ui,
+        Arc::clone(&bootstrap.local_storage),
         Arc::clone(&local_settings_guard),
-        language_context,
+        windows.language_context,
     );
     wire_local_features(
-        &ui,
-        Arc::clone(&local_storage),
+        &windows.ui,
+        Arc::clone(&bootstrap.local_storage),
         Arc::clone(&recorder),
         Arc::clone(&local_settings_guard),
         Arc::clone(&feedback_sounds_enabled),
-        diagnostics,
+        bootstrap.diagnostics.clone(),
         LocalFeatureOptions {
-            data_directory: paths.data_directory().to_path_buf(),
-            automatic_update_checks: local_settings.automatic_update_checks,
-            shortcut_controller: shortcut_controller.clone(),
+            data_directory: bootstrap.paths.data_directory().to_path_buf(),
+            automatic_update_checks: bootstrap.local_settings.automatic_update_checks,
+            shortcut_controller: bootstrap.shortcut_controller.clone(),
         },
     );
     let onboarding = onboarding::OnboardingRuntime::new(
-        &ui,
-        &local_settings,
-        Arc::clone(&local_storage),
+        &windows.ui,
+        &bootstrap.local_settings,
+        Arc::clone(&bootstrap.local_storage),
         Arc::clone(&local_settings_guard),
         Arc::clone(&recorder),
         microphone,
         deliverer,
     )?;
-    let authorization_poll = authorization_ui::wire(&ui, deliverer, microphone);
+    let authorization_poll = authorization_ui::wire(&windows.ui, deliverer, microphone);
+    Ok(WiredCore {
+        recorder,
+        session,
+        cancelled,
+        feedback_sounds_enabled,
+        processing,
+        microphone_access,
+        onboarding,
+        authorization_poll,
+        local_settings_guard,
+    })
+}
+
+#[cfg(target_os = "macos")]
+fn run_wired_desktop(
+    bootstrap: DesktopBootstrap,
+    windows: DesktopWindows,
+    core: WiredCore,
+) -> Result<(), Box<dyn Error>> {
     let first_recording = Arc::new(AtomicBool::new(true));
-    let paused = Arc::new(AtomicBool::new(local_settings.dictation_paused));
-    delivery_runtime::wire_result_actions(&result_overlay);
-    dictionary_added_overlay::wire(&ui, &dictionary_added_overlay);
-    let dismiss_limit = recording_limit_overlay.as_weak();
-    recording_limit_overlay.on_acknowledged(move || {
+    let paused = Arc::new(AtomicBool::new(bootstrap.local_settings.dictation_paused));
+    delivery_runtime::wire_result_actions(&windows.result_overlay);
+    dictionary_added_overlay::wire(&windows.ui, &windows.dictionary_added_overlay);
+    let dismiss_limit = windows.recording_limit_overlay.as_weak();
+    windows.recording_limit_overlay.on_acknowledged(move || {
         if let Some(overlay) = dismiss_limit.upgrade() {
             let _ = overlay.hide();
         }
     });
     let pause_recording = recording_actions::wire(
-        &ui,
-        &overlay,
-        &result_overlay,
-        &recording_limit_overlay,
+        &windows.ui,
+        &windows.overlay,
+        &windows.result_overlay,
+        &windows.recording_limit_overlay,
         recording_actions::RecordingActionRuntime {
-            recorder: Arc::clone(&recorder),
-            session: Arc::clone(&session),
-            cancelled: Arc::clone(&cancelled),
-            processing: processing.clone(),
+            recorder: Arc::clone(&core.recorder),
+            session: Arc::clone(&core.session),
+            cancelled: Arc::clone(&core.cancelled),
+            processing: core.processing.clone(),
         },
     );
-    let overlays = DictationOverlays::new(&overlay, &result_overlay, &recording_limit_overlay);
+    let overlays = DictationOverlays::new(
+        &windows.overlay,
+        &windows.result_overlay,
+        &windows.recording_limit_overlay,
+    );
     recording_runtime::start_recording_shortcut(
-        &ui,
+        &windows.ui,
         overlays,
-        shortcut_controller,
+        bootstrap.shortcut_controller,
         ShortcutRuntime {
-            recorder,
-            microphone_access,
+            recorder: core.recorder,
+            microphone_access: core.microphone_access,
             first_recording,
-            session,
-            cancelled,
+            session: core.session,
+            cancelled: core.cancelled,
             paused: Arc::clone(&paused),
-            onboarding: onboarding.shortcut_handler(),
-            processing,
+            onboarding: core.onboarding.shortcut_handler(),
+            processing: core.processing,
         },
     );
     let tray = StatusTray::new()?;
     status_tray::wire(
         &tray,
-        &ui,
-        Arc::clone(&local_storage),
-        Arc::clone(&local_settings_guard),
+        &windows.ui,
+        Arc::clone(&bootstrap.local_storage),
+        Arc::clone(&core.local_settings_guard),
         paused,
         pause_recording,
     );
     prepare_overlay_windows([
-        overlay.window(),
-        result_overlay.window(),
-        recording_limit_overlay.window(),
-        dictionary_added_overlay.window(),
-        microphone_intro_overlay.window(),
-        microphone_permission_overlay.window(),
+        windows.overlay.window(),
+        windows.result_overlay.window(),
+        windows.recording_limit_overlay.window(),
+        windows.dictionary_added_overlay.window(),
+        windows.microphone_intro_overlay.window(),
+        windows.microphone_permission_overlay.window(),
     ]);
     run_desktop_event_loop(
-        &ui,
+        &windows.ui,
         &tray,
-        &onboarding,
-        &local_storage,
-        &local_settings_guard,
+        &core.onboarding,
+        &bootstrap.local_storage,
+        &core.local_settings_guard,
     )?;
-    drop(authorization_poll);
+    drop(core.authorization_poll);
+    drop(core.feedback_sounds_enabled);
     Ok(())
 }
 

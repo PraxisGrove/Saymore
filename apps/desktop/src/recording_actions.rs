@@ -226,64 +226,24 @@ fn undo_cancelled_recording(
     let spawn_result = std::thread::Builder::new()
         .name("saymore-undo-dictation".to_owned())
         .spawn(move || {
-            let result = processing.asr.start(Arc::new(|_| {})).and_then(|()| {
-                for chunk in recording.samples.chunks(1_600) {
-                    processing.asr.push_audio(chunk.to_vec())?;
-                }
-                processing.asr.finish()
-            });
-            let result = result.and_then(|transcript| {
-                let activity_ui = event_ui.clone();
-                let activity_overlay = event_overlay.clone();
-                let relevant_terms = refinement_runtime::dictionary_terms_for_current_refinement(
-                    &processing.storage,
-                );
-                processing
-                    .refinement
-                    .process_final_transcript(&transcript, plan, relevant_terms, move || {
-                        dictation_finish::show_processing_activity(
-                            &activity_ui,
-                            &activity_overlay,
-                            refinement_runtime::ProcessingActivity::Refining,
-                        );
-                    })
-                    .map(|outcome| {
-                        let history = dictation_finish::prepare_history(
-                            &processing,
-                            &recording,
-                            &transcript,
-                            outcome.llm_refined_text.as_deref(),
-                            &outcome.processed,
-                        );
-                        (transcript, outcome.processed, history)
-                    })
-            });
+            let result = process_cancelled_recording(
+                &recording,
+                &processing,
+                plan,
+                &event_ui,
+                &event_overlay,
+            );
             session.complete();
-            let _ = event_ui.upgrade_in_event_loop(move |ui| match result {
-                Ok((_transcript, processed, history)) => {
-                    settings_ui::mark_asr_runtime_healthy(&ui);
-                    if let Some(error) = history.error {
-                        tracing::warn!(event = "history.prepare_failed", reason = %error);
-                        ui.set_history_status(ui.global::<Translations>().get_storage_error());
-                    }
-                    delivery_runtime::schedule_delivery(delivery_runtime::DeliveryRequest {
-                        ui: ui.as_weak(),
-                        status_overlay: event_overlay,
-                        overlay_generation,
-                        result_overlay,
-                        recording,
-                        processed,
-                        history: history.record,
-                        storage: processing.storage,
-                        refinement: processing.refinement,
-                        feedback_sounds_enabled: feedback_sounds_enabled.load(Ordering::Acquire),
-                        copy_to_clipboard: ui.get_copy_to_clipboard(),
-                    });
-                }
-                Err(error) => {
-                    apply_asr_error(&ui, &error);
-                    hide_overlay_after_delay(event_overlay);
-                }
+            let _ = event_ui.upgrade_in_event_loop(move |ui| {
+                let context = UndoDeliveryContext {
+                    status_overlay: event_overlay,
+                    overlay_generation,
+                    result_overlay,
+                    recording,
+                    processing,
+                    feedback_sounds_enabled: feedback_sounds_enabled.load(Ordering::Acquire),
+                };
+                apply_undo_result(&ui, result, context);
             });
         });
     if spawn_result.is_err() {
@@ -296,4 +256,95 @@ fn undo_cancelled_recording(
             hide_overlay_after_delay(failure_overlay);
         });
     }
+}
+
+fn process_cancelled_recording(
+    recording: &template_app::PcmRecording,
+    processing: &TextProcessingServices,
+    plan: crate::refinement_runtime::RefinementPlan,
+    ui: &slint::Weak<AppWindow>,
+    overlay: &slint::Weak<RecordingOverlay>,
+) -> Result<
+    (
+        template_app::ProcessedText,
+        dictation_finish::PreparedHistory,
+    ),
+    template_app::SpeechRecognitionError,
+> {
+    processing.asr.start(Arc::new(|_| {}))?;
+    for chunk in recording.samples.chunks(1_600) {
+        processing.asr.push_audio(chunk.to_vec())?;
+    }
+    let transcript = processing.asr.finish()?;
+    let activity_ui = ui.clone();
+    let activity_overlay = overlay.clone();
+    let relevant_terms =
+        refinement_runtime::dictionary_terms_for_current_refinement(&processing.storage);
+    processing
+        .refinement
+        .process_final_transcript(&transcript, plan, relevant_terms, move || {
+            dictation_finish::show_processing_activity(
+                &activity_ui,
+                &activity_overlay,
+                refinement_runtime::ProcessingActivity::Refining,
+            );
+        })
+        .map(|outcome| {
+            let history = dictation_finish::prepare_history(
+                processing,
+                recording,
+                &transcript,
+                outcome.llm_refined_text.as_deref(),
+                &outcome.processed,
+            );
+            (outcome.processed, history)
+        })
+}
+
+struct UndoDeliveryContext {
+    status_overlay: slint::Weak<RecordingOverlay>,
+    overlay_generation: i32,
+    result_overlay: slint::Weak<ResultOverlay>,
+    recording: template_app::PcmRecording,
+    processing: TextProcessingServices,
+    feedback_sounds_enabled: bool,
+}
+
+fn apply_undo_result(
+    ui: &AppWindow,
+    result: Result<
+        (
+            template_app::ProcessedText,
+            dictation_finish::PreparedHistory,
+        ),
+        template_app::SpeechRecognitionError,
+    >,
+    context: UndoDeliveryContext,
+) {
+    let (processed, history) = match result {
+        Ok(result) => result,
+        Err(error) => {
+            apply_asr_error(ui, &error);
+            hide_overlay_after_delay(context.status_overlay);
+            return;
+        }
+    };
+    settings_ui::mark_asr_runtime_healthy(ui);
+    if let Some(error) = history.error {
+        tracing::warn!(event = "history.prepare_failed", reason = %error);
+        ui.set_history_status(ui.global::<Translations>().get_storage_error());
+    }
+    delivery_runtime::schedule_delivery(delivery_runtime::DeliveryRequest {
+        ui: ui.as_weak(),
+        status_overlay: context.status_overlay,
+        overlay_generation: context.overlay_generation,
+        result_overlay: context.result_overlay,
+        recording: context.recording,
+        processed,
+        history: history.record,
+        storage: context.processing.storage,
+        refinement: context.processing.refinement,
+        feedback_sounds_enabled: context.feedback_sounds_enabled,
+        copy_to_clipboard: ui.get_copy_to_clipboard(),
+    });
 }

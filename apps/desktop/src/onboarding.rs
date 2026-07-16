@@ -251,6 +251,23 @@ fn wire_navigation(
     step: Arc<AtomicU8>,
     shortcut: OnboardingShortcutHandler,
 ) {
+    wire_step_navigation(
+        window,
+        Arc::clone(&persistence),
+        Arc::clone(&manual),
+        step,
+        shortcut.clone(),
+    );
+    wire_completion_navigation(window, app, persistence, active, manual, shortcut);
+}
+
+fn wire_step_navigation(
+    window: &OnboardingWindow,
+    persistence: Arc<Persistence>,
+    manual: Arc<AtomicBool>,
+    step: Arc<AtomicU8>,
+    shortcut: OnboardingShortcutHandler,
+) {
     let advance_window = window.as_weak();
     let advance_persistence = Arc::clone(&persistence);
     let advance_manual = Arc::clone(&manual);
@@ -282,7 +299,7 @@ fn wire_navigation(
     let back_persistence = Arc::clone(&persistence);
     let back_manual = Arc::clone(&manual);
     let back_step = Arc::clone(&step);
-    let back_shortcut = shortcut.clone();
+    let back_shortcut = shortcut;
     window.on_back(move || {
         let Some(window) = back_window.upgrade() else {
             return;
@@ -303,7 +320,16 @@ fn wire_navigation(
         window.set_step(i32::from(previous.index()));
         window.set_action_status(SharedString::new());
     });
+}
 
+fn wire_completion_navigation(
+    window: &OnboardingWindow,
+    app: &AppWindow,
+    persistence: Arc<Persistence>,
+    active: Arc<AtomicBool>,
+    manual: Arc<AtomicBool>,
+    shortcut: OnboardingShortcutHandler,
+) {
     let skip_window = window.as_weak();
     let skip_app = app.as_weak();
     let skip_persistence = Arc::clone(&persistence);

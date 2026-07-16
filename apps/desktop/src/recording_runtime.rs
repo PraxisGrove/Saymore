@@ -86,32 +86,10 @@ fn begin_recording(
     if let Ok(mut cancelled) = runtime.cancelled.lock() {
         cancelled.clear();
     }
+    let Some(asr_ms) = start_streaming_asr(ui, runtime, startup_started) else {
+        return;
+    };
     let on_metrics = create_recording_metrics_callback(ui, overlays, runtime);
-    let partial_ui = ui.clone();
-    let on_partial = Arc::new(move |text: String| {
-        let _ = partial_ui.upgrade_in_event_loop(move |ui| {
-            ui.set_recording_detail(SharedString::from(text));
-        });
-    });
-    let asr_started = Instant::now();
-    match runtime.processing.asr.start(on_partial) {
-        Ok(()) => {}
-        Err(error) => {
-            runtime.session.startup_failed();
-            tracing::warn!(
-                target: "saymore::diagnostics",
-                event = "recording.startup_failed",
-                stage = "asr",
-                duration_ms = startup_started.elapsed().as_millis()
-            );
-            let event_ui = ui.clone();
-            let _ = event_ui.upgrade_in_event_loop(move |ui| {
-                apply_asr_error(&ui, &error);
-            });
-            return;
-        }
-    }
-    let asr_ms = asr_started.elapsed().as_millis();
     let streaming_asr = Arc::clone(&runtime.processing.asr);
     let on_audio_chunk = Arc::new(move |chunk: PcmChunk| {
         let _ = streaming_asr.push_audio(chunk.samples);
@@ -123,18 +101,67 @@ fn begin_recording(
         .map_err(|_| RecordingError::Capture("recorder lock was poisoned".to_owned()))
         .and_then(|mut recorder| recorder.start(on_metrics, on_audio_chunk));
     let recorder_ms = recorder_started.elapsed().as_millis();
+    queue_recording_start_ui(
+        ui,
+        overlays,
+        runtime,
+        result,
+        asr_ms,
+        recorder_ms,
+        startup_started,
+    );
+}
 
+fn start_streaming_asr(
+    ui: &slint::Weak<AppWindow>,
+    runtime: &ShortcutRuntime,
+    startup_started: Instant,
+) -> Option<u128> {
+    let partial_ui = ui.clone();
+    let on_partial = Arc::new(move |text: String| {
+        let _ = partial_ui.upgrade_in_event_loop(move |ui| {
+            ui.set_recording_detail(SharedString::from(text));
+        });
+    });
+    let asr_started = Instant::now();
+    if let Err(error) = runtime.processing.asr.start(on_partial) {
+        runtime.session.startup_failed();
+        tracing::warn!(
+            target: "saymore::diagnostics",
+            event = "recording.startup_failed",
+            stage = "asr",
+            duration_ms = startup_started.elapsed().as_millis()
+        );
+        let event_ui = ui.clone();
+        let _ = event_ui.upgrade_in_event_loop(move |ui| apply_asr_error(&ui, &error));
+        return None;
+    }
+    Some(asr_started.elapsed().as_millis())
+}
+
+fn queue_recording_start_ui(
+    ui: &slint::Weak<AppWindow>,
+    overlays: &DictationOverlays,
+    runtime: &ShortcutRuntime,
+    result: Result<RecordingStarted, RecordingError>,
+    asr_ms: u128,
+    recorder_ms: u128,
+    startup_started: Instant,
+) {
     let event_ui = ui.clone();
-    let event_overlay = overlays.status.clone();
-    let first_recording = Arc::clone(&runtime.first_recording);
-    let session = Arc::clone(&runtime.session);
-    let show_device = first_recording.load(Ordering::Relaxed);
-    let failed_asr = Arc::clone(&runtime.processing.asr);
-    let event_recorder = Arc::clone(&runtime.recorder);
+    let context = RecordingStartUiContext {
+        overlay: overlays.status.clone(),
+        first_recording: Arc::clone(&runtime.first_recording),
+        session: Arc::clone(&runtime.session),
+        asr: Arc::clone(&runtime.processing.asr),
+        recorder: Arc::clone(&runtime.recorder),
+        feedback_sounds_enabled: Arc::clone(&runtime.processing.feedback_sounds_enabled),
+        show_device: runtime.first_recording.load(Ordering::Relaxed),
+        startup_started,
+    };
     let queue_failure_session = Arc::clone(&runtime.session);
     let queue_failure_asr = Arc::clone(&runtime.processing.asr);
     let queue_failure_recorder = Arc::clone(&runtime.recorder);
-    let feedback_sounds_enabled = Arc::clone(&runtime.processing.feedback_sounds_enabled);
     let ui_queued = Instant::now();
     if event_ui
         .upgrade_in_event_loop(move |ui| {
@@ -148,46 +175,7 @@ fn begin_recording(
                 ui_queue_ms = ui_queued.elapsed().as_millis(),
                 total_ms = startup_started.elapsed().as_millis()
             );
-            match result {
-                Ok(started) => {
-                    if !session.recording_started() {
-                        failed_asr.cancel();
-                        if let Ok(mut recorder) = event_recorder.lock() {
-                            let _ = recorder.stop();
-                        }
-                        return;
-                    }
-                    let feedback_started = Instant::now();
-                    if feedback_sounds_enabled.load(Ordering::Acquire) {
-                        play_feedback_sound(FeedbackSound::Start);
-                    }
-                    tracing::info!(
-                        target: "saymore::diagnostics",
-                        event = "recording.feedback_started",
-                        duration_ms = feedback_started.elapsed().as_millis()
-                    );
-                    first_recording.store(false, Ordering::Relaxed);
-                    apply_recording_started(&ui);
-                    if started.used_system_fallback {
-                        ui.set_microphone_selection_status(
-                            ui.global::<Translations>().get_microphone_system_fallback(),
-                        );
-                    }
-                    if let Some(overlay) = event_overlay.upgrade() {
-                        first_recording_overlay(
-                            &overlay,
-                            &started.input_device_name,
-                            show_device,
-                            startup_started,
-                        );
-                    }
-                }
-                Err(error) => {
-                    session.startup_failed();
-                    failed_asr.cancel();
-                    apply_recording_error(&ui, &error);
-                }
-            }
+            apply_recording_start_result(&ui, result, context);
         })
         .is_err()
     {
@@ -196,6 +184,64 @@ fn begin_recording(
         if let Ok(mut recorder) = queue_failure_recorder.lock() {
             let _ = recorder.stop();
         }
+    }
+}
+
+struct RecordingStartUiContext {
+    overlay: slint::Weak<RecordingOverlay>,
+    first_recording: Arc<AtomicBool>,
+    session: Arc<DictationSession>,
+    asr: Arc<AsrSessionController>,
+    recorder: Arc<Mutex<MacOsAudioRecorder>>,
+    feedback_sounds_enabled: Arc<AtomicBool>,
+    show_device: bool,
+    startup_started: Instant,
+}
+
+fn apply_recording_start_result(
+    ui: &AppWindow,
+    result: Result<RecordingStarted, RecordingError>,
+    context: RecordingStartUiContext,
+) {
+    let started = match result {
+        Ok(started) => started,
+        Err(error) => {
+            context.session.startup_failed();
+            context.asr.cancel();
+            apply_recording_error(ui, &error);
+            return;
+        }
+    };
+    if !context.session.recording_started() {
+        context.asr.cancel();
+        if let Ok(mut recorder) = context.recorder.lock() {
+            let _ = recorder.stop();
+        }
+        return;
+    }
+    let feedback_started = Instant::now();
+    if context.feedback_sounds_enabled.load(Ordering::Acquire) {
+        play_feedback_sound(FeedbackSound::Start);
+    }
+    tracing::info!(
+        target: "saymore::diagnostics",
+        event = "recording.feedback_started",
+        duration_ms = feedback_started.elapsed().as_millis()
+    );
+    context.first_recording.store(false, Ordering::Relaxed);
+    apply_recording_started(ui);
+    if started.used_system_fallback {
+        ui.set_microphone_selection_status(
+            ui.global::<Translations>().get_microphone_system_fallback(),
+        );
+    }
+    if let Some(overlay) = context.overlay.upgrade() {
+        first_recording_overlay(
+            &overlay,
+            &started.input_device_name,
+            context.show_device,
+            context.startup_started,
+        );
     }
 }
 

@@ -22,6 +22,14 @@ enum FinishError {
     Recognition(SpeechRecognitionError),
 }
 
+struct FinishedRecording {
+    recording: template_app::PcmRecording,
+    processed: template_app::ProcessedText,
+    history: PreparedHistory,
+}
+
+type FinishResult = Result<FinishedRecording, FinishError>;
+
 pub fn finish_recording(
     ui: slint::Weak<AppWindow>,
     overlays: DictationOverlays,
@@ -115,7 +123,27 @@ fn finish_recording_worker(
         }
     };
 
-    let recording_result = recorder.stop();
+    let processing_result =
+        process_recording(recorder.stop(), &ui, &overlays.status, &processing, plan);
+    session.complete();
+    let _ = ui.upgrade_in_event_loop(move |ui| {
+        apply_finish_result(
+            &ui,
+            processing_result,
+            overlays,
+            processing,
+            overlay_generation,
+        );
+    });
+}
+
+fn process_recording(
+    recording_result: Result<template_app::PcmRecording, RecordingError>,
+    ui: &slint::Weak<AppWindow>,
+    overlay: &slint::Weak<crate::ui::RecordingOverlay>,
+    processing: &TextProcessingServices,
+    plan: crate::refinement_runtime::RefinementPlan,
+) -> FinishResult {
     let transcription_result = match recording_result {
         Ok(recording) => {
             let started = Instant::now();
@@ -132,9 +160,9 @@ fn finish_recording_worker(
             Err(FinishError::Recording(error))
         }
     };
-    let processing_result = transcription_result.and_then(|(recording, transcript)| {
+    transcription_result.and_then(|(recording, transcript)| {
         let activity_ui = ui.clone();
-        let activity_overlay = overlays.status.clone();
+        let activity_overlay = overlay.clone();
         let relevant_terms =
             crate::refinement_runtime::dictionary_terms_for_current_refinement(&processing.storage);
         processing
@@ -148,21 +176,33 @@ fn finish_recording_worker(
             })
             .map(|outcome| {
                 let history = prepare_history(
-                    &processing,
+                    processing,
                     &recording,
                     &transcript,
                     outcome.llm_refined_text.as_deref(),
                     &outcome.processed,
                 );
-                (recording, outcome.processed, history)
+                FinishedRecording {
+                    recording,
+                    processed: outcome.processed,
+                    history,
+                }
             })
             .map_err(FinishError::Recognition)
-    });
-    session.complete();
-    let _ = ui.upgrade_in_event_loop(move |ui| match processing_result {
-        Ok((recording, processed, history)) => {
-            crate::settings_ui::mark_asr_runtime_healthy(&ui);
-            if let Some(error) = &history.error {
+    })
+}
+
+fn apply_finish_result(
+    ui: &AppWindow,
+    processing_result: FinishResult,
+    overlays: DictationOverlays,
+    processing: TextProcessingServices,
+    overlay_generation: i32,
+) {
+    match processing_result {
+        Ok(finished) => {
+            crate::settings_ui::mark_asr_runtime_healthy(ui);
+            if let Some(error) = &finished.history.error {
                 tracing::warn!(event = "history.prepare_failed", reason = %error);
                 ui.set_history_status(ui.global::<Translations>().get_storage_error());
             }
@@ -171,9 +211,9 @@ fn finish_recording_worker(
                 status_overlay: overlays.status,
                 overlay_generation,
                 result_overlay: overlays.result,
-                recording,
-                processed,
-                history: history.record,
+                recording: finished.recording,
+                processed: finished.processed,
+                history: finished.history.record,
                 storage: processing.storage,
                 refinement: processing.refinement,
                 feedback_sounds_enabled: processing.feedback_sounds_enabled.load(Ordering::Acquire),
@@ -182,14 +222,14 @@ fn finish_recording_worker(
         }
         Err(FinishError::Recording(RecordingError::NotRecording)) => {}
         Err(FinishError::Recording(error)) => {
-            apply_recording_error(&ui, &error);
+            apply_recording_error(ui, &error);
             hide_overlay_after_delay(overlays.status);
         }
         Err(FinishError::Recognition(error)) => {
-            apply_asr_error(&ui, &error);
+            apply_asr_error(ui, &error);
             hide_overlay_after_delay(overlays.status);
         }
-    });
+    }
 }
 
 pub(crate) struct PreparedHistory {
