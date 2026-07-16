@@ -419,6 +419,22 @@ fn export_report(ui: slint::Weak<AppWindow>, diagnostics: DiagnosticsController)
     if !diagnostics.begin_export() {
         return;
     }
+    if let Some(window) = ui.upgrade() {
+        window.set_diagnostics_export_status(SharedString::from("exporting"));
+        window.set_diagnostics_export_detail(
+            window.global::<Translations>().get_diagnostics_generating(),
+        );
+    }
+
+    start_report_export(&window, ui, diagnostics, destination);
+}
+
+fn start_report_export(
+    window: &AppWindow,
+    ui: slint::Weak<AppWindow>,
+    diagnostics: DiagnosticsController,
+    destination: PathBuf,
+) {
     let translations = window.global::<Translations>();
     let report_text = DiagnosticsReportText {
         title: translations.get_diagnostics_report_title().to_string(),
@@ -438,13 +454,6 @@ fn export_report(ui: slint::Weak<AppWindow>, diagnostics: DiagnosticsController)
         events: translations.get_diagnostics_report_events().to_string(),
         no_events: translations.get_diagnostics_report_no_events().to_string(),
     };
-    if let Some(window) = ui.upgrade() {
-        window.set_diagnostics_export_status(SharedString::from("exporting"));
-        window.set_diagnostics_export_detail(
-            window.global::<Translations>().get_diagnostics_generating(),
-        );
-    }
-
     let failure_ui = ui.clone();
     let worker_diagnostics = diagnostics.clone();
     if thread::Builder::new()

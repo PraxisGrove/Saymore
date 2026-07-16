@@ -65,6 +65,16 @@ fn load_initial(
 }
 
 fn wire_history(ui: &AppWindow, storage: Arc<SqliteStorage>, state: Arc<Mutex<UiDataState>>) {
+    wire_history_queries(ui, Arc::clone(&storage), Arc::clone(&state));
+    wire_history_item_actions(ui, Arc::clone(&storage), Arc::clone(&state));
+    wire_history_bulk_actions(ui, storage, state);
+}
+
+fn wire_history_queries(
+    ui: &AppWindow,
+    storage: Arc<SqliteStorage>,
+    state: Arc<Mutex<UiDataState>>,
+) {
     let refresh_ui = ui.as_weak();
     let refresh_store = Arc::clone(&storage);
     let refresh_state = Arc::clone(&state);
@@ -100,7 +110,13 @@ fn wire_history(ui: &AppWindow, storage: Arc<SqliteStorage>, state: Arc<Mutex<Ui
             Arc::clone(&load_more_state),
         );
     });
+}
 
+fn wire_history_item_actions(
+    ui: &AppWindow,
+    storage: Arc<SqliteStorage>,
+    state: Arc<Mutex<UiDataState>>,
+) {
     let copy_state = Arc::clone(&state);
     ui.on_copy_history(move |id| {
         let text = copy_state.lock().ok().and_then(|state| {
@@ -139,7 +155,13 @@ fn wire_history(ui: &AppWindow, storage: Arc<SqliteStorage>, state: Arc<Mutex<Ui
             }
         }
     });
+}
 
+fn wire_history_bulk_actions(
+    ui: &AppWindow,
+    storage: Arc<SqliteStorage>,
+    state: Arc<Mutex<UiDataState>>,
+) {
     let clear_ui = ui.as_weak();
     let clear_store = Arc::clone(&storage);
     let clear_state = Arc::clone(&state);

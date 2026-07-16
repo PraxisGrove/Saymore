@@ -12,14 +12,18 @@ use crate::ui::{AppWindow, Translations};
 use super::{apply_loaded_settings, provider_preset};
 
 pub(super) fn wire(ui: &AppWindow, store: Arc<JsonSettingsStore>) {
+    wire_enable_request(ui, Arc::clone(&store));
+    wire_enable_confirmation(ui, store);
+}
+
+fn wire_enable_request(ui: &AppWindow, store: Arc<JsonSettingsStore>) {
     let prepare_ui = ui.as_weak();
-    let prepare_store = Arc::clone(&store);
     ui.on_request_llm_enable(move || {
         let Some(ui) = prepare_ui.upgrade() else {
             return;
         };
         let provider = provider_preset(ui.get_llm_provider());
-        let Ok(catalog) = prepare_store.load_catalog() else {
+        let Ok(catalog) = store.load_catalog() else {
             ui.set_llm_config_status(
                 ui.global::<Translations>()
                     .get_common_configuration_load_failed(),
@@ -38,7 +42,7 @@ pub(super) fn wire(ui: &AppWindow, store: Arc<JsonSettingsStore>) {
         let local = provider_is_local(&base_url);
         ui.set_llm_provider_target(SharedString::from(&base_url));
         ui.set_llm_provider_local(local);
-        let Ok(settings) = prepare_store.load() else {
+        let Ok(settings) = store.load() else {
             ui.set_llm_config_status(
                 ui.global::<Translations>()
                     .get_common_configuration_load_failed(),
@@ -48,10 +52,12 @@ pub(super) fn wire(ui: &AppWindow, store: Arc<JsonSettingsStore>) {
         if llm_consent_required(&settings, &base_url) {
             ui.set_llm_confirmation_visible(true);
         } else {
-            start_llm_test(&ui, Arc::clone(&prepare_store), provider);
+            start_llm_test(&ui, Arc::clone(&store), provider);
         }
     });
+}
 
+fn wire_enable_confirmation(ui: &AppWindow, store: Arc<JsonSettingsStore>) {
     let llm_ui = ui.as_weak();
     ui.on_set_llm_enabled(move |enabled, expected_base_url| {
         let Some(ui) = llm_ui.upgrade() else {

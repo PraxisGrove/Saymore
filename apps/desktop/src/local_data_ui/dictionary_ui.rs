@@ -228,6 +228,12 @@ fn wire_draft_actions(
     storage: Arc<SqliteStorage>,
     state: Arc<Mutex<DictionaryUiState>>,
 ) {
+    wire_draft_dialog(ui, Arc::clone(&state));
+    wire_draft_rows(ui, Arc::clone(&state));
+    wire_draft_save(ui, storage, state);
+}
+
+fn wire_draft_dialog(ui: &AppWindow, state: Arc<Mutex<DictionaryUiState>>) {
     let open_ui = ui.as_weak();
     let open_state = Arc::clone(&state);
     ui.on_open_dictionary_add(move || {
@@ -260,7 +266,9 @@ fn wire_draft_actions(
             ui.set_dictionary_status(SharedString::from(""));
         }
     });
+}
 
+fn wire_draft_rows(ui: &AppWindow, state: Arc<Mutex<DictionaryUiState>>) {
     let add_ui = ui.as_weak();
     let add_state = Arc::clone(&state);
     ui.on_add_dictionary_draft(move || {
@@ -317,7 +325,13 @@ fn wire_draft_actions(
             }
         }
     });
+}
 
+fn wire_draft_save(
+    ui: &AppWindow,
+    storage: Arc<SqliteStorage>,
+    state: Arc<Mutex<DictionaryUiState>>,
+) {
     let save_ui = ui.as_weak();
     ui.on_save_dictionary_drafts(move || {
         let words = match state.lock() {
