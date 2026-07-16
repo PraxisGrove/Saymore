@@ -21,12 +21,12 @@ use template_app::{
     MicrophonePermissionProvider, PcmChunk, RecordingError,
 };
 #[cfg(target_os = "macos")]
-use template_app::{FeedbackSound, FeedbackSoundPlayer, TextDeliverer};
+use template_app::{FeedbackSound, TextDeliverer};
 #[cfg(target_os = "macos")]
 use template_infra::{
-    AppEnvironment, AppInstanceGuard, AppPaths, DictationShortcutAction, JsonSettingsStore,
-    MacOsAudioRecorder, MacOsFeedbackSoundPlayer, MacOsMicrophonePermission, MacOsShortcutMonitor,
-    MacOsTextDeliverer, PlatformSecretStore, SqliteStorage,
+    AppInstanceGuard, AppPaths, DictationShortcutAction, JsonSettingsStore, MacOsAudioRecorder,
+    MacOsMicrophonePermission, MacOsShortcutMonitor, MacOsTextDeliverer, PlatformSecretStore,
+    SqliteStorage,
 };
 
 // Slint-generated code contains framework-internal unwraps and panics. Keep the
@@ -58,6 +58,8 @@ mod diagnostics;
 #[cfg(target_os = "macos")]
 mod dictation_finish;
 #[cfg(target_os = "macos")]
+mod feedback_runtime;
+#[cfg(target_os = "macos")]
 mod home_stats;
 #[cfg(target_os = "macos")]
 mod i18n;
@@ -71,6 +73,8 @@ mod microphone_access;
 mod overlay_window;
 #[cfg(target_os = "macos")]
 mod recording_metrics;
+#[cfg(target_os = "macos")]
+mod recording_state;
 #[cfg(target_os = "macos")]
 mod refinement_runtime;
 #[cfg(target_os = "macos")]
@@ -86,6 +90,8 @@ mod update_check;
 
 #[cfg(target_os = "macos")]
 use asr_runtime::AsrSessionController;
+#[cfg(target_os = "macos")]
+use feedback_runtime::{initialize as initialize_feedback_sounds, play_feedback_sound};
 #[cfg(target_os = "macos")]
 use refinement_runtime::RefinementRuntime;
 #[cfg(target_os = "macos")]
@@ -175,10 +181,7 @@ fn run() -> Result<(), Box<dyn Error>> {
         }
     };
     let ui = AppWindow::new()?;
-    let language_context = i18n::initialize(&ui, local_settings.ui_language)?;
-    ui.set_automatic_update_checks(local_settings.automatic_update_checks);
-    ui.set_feedback_sounds_enabled(local_settings.feedback_sounds_enabled);
-    ui.set_development_environment(environment == AppEnvironment::Development);
+    let language_context = main_window::initialize(&ui, &local_settings, environment)?;
     let overlay = RecordingOverlay::new()?;
     let result_overlay = ResultOverlay::new()?;
     let microphone_intro_overlay = MicrophoneIntroOverlay::new()?;
@@ -205,12 +208,10 @@ fn run() -> Result<(), Box<dyn Error>> {
                 reason = "recorder lock was poisoned"
             ),
         });
-    let recording_active = Arc::new(AtomicBool::new(false));
-    let recording_starting = Arc::new(AtomicBool::new(false));
-    let feedback_sounds_enabled = Arc::new(AtomicBool::new(local_settings.feedback_sounds_enabled));
-    if let Err(error) = MacOsFeedbackSoundPlayer.preload() {
-        tracing::warn!(event = "feedback.preload_failed", reason = %error);
-    }
+    let (recording_active, recording_starting, cancelled) =
+        recording_state::initialize(CANCEL_UNDO_WINDOW);
+    let feedback_sounds_enabled =
+        initialize_feedback_sounds(local_settings.feedback_sounds_enabled);
     let dictionary: Arc<dyn DictionaryStore> = local_storage.clone();
     let asr = Arc::new(AsrSessionController::new(
         Arc::clone(&settings_store),
@@ -224,7 +225,6 @@ fn run() -> Result<(), Box<dyn Error>> {
         provider_config: Arc::clone(&settings_store),
         feedback_sounds_enabled: Arc::clone(&feedback_sounds_enabled),
     };
-    let cancelled = Arc::new(Mutex::new(CancelledRecordingStore::new(CANCEL_UNDO_WINDOW)));
     update_authorizations(&ui, deliverer.authorization(), microphone.authorization());
     let microphone_access = microphone_access::wire(
         &ui,
@@ -635,13 +635,6 @@ fn cancel_recording(
             apply_recording_error(&ui, &error);
         }
     });
-}
-
-#[cfg(target_os = "macos")]
-pub(crate) fn play_feedback_sound(sound: FeedbackSound) {
-    if let Err(error) = MacOsFeedbackSoundPlayer.play(sound) {
-        eprintln!("failed to play feedback sound: {error}");
-    }
 }
 
 #[cfg(target_os = "macos")]

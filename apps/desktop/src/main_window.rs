@@ -2,9 +2,25 @@ use std::time::Duration;
 
 use raw_window_handle::{HasWindowHandle, RawWindowHandle};
 use slint::{ComponentHandle, Timer};
-use template_infra::configure_main_window;
+use template_app::LocalSettings;
+use template_infra::{AppEnvironment, configure_main_window};
 
-use crate::ui::AppWindow;
+use crate::{
+    i18n::{self, LanguageContext},
+    ui::AppWindow,
+};
+
+pub fn initialize(
+    ui: &AppWindow,
+    settings: &LocalSettings,
+    environment: AppEnvironment,
+) -> Result<LanguageContext, slint::SelectBundledTranslationError> {
+    let context = i18n::initialize(ui, settings.ui_language)?;
+    ui.set_automatic_update_checks(settings.automatic_update_checks);
+    ui.set_feedback_sounds_enabled(settings.feedback_sounds_enabled);
+    ui.set_development_environment(environment == AppEnvironment::Development);
+    Ok(context)
+}
 
 pub fn schedule_titlebar_integration(ui: &AppWindow) {
     let initial_ui = ui.as_weak();
