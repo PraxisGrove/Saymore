@@ -158,7 +158,8 @@ fn run_size_gate(config: SizeConfig) -> Result<(), Box<dyn Error>> {
             .replace('\\', "/");
         let source = fs::read_to_string(path)?;
         let lines: Vec<&str> = source.lines().collect();
-        let line_count = lines.len();
+        let test_lines = inline_test_lines(&lines);
+        let line_count = lines.len() - test_lines.iter().filter(|excluded| **excluded).count();
 
         if line_count > config.max_file_lines {
             file_errors.push(FileFinding {
@@ -172,7 +173,7 @@ fn run_size_gate(config: SizeConfig) -> Result<(), Box<dyn Error>> {
             });
         }
 
-        for finding in iter_rust_functions(&lines, &relpath) {
+        for finding in iter_rust_functions(&lines, &test_lines, &relpath) {
             if finding.body_lines > config.max_fn_lines {
                 fn_errors.push(finding);
             } else if finding.body_lines > config.warn_fn_lines {
@@ -246,12 +247,18 @@ fn collect_files(
             .strip_prefix(root)?
             .to_string_lossy()
             .replace('\\', "/");
-        if globs.iter().any(|glob| matches_glob(glob, &relpath)) {
+        if !is_test_path(&relpath) && globs.iter().any(|glob| matches_glob(glob, &relpath)) {
             files.push(path);
         }
     }
 
     Ok(())
+}
+
+fn is_test_path(relpath: &str) -> bool {
+    relpath
+        .split('/')
+        .any(|component| component == "tests" || component == "tests.rs")
 }
 
 fn matches_glob(pattern: &str, relpath: &str) -> bool {
@@ -263,11 +270,73 @@ fn matches_glob(pattern: &str, relpath: &str) -> bool {
     }
 }
 
-fn iter_rust_functions(lines: &[&str], relpath: &str) -> Vec<FunctionFinding> {
+fn inline_test_lines(lines: &[&str]) -> Vec<bool> {
+    let mut excluded = vec![false; lines.len()];
+    let mut index = 0;
+
+    while index < lines.len() {
+        if lines[index].trim() != "#[cfg(test)]" {
+            index += 1;
+            continue;
+        }
+
+        let attribute_line = index;
+        index += 1;
+        while index < lines.len() && lines[index].trim_start().starts_with("#[") {
+            index += 1;
+        }
+        if index >= lines.len() || !lines[index].trim_start().starts_with("mod ") {
+            continue;
+        }
+        if lines[index].contains(';') {
+            excluded[attribute_line..=index].fill(true);
+            index += 1;
+            continue;
+        }
+
+        let Some(end_line) = braced_item_end(lines, index) else {
+            continue;
+        };
+        excluded[attribute_line..=end_line].fill(true);
+        index = end_line + 1;
+    }
+
+    excluded
+}
+
+fn braced_item_end(lines: &[&str], start_line: usize) -> Option<usize> {
+    let mut brace_depth = 0isize;
+    let mut body_started = false;
+
+    for (offset, line) in lines[start_line..].iter().enumerate() {
+        let opening = line.matches('{').count() as isize;
+        let closing = line.matches('}').count() as isize;
+        body_started |= opening > 0;
+        brace_depth += opening - closing;
+        if body_started && brace_depth == 0 {
+            return Some(start_line + offset);
+        }
+        if !body_started && line.contains(';') {
+            return None;
+        }
+    }
+
+    None
+}
+
+fn iter_rust_functions(
+    lines: &[&str],
+    excluded_lines: &[bool],
+    relpath: &str,
+) -> Vec<FunctionFinding> {
     let mut findings = Vec::new();
     let mut index = 0;
 
     while index < lines.len() {
+        if excluded_lines.get(index).copied().unwrap_or(false) {
+            index += 1;
+            continue;
+        }
         let line = lines[index];
         let Some(fn_pos) = line.find("fn ") else {
             index += 1;
@@ -325,6 +394,48 @@ fn iter_rust_functions(lines: &[&str], relpath: &str) -> Vec<FunctionFinding> {
     }
 
     findings
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{inline_test_lines, is_test_path, iter_rust_functions};
+
+    #[test]
+    fn test_paths_are_excluded() {
+        assert!(is_test_path("crates/app/tests/use_case.rs"));
+        assert!(is_test_path("crates/infra/src/store/tests.rs"));
+        assert!(!is_test_path("crates/app/src/contest.rs"));
+    }
+
+    #[test]
+    fn inline_test_modules_are_excluded_from_lines_and_functions() {
+        let source = r#"fn production() {
+    println!("production");
+}
+
+#[cfg(test)]
+mod tests {
+    fn large_test() {
+        println!("test");
+    }
+}
+"#;
+        let lines: Vec<&str> = source.lines().collect();
+        let excluded = inline_test_lines(&lines);
+        let production_lines = lines.len() - excluded.iter().filter(|line| **line).count();
+        let functions = iter_rust_functions(&lines, &excluded, "src/lib.rs");
+
+        assert_eq!(4, production_lines);
+        assert_eq!(1, functions.len());
+        assert_eq!("production", functions[0].name);
+    }
+
+    #[test]
+    fn external_test_module_declarations_are_excluded() {
+        let lines = ["#[cfg(test)]", "mod tests;"];
+
+        assert_eq!(vec![true, true], inline_test_lines(&lines));
+    }
 }
 
 fn extract_fn_name(input: &str) -> String {
