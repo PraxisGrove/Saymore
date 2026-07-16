@@ -253,6 +253,7 @@ export component ModelsPage inherits Rectangle {
     callback select-llm-provider(LlmProvider);
     callback refresh-models();
     callback request-asr-test();
+    callback open-key-page();
 
     private property <bool> service-menu-open: false;
     private property <bool> model-menu-open: false;
@@ -274,7 +275,7 @@ export component ModelsPage inherits Rectangle {
     private property <bool> active-config-saved: !root.configured-model-name.is-empty && !root.active-config-dirty;
     private property <bool> model-fetch-enabled: (root.active-tab == 0 && root.asr-provider == AsrProvider.volcengine) || !root.active-api-key.is-empty;
     private property <bool> service-healthy: root.active-tab == 0 ? root.asr-configured && !root.asr-config-error && !root.asr-pending-test && !root.asr-testing : root.llm-enabled;
-    private property <string> service-status: root.active-tab == 0 ? root.asr-testing ? @tr("models.status.testing" => "●  Testing") : root.asr-config-error ? @tr("models.status.connection-failed" => "●  Connection failed") : root.asr-pending-test ? @tr("models.status.saved" => "●  Saved") : root.service-healthy ? @tr("models.status.connected" => "●  Connected") : @tr("models.status.not-configured" => "●  Not configured") : root.service-healthy ? @tr("models.status.connected" => "●  Connected") : root.llm-config-status;
+    private property <string> service-status: root.active-tab == 0 ? root.asr-testing ? @tr("models.status.testing" => "●  Testing") : root.asr-config-error ? @tr("models.status.connection-failed" => "●  Connection failed") : root.asr-pending-test ? @tr("models.status.awaiting-connection-test" => "●  Awaiting connection test") : root.service-healthy ? @tr("models.status.connected" => "●  Connected") : @tr("models.status.not-configured" => "●  Not configured") : root.service-healthy ? @tr("models.status.connected" => "●  Connected") : root.llm-config-status;
     private property <length> config-height: root.advanced-visible ? 270px : 228px;
     private property <length> action-y: root.advanced-visible ? 560px : 525px;
     forward-focus: asr-field;
@@ -314,7 +315,7 @@ export component ModelsPage inherits Rectangle {
         x: 0px; y: 166px; width: parent.width - 1px;
         icon: root.active-tab == 0 ? @image-url("../../icons/lucide/audio-lines.svg") : @image-url("../../icons/lucide/sparkles.svg");
         name: root.service-name;
-        detail: root.active-tab == 0 && !root.asr-configured ? @tr("models.api-key.not-configured" => "API key not configured") : root.configured-model-name.is-empty ? "" : root.active-tab == 0 && root.asr-pending-test ? @tr("models.model.saved-not-enabled" => "{} · Not enabled yet", root.configured-model-name) : @tr("models.model.current-default" => "{} · Current default", root.configured-model-name);
+        detail: root.active-tab == 0 && !root.asr-configured ? @tr("models.api-key.not-configured" => "API key not configured") : root.configured-model-name.is-empty ? "" : root.active-tab == 0 && root.asr-pending-test ? @tr("models.model.saved-not-enabled" => "{} · Connection not tested", root.configured-model-name) : @tr("models.model.current-default" => "{} · Current default", root.configured-model-name);
         status: root.service-status;
         healthy: root.service-healthy;
         open: root.service-menu-open;
@@ -327,8 +328,15 @@ export component ModelsPage inherits Rectangle {
 
         Text { x: 18px; y: 17px; text: root.active-tab == 0 && root.asr-provider == AsrProvider.custom ? "Access Token / API Key" : "API Key"; color: AppColors.text; font-size: 11px; font-weight: 600; }
         // Keep the secondary actions on one shared column so their labels align.
-        Text { x: parent.width - 103px; y: 17px; width: 58px; text: root.active-tab == 0 && root.asr-provider == AsrProvider.custom ? "" : @tr("models.get-api-key" => "Get API key"); color: AppColors.brand; font-size: 10px; font-weight: 600; }
-        Text { x: parent.width - 40px; y: 17px; width: 12px; text: root.active-tab == 0 && root.asr-provider == AsrProvider.custom ? "" : "↗"; color: AppColors.brand; font-size: 10px; font-weight: 600; horizontal-alignment: center; }
+        if !(root.active-tab == 0 && root.asr-provider == AsrProvider.custom): Rectangle {
+            x: parent.width - 108px; y: 8px; width: 86px; height: 25px; background: transparent;
+            accessible-role: button;
+            accessible-label: @tr("models.get-api-key" => "Get API key");
+            accessible-action-default => { root.open-key-page(); }
+            Text { x: 0px; width: 62px; text: @tr("models.get-api-key" => "Get API key"); color: AppColors.brand; font-size: 10px; font-weight: 600; horizontal-alignment: left; vertical-alignment: center; }
+            Text { x: parent.width - 20px; width: 14px; text: "↗"; color: AppColors.brand; font-size: 10px; font-weight: 600; horizontal-alignment: center; vertical-alignment: center; }
+            TouchArea { mouse-cursor: pointer; clicked => { root.open-key-page(); } }
+        }
 
         asr-field := ApiKeyField {
             visible: root.active-tab == 0 && root.asr-provider == AsrProvider.volcengine;
@@ -357,11 +365,11 @@ export component ModelsPage inherits Rectangle {
         Text { x: 18px; y: 95px; text: @tr("models.model-field" => "Model"); color: AppColors.text; font-size: 11px; font-weight: 600; }
         Text { x: 56px; y: 96px; width: parent.width - 164px; text: root.model-discovery-status; color: AppColors.text-muted; font-size: 9px; overflow: elide; }
         Rectangle {
-            x: parent.width - 103px; y: 88px; width: 85px; height: 25px; border-radius: 6px; background: fetch-area.has-hover ? AppColors.surface-subtle : transparent;
+            x: parent.width - 108px; y: 88px; width: 86px; height: 25px; border-radius: 6px; background: fetch-area.has-hover ? AppColors.surface-subtle : transparent;
             opacity: !root.model-fetch-enabled || root.model-discovery-loading ? 0.55 : 1;
             accessible-role: button; accessible-label: root.model-discovery-loading ? @tr("models.fetch.loading-accessible" => "Fetching models") : @tr("models.fetch.action" => "Fetch models"); accessible-enabled: root.model-fetch-enabled && !root.model-discovery-loading;
-            Text { x: 0px; width: 58px; text: root.model-discovery-loading ? @tr("models.fetch.loading" => "Fetching…") : @tr("models.fetch.action" => "Fetch models"); color: AppColors.brand; font-size: 10px; font-weight: 600; vertical-alignment: center; }
-            Image { visible: !root.model-discovery-loading; x: 63px; y: 7px; width: 12px; height: 12px; source: @image-url("../../icons/lucide/download.svg"); colorize: AppColors.brand; }
+            Text { x: 0px; width: 62px; text: root.model-discovery-loading ? @tr("models.fetch.loading" => "Fetching…") : @tr("models.fetch.action" => "Fetch models"); color: AppColors.brand; font-size: 10px; font-weight: 600; horizontal-alignment: left; vertical-alignment: center; }
+            Image { visible: !root.model-discovery-loading; x: parent.width - 20px; y: 7px; width: 12px; height: 12px; source: @image-url("../../icons/lucide/download.svg"); colorize: AppColors.brand; }
             fetch-area := TouchArea { enabled: root.model-fetch-enabled && !root.model-discovery-loading; mouse-cursor: self.enabled ? pointer : default; clicked => { root.model-menu-open = false; root.refresh-models(); } }
         }
         Rectangle {
@@ -379,13 +387,12 @@ export component ModelsPage inherits Rectangle {
             x: 18px; y: 166px; width: parent.width - 36px; height: 34px; background: transparent;
             accessible-role: button; accessible-label: @tr("models.advanced-settings" => "Advanced settings");
             advanced-title := Text { x: 15px; text: @tr("models.advanced-settings" => "Advanced settings"); color: AppColors.text; font-size: 11px; font-weight: 600; vertical-alignment: center; }
-            if !root.advanced-visible: Text { x: advanced-title.x + advanced-title.preferred-width + 14px; width: parent.width - self.x - 34px; text: root.active-tab == 0 ? @tr("models.base-url" => "Service URL") : @tr("models.advanced-summary" => "Service URL, custom headers, and data usage"); color: AppColors.text-muted; font-size: 10px; vertical-alignment: center; overflow: elide; }
+            if !root.advanced-visible: Text { x: advanced-title.x + advanced-title.preferred-width + 14px; width: parent.width - self.x - 34px; text: @tr("models.base-url" => "Service URL"); color: AppColors.text-muted; font-size: 10px; vertical-alignment: center; overflow: elide; }
             Image { x: parent.width - 24px; y: 10px; width: 14px; height: 14px; source: root.advanced-visible ? @image-url("../../icons/lucide/chevron-up.svg") : @image-url("../../icons/lucide/chevron-right.svg"); colorize: AppColors.text-muted; }
             TouchArea { mouse-cursor: pointer; clicked => { root.advanced-visible = !root.advanced-visible; root.model-menu-open = false; } }
         }
 
         if root.advanced-visible: Text { x: 18px; y: 209px; text: @tr("models.base-url" => "Service URL"); color: AppColors.text; font-size: 11px; font-weight: 600; }
-        if root.advanced-visible && root.active-tab == 1: Text { x: parent.width - 119px; y: 209px; text: @tr("models.custom-header.add" => "+ Custom header"); color: AppColors.brand; font-size: 10px; font-weight: 600; }
         if root.advanced-visible: Rectangle {
             x: 18px; y: 228px; width: parent.width - 36px; height: 36px; border-radius: 8px; background: AppColors.sidebar;
             if root.active-tab == 0 && root.asr-provider == AsrProvider.custom && root.custom-asr-base-url.is-empty: Text { x: 15px; width: parent.width - 30px; text: "https://api.example.com/v1"; color: AppColors.text-muted; font-size: 11px; vertical-alignment: center; }
@@ -410,7 +417,7 @@ export component ModelsPage inherits Rectangle {
         x: 120px; y: root.action-y; label: root.asr-testing ? @tr("models.test.testing" => "Testing…") : root.asr-config-error && root.active-tab == 0 ? @tr("models.test.retry" => "Test again") : @tr("models.test.action" => "Test connection"); primary: root.asr-config-error && root.active-tab == 0; enabled: !root.active-api-key.is-empty && !root.asr-testing;
         activated => { if root.active-tab == 0 { root.request-asr-test(); } else { root.request-llm-enable(); } }
     }
-    Text { x: parent.width - 270px; y: root.action-y + 13px; width: 269px; text: root.api-key-visible ? @tr("models.api-key.auto-hide" => "Hides automatically in 5 seconds") : root.asr-testing ? @tr("models.test.testing-connection" => "Testing connection") : root.asr-config-error && root.active-tab == 0 ? root.asr-config-status : root.asr-pending-test && root.active-tab == 0 ? @tr("models.saved-awaiting-test" => "Saved, awaiting connection test") : root.service-status; color: root.asr-config-error && root.active-tab == 0 ? AppColors.danger : root.service-healthy ? AppColors.success : AppColors.text-muted; font-size: 10px; font-weight: 650; horizontal-alignment: right; overflow: elide; }
+    Text { x: parent.width - 270px; y: root.action-y + 13px; width: 269px; text: root.api-key-visible ? @tr("models.api-key.auto-hide" => "Hides automatically in 5 seconds") : root.asr-testing ? @tr("models.test.testing-connection" => "Testing connection") : root.asr-config-error && root.active-tab == 0 ? root.asr-config-status : root.asr-pending-test && root.active-tab == 0 ? @tr("models.saved-awaiting-test" => "Configuration saved, awaiting connection test") : root.service-status; color: root.asr-config-error && root.active-tab == 0 ? AppColors.danger : root.service-healthy ? AppColors.success : AppColors.text-muted; font-size: 10px; font-weight: 650; horizontal-alignment: right; overflow: elide; }
 
     if root.service-menu-open || root.model-menu-open: Rectangle {
         x: 0px;

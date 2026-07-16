@@ -34,10 +34,10 @@ export component RecordingOverlay inherits Window {
 
             Rectangle {
                 x: 3px;
-                y: 3px;
-                width: 29px;
-                height: 29px;
-                border-radius: 14.5px;
+                y: 3.5px;
+                width: 28px;
+                height: 28px;
+                border-radius: 14px;
                 background: cancel-area.pressed ? #5a5956 : cancel-area.has-hover ? #4a4946 : #353537;
                 accessible-role: button;
                 accessible-label: @tr("recording.cancel.accessible-label" => "Cancel recording");
@@ -60,11 +60,11 @@ export component RecordingOverlay inherits Window {
             }
 
             Rectangle {
-                x: 88px;
-                y: 3px;
-                width: 29px;
-                height: 29px;
-                border-radius: 14.5px;
+                x: 89px;
+                y: 3.5px;
+                width: 28px;
+                height: 28px;
+                border-radius: 14px;
                 background: finish-area.pressed ? #deddd8 : finish-area.has-hover ? #ffffff : #faf9f5;
                 accessible-role: button;
                 accessible-label: @tr("recording.finish.accessible-label" => "Finish recording");

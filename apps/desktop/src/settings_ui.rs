@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{process::Command, sync::Arc};
 
 use slint::{ComponentHandle, SharedString};
 use template_app::{
@@ -30,6 +30,9 @@ const VOLCENGINE_ASR_1_MODEL: &str = "volc.bigasr.sauc.duration";
 const VOLCENGINE_ASR_2_MODEL: &str = "volc.seedasr.sauc.duration";
 const VOLCENGINE_LEGACY_MODEL: &str = "bigmodel_async";
 const VOLCENGINE_MODELS: [&str; 2] = [VOLCENGINE_ASR_2_MODEL, VOLCENGINE_ASR_1_MODEL];
+const VOLCENGINE_KEY_PAGE: &str = "https://console.volcengine.com/ark/region:ark+cn-beijing/apiKey";
+const SENSENOVA_KEY_PAGE: &str = "https://platform.sensenova.cn/console/keys";
+const DEEPSEEK_KEY_PAGE: &str = "https://platform.deepseek.com/api_keys";
 #[cfg(test)]
 const CHAT_COMPLETIONS_TYPE: &str = "openai_compatible";
 
@@ -59,6 +62,38 @@ pub fn wire(ui: &AppWindow, store: Arc<JsonSettingsStore>) {
     model_discovery::wire(ui);
     wire_asr(ui, Arc::clone(&store));
     wire_llm(ui, store);
+    wire_provider_key_page(ui);
+}
+
+fn wire_provider_key_page(ui: &AppWindow) {
+    let weak_ui = ui.as_weak();
+    ui.on_open_current_provider_key_page(move || {
+        let Some(ui) = weak_ui.upgrade() else {
+            return;
+        };
+        let url = provider_key_page_url(ui.get_model_tab(), ui.get_llm_provider());
+        if Command::new("/usr/bin/open").arg(url).spawn().is_err() {
+            let message = ui
+                .global::<Translations>()
+                .get_models_open_key_page_failed();
+            if ui.get_model_tab() == 0 {
+                ui.set_asr_config_status(message);
+            } else {
+                ui.set_llm_config_status(message);
+            }
+        }
+    });
+}
+
+fn provider_key_page_url(model_tab: i32, llm_provider: UiLlmProvider) -> &'static str {
+    if model_tab == 0 {
+        VOLCENGINE_KEY_PAGE
+    } else {
+        match llm_provider {
+            UiLlmProvider::Sensenova => SENSENOVA_KEY_PAGE,
+            UiLlmProvider::Deepseek => DEEPSEEK_KEY_PAGE,
+        }
+    }
 }
 
 fn wire_asr(ui: &AppWindow, store: Arc<JsonSettingsStore>) {
@@ -682,6 +717,22 @@ mod tests {
         assert_eq!("deepseek-v4-flash", settings.model);
         assert_eq!("deepseek-key", settings.api_key);
         assert!(settings.custom_headers.is_empty());
+    }
+
+    #[test]
+    fn routes_key_page_actions_to_the_selected_provider() {
+        assert_eq!(
+            VOLCENGINE_KEY_PAGE,
+            provider_key_page_url(0, UiLlmProvider::Sensenova)
+        );
+        assert_eq!(
+            SENSENOVA_KEY_PAGE,
+            provider_key_page_url(1, UiLlmProvider::Sensenova)
+        );
+        assert_eq!(
+            DEEPSEEK_KEY_PAGE,
+            provider_key_page_url(1, UiLlmProvider::Deepseek)
+        );
     }
 
     #[test]
