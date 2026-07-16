@@ -1,19 +1,24 @@
 use std::sync::{Arc, Mutex};
 
 use slint::{ComponentHandle, ModelRc, SharedString, VecModel};
-use template_app::{DictionaryEntry, DictionaryOrigin, DictionaryStore, NewDictionaryEntry};
+use template_app::{
+    CandidateAssessmentSource, DictionaryCandidateEvidence, DictionaryCandidateKind,
+    DictionaryCandidateState, DictionaryEntry, DictionaryLearningStore, DictionaryOrigin,
+    DictionaryStore, NewDictionaryEntry,
+};
 use template_infra::SqliteStorage;
 
 use crate::{
     local_data_ui::{now_ms, spawn_named},
     ui::{
-        AppWindow, DictionaryDraft, DictionaryFilterKind, DictionaryListItem, DictionaryOriginKind,
-        DictionaryRow, Translations,
+        AppWindow, DictionaryDraft, DictionaryEvidenceItem, DictionaryFilterKind,
+        DictionaryListItem, DictionaryOriginKind, DictionaryRow, Translations,
     },
 };
 
 pub(super) struct DictionaryUiState {
     entries: Vec<DictionaryEntry>,
+    evidence: Vec<DictionaryCandidateEvidence>,
     filter: DictionaryFilterKind,
     query: String,
     drafts: Vec<Draft>,
@@ -24,6 +29,7 @@ impl Default for DictionaryUiState {
     fn default() -> Self {
         Self {
             entries: Vec::new(),
+            evidence: Vec::new(),
             filter: DictionaryFilterKind::All,
             query: String::new(),
             drafts: Vec::new(),
@@ -47,6 +53,9 @@ pub(super) fn load_initial(
         Ok(entries) => {
             if let Ok(mut state) = state.lock() {
                 state.entries = entries;
+                state.evidence = storage
+                    .list_dictionary_candidate_evidence()
+                    .unwrap_or_default();
                 apply_state(ui, &state);
             }
         }
@@ -82,6 +91,7 @@ fn wire_refresh(ui: &AppWindow, storage: Arc<SqliteStorage>, state: Arc<Mutex<Di
         let state = Arc::clone(&state);
         spawn_named("saymore-refresh-dictionary", move || {
             let result = storage.list_dictionary();
+            let evidence = storage.list_dictionary_candidate_evidence();
             let _ = weak_ui.upgrade_in_event_loop(move |ui| {
                 ui.set_dictionary_loading(false);
                 match result {
@@ -89,6 +99,9 @@ fn wire_refresh(ui: &AppWindow, storage: Arc<SqliteStorage>, state: Arc<Mutex<Di
                         ui.set_dictionary_load_failed(false);
                         if let Ok(mut state) = state.lock() {
                             state.entries = entries;
+                            if let Ok(evidence) = evidence {
+                                state.evidence = evidence;
+                            }
                             apply_state(&ui, &state);
                         }
                     }
@@ -363,8 +376,42 @@ fn apply_state(ui: &AppWindow, state: &DictionaryUiState) {
     ui.set_dictionary_items(ModelRc::new(VecModel::from(items)));
     ui.set_dictionary_rows(ModelRc::new(VecModel::from(rows)));
     ui.set_dictionary_total_count(state.entries.len() as i32);
+    ui.set_dictionary_evidence_items(ModelRc::new(VecModel::from(
+        state
+            .evidence
+            .iter()
+            .map(to_evidence_item)
+            .collect::<Vec<_>>(),
+    )));
     ui.set_dictionary_filter(state.filter);
     apply_drafts(ui, state);
+}
+
+fn to_evidence_item(evidence: &DictionaryCandidateEvidence) -> DictionaryEvidenceItem {
+    let kind = match evidence.assessment.kind {
+        DictionaryCandidateKind::NamedTerm => "named term",
+        DictionaryCandidateKind::Acronym => "acronym",
+        DictionaryCandidateKind::CodeIdentifier => "code identifier",
+        DictionaryCandidateKind::ProfessionalPhrase => "professional phrase",
+        DictionaryCandidateKind::OrdinaryFragment => "ordinary fragment",
+        DictionaryCandidateKind::Unknown => "unknown",
+    };
+    let source = match evidence.assessment.source {
+        CandidateAssessmentSource::Local => "local",
+        CandidateAssessmentSource::Llm => "LLM",
+    };
+    let state = match evidence.state {
+        DictionaryCandidateState::Pending => "pending",
+        DictionaryCandidateState::Promoted => "promoted",
+    };
+    DictionaryEvidenceItem {
+        canonical: evidence.canonical.as_str().into(),
+        detail: format!(
+            "{kind} · {source} · {}% · {} edits / {} dictations · {state}",
+            evidence.assessment.confidence, evidence.occurrence_count, evidence.dictation_count
+        )
+        .into(),
+    }
 }
 
 fn apply_drafts(ui: &AppWindow, state: &DictionaryUiState) {

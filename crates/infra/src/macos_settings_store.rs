@@ -23,7 +23,8 @@ const CONFIG_VERSION: u32 = 3;
 const VOLCENGINE_TYPE: &str = "volcengine";
 const OPENAI_TRANSCRIPTIONS_TYPE: &str = "openai_transcriptions";
 const CHAT_COMPLETIONS_TYPE: &str = "openai_compatible";
-const LLM_DATA_SCOPE: &str = "transcript+confirmed_dictionary_terms+refinement_parameters:v1";
+const LLM_DATA_SCOPE: &str =
+    "transcript+confirmed_dictionary_terms+local_correction_fragment+refinement_parameters:v2";
 
 pub struct JsonSettingsStore {
     path: PathBuf,

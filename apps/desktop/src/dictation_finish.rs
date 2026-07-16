@@ -162,6 +162,7 @@ fn finish_recording_worker(
                 processed,
                 history: history.record,
                 storage: processing.storage,
+                refinement: processing.refinement,
                 feedback_sounds_enabled: processing.feedback_sounds_enabled.load(Ordering::Acquire),
             });
         }

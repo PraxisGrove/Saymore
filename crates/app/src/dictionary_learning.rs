@@ -1,9 +1,52 @@
-use crate::StorageError;
+use crate::{LlmProvider, LlmProviderError, LlmRefinementRequest, StorageError};
 
 const MAX_CORRECTION_CHARS: usize = 64;
 const MAX_CJK_CORRECTION_CHARS: usize = 8;
 const MAX_CORRECTION_WORDS: usize = 3;
 const MAX_WHOLE_REPLACEMENT_CHARS: usize = 32;
+
+pub const DICTIONARY_CANDIDATE_INSTRUCTIONS: &str = r#"You classify whether a user's local text correction should become a personal voice-input dictionary entry. Prefer names, brands, products, projects, acronyms, technical or professional terms, and code identifiers in any language. Reject ordinary sentence fragments, actions, grammar edits, punctuation edits, and generic prose. Return only one JSON object with: decision (accept, reject, or uncertain), type (named_term, acronym, code_identifier, professional_phrase, ordinary_fragment, or unknown), and confidence (a number from 0 to 1)."#;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CandidateDecision {
+    Accept,
+    Reject,
+    Uncertain,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DictionaryCandidateKind {
+    NamedTerm,
+    Acronym,
+    CodeIdentifier,
+    ProfessionalPhrase,
+    OrdinaryFragment,
+    Unknown,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CandidateAssessmentSource {
+    Local,
+    Llm,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DictionaryCandidateAssessment {
+    pub decision: CandidateDecision,
+    pub kind: DictionaryCandidateKind,
+    pub confidence: u8,
+    pub source: CandidateAssessmentSource,
+}
+
+impl DictionaryCandidateAssessment {
+    pub fn required_evidence(self) -> Option<(u32, u32)> {
+        match self.decision {
+            CandidateDecision::Accept => Some((3, 2)),
+            CandidateDecision::Uncertain => Some((5, 3)),
+            CandidateDecision::Reject => None,
+        }
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DictionaryCorrection {
@@ -15,7 +58,181 @@ pub struct NewDictionaryObservation {
     pub dictation_id: String,
     pub language: String,
     pub correction: DictionaryCorrection,
+    pub assessment: DictionaryCandidateAssessment,
     pub observed_at_ms: i64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DictionaryCandidateState {
+    Pending,
+    Promoted,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DictionaryCandidateEvidence {
+    pub canonical: String,
+    pub language: String,
+    pub assessment: DictionaryCandidateAssessment,
+    pub occurrence_count: u32,
+    pub dictation_count: u32,
+    pub state: DictionaryCandidateState,
+    pub last_observed_at_ms: i64,
+}
+
+pub fn assess_dictionary_candidate(canonical: &str) -> DictionaryCandidateAssessment {
+    let canonical = canonical.trim();
+    let chars = canonical.chars().collect::<Vec<_>>();
+    let ascii_token = !canonical.is_empty()
+        && canonical.is_ascii()
+        && canonical
+            .chars()
+            .all(|character| character.is_ascii_alphanumeric());
+    let all_upper = ascii_token
+        && chars
+            .iter()
+            .any(|character| character.is_ascii_alphabetic())
+        && chars
+            .iter()
+            .filter(|character| character.is_ascii_alphabetic())
+            .all(|character| character.is_ascii_uppercase());
+    let code_identifier = ascii_token
+        && chars
+            .first()
+            .is_some_and(|character| character.is_ascii_lowercase())
+        && chars
+            .iter()
+            .skip(1)
+            .any(|character| character.is_ascii_uppercase());
+    let named_term = ascii_token
+        && chars
+            .first()
+            .is_some_and(|character| character.is_ascii_uppercase())
+        && chars
+            .iter()
+            .skip(1)
+            .any(|character| character.is_ascii_lowercase());
+    let (decision, kind, confidence) = if all_upper && chars.len() >= 2 {
+        (
+            CandidateDecision::Accept,
+            DictionaryCandidateKind::Acronym,
+            90,
+        )
+    } else if code_identifier {
+        (
+            CandidateDecision::Accept,
+            DictionaryCandidateKind::CodeIdentifier,
+            94,
+        )
+    } else if named_term {
+        (
+            CandidateDecision::Accept,
+            DictionaryCandidateKind::NamedTerm,
+            86,
+        )
+    } else if canonical.chars().any(is_cjk) && looks_like_ordinary_fragment(canonical) {
+        (
+            CandidateDecision::Reject,
+            DictionaryCandidateKind::OrdinaryFragment,
+            92,
+        )
+    } else if canonical.chars().any(is_cjk) {
+        (
+            CandidateDecision::Uncertain,
+            DictionaryCandidateKind::ProfessionalPhrase,
+            62,
+        )
+    } else {
+        (
+            CandidateDecision::Uncertain,
+            DictionaryCandidateKind::Unknown,
+            45,
+        )
+    };
+    DictionaryCandidateAssessment {
+        decision,
+        kind,
+        confidence,
+        source: CandidateAssessmentSource::Local,
+    }
+}
+
+pub async fn review_dictionary_candidate(
+    provider: &dyn LlmProvider,
+    canonical: &str,
+    original_fragment: &str,
+    edited_fragment: &str,
+    language: &str,
+) -> Result<DictionaryCandidateAssessment, LlmProviderError> {
+    let transcript = serde_json::json!({
+        "candidate": canonical,
+        "before": original_fragment,
+        "after": edited_fragment,
+    })
+    .to_string();
+    let response = provider
+        .refine(LlmRefinementRequest {
+            instructions: DICTIONARY_CANDIDATE_INSTRUCTIONS.to_owned(),
+            transcript,
+            language: Some(language.to_owned()),
+            relevant_terms: Vec::new(),
+        })
+        .await?;
+    parse_dictionary_candidate_review(&response)
+        .map_err(|reason| LlmProviderError::Protocol(reason.to_owned()))
+}
+
+pub fn parse_dictionary_candidate_review(
+    response: &str,
+) -> Result<DictionaryCandidateAssessment, &'static str> {
+    let trimmed = response.trim();
+    let json = trimmed
+        .strip_prefix("```json")
+        .or_else(|| trimmed.strip_prefix("```"))
+        .unwrap_or(trimmed)
+        .strip_suffix("```")
+        .unwrap_or(trimmed)
+        .trim();
+    let value: serde_json::Value =
+        serde_json::from_str(json).map_err(|_| "dictionary review is invalid JSON")?;
+    let decision = match value.get("decision").and_then(serde_json::Value::as_str) {
+        Some("accept") => CandidateDecision::Accept,
+        Some("reject") => CandidateDecision::Reject,
+        Some("uncertain") => CandidateDecision::Uncertain,
+        _ => return Err("dictionary review has an invalid decision"),
+    };
+    let kind = match value.get("type").and_then(serde_json::Value::as_str) {
+        Some("named_term") => DictionaryCandidateKind::NamedTerm,
+        Some("acronym") => DictionaryCandidateKind::Acronym,
+        Some("code_identifier") => DictionaryCandidateKind::CodeIdentifier,
+        Some("professional_phrase") => DictionaryCandidateKind::ProfessionalPhrase,
+        Some("ordinary_fragment") => DictionaryCandidateKind::OrdinaryFragment,
+        Some("unknown") => DictionaryCandidateKind::Unknown,
+        _ => return Err("dictionary review has an invalid type"),
+    };
+    let confidence = value
+        .get("confidence")
+        .and_then(serde_json::Value::as_f64)
+        .filter(|confidence| (0.0..=1.0).contains(confidence))
+        .ok_or("dictionary review has an invalid confidence")?;
+    Ok(DictionaryCandidateAssessment {
+        decision,
+        kind,
+        confidence: (confidence * 100.0).round() as u8,
+        source: CandidateAssessmentSource::Llm,
+    })
+}
+
+fn looks_like_ordinary_fragment(value: &str) -> bool {
+    const ORDINARY_PREFIXES: [&str; 11] = [
+        "要求", "需要", "进行", "修改", "然后", "帮我", "可以", "应该", "新增", "删除", "添加",
+    ];
+    const ORDINARY_MARKERS: [&str; 13] = [
+        "我", "你", "他", "这", "那", "很", "了", "的", "吗", "吧", "呢", "请", "帮",
+    ];
+    ORDINARY_PREFIXES
+        .iter()
+        .any(|prefix| value.starts_with(prefix))
+        || ORDINARY_MARKERS.iter().any(|marker| value.contains(marker))
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -25,6 +242,7 @@ pub enum DictionaryLearningOutcome {
         dictation_count: u32,
     },
     Added(crate::DictionaryEntry),
+    Rejected,
     Suppressed,
 }
 
@@ -37,6 +255,10 @@ pub trait DictionaryLearningStore: Send + Sync {
         &self,
         observation: NewDictionaryObservation,
     ) -> Result<DictionaryLearningOutcome, StorageError>;
+
+    fn list_dictionary_candidate_evidence(
+        &self,
+    ) -> Result<Vec<DictionaryCandidateEvidence>, StorageError>;
 }
 
 pub fn correction_from_edit(original: &str, edited: &str) -> Option<DictionaryCorrection> {
@@ -116,6 +338,86 @@ fn is_cjk(character: char) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn classifies_personal_terms_without_an_llm() {
+        let cases = [
+            (
+                "Vercel",
+                DictionaryCandidateKind::NamedTerm,
+                CandidateDecision::Accept,
+            ),
+            (
+                "Versa",
+                DictionaryCandidateKind::NamedTerm,
+                CandidateDecision::Accept,
+            ),
+            (
+                "POI",
+                DictionaryCandidateKind::Acronym,
+                CandidateDecision::Accept,
+            ),
+            (
+                "immersiveLayoutHeight",
+                DictionaryCandidateKind::CodeIdentifier,
+                CandidateDecision::Accept,
+            ),
+            (
+                "逆地理编码",
+                DictionaryCandidateKind::ProfessionalPhrase,
+                CandidateDecision::Uncertain,
+            ),
+            (
+                "地理编码",
+                DictionaryCandidateKind::ProfessionalPhrase,
+                CandidateDecision::Uncertain,
+            ),
+            (
+                "路径渲染",
+                DictionaryCandidateKind::ProfessionalPhrase,
+                CandidateDecision::Uncertain,
+            ),
+        ];
+
+        for (canonical, kind, decision) in cases {
+            let assessment = assess_dictionary_candidate(canonical);
+            assert_eq!((kind, decision), (assessment.kind, assessment.decision));
+        }
+    }
+
+    #[test]
+    fn rejects_an_ordinary_sentence_fragment() {
+        for fragment in ["要求后续变更", "今天天气很好", "我觉得可以", "这个需要修改"]
+        {
+            assert_eq!(
+                CandidateDecision::Reject,
+                assess_dictionary_candidate(fragment).decision,
+                "{fragment} should not become a dictionary candidate"
+            );
+        }
+    }
+
+    #[test]
+    fn parses_structured_llm_candidate_reviews() {
+        assert_eq!(
+            Ok(DictionaryCandidateAssessment {
+                decision: CandidateDecision::Accept,
+                kind: DictionaryCandidateKind::ProfessionalPhrase,
+                confidence: 93,
+                source: CandidateAssessmentSource::Llm,
+            }),
+            parse_dictionary_candidate_review(
+                r#"{"decision":"accept","type":"professional_phrase","confidence":0.93}"#
+            )
+        );
+        assert!(parse_dictionary_candidate_review("not json").is_err());
+        assert!(
+            parse_dictionary_candidate_review(
+                r#"{"decision":"accept","type":"professional_phrase","confidence":2}"#
+            )
+            .is_err()
+        );
+    }
 
     #[test]
     fn extracts_one_local_word_replacement() {

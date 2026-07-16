@@ -753,6 +753,7 @@ fn undo_cancelled_recording(
                         processed,
                         history: history.record,
                         storage: processing.storage,
+                        refinement: processing.refinement,
                         feedback_sounds_enabled: feedback_sounds_enabled.load(Ordering::Acquire),
                     });
                 }

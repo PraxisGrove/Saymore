@@ -2,7 +2,7 @@ import { AppSidebar } from "sidebar.slint";
 import { HomePage } from "pages/home.slint";
 import { ModelConsentDialog, ModelsPage } from "pages/models.slint";
 import { HistoryDialog, HistoryGroup, HistoryPage, HistoryRetentionOption } from "pages/history.slint";
-import { DictionaryAddDialog, DictionaryDraft, DictionaryFilterKind, DictionaryListItem, DictionaryPage, DictionaryRow } from "pages/dictionary.slint";
+import { DictionaryAddDialog, DictionaryDraft, DictionaryEvidenceItem, DictionaryFilterKind, DictionaryListItem, DictionaryPage, DictionaryRow } from "pages/dictionary.slint";
 import { AudioInputDevice, SettingsPage } from "pages/settings.slint";
 import { AppPage, AsrProvider, LlmProvider, SettingsSection, UiLanguage } from "components.slint";
 import { AppColors } from "color-system.slint";
@@ -126,6 +126,7 @@ export component AppWindow inherits Window {
     in property <[DictionaryListItem]> dictionary-items;
     in property <[DictionaryRow]> dictionary-rows;
     in property <[DictionaryDraft]> dictionary-drafts;
+    in property <[DictionaryEvidenceItem]> dictionary-evidence-items;
     in property <string> dictionary-status: "";
     in property <int> dictionary-total-count: 0;
     in property <int> dictionary-draft-nonempty-count: 0;
@@ -328,6 +329,8 @@ export component AppWindow inherits Window {
                 status-text: root.dictionary-status;
                 loading: root.dictionary-loading;
                 load-failed: root.dictionary-load-failed;
+                development-environment: root.development-environment;
+                evidence-items: root.dictionary-evidence-items;
                 refresh => { root.refresh-dictionary(); }
                 filter-selected(filter) => { root.filter-dictionary(filter); }
                 search(query) => { root.search-dictionary(query); }

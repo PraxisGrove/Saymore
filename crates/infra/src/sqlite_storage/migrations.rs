@@ -3,7 +3,7 @@ use template_app::{StorageError, dictionary_comparison_key};
 
 use super::unavailable;
 
-const CURRENT_SCHEMA_VERSION: u32 = 9;
+const CURRENT_SCHEMA_VERSION: u32 = 14;
 
 pub(super) fn apply(connection: &mut Connection) -> Result<(), StorageError> {
     let version: u32 = connection
@@ -39,7 +39,34 @@ pub(super) fn apply(connection: &mut Connection) -> Result<(), StorageError> {
     if version < 9 {
         add_runtime_preference_settings(connection)?;
     }
+    if version < 14 {
+        add_dictionary_candidate_evidence(connection)?;
+    }
     Ok(())
+}
+
+fn add_dictionary_candidate_evidence(connection: &mut Connection) -> Result<(), StorageError> {
+    let transaction = connection.transaction().map_err(unavailable)?;
+    transaction
+        .execute_batch(
+            "CREATE TABLE IF NOT EXISTS dictionary_candidate_evidence (
+                language TEXT NOT NULL,
+                canonical_key TEXT NOT NULL,
+                canonical TEXT NOT NULL,
+                decision TEXT NOT NULL,
+                candidate_kind TEXT NOT NULL,
+                confidence INTEGER NOT NULL CHECK (confidence BETWEEN 0 AND 100),
+                assessment_source TEXT NOT NULL,
+                occurrence_count INTEGER NOT NULL,
+                dictation_count INTEGER NOT NULL,
+                state TEXT NOT NULL CHECK (state IN ('pending', 'promoted')),
+                last_observed_at_ms INTEGER NOT NULL,
+                PRIMARY KEY(language, canonical_key)
+             );
+             PRAGMA user_version = 14;",
+        )
+        .map_err(unavailable)?;
+    transaction.commit().map_err(unavailable)
 }
 
 fn add_runtime_preference_settings(connection: &mut Connection) -> Result<(), StorageError> {

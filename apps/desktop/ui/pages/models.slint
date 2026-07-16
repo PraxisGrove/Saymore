@@ -185,13 +185,13 @@ export component ModelConsentDialog inherits Rectangle {
             Image { x: 5px; y: 5px; width: 18px; height: 18px; source: @image-url("../../icons/lucide/x.svg"); colorize: AppColors.text-muted; }
             TouchArea { mouse-cursor: pointer; clicked => { root.cancelled(); } }
         }
-        Text { x: 30px; y: 97px; text: @tr("models.polishing.consent.sent-content" => "Saymore sends the current transcript to the selected service for polishing."); color: AppColors.text; font-size: 12px; }
+        Text { x: 30px; y: 97px; width: parent.width - 60px; text: @tr("models.polishing.consent.sent-content" => "Saymore sends the current transcript for polishing and may send a short local correction fragment to judge dictionary candidates."); color: AppColors.text; font-size: 12px; wrap: word-wrap; }
         Rectangle {
             x: 30px; y: 130px; width: 480px; height: 64px; border-radius: 8px; background: AppColors.sidebar;
             Text { x: 16px; y: 10px; text: @tr("models.polishing.consent.destination" => "Data destination"); color: AppColors.text-muted; font-size: 9px; font-weight: 600; }
             Text { x: 16px; y: 31px; text: root.target; color: AppColors.ink; font-size: 11px; font-weight: 600; }
         }
-        Text { x: 30px; y: 212px; text: @tr("models.polishing.consent.dictionary-excluded" => "Only this transcript is sent. Personal dictionary entries are not included."); color: AppColors.text-muted; font-size: 10px; }
+        Text { x: 30px; y: 212px; width: parent.width - 60px; text: @tr("models.polishing.consent.dictionary-excluded" => "Confirmed dictionary entries and complete input fields are not sent."); color: AppColors.text-muted; font-size: 10px; }
         Rectangle {
             x: 30px; y: 244px; width: 18px; height: 18px; border-radius: 4px; border-width: 1px; border-color: AppColors.chart-neutral; background: root.consent-checked ? AppColors.brand : AppColors.surface;
             if root.consent-checked: Image { x: 2px; y: 2px; width: 14px; height: 14px; source: @image-url("../../icons/lucide/check.svg"); colorize: #ffffff; }

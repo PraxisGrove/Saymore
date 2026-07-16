@@ -1,5 +1,7 @@
 use rusqlite::{OptionalExtension, params};
 use template_app::{
+    CandidateAssessmentSource, CandidateDecision, DictionaryCandidateAssessment,
+    DictionaryCandidateEvidence, DictionaryCandidateKind, DictionaryCandidateState,
     DictionaryLearningOutcome, DictionaryOrigin, NewDictionaryEntry, NewDictionaryObservation,
     StorageError, dictionary_comparison_key, normalize_language_tag,
 };
@@ -7,14 +9,17 @@ use template_app::{
 use super::{dictionary, unavailable};
 
 const OBSERVATION_WINDOW_MS: i64 = 30 * 24 * 60 * 60 * 1_000;
-const REQUIRED_OCCURRENCES: u32 = 3;
-const REQUIRED_DICTATIONS: u32 = 2;
 
 pub(super) fn record(
     connection: &mut rusqlite::Connection,
     observation: NewDictionaryObservation,
 ) -> Result<DictionaryLearningOutcome, StorageError> {
     let normalized = NormalizedObservation::new(observation)?;
+    let Some((required_occurrences, required_dictations)) =
+        normalized.assessment.required_evidence()
+    else {
+        return Ok(DictionaryLearningOutcome::Rejected);
+    };
     let transaction = connection.transaction().map_err(unavailable)?;
     if is_suppressed(&transaction, &normalized)? {
         return Ok(DictionaryLearningOutcome::Suppressed);
@@ -65,7 +70,14 @@ pub(super) fn record(
             ],
         )
         .map_err(unavailable)?;
-    if occurrence_count < REQUIRED_OCCURRENCES || dictation_count < REQUIRED_DICTATIONS {
+    upsert_evidence(
+        &transaction,
+        &normalized,
+        occurrence_count,
+        dictation_count,
+        DictionaryCandidateState::Pending,
+    )?;
+    if occurrence_count < required_occurrences || dictation_count < required_dictations {
         transaction.commit().map_err(unavailable)?;
         return Ok(DictionaryLearningOutcome::Pending {
             occurrence_count,
@@ -88,6 +100,13 @@ pub(super) fn record(
             params![normalized.language, normalized.canonical_key],
         )
         .map_err(unavailable)?;
+    upsert_evidence(
+        &transaction,
+        &normalized,
+        occurrence_count,
+        dictation_count,
+        DictionaryCandidateState::Promoted,
+    )?;
     transaction
         .execute(
             "DELETE FROM dictionary_candidates
@@ -101,6 +120,107 @@ pub(super) fn record(
         .ok_or_else(|| {
             StorageError::Invalid("automatic dictionary entry was not created".to_owned())
         })
+}
+
+pub(super) fn list_evidence(
+    connection: &rusqlite::Connection,
+) -> Result<Vec<DictionaryCandidateEvidence>, StorageError> {
+    let mut statement = connection
+        .prepare(
+            "SELECT canonical, language, decision, candidate_kind, confidence,
+                    assessment_source, occurrence_count, dictation_count, state,
+                    last_observed_at_ms
+             FROM dictionary_candidate_evidence
+             ORDER BY last_observed_at_ms DESC, canonical_key ASC",
+        )
+        .map_err(unavailable)?;
+    let rows = statement
+        .query_map([], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, String>(2)?,
+                row.get::<_, String>(3)?,
+                row.get::<_, u8>(4)?,
+                row.get::<_, String>(5)?,
+                row.get::<_, u32>(6)?,
+                row.get::<_, u32>(7)?,
+                row.get::<_, String>(8)?,
+                row.get::<_, i64>(9)?,
+            ))
+        })
+        .map_err(unavailable)?;
+    rows.map(|row| {
+        let (
+            canonical,
+            language,
+            decision,
+            kind,
+            confidence,
+            source,
+            occurrences,
+            dictations,
+            state,
+            last,
+        ) = row.map_err(unavailable)?;
+        Ok(DictionaryCandidateEvidence {
+            canonical,
+            language,
+            assessment: DictionaryCandidateAssessment {
+                decision: parse_decision(&decision)?,
+                kind: parse_kind(&kind)?,
+                confidence,
+                source: parse_source(&source)?,
+            },
+            occurrence_count: occurrences,
+            dictation_count: dictations,
+            state: parse_state(&state)?,
+            last_observed_at_ms: last,
+        })
+    })
+    .collect()
+}
+
+fn upsert_evidence(
+    transaction: &rusqlite::Transaction<'_>,
+    observation: &NormalizedObservation,
+    occurrence_count: u32,
+    dictation_count: u32,
+    state: DictionaryCandidateState,
+) -> Result<(), StorageError> {
+    transaction
+        .execute(
+            "INSERT INTO dictionary_candidate_evidence(
+                language, canonical_key, canonical, decision, candidate_kind,
+                confidence, assessment_source, occurrence_count, dictation_count,
+                state, last_observed_at_ms
+             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)
+             ON CONFLICT(language, canonical_key) DO UPDATE SET
+                canonical = excluded.canonical,
+                decision = excluded.decision,
+                candidate_kind = excluded.candidate_kind,
+                confidence = excluded.confidence,
+                assessment_source = excluded.assessment_source,
+                occurrence_count = excluded.occurrence_count,
+                dictation_count = excluded.dictation_count,
+                state = excluded.state,
+                last_observed_at_ms = excluded.last_observed_at_ms",
+            params![
+                observation.language,
+                observation.canonical_key,
+                observation.canonical,
+                decision_name(observation.assessment.decision),
+                kind_name(observation.assessment.kind),
+                observation.assessment.confidence,
+                source_name(observation.assessment.source),
+                occurrence_count,
+                dictation_count,
+                state_name(state),
+                observation.observed_at_ms,
+            ],
+        )
+        .map(|_| ())
+        .map_err(unavailable)
 }
 
 fn aggregate(
@@ -140,6 +260,7 @@ struct NormalizedObservation {
     canonical: String,
     canonical_key: String,
     observed_at_ms: i64,
+    assessment: DictionaryCandidateAssessment,
 }
 
 impl NormalizedObservation {
@@ -157,6 +278,81 @@ impl NormalizedObservation {
             canonical_key: dictionary_comparison_key(&canonical),
             canonical,
             observed_at_ms: observation.observed_at_ms,
+            assessment: observation.assessment,
         })
+    }
+}
+
+fn decision_name(value: CandidateDecision) -> &'static str {
+    match value {
+        CandidateDecision::Accept => "accept",
+        CandidateDecision::Reject => "reject",
+        CandidateDecision::Uncertain => "uncertain",
+    }
+}
+
+fn kind_name(value: DictionaryCandidateKind) -> &'static str {
+    match value {
+        DictionaryCandidateKind::NamedTerm => "named_term",
+        DictionaryCandidateKind::Acronym => "acronym",
+        DictionaryCandidateKind::CodeIdentifier => "code_identifier",
+        DictionaryCandidateKind::ProfessionalPhrase => "professional_phrase",
+        DictionaryCandidateKind::OrdinaryFragment => "ordinary_fragment",
+        DictionaryCandidateKind::Unknown => "unknown",
+    }
+}
+
+fn source_name(value: CandidateAssessmentSource) -> &'static str {
+    match value {
+        CandidateAssessmentSource::Local => "local",
+        CandidateAssessmentSource::Llm => "llm",
+    }
+}
+
+fn state_name(value: DictionaryCandidateState) -> &'static str {
+    match value {
+        DictionaryCandidateState::Pending => "pending",
+        DictionaryCandidateState::Promoted => "promoted",
+    }
+}
+
+fn invalid_evidence(field: &str) -> StorageError {
+    StorageError::Invalid(format!("invalid dictionary candidate evidence {field}"))
+}
+
+fn parse_decision(value: &str) -> Result<CandidateDecision, StorageError> {
+    match value {
+        "accept" => Ok(CandidateDecision::Accept),
+        "reject" => Ok(CandidateDecision::Reject),
+        "uncertain" => Ok(CandidateDecision::Uncertain),
+        _ => Err(invalid_evidence("decision")),
+    }
+}
+
+fn parse_kind(value: &str) -> Result<DictionaryCandidateKind, StorageError> {
+    match value {
+        "named_term" => Ok(DictionaryCandidateKind::NamedTerm),
+        "acronym" => Ok(DictionaryCandidateKind::Acronym),
+        "code_identifier" => Ok(DictionaryCandidateKind::CodeIdentifier),
+        "professional_phrase" => Ok(DictionaryCandidateKind::ProfessionalPhrase),
+        "ordinary_fragment" => Ok(DictionaryCandidateKind::OrdinaryFragment),
+        "unknown" => Ok(DictionaryCandidateKind::Unknown),
+        _ => Err(invalid_evidence("kind")),
+    }
+}
+
+fn parse_source(value: &str) -> Result<CandidateAssessmentSource, StorageError> {
+    match value {
+        "local" => Ok(CandidateAssessmentSource::Local),
+        "llm" => Ok(CandidateAssessmentSource::Llm),
+        _ => Err(invalid_evidence("source")),
+    }
+}
+
+fn parse_state(value: &str) -> Result<DictionaryCandidateState, StorageError> {
+    match value {
+        "pending" => Ok(DictionaryCandidateState::Pending),
+        "promoted" => Ok(DictionaryCandidateState::Promoted),
+        _ => Err(invalid_evidence("state")),
     }
 }

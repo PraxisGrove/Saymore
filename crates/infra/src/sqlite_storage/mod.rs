@@ -10,10 +10,10 @@ use std::{
 
 use rusqlite::{Connection, OpenFlags};
 use template_app::{
-    DictionaryEntry, DictionaryLearningOutcome, DictionaryLearningStore, DictionaryStore,
-    HistoryCursor, HistoryPage, HistoryStore, InstalledModel, InstalledModelStore, LocalSettings,
-    LocalSettingsStore, NewDictionaryEntry, NewDictionaryObservation, NewHistoryRecord,
-    SecretStore, StorageError,
+    DictionaryCandidateEvidence, DictionaryEntry, DictionaryLearningOutcome,
+    DictionaryLearningStore, DictionaryStore, HistoryCursor, HistoryPage, HistoryStore,
+    InstalledModel, InstalledModelStore, LocalSettings, LocalSettingsStore, NewDictionaryEntry,
+    NewDictionaryObservation, NewHistoryRecord, SecretStore, StorageError,
 };
 
 mod dictionary;
@@ -186,6 +186,12 @@ impl DictionaryLearningStore for SqliteStorage {
             response,
         })
     }
+
+    fn list_dictionary_candidate_evidence(
+        &self,
+    ) -> Result<Vec<DictionaryCandidateEvidence>, StorageError> {
+        self.request(Command::ListDictionaryCandidateEvidence)
+    }
 }
 
 impl InstalledModelStore for SqliteStorage {
@@ -259,6 +265,9 @@ enum Command {
         observation: NewDictionaryObservation,
         response: SyncSender<Result<DictionaryLearningOutcome, StorageError>>,
     },
+    ListDictionaryCandidateEvidence(
+        SyncSender<Result<Vec<DictionaryCandidateEvidence>, StorageError>>,
+    ),
     ListInstalledModels(SyncSender<Result<Vec<InstalledModel>, StorageError>>),
     SaveInstalledModel {
         model: InstalledModel,
@@ -359,6 +368,9 @@ fn run_worker(
                     &mut database.connection,
                     observation,
                 ));
+            }
+            Command::ListDictionaryCandidateEvidence(response) => {
+                let _ = response.send(dictionary_learning::list_evidence(&database.connection));
             }
             Command::ListInstalledModels(response) => {
                 let _ = response.send(models::list(&database.connection));

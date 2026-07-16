@@ -5,9 +5,10 @@ use std::{
 };
 
 use template_app::{
-    ChatCompletionsLlmSettings, FinalTextProcessor, FinalTextRequest, ProcessedText,
-    RefinementFallbackReason, RefinementMode, RefinementStatus, RefinementTerm, SettingsStore,
-    SpeechRecognitionError, normalize_standard_spellings, relevant_dictionary_terms,
+    ChatCompletionsLlmSettings, DictionaryCandidateAssessment, FinalTextProcessor,
+    FinalTextRequest, ProcessedText, RefinementFallbackReason, RefinementMode, RefinementStatus,
+    RefinementTerm, SettingsStore, SpeechRecognitionError, assess_dictionary_candidate,
+    normalize_standard_spellings, relevant_dictionary_terms, review_dictionary_candidate,
 };
 #[cfg(test)]
 use template_infra::AppEnvironment;
@@ -100,6 +101,58 @@ impl RefinementRuntime {
         Ok(self.process(transcript, plan, relevant_terms, on_provider_attempt))
     }
 
+    pub fn assess_dictionary_correction(
+        &self,
+        canonical: &str,
+        original_fragment: &str,
+        edited_fragment: &str,
+        language: &str,
+    ) -> DictionaryCandidateAssessment {
+        self.assess_dictionary_correction_with_plan(
+            canonical,
+            original_fragment,
+            edited_fragment,
+            language,
+            self.plan(),
+        )
+    }
+
+    fn assess_dictionary_correction_with_plan(
+        &self,
+        canonical: &str,
+        original_fragment: &str,
+        edited_fragment: &str,
+        language: &str,
+        plan: RefinementPlan,
+    ) -> DictionaryCandidateAssessment {
+        let fallback = assess_dictionary_candidate(canonical);
+        let Some(settings) = plan.provider else {
+            return fallback;
+        };
+        let Ok(provider) = ChatCompletionsLlmProvider::new(settings) else {
+            return fallback;
+        };
+        let (original_fragment, edited_fragment) =
+            bounded_edit_fragments(original_fragment, edited_fragment);
+        match self.runtime.block_on(review_dictionary_candidate(
+            &provider,
+            canonical,
+            &original_fragment,
+            &edited_fragment,
+            language,
+        )) {
+            Ok(assessment) => assessment,
+            Err(error) => {
+                tracing::warn!(
+                    target: "saymore::diagnostics",
+                    event = "dictionary.classification_fallback",
+                    reason = %error
+                );
+                fallback
+            }
+        }
+    }
+
     fn process<F>(
         &self,
         transcript: String,
@@ -163,6 +216,27 @@ impl RefinementRuntime {
         });
         processor
     }
+}
+
+fn bounded_edit_fragments(original: &str, edited: &str) -> (String, String) {
+    const MAX_CONTEXT_CHARS: usize = 300;
+    const LEADING_CONTEXT_CHARS: usize = 150;
+    let original = original.chars().collect::<Vec<_>>();
+    let edited = edited.chars().collect::<Vec<_>>();
+    let prefix = original
+        .iter()
+        .zip(&edited)
+        .take_while(|(left, right)| left == right)
+        .count();
+    let start = prefix.saturating_sub(LEADING_CONTEXT_CHARS);
+    (
+        original
+            .iter()
+            .skip(start)
+            .take(MAX_CONTEXT_CHARS)
+            .collect(),
+        edited.iter().skip(start).take(MAX_CONTEXT_CHARS).collect(),
+    )
 }
 
 pub fn relevant_terms_for_transcript(
@@ -233,6 +307,20 @@ mod tests {
     }
 
     #[test]
+    fn dictionary_context_is_bounded_around_the_edit() {
+        let prefix = "前".repeat(500);
+        let (original, edited) = bounded_edit_fragments(
+            &format!("{prefix}地里编码处理地址"),
+            &format!("{prefix}地理编码处理地址"),
+        );
+
+        assert!(original.contains("地里编码处理地址"));
+        assert!(edited.contains("地理编码处理地址"));
+        assert!(original.chars().count() <= 300);
+        assert!(!original.starts_with(&"前".repeat(300)));
+    }
+
+    #[test]
     fn disabled_plan_returns_the_transcript_without_a_provider_call() {
         let runtime = test_runtime();
 
@@ -296,6 +384,40 @@ mod tests {
         assert_eq!(RefinementStatus::Completed, processed.processed.refinement);
         assert_eq!(Some("原始文本。".to_owned()), processed.llm_refined_text);
         assert!(attempted.load(Ordering::Relaxed));
+        completion.assert();
+    }
+
+    #[test]
+    fn configured_provider_reviews_a_dictionary_candidate_with_structured_json() {
+        let server = MockServer::start();
+        let completion = server.mock(|when, then| {
+            when.method(POST).path("/v1/chat/completions");
+            then.status(200)
+                .header("content-type", "application/json")
+                .body(
+                    r#"{"choices":[{"message":{"content":"{\"decision\":\"accept\",\"type\":\"professional_phrase\",\"confidence\":0.97}"}}]}"#,
+                );
+        });
+        let runtime = test_runtime();
+        let plan = RefinementPlan {
+            mode: RefinementMode::Enabled,
+            provider: Some(provider_settings(server.url("/v1"))),
+        };
+
+        let assessment = runtime.assess_dictionary_correction_with_plan(
+            "逆地理编码",
+            "我们使用逆地里编码处理地址",
+            "我们使用逆地理编码处理地址",
+            "zh-Hans",
+            plan,
+        );
+
+        assert_eq!(template_app::CandidateDecision::Accept, assessment.decision);
+        assert_eq!(
+            template_app::CandidateAssessmentSource::Llm,
+            assessment.source
+        );
+        assert_eq!(97, assessment.confidence);
         completion.assert();
     }
 

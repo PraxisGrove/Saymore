@@ -20,6 +20,11 @@ export struct DictionaryRow {
     items: [DictionaryListItem],
 }
 
+export struct DictionaryEvidenceItem {
+    canonical: string,
+    detail: string,
+}
+
 component DictionaryFilterButton inherits Rectangle {
     in property <DictionaryFilterKind> kind;
     in property <string> label;
@@ -161,6 +166,8 @@ export component DictionaryPage inherits Rectangle {
     in property <string> status-text: "";
     in property <bool> loading: false;
     in property <bool> load-failed: false;
+    in property <bool> development-environment: false;
+    in property <[DictionaryEvidenceItem]> evidence-items;
     callback refresh();
     callback filter-selected(DictionaryFilterKind);
     callback search(string);
@@ -292,6 +299,17 @@ export component DictionaryPage inherits Rectangle {
                 cross-axis-alignment: center;
                 Image { width: 13px; height: 13px; source: @image-url("../../icons/lucide/lock-keyhole.svg"); colorize: #a09c94; }
                 Text { text: @tr("dictionary.local-only" => "Dictionary entries are stored only on this device"); color: #a09c94; font-size: 10px; vertical-alignment: center; }
+            }
+            if root.development-environment && root.evidence-items.length > 0: VerticalLayout {
+                spacing: 6px;
+                Text { text: "Dictionary learning evidence (DEV)"; color: AppColors.warning; font-size: 10px; font-weight: 700; }
+                for evidence in root.evidence-items: Rectangle {
+                    height: 38px;
+                    border-radius: 6px;
+                    background: AppColors.surface-subtle;
+                    Text { x: 10px; y: 5px; width: parent.width - 20px; text: evidence.canonical; color: AppColors.ink; font-size: 11px; font-weight: 650; overflow: elide; }
+                    Text { x: 10px; y: 21px; width: parent.width - 20px; text: evidence.detail; color: AppColors.text-muted; font-size: 9px; overflow: elide; }
+                }
             }
         }
     }

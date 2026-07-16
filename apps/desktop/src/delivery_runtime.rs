@@ -16,6 +16,7 @@ use uuid::Uuid;
 
 use crate::{
     overlay_generation_matches, overlay_window, play_feedback_sound,
+    refinement_runtime::RefinementRuntime,
     ui::{AppWindow, RecordingOverlay, ResultOverlay, Translations},
     ui_status::{apply_transcription_completed, delivery_requires_copy_recovery},
 };
@@ -50,6 +51,7 @@ pub(crate) struct DeliveryRequest {
     pub processed: ProcessedText,
     pub history: Option<NewHistoryRecord>,
     pub storage: Arc<SqliteStorage>,
+    pub refinement: Arc<RefinementRuntime>,
     pub feedback_sounds_enabled: bool,
 }
 
@@ -63,6 +65,7 @@ struct ReadyDeliveryRequest {
     processed: ProcessedText,
     history_id: Option<String>,
     storage: Arc<SqliteStorage>,
+    refinement: Arc<RefinementRuntime>,
     feedback_sounds_enabled: bool,
 }
 
@@ -77,6 +80,7 @@ impl DeliveryRequest {
             processed: self.processed,
             history_id,
             storage: self.storage,
+            refinement: self.refinement,
             feedback_sounds_enabled: self.feedback_sounds_enabled,
         }
     }
@@ -165,6 +169,7 @@ fn schedule_ready_delivery(request: ReadyDeliveryRequest) {
 fn complete_delivery(pending: ReadyDeliveryRequest) {
     let learning_storage = Arc::clone(&pending.storage);
     let learning_ui = pending.ui.clone();
+    let learning_refinement = Arc::clone(&pending.refinement);
     let dictation_id = Uuid::new_v4().to_string();
     let delivery = MacOsTextDeliverer.deliver_and_observe(
         &pending.processed.text,
@@ -172,10 +177,18 @@ fn complete_delivery(pending: ReadyDeliveryRequest) {
             let Some(correction) = correction_from_edit(&edit.original, &edit.edited) else {
                 return;
             };
+            let language = inferred_dictionary_language(&correction.canonical).to_owned();
+            let assessment = learning_refinement.assess_dictionary_correction(
+                &correction.canonical,
+                &edit.original,
+                &edit.edited,
+                &language,
+            );
             let result = learning_storage.record_dictionary_observation(NewDictionaryObservation {
                 dictation_id,
-                language: "und".to_owned(),
+                language,
                 correction,
+                assessment,
                 observed_at_ms: now_ms(),
             });
             let _ = learning_ui.upgrade_in_event_loop(move |ui| match result {
@@ -188,6 +201,7 @@ fn complete_delivery(pending: ReadyDeliveryRequest) {
                 }
                 Ok(
                     DictionaryLearningOutcome::Pending { .. }
+                    | DictionaryLearningOutcome::Rejected
                     | DictionaryLearningOutcome::Suppressed,
                 ) => {}
                 Err(error) => {
@@ -220,6 +234,16 @@ fn complete_delivery(pending: ReadyDeliveryRequest) {
     }
     if let Some(history_id) = pending.history_id {
         persist_delivery_outcome(pending.ui, pending.storage, history_id, history_action);
+    }
+}
+
+fn inferred_dictionary_language(text: &str) -> &'static str {
+    if text.chars().any(
+        |character| matches!(character as u32, 0x3400..=0x4DBF | 0x4E00..=0x9FFF | 0xF900..=0xFAFF),
+    ) {
+        "zh-Hans"
+    } else {
+        "en"
     }
 }
 

@@ -22,8 +22,11 @@ pub use audio_recording::{
 };
 pub use cancelled_recording::CancelledRecordingStore;
 pub use dictionary_learning::{
+    CandidateAssessmentSource, CandidateDecision, DictionaryCandidateAssessment,
+    DictionaryCandidateEvidence, DictionaryCandidateKind, DictionaryCandidateState,
     DictionaryCorrection, DictionaryLearningOutcome, DictionaryLearningStore,
-    NewDictionaryObservation, correction_from_edit,
+    NewDictionaryObservation, assess_dictionary_candidate, correction_from_edit,
+    parse_dictionary_candidate_review, review_dictionary_candidate,
 };
 pub use feedback_sound::{FeedbackSound, FeedbackSoundError, FeedbackSoundPlayer};
 pub use final_text_processing::{
