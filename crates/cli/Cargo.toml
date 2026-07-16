@@ -9,10 +9,6 @@ license.workspace = true
 name = "template"
 path = "src/main.rs"
 
-[[bin]]
-name = "saymore-eval"
-path = "src/bin/saymore_eval/main.rs"
-
 [lints]
 workspace = true
 
