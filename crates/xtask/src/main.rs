@@ -396,6 +396,40 @@ fn iter_rust_functions(
     findings
 }
 
+fn extract_fn_name(input: &str) -> String {
+    input
+        .chars()
+        .take_while(|ch| *ch == '_' || ch.is_ascii_alphanumeric())
+        .collect()
+}
+
+fn print_file_findings(title: &str, findings: &[FileFinding]) {
+    if findings.is_empty() {
+        return;
+    }
+
+    println!();
+    println!("{title}");
+    for finding in findings {
+        println!("{}  {}", finding.lines, finding.relpath);
+    }
+}
+
+fn print_fn_findings(title: &str, findings: &[FunctionFinding]) {
+    if findings.is_empty() {
+        return;
+    }
+
+    println!();
+    println!("{title}");
+    for finding in findings {
+        println!(
+            "{}  {}:{}  {}",
+            finding.body_lines, finding.relpath, finding.start_line, finding.name
+        );
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{inline_test_lines, is_test_path, iter_rust_functions};
@@ -435,39 +469,5 @@ mod tests {
         let lines = ["#[cfg(test)]", "mod tests;"];
 
         assert_eq!(vec![true, true], inline_test_lines(&lines));
-    }
-}
-
-fn extract_fn_name(input: &str) -> String {
-    input
-        .chars()
-        .take_while(|ch| *ch == '_' || ch.is_ascii_alphanumeric())
-        .collect()
-}
-
-fn print_file_findings(title: &str, findings: &[FileFinding]) {
-    if findings.is_empty() {
-        return;
-    }
-
-    println!();
-    println!("{title}");
-    for finding in findings {
-        println!("{}  {}", finding.lines, finding.relpath);
-    }
-}
-
-fn print_fn_findings(title: &str, findings: &[FunctionFinding]) {
-    if findings.is_empty() {
-        return;
-    }
-
-    println!();
-    println!("{title}");
-    for finding in findings {
-        println!(
-            "{}  {}:{}  {}",
-            finding.body_lines, finding.relpath, finding.start_line, finding.name
-        );
     }
 }
