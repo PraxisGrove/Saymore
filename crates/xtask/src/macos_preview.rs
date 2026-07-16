@@ -20,10 +20,14 @@ const PREVIEW_BUNDLE_IDENTIFIER: &str = "com.saymore.desktop.preview";
 const POLL_INTERVAL: Duration = Duration::from_millis(500);
 const CHANGE_DEBOUNCE: Duration = Duration::from_millis(250);
 const SHUTDOWN_RETRIES: usize = 40;
+const HELPER_TERMINATION_RETRIES: usize = 4;
 const PROCESS_CHECK_INTERVAL: Duration = Duration::from_millis(50);
 const PREVIEW_RUNNING_PATTERN: &str =
     r"^/Applications/Saymore Preview\.app/Contents/MacOS/saymore-desktop( |$)";
-const PREVIEW_AUTOFILL_NAME: &str = "AutoFill (Saymore Preview)";
+const PREVIEW_HELPER_NAMES: [&str; 2] = [
+    "AutoFill (Saymore Preview)",
+    "ThemeWidgetControlViewService (Saymore Preview)",
+];
 
 pub(crate) fn run(args: &[String]) -> Result<(), Box<dyn Error>> {
     let once = parse_once(args)?;
@@ -109,48 +113,66 @@ fn stop_running_apps() -> Result<(), Box<dyn Error>> {
 
     for _ in 0..SHUTDOWN_RETRIES {
         if !any_saymore_process_running()? {
-            return stop_preview_autofill_helpers();
+            return stop_preview_helpers();
         }
         thread::sleep(PROCESS_CHECK_INTERVAL);
     }
     Err("Saymore did not stop before the preview update".into())
 }
 
-fn stop_preview_autofill_helpers() -> Result<(), Box<dyn Error>> {
-    let pids = preview_autofill_pids()?;
-    for pid in pids {
+fn stop_preview_helpers() -> Result<(), Box<dyn Error>> {
+    signal_preview_helpers("-TERM")?;
+    if wait_for_preview_helpers_to_stop(HELPER_TERMINATION_RETRIES)? {
+        return Ok(());
+    }
+
+    signal_preview_helpers("-KILL")?;
+    if wait_for_preview_helpers_to_stop(SHUTDOWN_RETRIES)? {
+        Ok(())
+    } else {
+        Err("Saymore Preview helpers did not stop before the preview update".into())
+    }
+}
+
+fn signal_preview_helpers(signal: &str) -> Result<(), Box<dyn Error>> {
+    for pid in preview_helper_pids()? {
         let _ = Command::new("/bin/kill")
-            .args(["-TERM", &pid.to_string()])
+            .args([signal, &pid.to_string()])
             .stdout(Stdio::null())
             .stderr(Stdio::null())
             .status()?;
     }
+    Ok(())
+}
 
-    for _ in 0..SHUTDOWN_RETRIES {
-        if preview_autofill_pids()?.is_empty() {
-            return Ok(());
+fn wait_for_preview_helpers_to_stop(retries: usize) -> Result<bool, Box<dyn Error>> {
+    for _ in 0..retries {
+        if preview_helper_pids()?.is_empty() {
+            return Ok(true);
         }
         thread::sleep(PROCESS_CHECK_INTERVAL);
     }
-    Err("Saymore Preview AutoFill helpers did not stop before the preview update".into())
+    Ok(preview_helper_pids()?.is_empty())
 }
 
-fn preview_autofill_pids() -> Result<Vec<u32>, Box<dyn Error>> {
+fn preview_helper_pids() -> Result<Vec<u32>, Box<dyn Error>> {
     let output = Command::new("/usr/bin/lsappinfo").arg("list").output()?;
     if !output.status.success() {
-        return Err("failed to inspect Preview AutoFill helpers".into());
+        return Err("failed to inspect Preview helpers".into());
     }
-    Ok(parse_preview_autofill_pids(&String::from_utf8_lossy(
+    Ok(parse_preview_helper_pids(&String::from_utf8_lossy(
         &output.stdout,
     )))
 }
 
-fn parse_preview_autofill_pids(output: &str) -> Vec<u32> {
+fn parse_preview_helper_pids(output: &str) -> Vec<u32> {
     let mut matching_entry = false;
     let mut pids = Vec::new();
     for line in output.lines() {
         if !line.starts_with(char::is_whitespace) && line.contains(") \"") {
-            matching_entry = line.contains(&format!("\"{PREVIEW_AUTOFILL_NAME}\""));
+            matching_entry = PREVIEW_HELPER_NAMES
+                .iter()
+                .any(|name| line.contains(&format!("\"{name}\"")));
             continue;
         }
         if !matching_entry {
@@ -363,19 +385,21 @@ mod tests {
     }
 
     #[test]
-    fn parses_only_preview_autofill_helpers() {
+    fn parses_only_preview_helpers() {
         let output = r#"1) "AutoFill (Safari)" ASN:0x0-0x1:
     pid = 11 type="BackgroundOnly"
 2) "AutoFill (Saymore Preview)" ASN:0x0-0x2:
     bundleID="com.apple.SafariPlatformSupport.Helper"
     pid = 22 type="BackgroundOnly"
-3) "AutoFill (Saymore Preview)" ASN:0x0-0x3:
+3) "ThemeWidgetControlViewService (Safari)" ASN:0x0-0x3:
     pid = 33 type="BackgroundOnly"
-4) "Saymore Preview" ASN:0x0-0x4:
+4) "ThemeWidgetControlViewService (Saymore Preview)" ASN:0x0-0x4:
     pid = 44 type="Foreground"
+5) "AutoFill (Saymore Preview)" ASN:0x0-0x5:
+    pid = 55 type="BackgroundOnly"
 "#;
 
-        assert_eq!(vec![22, 33], parse_preview_autofill_pids(output));
+        assert_eq!(vec![22, 44, 55], parse_preview_helper_pids(output));
     }
 
     #[test]

@@ -7,6 +7,9 @@ use std::{
 
 pub(crate) const BINARY_NAME: &str = "saymore-desktop";
 const DEVELOPMENT_MARKER: &str = "saymore-development-environment";
+const MICROPHONE_USAGE_DESCRIPTION_EN: &str =
+    "Saymore uses the microphone to transcribe your speech.";
+const MICROPHONE_USAGE_DESCRIPTION_ZH_HANS: &str = "Saymore 使用麦克风将你的语音转写为文字。";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum BundleSigning {
@@ -68,8 +71,24 @@ pub(crate) fn create_bundle(
     if spec.development_environment {
         fs::write(resources.join(DEVELOPMENT_MARKER), [])?;
     }
+    write_localized_info_plist_strings(&resources)?;
     fs::write(contents.join("Info.plist"), info_plist(&spec))?;
     sign(app, spec.bundle_identifier, &spec.signing)?;
+    Ok(())
+}
+
+fn write_localized_info_plist_strings(resources: &Path) -> Result<(), std::io::Error> {
+    for (locale, description) in [
+        ("en", MICROPHONE_USAGE_DESCRIPTION_EN),
+        ("zh-Hans", MICROPHONE_USAGE_DESCRIPTION_ZH_HANS),
+    ] {
+        let localization = resources.join(format!("{locale}.lproj"));
+        fs::create_dir_all(&localization)?;
+        fs::write(
+            localization.join("InfoPlist.strings"),
+            format!("\"NSMicrophoneUsageDescription\" = \"{description}\";\n"),
+        )?;
+    }
     Ok(())
 }
 
@@ -145,17 +164,20 @@ fn info_plist(spec: &BundleSpec<'_>) -> String {
 <plist version="1.0">
 <dict>
   <key>CFBundleDisplayName</key><string>{app_name}</string>
+  <key>CFBundleDevelopmentRegion</key><string>en</string>
   <key>CFBundleExecutable</key><string>{BINARY_NAME}</string>
   <key>CFBundleIconFile</key><string>icon.icns</string>
   <key>CFBundleIdentifier</key><string>{bundle_identifier}</string>
   <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
+  <key>CFBundleLocalizations</key>
+  <array><string>en</string><string>zh-Hans</string></array>
   <key>CFBundleName</key><string>{app_name}</string>
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>CFBundleShortVersionString</key><string>0.1.0</string>
   <key>CFBundleVersion</key><string>1</string>
   <key>LSMinimumSystemVersion</key><string>12.0</string>
   <key>NSHighResolutionCapable</key><true/>
-  <key>NSMicrophoneUsageDescription</key><string>Saymore 使用麦克风将语音转换为文字。</string>
+  <key>NSMicrophoneUsageDescription</key><string>{MICROPHONE_USAGE_DESCRIPTION_EN}</string>
 </dict>
 </plist>
 "#
@@ -177,6 +199,38 @@ mod tests {
 
         assert!(plist.contains("<string>Saymore Preview</string>"));
         assert!(plist.contains("<string>com.saymore.desktop.preview</string>"));
-        assert!(plist.contains("NSMicrophoneUsageDescription"));
+        assert!(plist.contains(MICROPHONE_USAGE_DESCRIPTION_EN));
+        assert!(plist.contains("<key>CFBundleDevelopmentRegion</key><string>en</string>"));
+        assert!(plist.contains("<string>zh-Hans</string>"));
+    }
+
+    #[test]
+    fn writes_localized_microphone_usage_descriptions() {
+        let resources = std::env::temp_dir().join(format!(
+            "saymore-xtask-localizations-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&resources);
+        assert!(write_localized_info_plist_strings(&resources).is_ok());
+
+        let Ok(english) = fs::read_to_string(resources.join("en.lproj/InfoPlist.strings")) else {
+            panic!("English InfoPlist.strings should be readable");
+        };
+        let Ok(simplified_chinese) =
+            fs::read_to_string(resources.join("zh-Hans.lproj/InfoPlist.strings"))
+        else {
+            panic!("Simplified Chinese InfoPlist.strings should be readable");
+        };
+        assert_eq!(
+            format!("\"NSMicrophoneUsageDescription\" = \"{MICROPHONE_USAGE_DESCRIPTION_EN}\";\n"),
+            english
+        );
+        assert_eq!(
+            format!(
+                "\"NSMicrophoneUsageDescription\" = \"{MICROPHONE_USAGE_DESCRIPTION_ZH_HANS}\";\n"
+            ),
+            simplified_chinese
+        );
+        let _ = fs::remove_dir_all(resources);
     }
 }
