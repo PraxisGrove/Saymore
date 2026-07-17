@@ -7,6 +7,7 @@ mod dictation_session;
 mod dictionary_learning;
 mod feedback_sound;
 mod final_text_processing;
+mod local_settings_mutation;
 mod refinement_policy;
 mod refinement_prompt;
 mod refinement_terms;
@@ -44,6 +45,10 @@ pub use final_text_processing::{
     LlmRefinementRequest, ProcessedText, RefinementEvaluation, RefinementEvaluationMode,
     RefinementFallbackReason, RefinementMode, RefinementSkipReason, RefinementStatus,
     RefinementTerm, refinement_needed,
+};
+pub use local_settings_mutation::{
+    LocalSettingsChange, LocalSettingsMutationError, LocalSettingsMutator,
+    LocalSettingsValidationError, MicrophoneSelection,
 };
 pub use refinement_terms::{
     dictionary_terms_for_refinement, dictionary_terms_for_refinement_from_entries,
