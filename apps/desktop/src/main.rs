@@ -17,9 +17,9 @@ use slint::ComponentHandle;
 use slint::{SharedString, Timer};
 #[cfg(target_os = "macos")]
 use template_app::{
-    AudioRecorder, CancelledRecordingStore, DictationSession, DictationToggleAction,
-    DictionaryStore, LocalSettingsStore, MicrophonePermissionProvider, PcmChunk, RecordingError,
-    RecordingMetrics, RecordingStarted,
+    AudioRecorder, CancelledRecordingStore, DictationSession, DictationSessionId,
+    DictationToggleAction, DictionaryStore, LocalSettingsStore, MicrophonePermissionProvider,
+    PcmChunk, RecordingError, RecordingMetrics, RecordingStarted,
 };
 #[cfg(target_os = "macos")]
 use template_app::{FeedbackSound, TextDeliverer};

@@ -94,7 +94,10 @@ fn cancelled_recording_restores_the_same_session_identity() {
 fn dictation_identity_is_stable_until_the_session_completes() {
     let session = DictationSession::default();
 
-    assert_eq!(DictationToggleAction::Start, session.request_toggle(false));
+    assert!(matches!(
+        session.request_toggle(false),
+        DictationToggleAction::Start(started_id) if Some(started_id) == session.current_id()
+    ));
     let id = session.current_id();
     assert!(id.is_some());
     assert!(session.recording_started());
@@ -102,4 +105,17 @@ fn dictation_identity_is_stable_until_the_session_completes() {
     session.complete();
 
     assert_eq!(None, session.current_id());
+}
+
+#[test]
+fn cancellation_returns_the_identity_of_the_cancelled_session() {
+    let session = DictationSession::default();
+    let action = session.request_toggle(false);
+    let id = session.current_id();
+
+    assert!(matches!(
+        action,
+        DictationToggleAction::Start(started_id) if Some(started_id) == id
+    ));
+    assert_eq!(id, session.request_cancel());
 }

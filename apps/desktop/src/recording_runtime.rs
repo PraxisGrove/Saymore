@@ -27,10 +27,12 @@ pub(super) fn start_recording_shortcut(
                     reason = "paused"
                 );
             }
-            DictationToggleAction::IgnoreStarting | DictationToggleAction::IgnoreFinishing => {
+            DictationToggleAction::IgnoreStarting(id)
+            | DictationToggleAction::IgnoreFinishing(id) => {
                 tracing::info!(
                     target: "saymore::diagnostics",
                     event = "recording.shortcut_ignored",
+                    dictation_id = ?id,
                     reason = "session_busy"
                 );
             }
@@ -42,17 +44,24 @@ pub(super) fn start_recording_shortcut(
                 id,
                 runtime.processing.clone(),
             ),
-            DictationToggleAction::Start => {
+            DictationToggleAction::Start(id) => {
                 let shortcut_started = Instant::now();
                 let permission_started = Instant::now();
                 let allows_recording = runtime.microphone_access.allows_recording();
                 tracing::info!(
                     target: "saymore::diagnostics",
                     event = "recording.permission_checked",
+                    dictation_id = %id,
                     duration_ms = permission_started.elapsed().as_millis()
                 );
                 if allows_recording {
-                    begin_recording(&shortcut_ui, &shortcut_overlays, &runtime, shortcut_started);
+                    begin_recording(
+                        &shortcut_ui,
+                        &shortcut_overlays,
+                        &runtime,
+                        id,
+                        shortcut_started,
+                    );
                 } else {
                     runtime.session.startup_failed();
                 }
@@ -75,6 +84,7 @@ fn begin_recording(
     ui: &slint::Weak<AppWindow>,
     overlays: &DictationOverlays,
     runtime: &ShortcutRuntime,
+    id: DictationSessionId,
     startup_started: Instant,
 ) {
     if runtime.paused.load(Ordering::Acquire) {
@@ -87,10 +97,10 @@ fn begin_recording(
     if let Ok(mut cancelled) = runtime.cancelled.lock() {
         cancelled.clear();
     }
-    let Some(asr_ms) = start_streaming_asr(ui, runtime, startup_started) else {
+    let Some(asr_ms) = start_streaming_asr(ui, runtime, id, startup_started) else {
         return;
     };
-    let on_metrics = create_recording_metrics_callback(ui, overlays, runtime);
+    let on_metrics = create_recording_metrics_callback(ui, overlays, runtime, id);
     let streaming_asr = Arc::clone(&runtime.processing.asr);
     let on_audio_chunk = Arc::new(move |chunk: PcmChunk| {
         let _ = streaming_asr.push_audio(chunk.samples);
@@ -107,15 +117,19 @@ fn begin_recording(
         overlays,
         runtime,
         result,
-        asr_ms,
-        recorder_ms,
-        startup_started,
+        RecordingStartupTiming {
+            id,
+            asr_ms,
+            recorder_ms,
+            startup_started,
+        },
     );
 }
 
 fn start_streaming_asr(
     ui: &slint::Weak<AppWindow>,
     runtime: &ShortcutRuntime,
+    id: DictationSessionId,
     startup_started: Instant,
 ) -> Option<u128> {
     let partial_ui = ui.clone();
@@ -125,11 +139,12 @@ fn start_streaming_asr(
         });
     });
     let asr_started = Instant::now();
-    if let Err(error) = runtime.processing.asr.start(on_partial) {
+    if let Err(error) = runtime.processing.asr.start(id, on_partial) {
         runtime.session.startup_failed();
         tracing::warn!(
             target: "saymore::diagnostics",
             event = "recording.startup_failed",
+            dictation_id = %id,
             stage = "asr",
             duration_ms = startup_started.elapsed().as_millis()
         );
@@ -145,12 +160,17 @@ fn queue_recording_start_ui(
     overlays: &DictationOverlays,
     runtime: &ShortcutRuntime,
     result: Result<RecordingStarted, RecordingError>,
-    asr_ms: u128,
-    recorder_ms: u128,
-    startup_started: Instant,
+    timing: RecordingStartupTiming,
 ) {
+    let RecordingStartupTiming {
+        id,
+        asr_ms,
+        recorder_ms,
+        startup_started,
+    } = timing;
     let event_ui = ui.clone();
     let context = RecordingStartUiContext {
+        id,
         overlay: overlays.status.clone(),
         first_recording: Arc::clone(&runtime.first_recording),
         session: Arc::clone(&runtime.session),
@@ -170,6 +190,7 @@ fn queue_recording_start_ui(
             tracing::info!(
                 target: "saymore::diagnostics",
                 event = "recording.startup",
+                dictation_id = %id,
                 outcome,
                 asr_ms,
                 recorder_ms,
@@ -188,7 +209,15 @@ fn queue_recording_start_ui(
     }
 }
 
+struct RecordingStartupTiming {
+    id: DictationSessionId,
+    asr_ms: u128,
+    recorder_ms: u128,
+    startup_started: Instant,
+}
+
 struct RecordingStartUiContext {
+    id: DictationSessionId,
     overlay: slint::Weak<RecordingOverlay>,
     first_recording: Arc<AtomicBool>,
     session: Arc<DictationSession>,
@@ -227,6 +256,7 @@ fn apply_recording_start_result(
     tracing::info!(
         target: "saymore::diagnostics",
         event = "recording.feedback_started",
+        dictation_id = %context.id,
         duration_ms = feedback_started.elapsed().as_millis()
     );
     context.first_recording.store(false, Ordering::Relaxed);
@@ -241,6 +271,7 @@ fn apply_recording_start_result(
             &overlay,
             &started.input_device_name,
             context.show_device,
+            context.id,
             context.startup_started,
         );
     }
@@ -251,6 +282,7 @@ fn create_recording_metrics_callback(
     ui: &slint::Weak<AppWindow>,
     overlays: &DictationOverlays,
     runtime: &ShortcutRuntime,
+    id: DictationSessionId,
 ) -> Arc<dyn Fn(RecordingMetrics) + Send + Sync> {
     let metrics_ui = ui.clone();
     let metrics_overlay = overlays.status.clone();
@@ -271,7 +303,12 @@ fn create_recording_metrics_callback(
                     if let Some(overlay) = warning.upgrade()
                         && let Err(error) = overlay_window::present(overlay.window())
                     {
-                        tracing::warn!(event = "recording.limit_warning_present_failed", reason = %error);
+                        tracing::warn!(
+                            target: "saymore::diagnostics",
+                            event = "recording.limit_warning_present_failed",
+                            dictation_id = %id,
+                            reason = %error
+                        );
                     }
                 });
             }
@@ -296,6 +333,7 @@ fn first_recording_overlay(
     overlay: &RecordingOverlay,
     device_name: &str,
     show_device: bool,
+    id: DictationSessionId,
     startup_started: Instant,
 ) {
     let _ = (device_name, show_device);
@@ -314,11 +352,17 @@ fn first_recording_overlay(
             tracing::info!(
                 target: "saymore::diagnostics",
                 event = "recording.overlay_presented",
+                dictation_id = %id,
                 present_ms = present_started.elapsed().as_millis(),
                 total_ms = startup_started.elapsed().as_millis()
             );
             if let Err(error) = result {
-                tracing::warn!(event = "recording.overlay_present_failed", reason = %error);
+                tracing::warn!(
+                    target: "saymore::diagnostics",
+                    event = "recording.overlay_present_failed",
+                    dictation_id = %id,
+                    reason = %error
+                );
             }
         }
     });

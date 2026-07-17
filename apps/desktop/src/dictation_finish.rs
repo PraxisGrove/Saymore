@@ -76,6 +76,7 @@ pub fn finish_recording(
                 .unwrap_or_default();
             let worker_ui = ui.as_weak();
             let failure_session = Arc::clone(&session);
+            let failure_asr = Arc::clone(&processing.asr);
             if std::thread::Builder::new()
                 .name("saymore-finish-dictation".to_owned())
                 .spawn(move || {
@@ -93,6 +94,7 @@ pub fn finish_recording(
                 .is_err()
             {
                 failure_session.complete();
+                failure_asr.cancel();
                 apply_recording_error(
                     &ui,
                     &RecordingError::Capture("failed to start transcription worker".to_owned()),
@@ -120,26 +122,13 @@ fn finish_recording_worker(context: FinishWorkerContext) {
         plan,
         overlay_generation,
     } = context;
-    let mut recorder = match recorder.lock() {
-        Ok(recorder) if recorder.is_recording() => recorder,
-        Ok(_) => {
-            session.complete();
-            return;
-        }
-        Err(_) => {
-            session.complete();
-            let _ = ui.upgrade_in_event_loop(|ui| {
-                apply_recording_error(
-                    &ui,
-                    &RecordingError::Capture("recorder lock was poisoned".to_owned()),
-                );
-            });
-            return;
-        }
+    let recording_result = match recorder.lock() {
+        Ok(mut recorder) if recorder.is_recording() => recorder.stop(),
+        Ok(_) => Err(RecordingError::NotRecording),
+        Err(_) => Err(RecordingError::Capture(
+            "recorder lock was poisoned".to_owned(),
+        )),
     };
-
-    let recording_result = recorder.stop();
-    drop(recorder);
     let handoff = match recording_result {
         Ok(recording) => processing
             .asr
@@ -190,7 +179,7 @@ pub(crate) fn process_recording(
             .map_err(FinishError::Recognition),
         DictationHandoff::Restored { id, recording } => {
             let result = (|| {
-                processing.asr.start(Arc::new(|_| {}))?;
+                processing.asr.start(id, Arc::new(|_| {}))?;
                 for chunk in recording.samples.chunks(1_600) {
                     processing.asr.push_audio(chunk.to_vec())?;
                 }
@@ -220,7 +209,7 @@ pub(crate) fn process_recording(
             crate::refinement_runtime::dictionary_terms_for_current_refinement(&processing.storage);
         processing
             .refinement
-            .process_final_transcript(&transcript, plan, relevant_terms, move || {
+            .process_final_transcript(id, &transcript, plan, relevant_terms, move || {
                 show_processing_activity(
                     &activity_ui,
                     &activity_overlay,
@@ -258,7 +247,12 @@ fn apply_finish_result(
         Ok(finished) => {
             crate::settings_ui::mark_asr_runtime_healthy(ui);
             if let Some(error) = &finished.history.error {
-                tracing::warn!(event = "history.prepare_failed", reason = %error);
+                tracing::warn!(
+                    target: "saymore::diagnostics",
+                    event = "history.prepare_failed",
+                    dictation_id = %finished.id,
+                    reason = %error
+                );
                 ui.set_history_status(ui.global::<Translations>().get_storage_error());
             }
             delivery_runtime::schedule_delivery(delivery_runtime::DeliveryRequest {

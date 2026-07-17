@@ -116,10 +116,9 @@ pub fn cancel(
     cancelled: &Arc<Mutex<CancelledRecordingStore>>,
     asr: &crate::asr_runtime::AsrSessionController,
 ) {
-    if !session.request_cancel() {
+    let Some(id) = session.request_cancel() else {
         return;
-    }
-    let id = session.current_id();
+    };
     let _ = limit_overlay.upgrade_in_event_loop(|overlay| {
         let _ = overlay.hide();
     });
@@ -132,13 +131,6 @@ pub fn cancel(
     let cancelled = Arc::clone(cancelled);
     let _ = ui.upgrade_in_event_loop(move |ui| match result {
         Ok(recording) => {
-            let Some(id) = id else {
-                apply_recording_error(
-                    &ui,
-                    &RecordingError::Capture("cancelled recording has no session id".to_owned()),
-                );
-                return;
-            };
             let generation = match cancelled.lock() {
                 Ok(mut cancelled) => cancelled.retain(id, recording, Instant::now()),
                 Err(_) => {
@@ -297,7 +289,12 @@ fn apply_undo_result(
     };
     settings_ui::mark_asr_runtime_healthy(ui);
     if let Some(error) = finished.history.error {
-        tracing::warn!(event = "history.prepare_failed", reason = %error);
+        tracing::warn!(
+            target: "saymore::diagnostics",
+            event = "history.prepare_failed",
+            dictation_id = %finished.id,
+            reason = %error
+        );
         ui.set_history_status(ui.global::<Translations>().get_storage_error());
     }
     delivery_runtime::schedule_delivery(delivery_runtime::DeliveryRequest {

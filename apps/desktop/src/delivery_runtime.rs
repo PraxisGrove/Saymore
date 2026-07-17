@@ -9,7 +9,7 @@ use template_app::{
     CorrectionObservingTextDeliverer, DictationSessionId, DictionaryLearningOutcome,
     DictionaryLearningStore, FeedbackSound, HistoryDelivery, HistoryStore,
     NewDictionaryObservation, NewHistoryRecord, PcmRecording, ProcessedText, RefinementStatus,
-    TextDeliveryError, TextDeliveryOutcome, correction_from_edit,
+    TextDeliveryError, TextDeliveryOutcome, TextEditObserver, correction_from_edit,
 };
 use template_infra::{MacOsTextDeliverer, SqliteStorage, copy_text_to_clipboard};
 
@@ -131,55 +131,25 @@ fn schedule_ready_delivery(request: ReadyDeliveryRequest) {
 }
 
 fn complete_delivery(pending: ReadyDeliveryRequest) {
-    let learning_storage = Arc::clone(&pending.storage);
-    let learning_ui = pending.ui.clone();
-    let learning_refinement = Arc::clone(&pending.refinement);
-    let dictation_id = pending.id.to_string();
     let delivery = MacOsTextDeliverer.deliver_and_observe(
         &pending.processed.text,
-        Box::new(move |edit| {
-            let Some(correction) = correction_from_edit(&edit.original, &edit.edited) else {
-                return;
-            };
-            let language = inferred_dictionary_language(&correction.canonical).to_owned();
-            let assessment = learning_refinement.assess_dictionary_correction(
-                &correction.canonical,
-                &edit.original,
-                &edit.edited,
-                &language,
-            );
-            let result = learning_storage.record_dictionary_observation(NewDictionaryObservation {
-                dictation_id,
-                language,
-                correction,
-                assessment,
-                observed_at_ms: now_ms(),
-            });
-            let _ = learning_ui.upgrade_in_event_loop(move |ui| match result {
-                Ok(DictionaryLearningOutcome::Added(entry)) => {
-                    ui.set_dictionary_status(
-                        ui.global::<Translations>()
-                            .invoke_dictionary_automatically_added(entry.canonical.clone().into()),
-                    );
-                    ui.invoke_refresh_dictionary();
-                    ui.invoke_show_dictionary_added(entry.id.into(), entry.canonical.into());
-                }
-                Ok(DictionaryLearningOutcome::Pending { .. }) => {
-                    ui.invoke_refresh_dictionary();
-                }
-                Ok(DictionaryLearningOutcome::Rejected | DictionaryLearningOutcome::Suppressed) => {
-                }
-                Err(error) => {
-                    tracing::warn!(event = "dictionary.learning_failed", reason = %error);
-                }
-            });
-        }),
+        dictionary_edit_observer(
+            pending.id,
+            Arc::clone(&pending.storage),
+            pending.ui.clone(),
+            Arc::clone(&pending.refinement),
+        ),
     );
     let requires_recovery = delivery_requires_copy_recovery(&delivery);
     if should_preserve_clipboard(pending.copy_to_clipboard, &delivery)
         && let Err(error) = copy_text_to_clipboard(&pending.processed.text)
     {
-        tracing::warn!(event = "delivery.clipboard_copy_failed", reason = %error);
+        tracing::warn!(
+            target: "saymore::diagnostics",
+            event = "delivery.clipboard_copy_failed",
+            dictation_id = %pending.id,
+            reason = %error
+        );
     }
     tracing::info!(
         target: "saymore::diagnostics",
@@ -202,11 +172,58 @@ fn complete_delivery(pending: ReadyDeliveryRequest) {
         apply_transcription_completed(&ui, &pending.recording, &pending.processed, delivery);
     }
     if requires_recovery && let Some(overlay) = pending.result_overlay.upgrade() {
-        show_result_overlay(&overlay, &pending.processed.text);
+        show_result_overlay(pending.id, &overlay, &pending.processed.text);
     }
     if let Some(history) = history {
-        persist_history(pending.ui, pending.storage, history);
+        persist_history(pending.id, pending.ui, pending.storage, history);
     }
+}
+
+fn dictionary_edit_observer(
+    id: DictationSessionId,
+    storage: Arc<SqliteStorage>,
+    ui: slint::Weak<AppWindow>,
+    refinement: Arc<RefinementRuntime>,
+) -> TextEditObserver {
+    let dictation_id = id.to_string();
+    Box::new(move |edit| {
+        let Some(correction) = correction_from_edit(&edit.original, &edit.edited) else {
+            return;
+        };
+        let language = inferred_dictionary_language(&correction.canonical).to_owned();
+        let assessment = refinement.assess_dictionary_correction(
+            id,
+            &correction.canonical,
+            &edit.original,
+            &edit.edited,
+            &language,
+        );
+        let result = storage.record_dictionary_observation(NewDictionaryObservation {
+            dictation_id: dictation_id.clone(),
+            language,
+            correction,
+            assessment,
+            observed_at_ms: now_ms(),
+        });
+        let _ = ui.upgrade_in_event_loop(move |ui| match result {
+            Ok(DictionaryLearningOutcome::Added(entry)) => {
+                ui.set_dictionary_status(
+                    ui.global::<Translations>()
+                        .invoke_dictionary_automatically_added(entry.canonical.clone().into()),
+                );
+                ui.invoke_refresh_dictionary();
+                ui.invoke_show_dictionary_added(entry.id.into(), entry.canonical.into());
+            }
+            Ok(DictionaryLearningOutcome::Pending { .. }) => ui.invoke_refresh_dictionary(),
+            Ok(DictionaryLearningOutcome::Rejected | DictionaryLearningOutcome::Suppressed) => {}
+            Err(error) => tracing::warn!(
+                target: "saymore::diagnostics",
+                event = "dictionary.learning_failed",
+                dictation_id = %dictation_id,
+                reason = %error
+            ),
+        });
+    })
 }
 
 fn inferred_dictionary_language(text: &str) -> &'static str {
@@ -279,6 +296,7 @@ fn history_record_after_delivery(
 }
 
 fn persist_history(
+    id: DictationSessionId,
     ui: slint::Weak<AppWindow>,
     storage: Arc<SqliteStorage>,
     record: NewHistoryRecord,
@@ -293,7 +311,12 @@ fn persist_history(
                 match result {
                     Ok(()) => ui.invoke_refresh_usage(),
                     Err(error) => {
-                        tracing::warn!(event = "history.create_failed", reason = %error);
+                        tracing::warn!(
+                            target: "saymore::diagnostics",
+                            event = "history.create_failed",
+                            dictation_id = %id,
+                            reason = %error
+                        );
                         ui.set_history_status(ui.global::<Translations>().get_storage_error());
                     }
                 }
@@ -303,14 +326,24 @@ fn persist_history(
     if spawn.is_err()
         && let Some(ui) = failure_ui.upgrade()
     {
+        tracing::warn!(
+            target: "saymore::diagnostics",
+            event = "history.create_worker_failed",
+            dictation_id = %id
+        );
         ui.set_history_status(ui.global::<Translations>().get_storage_error());
     }
 }
 
-fn show_result_overlay(overlay: &ResultOverlay, transcript: &str) {
+fn show_result_overlay(id: DictationSessionId, overlay: &ResultOverlay, transcript: &str) {
     overlay.set_transcript(SharedString::from(transcript));
     if let Err(error) = overlay_window::present(overlay.window()) {
-        tracing::warn!(event = "delivery.recovery_present_failed", reason = %error);
+        tracing::warn!(
+            target: "saymore::diagnostics",
+            event = "delivery.recovery_present_failed",
+            dictation_id = %id,
+            reason = %error
+        );
     }
 }
 

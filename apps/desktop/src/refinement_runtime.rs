@@ -5,10 +5,11 @@ use std::{
 };
 
 use template_app::{
-    ChatCompletionsLlmSettings, DictionaryCandidateAssessment, FinalTextProcessor,
-    FinalTextRequest, ProcessedText, RefinementFallbackReason, RefinementMode, RefinementStatus,
-    RefinementTerm, SettingsStore, SpeechRecognitionError, assess_dictionary_candidate,
-    dictionary_terms_for_refinement, normalize_standard_spellings, review_dictionary_candidate,
+    ChatCompletionsLlmSettings, DictationSessionId, DictionaryCandidateAssessment,
+    FinalTextProcessor, FinalTextRequest, ProcessedText, RefinementFallbackReason, RefinementMode,
+    RefinementStatus, RefinementTerm, SettingsStore, SpeechRecognitionError,
+    assess_dictionary_candidate, dictionary_terms_for_refinement, normalize_standard_spellings,
+    review_dictionary_candidate,
 };
 #[cfg(test)]
 use template_infra::AppEnvironment;
@@ -84,6 +85,7 @@ impl RefinementRuntime {
 
     pub fn process_final_transcript<F>(
         &self,
+        id: DictationSessionId,
         transcript: &str,
         plan: RefinementPlan,
         relevant_terms: Vec<RefinementTerm>,
@@ -98,17 +100,19 @@ impl RefinementRuntime {
                 "empty transcript".to_owned(),
             ));
         }
-        Ok(self.process(transcript, plan, relevant_terms, on_provider_attempt))
+        Ok(self.process(id, transcript, plan, relevant_terms, on_provider_attempt))
     }
 
     pub fn assess_dictionary_correction(
         &self,
+        id: DictationSessionId,
         canonical: &str,
         original_fragment: &str,
         edited_fragment: &str,
         language: &str,
     ) -> DictionaryCandidateAssessment {
         self.assess_dictionary_correction_with_plan(
+            id,
             canonical,
             original_fragment,
             edited_fragment,
@@ -119,6 +123,7 @@ impl RefinementRuntime {
 
     fn assess_dictionary_correction_with_plan(
         &self,
+        id: DictationSessionId,
         canonical: &str,
         original_fragment: &str,
         edited_fragment: &str,
@@ -146,6 +151,7 @@ impl RefinementRuntime {
                 tracing::warn!(
                     target: "saymore::diagnostics",
                     event = "dictionary.classification_fallback",
+                    dictation_id = %id,
                     reason = %error
                 );
                 fallback
@@ -155,6 +161,7 @@ impl RefinementRuntime {
 
     fn process<F>(
         &self,
+        id: DictationSessionId,
         transcript: String,
         plan: RefinementPlan,
         relevant_terms: Vec<RefinementTerm>,
@@ -185,7 +192,7 @@ impl RefinementRuntime {
         let llm_refined_text = matches!(processed.refinement, RefinementStatus::Completed)
             .then(|| processed.text.clone());
         processed.text = normalize_standard_spellings(&processed.text, &relevant_terms);
-        log_refinement_result(&processed.refinement, started.elapsed().as_millis());
+        log_refinement_result(id, &processed.refinement, started.elapsed().as_millis());
         ProcessedTranscript {
             processed,
             llm_refined_text,
@@ -253,23 +260,24 @@ fn inferred_transcript_language(text: &str) -> &'static str {
     }
 }
 
-fn log_refinement_result(status: &RefinementStatus, duration_ms: u128) {
+fn log_refinement_result(id: DictationSessionId, status: &RefinementStatus, duration_ms: u128) {
     match status {
         RefinementStatus::Disabled => {
-            tracing::info!(target: "saymore::diagnostics", event = "llm.disabled", duration_ms);
+            tracing::info!(target: "saymore::diagnostics", event = "llm.disabled", dictation_id = %id, duration_ms);
         }
         RefinementStatus::Skipped(_) => {
             tracing::info!(target: "saymore::diagnostics",
                 event = "llm.skipped",
+                dictation_id = %id,
                 reason = "short_transcript",
                 duration_ms
             );
         }
         RefinementStatus::Completed => {
-            tracing::info!(target: "saymore::diagnostics", event = "llm.completed", duration_ms);
+            tracing::info!(target: "saymore::diagnostics", event = "llm.completed", dictation_id = %id, duration_ms);
         }
         RefinementStatus::FellBack(reason) => {
-            tracing::warn!(target: "saymore::diagnostics", event = "llm.fallback", reason = ?reason, duration_ms);
+            tracing::warn!(target: "saymore::diagnostics", event = "llm.fallback", dictation_id = %id, reason = ?reason, duration_ms);
         }
     }
 }
@@ -316,9 +324,13 @@ mod tests {
     fn disabled_plan_returns_the_transcript_without_a_provider_call() {
         let runtime = test_runtime();
 
-        let Ok(processed) =
-            runtime.process_final_transcript("  原始文本。  ", disabled_plan(), Vec::new(), || {})
-        else {
+        let Ok(processed) = runtime.process_final_transcript(
+            DictationSessionId::generate(),
+            "  原始文本。  ",
+            disabled_plan(),
+            Vec::new(),
+            || {},
+        ) else {
             panic!("non-empty transcript should be processed");
         };
 
@@ -335,6 +347,7 @@ mod tests {
         }];
 
         let Ok(processed) = runtime.process_final_transcript(
+            DictationSessionId::generate(),
             "openai、ＯｐｅｎＡＩ，但不要合并 open ai。",
             disabled_plan(),
             terms,
@@ -367,9 +380,13 @@ mod tests {
 
         let transcript = "今天先完成登录测试，明天处理设置页面，发布前检查配置迁移。";
         let attempted = AtomicBool::new(false);
-        let Ok(processed) = runtime.process_final_transcript(transcript, plan, Vec::new(), || {
-            attempted.store(true, Ordering::Relaxed)
-        }) else {
+        let Ok(processed) = runtime.process_final_transcript(
+            DictationSessionId::generate(),
+            transcript,
+            plan,
+            Vec::new(),
+            || attempted.store(true, Ordering::Relaxed),
+        ) else {
             panic!("non-empty transcript should be processed");
         };
 
@@ -397,6 +414,7 @@ mod tests {
         };
 
         let assessment = runtime.assess_dictionary_correction_with_plan(
+            DictationSessionId::generate(),
             "逆地理编码",
             "我们使用逆地里编码处理地址",
             "我们使用逆地理编码处理地址",
@@ -422,11 +440,13 @@ mod tests {
         };
         let attempted = AtomicBool::new(false);
 
-        let Ok(processed) =
-            runtime.process_final_transcript("好的，谢谢。", plan, Vec::new(), || {
-                attempted.store(true, Ordering::Relaxed)
-            })
-        else {
+        let Ok(processed) = runtime.process_final_transcript(
+            DictationSessionId::generate(),
+            "好的，谢谢。",
+            plan,
+            Vec::new(),
+            || attempted.store(true, Ordering::Relaxed),
+        ) else {
             panic!("non-empty transcript should be processed");
         };
 
@@ -452,8 +472,13 @@ mod tests {
         };
 
         let transcript = "今天先完成登录测试，明天处理设置页面，发布前检查配置迁移。";
-        let Ok(processed) = runtime.process_final_transcript(transcript, plan, Vec::new(), || {})
-        else {
+        let Ok(processed) = runtime.process_final_transcript(
+            DictationSessionId::generate(),
+            transcript,
+            plan,
+            Vec::new(),
+            || {},
+        ) else {
             panic!("non-empty transcript should be processed");
         };
 
@@ -470,7 +495,13 @@ mod tests {
     fn rejects_an_empty_normalized_transcript() {
         let runtime = test_runtime();
 
-        let result = runtime.process_final_transcript(" \n ", disabled_plan(), Vec::new(), || {});
+        let result = runtime.process_final_transcript(
+            DictationSessionId::generate(),
+            " \n ",
+            disabled_plan(),
+            Vec::new(),
+            || {},
+        );
 
         assert!(matches!(result, Err(SpeechRecognitionError::Protocol(_))));
     }
@@ -485,6 +516,7 @@ mod tests {
         let runtime = RefinementRuntime::new(settings)?;
         let plan = runtime.plan();
         let processed = runtime.process_final_transcript(
+            DictationSessionId::generate(),
             "这个真的真的很重要，而且我们今天需要先完成测试，再决定下一步怎么处理。",
             plan,
             Vec::new(),

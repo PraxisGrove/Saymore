@@ -12,11 +12,11 @@ pub enum DictationSessionState {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DictationToggleAction {
-    Start,
+    Start(DictationSessionId),
     Finish(DictationSessionId),
     IgnorePaused,
-    IgnoreStarting,
-    IgnoreFinishing,
+    IgnoreStarting(Option<DictationSessionId>),
+    IgnoreFinishing(Option<DictationSessionId>),
 }
 
 /// Owns the thread-safe state transitions for one dictation workflow.
@@ -52,18 +52,19 @@ impl DictationSession {
         match data.state {
             DictationSessionState::Idle => {
                 data.state = DictationSessionState::Starting;
-                data.id = Some(DictationSessionId::generate());
-                DictationToggleAction::Start
+                let id = DictationSessionId::generate();
+                data.id = Some(id);
+                DictationToggleAction::Start(id)
             }
-            DictationSessionState::Starting => DictationToggleAction::IgnoreStarting,
+            DictationSessionState::Starting => DictationToggleAction::IgnoreStarting(data.id),
             DictationSessionState::Recording => match data.id {
                 Some(id) => {
                     data.state = DictationSessionState::Finishing;
                     DictationToggleAction::Finish(id)
                 }
-                None => DictationToggleAction::IgnoreFinishing,
+                None => DictationToggleAction::IgnoreFinishing(None),
             },
-            DictationSessionState::Finishing => DictationToggleAction::IgnoreFinishing,
+            DictationSessionState::Finishing => DictationToggleAction::IgnoreFinishing(data.id),
         }
     }
 
@@ -104,16 +105,17 @@ impl DictationSession {
         true
     }
 
-    pub fn request_cancel(&self) -> bool {
+    pub fn request_cancel(&self) -> Option<DictationSessionId> {
         let mut data = self.data();
         if !matches!(
             data.state,
             DictationSessionState::Starting | DictationSessionState::Recording
         ) {
-            return false;
+            return None;
         }
+        let id = data.id?;
         data.state = DictationSessionState::Idle;
-        true
+        Some(id)
     }
 
     pub fn complete(&self) {
@@ -150,7 +152,10 @@ mod tests {
     fn toggle_drives_one_complete_dictation_lifecycle() {
         let session = DictationSession::default();
 
-        assert_eq!(DictationToggleAction::Start, session.request_toggle(false));
+        assert!(matches!(
+            session.request_toggle(false),
+            DictationToggleAction::Start(started_id) if Some(started_id) == session.current_id()
+        ));
         let id = session.current_id();
         assert_eq!(DictationSessionState::Starting, session.state());
         assert!(session.recording_started());
@@ -171,15 +176,18 @@ mod tests {
             DictationToggleAction::IgnorePaused,
             session.request_toggle(true)
         );
-        assert_eq!(DictationToggleAction::Start, session.request_toggle(false));
+        assert!(matches!(
+            session.request_toggle(false),
+            DictationToggleAction::Start(_)
+        ));
         assert_eq!(
-            DictationToggleAction::IgnoreStarting,
+            DictationToggleAction::IgnoreStarting(session.current_id()),
             session.request_toggle(false)
         );
         assert!(session.recording_started());
         assert!(session.request_finish().is_some());
         assert_eq!(
-            DictationToggleAction::IgnoreFinishing,
+            DictationToggleAction::IgnoreFinishing(session.current_id()),
             session.request_toggle(false)
         );
     }
@@ -188,15 +196,21 @@ mod tests {
     fn failures_cancellation_and_retained_processing_return_to_idle() {
         let session = DictationSession::default();
 
-        assert_eq!(DictationToggleAction::Start, session.request_toggle(false));
+        assert!(matches!(
+            session.request_toggle(false),
+            DictationToggleAction::Start(_)
+        ));
         session.startup_failed();
         assert_eq!(DictationSessionState::Idle, session.state());
 
-        assert_eq!(DictationToggleAction::Start, session.request_toggle(false));
+        assert!(matches!(
+            session.request_toggle(false),
+            DictationToggleAction::Start(_)
+        ));
         assert!(session.recording_started());
         let id = session.current_id();
         assert!(id.is_some());
-        assert!(session.request_cancel());
+        assert_eq!(id, session.request_cancel());
         if let Some(id) = id {
             assert!(session.begin_retained_processing(id));
         }

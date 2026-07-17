@@ -1,7 +1,7 @@
 use std::sync::{Arc, Mutex};
 
 use template_app::{
-    DictionaryStore, OwnedRecognition, SettingsStore, SpeechRecognitionError,
+    DictationSessionId, DictionaryStore, OwnedRecognition, SettingsStore, SpeechRecognitionError,
     SpeechRecognitionHints, StreamingSpeechRecognizer,
 };
 use template_infra::{
@@ -25,6 +25,7 @@ impl AsrSessionController {
 
     pub fn start(
         &self,
+        id: DictationSessionId,
         on_partial: Arc<dyn Fn(String) + Send + Sync>,
     ) -> Result<(), SpeechRecognitionError> {
         let settings = self
@@ -42,6 +43,7 @@ impl AsrSessionController {
                 tracing::warn!(
                     target: "saymore::diagnostics",
                     event = "asr.dictionary_hints_unavailable",
+                    dictation_id = %id,
                     reason = %error
                 );
                 SpeechRecognitionHints::default()
