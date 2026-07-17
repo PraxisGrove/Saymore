@@ -9,6 +9,7 @@ mod dictionary_files;
 mod model_discovery;
 mod openai_transcriptions_asr;
 mod storage_usage;
+mod system_clock;
 
 #[cfg(any(target_os = "macos", target_os = "windows"))]
 mod platform_secret_store;
@@ -102,4 +103,5 @@ pub use openai_transcriptions_asr::OpenAiCompatibleSpeechRecognizer;
 pub use platform_secret_store::PlatformSecretStore;
 pub use sqlite_storage::{SqliteStorage, read_dictionary_snapshot};
 pub use storage_usage::directory_usage_bytes;
+pub use system_clock::SystemClock;
 pub use volcengine_asr::VolcengineSpeechRecognizer;

@@ -94,6 +94,19 @@ impl JsonSettingsStore {
         Ok(true)
     }
 
+    /// Loads both provider views from one locked filesystem snapshot.
+    ///
+    /// Dictation completion adapters use this to keep the executable refinement plan
+    /// and persisted provider metadata consistent for one session.
+    pub fn load_settings_snapshot(
+        &self,
+    ) -> Result<(SaymoreSettings, ProviderCatalog), SettingsStoreError> {
+        let _guard = self.lock_access()?;
+        let catalog = self.load_catalog_unlocked()?;
+        let settings = catalog_to_settings(catalog.clone())?;
+        Ok((settings, catalog))
+    }
+
     fn lock_access(&self) -> Result<MutexGuard<'_, ()>, SettingsStoreError> {
         self.access.lock().map_err(|_| {
             SettingsStoreError::Unavailable("settings access lock was poisoned".to_owned())

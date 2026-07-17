@@ -53,6 +53,7 @@ use observation::text_between_anchors;
 const VERIFICATION_POLL_INTERVAL: Duration = Duration::from_millis(20);
 const ACCESSIBILITY_VERIFICATION_TIMEOUT: Duration = Duration::from_millis(180);
 const PASTE_VERIFICATION_TIMEOUT: Duration = Duration::from_millis(700);
+const FOCUS_SETTLE_DELAY: Duration = Duration::from_millis(80);
 // Some targets consume posted paste events asynchronously, so keep both paths equally patient.
 const UNOBSERVABLE_PASTE_DELAY: Duration = Duration::from_millis(700);
 
@@ -144,6 +145,7 @@ struct DeliveryAttempt {
 }
 
 fn deliver_attempt(text: &str) -> Result<DeliveryAttempt, TextDeliveryError> {
+    thread::sleep(FOCUS_SETTLE_DELAY);
     let secure_input = secure_event_input_enabled();
     if authorization_from(unsafe { AXIsProcessTrusted() }) == AccessibilityAuthorization::Denied
         && !secure_input

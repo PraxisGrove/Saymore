@@ -5,16 +5,16 @@ use std::sync::{
 
 use template_app::{
     AccessibilityAuthorization, CompletedDictation, DictationCompletion,
-    DictationCompletionAdapters, DictationCompletionClock, DictationCompletionPolicy,
-    DictationCompletionResult, DictationHandoff, DictationHistoryPolicy, DictationHistoryResult,
-    DictationHistorySkipReason, DictationHistoryWriter, DictationPolicyError,
-    DictationPolicySource, DictationSessionId, DictionaryEntry, DictionaryOrigin, DictionaryStore,
-    FinalTextProcessingError, FinalTextRequest, FinalTranscriptRefiner, HistoryDelivery,
-    HistoryRefinement, NewDictionaryEntry, NewHistoryRecord, OwnedRecognition, PcmRecording,
-    ProcessedText, RefinementEvaluation, RefinementFallbackReason, RefinementMode,
-    RefinementStatus, RefinementTerm, RestoredRecordingTranscriber, SpeechRecognitionError,
-    StorageError, StreamingRecognitionSession, TextDeliverer, TextDeliveryError,
-    TextDeliveryOutcome,
+    DictationCompletionAdapters, DictationCompletionClock, DictationCompletionError,
+    DictationCompletionPolicy, DictationCompletionResult, DictationHandoff, DictationHistoryPolicy,
+    DictationHistoryResult, DictationHistorySkipReason, DictationHistoryWriter,
+    DictationPolicyError, DictationPolicySource, DictationSessionId, DictionaryEntry,
+    DictionaryOrigin, DictionaryStore, FailedDictation, FinalTextProcessingError, FinalTextRequest,
+    FinalTranscriptRefiner, HistoryDelivery, HistoryRefinement, NewDictionaryEntry,
+    NewHistoryRecord, OwnedRecognition, PcmRecording, ProcessedText, RefinementEvaluation,
+    RefinementFallbackReason, RefinementMode, RefinementStatus, RefinementTerm,
+    RestoredRecordingTranscriber, SpeechRecognitionError, StorageError,
+    StreamingRecognitionSession, TextDeliverer, TextDeliveryError, TextDeliveryOutcome,
 };
 
 struct Scenario {
@@ -228,6 +228,26 @@ fn captured_dictation_finishes_recognition_and_delivers_once() {
     assert_eq!(1, finish_calls.load(Ordering::Relaxed));
     assert_eq!(0, harness.adapter.privacy_checks.load(Ordering::Relaxed));
     assert_eq!(vec!["hello world"], strings(&harness.adapter.delivered));
+}
+
+#[test]
+fn empty_final_transcript_fails_without_delivery() {
+    let id = DictationSessionId::generate();
+    let harness = Harness::new(Scenario::default());
+
+    let result = harness.completion.complete(captured_handoff(id, " \n \t "));
+
+    assert_eq!(
+        DictationCompletionResult::Failed(FailedDictation {
+            id,
+            error: DictationCompletionError::Recognition(SpeechRecognitionError::Protocol(
+                "empty transcript".to_owned(),
+            )),
+        }),
+        result
+    );
+    assert!(strings(&harness.adapter.delivered).is_empty());
+    assert!(values(&harness.adapter.history_records).is_empty());
 }
 
 #[test]
@@ -471,6 +491,7 @@ fn completed(
 ) -> DictationCompletionResult {
     DictationCompletionResult::Completed(CompletedDictation {
         id,
+        audio_duration_ms: recording().duration_ms,
         processed: ProcessedText {
             text: text.to_owned(),
             refinement,

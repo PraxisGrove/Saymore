@@ -202,8 +202,11 @@ pub enum DictationHistoryResult {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+/// Terminal output consumed by desktop presentation after delivery and history handling.
 pub struct CompletedDictation {
     pub id: DictationSessionId,
+    /// Duration retained for desktop completion presentation after raw audio is dropped.
+    pub audio_duration_ms: u64,
     pub processed: ProcessedText,
     pub delivery: Result<TextDeliveryOutcome, TextDeliveryError>,
     pub history: DictationHistoryResult,
@@ -267,6 +270,7 @@ impl DictationCompletion {
         processed.text = normalize_standard_spellings(&processed.text, &terms);
 
         let delivery = self.adapters.deliverer.deliver(&processed.text);
+        let audio_duration_ms = finalized.recording.duration_ms;
         let history = self.persist_history(
             id,
             &finalized.recording,
@@ -279,6 +283,7 @@ impl DictationCompletion {
 
         DictationCompletionResult::Completed(CompletedDictation {
             id,
+            audio_duration_ms,
             processed,
             delivery,
             history,

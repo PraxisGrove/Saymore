@@ -10,10 +10,11 @@ use std::{
 
 use rusqlite::{Connection, OpenFlags};
 use template_app::{
-    DictionaryCandidateEvidence, DictionaryEntry, DictionaryLearningOutcome,
-    DictionaryLearningStore, DictionaryStore, HistoryCursor, HistoryPage, HistoryStore,
-    InstalledModel, InstalledModelStore, LocalSettings, LocalSettingsStore, NewDictionaryEntry,
-    NewDictionaryObservation, NewHistoryRecord, SecretStore, StorageError,
+    DictationHistoryWriter, DictionaryCandidateEvidence, DictionaryEntry,
+    DictionaryLearningOutcome, DictionaryLearningStore, DictionaryStore, HistoryCursor,
+    HistoryPage, HistoryStore, InstalledModel, InstalledModelStore, LocalSettings,
+    LocalSettingsStore, NewDictionaryEntry, NewDictionaryObservation, NewHistoryRecord,
+    SecretStore, StorageError,
 };
 
 mod dictionary;
@@ -148,6 +149,12 @@ impl HistoryStore for SqliteStorage {
 
     fn cleanup_history(&self, now_ms: i64) -> Result<u64, StorageError> {
         self.request(|response| Command::CleanupHistory { now_ms, response })
+    }
+}
+
+impl DictationHistoryWriter for SqliteStorage {
+    fn insert_history(&self, record: NewHistoryRecord) -> Result<(), StorageError> {
+        HistoryStore::insert_history(self, record)
     }
 }
 
