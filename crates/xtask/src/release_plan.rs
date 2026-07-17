@@ -1,7 +1,5 @@
 use std::{env, error::Error, fs::OpenOptions, io::Write, path::PathBuf};
 
-const RELEASE_INTERVAL_MS: u64 = 48 * 60 * 60 * 1_000;
-
 #[derive(Debug, PartialEq, Eq)]
 struct ReleasePlan {
     should_release: bool,
@@ -12,10 +10,7 @@ struct ReleasePlan {
 struct PlanInput<'a> {
     current_version: &'a str,
     latest_tag: Option<&'a str>,
-    published_at_ms: Option<u64>,
     ahead_by: u64,
-    now_ms: u64,
-    force: bool,
 }
 
 pub(crate) fn run(args: &[String]) -> Result<(), Box<dyn Error>> {
@@ -24,23 +19,11 @@ pub(crate) fn run(args: &[String]) -> Result<(), Box<dyn Error>> {
         _ => return Err("usage: release-plan --github-output <path>".into()),
     };
     let latest_tag = optional_env("SAYMORE_LATEST_TAG");
-    let published_at_ms = optional_env("SAYMORE_LATEST_PUBLISHED_AT_MS")
-        .map(|value| value.parse())
-        .transpose()?;
     let ahead_by = env::var("SAYMORE_AHEAD_BY")?.parse()?;
-    let now_ms = env::var("SAYMORE_NOW_MS")?.parse()?;
-    let force = match env::var("SAYMORE_FORCE_RELEASE")?.as_str() {
-        "true" => true,
-        "false" => false,
-        value => return Err(format!("invalid SAYMORE_FORCE_RELEASE value: {value}").into()),
-    };
     let plan = plan(PlanInput {
         current_version: env!("CARGO_PKG_VERSION"),
         latest_tag: latest_tag.as_deref(),
-        published_at_ms,
         ahead_by,
-        now_ms,
-        force,
     })?;
 
     let mut file = OpenOptions::new().create(true).append(true).open(output)?;
@@ -59,19 +42,10 @@ fn plan(input: PlanInput<'_>) -> Result<ReleasePlan, Box<dyn Error>> {
         Some(tag) => bump_tag(tag)?,
         None => parse_version(input.current_version)?.to_string(),
     };
-    let due = match (input.latest_tag, input.published_at_ms) {
-        (None, None) => true,
-        (Some(_), Some(published_at_ms)) => {
-            input.now_ms.saturating_sub(published_at_ms) >= RELEASE_INTERVAL_MS
-        }
-        (None, Some(_)) | (Some(_), None) => {
-            return Err("latest tag and publication time must be provided together".into());
-        }
-    };
     let changed = input.latest_tag.is_none() || input.ahead_by > 0;
     let tag = format!("v{version}");
     Ok(ReleasePlan {
-        should_release: input.force || (due && changed),
+        should_release: changed,
         version,
         tag,
     })
@@ -128,10 +102,7 @@ mod tests {
         let actual = plan(PlanInput {
             current_version: "0.1.0",
             latest_tag: None,
-            published_at_ms: None,
             ahead_by: 0,
-            now_ms: 1_000,
-            force: false,
         })
         .ok();
         assert_eq!(
@@ -145,14 +116,11 @@ mod tests {
     }
 
     #[test]
-    fn due_release_increments_patch_when_commits_exist() {
+    fn release_increments_patch_when_commits_exist() {
         let actual = plan(PlanInput {
             current_version: "0.1.0",
             latest_tag: Some("v1.2.3"),
-            published_at_ms: Some(1_000),
             ahead_by: 2,
-            now_ms: 1_000 + RELEASE_INTERVAL_MS,
-            force: false,
         })
         .ok();
         assert_eq!(
@@ -166,44 +134,15 @@ mod tests {
     }
 
     #[test]
-    fn cadence_and_unchanged_source_each_prevent_release() {
-        let too_early = plan(PlanInput {
-            current_version: "0.1.0",
-            latest_tag: Some("v0.1.0"),
-            published_at_ms: Some(1_000),
-            ahead_by: 1,
-            now_ms: 2_000,
-            force: false,
-        })
-        .ok()
-        .map(|plan| plan.should_release);
+    fn unchanged_source_prevents_release() {
         let unchanged = plan(PlanInput {
             current_version: "0.1.0",
             latest_tag: Some("v0.1.0"),
-            published_at_ms: Some(1_000),
             ahead_by: 0,
-            now_ms: 1_000 + RELEASE_INTERVAL_MS,
-            force: false,
         })
         .ok()
         .map(|plan| plan.should_release);
-        assert_eq!(Some(false), too_early);
         assert_eq!(Some(false), unchanged);
-    }
-
-    #[test]
-    fn force_overrides_cadence_and_change_checks() {
-        let actual = plan(PlanInput {
-            current_version: "0.1.0",
-            latest_tag: Some("v0.1.0"),
-            published_at_ms: Some(1_000),
-            ahead_by: 0,
-            now_ms: 2_000,
-            force: true,
-        })
-        .ok()
-        .map(|plan| plan.should_release);
-        assert_eq!(Some(true), actual);
     }
 
     #[test]

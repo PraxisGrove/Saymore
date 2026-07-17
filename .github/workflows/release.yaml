@@ -2,14 +2,8 @@ name: Scheduled Release
 
 on:
   schedule:
-    - cron: "17 3 * * *"
+    - cron: "30 8 * * *"
   workflow_dispatch:
-    inputs:
-      force:
-        description: Release even when the 48-hour cadence is not due
-        required: false
-        default: false
-        type: boolean
 
 permissions:
   contents: write
@@ -34,6 +28,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
+          ref: main
           fetch-depth: 0
 
       - name: Read latest release state
@@ -52,35 +47,32 @@ jobs:
             }
 
             let latestTag = "";
-            let publishedAtMs = "";
             let aheadBy = 0;
+            const main = await github.rest.repos.getBranch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              branch: "main",
+            });
+            const mainSha = main.data.commit.sha;
             if (latest) {
               latestTag = latest.data.tag_name;
-              publishedAtMs = Date.parse(latest.data.published_at);
-              if (!Number.isFinite(publishedAtMs)) {
-                throw new Error(`Invalid release publication time: ${latest.data.published_at}`);
-              }
               const comparison = await github.rest.repos.compareCommitsWithBasehead({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
-                basehead: `${latestTag}...${context.sha}`,
+                basehead: `${latestTag}...${mainSha}`,
               });
               aheadBy = comparison.data.ahead_by;
             }
 
             core.setOutput("latest-tag", latestTag);
-            core.setOutput("published-at-ms", String(publishedAtMs));
             core.setOutput("ahead-by", String(aheadBy));
-            core.setOutput("now-ms", String(Date.now()));
+            core.setOutput("main-sha", mainSha);
 
       - name: Choose release eligibility and version
         id: version
         env:
           SAYMORE_LATEST_TAG: ${{ steps.release-state.outputs.latest-tag }}
-          SAYMORE_LATEST_PUBLISHED_AT_MS: ${{ steps.release-state.outputs.published-at-ms }}
           SAYMORE_AHEAD_BY: ${{ steps.release-state.outputs.ahead-by }}
-          SAYMORE_NOW_MS: ${{ steps.release-state.outputs.now-ms }}
-          SAYMORE_FORCE_RELEASE: ${{ inputs.force || false }}
         run: cargo run -p xtask -- release-plan --github-output "$GITHUB_OUTPUT"
 
       - name: Resolve release source
@@ -88,12 +80,13 @@ jobs:
         shell: bash
         env:
           TAG: ${{ steps.version.outputs.tag }}
+          MAIN_SHA: ${{ steps.release-state.outputs.main-sha }}
         run: |
           set -euo pipefail
           if git rev-parse --verify --quiet "refs/tags/$TAG"; then
             sha=$(git rev-list --max-count=1 "$TAG")
           else
-            sha="$GITHUB_SHA"
+            sha="$MAIN_SHA"
           fi
           echo "sha=$sha" >> "$GITHUB_OUTPUT"
 
@@ -113,16 +106,22 @@ jobs:
         with:
           ref: ${{ needs.plan.outputs.source-sha }}
 
-      - name: Require Apple distribution credentials
+      - name: Choose macOS signing mode
+        id: apple-auth
         shell: bash
         run: |
           set -euo pipefail
+          complete=true
           for name in APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID; do
             if [[ -z "${!name:-}" ]]; then
-              echo "Missing required GitHub secret: $name" >&2
-              exit 1
+              complete=false
             fi
           done
+          echo "signed=$complete" >> "$GITHUB_OUTPUT"
+          if [[ "$complete" != true ]]; then
+            sed -i '' '/^signing-identity = /d' apps/desktop/Cargo.toml
+            echo "::warning::Apple credentials are incomplete; publishing an unsigned, unnotarized DMG."
+          fi
 
       - name: Setup Rust targets
         uses: dtolnay/rust-toolchain@stable
@@ -149,10 +148,19 @@ jobs:
             target/x86_64-apple-darwin/release/saymore-desktop \
             -output target/universal-apple-darwin/release/saymore-desktop
 
-      - name: Package, sign, and notarize DMG
+      - name: Package DMG
         run: >-
           cargo packager --release --packages saymore-desktop --formats dmg
           --target universal-apple-darwin --out-dir dist
+
+      - name: Mark unsigned DMG
+        if: steps.apple-auth.outputs.signed != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          for file in dist/*.dmg; do
+            mv "$file" "${file%.dmg}-unsigned.dmg"
+          done
 
       - uses: actions/upload-artifact@v4
         with:

@@ -1,13 +1,13 @@
 # Releasing
 
 Saymore releases are built by `.github/workflows/release.yaml`. The workflow
-runs daily at 03:17 UTC and proceeds only when the latest successful release is
-at least 48 hours old and `main` has new commits. A manual run can override the
-cadence.
+runs daily at 08:30 UTC (16:30 China Standard Time) and proceeds only when
+`main` has commits newer than the latest GitHub Release tag. A manual run uses
+the same new-commit requirement.
 
-GitHub supplies release timestamps and commit comparisons; the tested
-`cargo run -p xtask -- release-plan` command owns the deterministic cadence and
-version decision.
+GitHub supplies the latest release tag and commit comparison; the tested
+`cargo run -p xtask -- release-plan` command owns the deterministic eligibility
+and version decision.
 
 ## Versioning
 
@@ -28,8 +28,9 @@ dependency policy, release build, and the size gate.
 ## Artifacts
 
 - macOS builds both Apple Silicon and Intel targets, combines them into one
-  universal binary, and publishes a signed and notarized DMG plus SHA-256
-  checksums to GitHub Releases.
+  universal binary, and publishes a DMG plus SHA-256 checksums to GitHub
+  Releases. With complete Apple credentials the DMG is signed and notarized;
+  otherwise its filename ends in `-unsigned.dmg`.
 - Windows builds an NSIS installer and retains it as the `preview-windows`
   workflow artifact.
 - Linux builds an AppImage and retains it as the `preview-linux` workflow
@@ -45,7 +46,11 @@ Set the workflow permission to allow GitHub Actions to write repository
 contents. The release commit also requires `main` branch rules to permit the
 GitHub Actions bot to push.
 
-Add these GitHub Actions secrets for Developer ID signing and notarization:
+Apple credentials are optional for running the release workflow. Without them,
+the workflow publishes an unsigned and unnotarized DMG; macOS users must use the
+Finder context menu to open it and accept the security warning. For normal
+click-to-open distribution, join the Apple Developer Program and add these
+GitHub Actions secrets:
 
 - `APPLE_CERTIFICATE`: base64-encoded Developer ID Application `.p12` file.
 - `APPLE_CERTIFICATE_PASSWORD`: password used when exporting the `.p12` file.
@@ -53,8 +58,8 @@ Add these GitHub Actions secrets for Developer ID signing and notarization:
 - `APPLE_PASSWORD`: app-specific password for that account.
 - `APPLE_TEAM_ID`: Apple Developer team identifier.
 
-The macOS job fails before building when any required secret is absent. This
-prevents an unsigned DMG from being published as a formal release.
+All five secrets must be present to enable signing. A partial configuration
+falls back to the explicitly labelled unsigned DMG.
 
 ## Recovery
 
