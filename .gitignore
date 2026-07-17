@@ -12,6 +12,8 @@
 
 # Build and generated output
 /target/
+/dist/
+/apps/desktop/dist/
 /.codegraph/
 /output/
 *.rs.bk
