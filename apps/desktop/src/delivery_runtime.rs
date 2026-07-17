@@ -6,13 +6,12 @@ use std::{
 
 use slint::{ComponentHandle, SharedString, Timer};
 use template_app::{
-    CorrectionObservingTextDeliverer, DictionaryLearningOutcome, DictionaryLearningStore,
-    FeedbackSound, HistoryDelivery, HistoryStore, NewDictionaryObservation, NewHistoryRecord,
-    PcmRecording, ProcessedText, RefinementStatus, TextDeliveryError, TextDeliveryOutcome,
-    correction_from_edit,
+    CorrectionObservingTextDeliverer, DictationSessionId, DictionaryLearningOutcome,
+    DictionaryLearningStore, FeedbackSound, HistoryDelivery, HistoryStore,
+    NewDictionaryObservation, NewHistoryRecord, PcmRecording, ProcessedText, RefinementStatus,
+    TextDeliveryError, TextDeliveryOutcome, correction_from_edit,
 };
 use template_infra::{MacOsTextDeliverer, SqliteStorage, copy_text_to_clipboard};
-use uuid::Uuid;
 
 use crate::{
     overlay_generation_matches, overlay_window, play_feedback_sound,
@@ -43,6 +42,7 @@ pub fn wire_result_actions(overlay: &ResultOverlay) {
 }
 
 pub(crate) struct DeliveryRequest {
+    pub id: DictationSessionId,
     pub ui: slint::Weak<AppWindow>,
     pub status_overlay: slint::Weak<RecordingOverlay>,
     pub overlay_generation: i32,
@@ -58,6 +58,7 @@ pub(crate) struct DeliveryRequest {
 
 #[derive(Clone)]
 struct ReadyDeliveryRequest {
+    id: DictationSessionId,
     ui: slint::Weak<AppWindow>,
     status_overlay: slint::Weak<RecordingOverlay>,
     overlay_generation: i32,
@@ -74,6 +75,7 @@ struct ReadyDeliveryRequest {
 impl DeliveryRequest {
     fn into_ready(self) -> ReadyDeliveryRequest {
         ReadyDeliveryRequest {
+            id: self.id,
             ui: self.ui,
             status_overlay: self.status_overlay,
             overlay_generation: self.overlay_generation,
@@ -132,7 +134,7 @@ fn complete_delivery(pending: ReadyDeliveryRequest) {
     let learning_storage = Arc::clone(&pending.storage);
     let learning_ui = pending.ui.clone();
     let learning_refinement = Arc::clone(&pending.refinement);
-    let dictation_id = Uuid::new_v4().to_string();
+    let dictation_id = pending.id.to_string();
     let delivery = MacOsTextDeliverer.deliver_and_observe(
         &pending.processed.text,
         Box::new(move |edit| {
@@ -182,6 +184,7 @@ fn complete_delivery(pending: ReadyDeliveryRequest) {
     tracing::info!(
         target: "saymore::diagnostics",
         event = "delivery.completed",
+        dictation_id = %pending.id,
         result = ?delivery,
         requires_recovery
     );

@@ -1,6 +1,6 @@
 use std::time::{Duration, Instant};
 
-use crate::PcmRecording;
+use crate::{DictationHandoff, DictationSessionId, PcmRecording};
 
 pub struct CancelledRecordingStore {
     retained: Option<RetainedRecording>,
@@ -9,6 +9,7 @@ pub struct CancelledRecordingStore {
 }
 
 struct RetainedRecording {
+    id: DictationSessionId,
     recording: PcmRecording,
     cancelled_at: Instant,
     generation: u64,
@@ -23,9 +24,10 @@ impl CancelledRecordingStore {
         }
     }
 
-    pub fn retain(&mut self, recording: PcmRecording, now: Instant) -> u64 {
+    pub fn retain(&mut self, id: DictationSessionId, recording: PcmRecording, now: Instant) -> u64 {
         self.generation = self.generation.wrapping_add(1);
         self.retained = Some(RetainedRecording {
+            id,
             recording,
             cancelled_at: now,
             generation: self.generation,
@@ -33,9 +35,14 @@ impl CancelledRecordingStore {
         self.generation
     }
 
-    pub fn take(&mut self, now: Instant) -> Option<PcmRecording> {
+    pub fn take(&mut self, now: Instant) -> Option<DictationHandoff> {
         self.remove_if_expired(now);
-        self.retained.take().map(|retained| retained.recording)
+        self.retained
+            .take()
+            .map(|retained| DictationHandoff::Restored {
+                id: retained.id,
+                recording: retained.recording,
+            })
     }
 
     pub fn expire(&mut self, generation: u64, now: Instant) -> bool {
@@ -77,30 +84,44 @@ mod tests {
     #[test]
     fn returns_cancelled_audio_during_the_undo_window() {
         let now = Instant::now();
+        let id = DictationSessionId::generate();
         let mut store = CancelledRecordingStore::new(Duration::from_secs(10));
-        store.retain(recording(), now);
+        store.retain(id, recording(), now);
 
-        assert_eq!(Some(recording()), store.take(now + Duration::from_secs(9)));
+        assert!(matches!(
+            store.take(now + Duration::from_secs(9)),
+            Some(DictationHandoff::Restored {
+                id: restored_id,
+                recording: restored_recording,
+            }) if restored_id == id && restored_recording == recording()
+        ));
     }
 
     #[test]
     fn destroys_cancelled_audio_after_the_undo_window() {
         let now = Instant::now();
         let mut store = CancelledRecordingStore::new(Duration::from_secs(10));
-        let generation = store.retain(recording(), now);
+        let generation = store.retain(DictationSessionId::generate(), recording(), now);
 
         assert!(store.expire(generation, now + Duration::from_secs(10)));
-        assert_eq!(None, store.take(now + Duration::from_secs(10)));
+        assert!(store.take(now + Duration::from_secs(10)).is_none());
     }
 
     #[test]
     fn old_expiration_does_not_remove_a_newer_cancellation() {
         let now = Instant::now();
+        let id = DictationSessionId::generate();
         let mut store = CancelledRecordingStore::new(Duration::from_secs(10));
-        let first = store.retain(recording(), now);
-        store.retain(recording(), now + Duration::from_secs(2));
+        let first = store.retain(id, recording(), now);
+        store.retain(id, recording(), now + Duration::from_secs(2));
 
         assert!(!store.expire(first, now + Duration::from_secs(11)));
-        assert_eq!(Some(recording()), store.take(now + Duration::from_secs(11)));
+        assert!(matches!(
+            store.take(now + Duration::from_secs(11)),
+            Some(DictationHandoff::Restored {
+                id: restored_id,
+                recording: restored_recording,
+            }) if restored_id == id && restored_recording == recording()
+        ));
     }
 }

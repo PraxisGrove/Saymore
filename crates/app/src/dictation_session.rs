@@ -1,18 +1,19 @@
-use std::sync::atomic::{AtomicU8, Ordering};
+use std::sync::{Mutex, MutexGuard};
+
+use crate::DictationSessionId;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[repr(u8)]
 pub enum DictationSessionState {
-    Idle = 0,
-    Starting = 1,
-    Recording = 2,
-    Finishing = 3,
+    Idle,
+    Starting,
+    Recording,
+    Finishing,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DictationToggleAction {
     Start,
-    Finish,
+    Finish(DictationSessionId),
     IgnorePaused,
     IgnoreStarting,
     IgnoreFinishing,
@@ -23,13 +24,21 @@ pub enum DictationToggleAction {
 /// Desktop adapters execute the returned actions and report asynchronous start,
 /// finish, and cancellation outcomes back to this state machine.
 pub struct DictationSession {
-    state: AtomicU8,
+    data: Mutex<DictationSessionData>,
+}
+
+struct DictationSessionData {
+    state: DictationSessionState,
+    id: Option<DictationSessionId>,
 }
 
 impl Default for DictationSession {
     fn default() -> Self {
         Self {
-            state: AtomicU8::new(DictationSessionState::Idle as u8),
+            data: Mutex::new(DictationSessionData {
+                state: DictationSessionState::Idle,
+                id: None,
+            }),
         }
     }
 }
@@ -39,86 +48,78 @@ impl DictationSession {
         if paused {
             return DictationToggleAction::IgnorePaused;
         }
-        loop {
-            match self.state() {
-                DictationSessionState::Idle => {
-                    if self
-                        .transition(DictationSessionState::Idle, DictationSessionState::Starting)
-                        .is_ok()
-                    {
-                        return DictationToggleAction::Start;
-                    }
-                }
-                DictationSessionState::Starting => {
-                    return DictationToggleAction::IgnoreStarting;
-                }
-                DictationSessionState::Recording => {
-                    if self
-                        .transition(
-                            DictationSessionState::Recording,
-                            DictationSessionState::Finishing,
-                        )
-                        .is_ok()
-                    {
-                        return DictationToggleAction::Finish;
-                    }
-                }
-                DictationSessionState::Finishing => {
-                    return DictationToggleAction::IgnoreFinishing;
-                }
+        let mut data = self.data();
+        match data.state {
+            DictationSessionState::Idle => {
+                data.state = DictationSessionState::Starting;
+                data.id = Some(DictationSessionId::generate());
+                DictationToggleAction::Start
             }
+            DictationSessionState::Starting => DictationToggleAction::IgnoreStarting,
+            DictationSessionState::Recording => match data.id {
+                Some(id) => {
+                    data.state = DictationSessionState::Finishing;
+                    DictationToggleAction::Finish(id)
+                }
+                None => DictationToggleAction::IgnoreFinishing,
+            },
+            DictationSessionState::Finishing => DictationToggleAction::IgnoreFinishing,
         }
     }
 
     pub fn recording_started(&self) -> bool {
-        self.transition(
-            DictationSessionState::Starting,
-            DictationSessionState::Recording,
-        )
-        .is_ok()
+        let mut data = self.data();
+        if data.state != DictationSessionState::Starting {
+            return false;
+        }
+        data.state = DictationSessionState::Recording;
+        true
     }
 
     pub fn startup_failed(&self) {
-        let _ = self.transition(DictationSessionState::Starting, DictationSessionState::Idle);
-    }
-
-    pub fn request_finish(&self) -> bool {
-        self.transition(
-            DictationSessionState::Recording,
-            DictationSessionState::Finishing,
-        )
-        .is_ok()
-    }
-
-    pub fn begin_retained_processing(&self) -> bool {
-        self.transition(
-            DictationSessionState::Idle,
-            DictationSessionState::Finishing,
-        )
-        .is_ok()
-    }
-
-    pub fn request_cancel(&self) -> bool {
-        loop {
-            let current = self.state();
-            if !matches!(
-                current,
-                DictationSessionState::Starting | DictationSessionState::Recording
-            ) {
-                return false;
-            }
-            if self
-                .transition(current, DictationSessionState::Idle)
-                .is_ok()
-            {
-                return true;
-            }
+        let mut data = self.data();
+        if data.state == DictationSessionState::Starting {
+            data.state = DictationSessionState::Idle;
+            data.id = None;
         }
     }
 
+    pub fn request_finish(&self) -> Option<DictationSessionId> {
+        let mut data = self.data();
+        if data.state != DictationSessionState::Recording {
+            return None;
+        }
+        let id = data.id?;
+        data.state = DictationSessionState::Finishing;
+        Some(id)
+    }
+
+    pub fn begin_retained_processing(&self, id: DictationSessionId) -> bool {
+        let mut data = self.data();
+        if data.state != DictationSessionState::Idle {
+            return false;
+        }
+        data.state = DictationSessionState::Finishing;
+        data.id = Some(id);
+        true
+    }
+
+    pub fn request_cancel(&self) -> bool {
+        let mut data = self.data();
+        if !matches!(
+            data.state,
+            DictationSessionState::Starting | DictationSessionState::Recording
+        ) {
+            return false;
+        }
+        data.state = DictationSessionState::Idle;
+        true
+    }
+
     pub fn complete(&self) {
-        self.state
-            .store(DictationSessionState::Idle as u8, Ordering::Release);
+        let mut data = self.data();
+        data.state = DictationSessionState::Idle;
+        data.id = None;
     }
 
     pub fn is_recording(&self) -> bool {
@@ -126,25 +127,18 @@ impl DictationSession {
     }
 
     pub fn state(&self) -> DictationSessionState {
-        match self.state.load(Ordering::Acquire) {
-            1 => DictationSessionState::Starting,
-            2 => DictationSessionState::Recording,
-            3 => DictationSessionState::Finishing,
-            _ => DictationSessionState::Idle,
-        }
+        self.data().state
     }
 
-    fn transition(
-        &self,
-        current: DictationSessionState,
-        next: DictationSessionState,
-    ) -> Result<u8, u8> {
-        self.state.compare_exchange(
-            current as u8,
-            next as u8,
-            Ordering::AcqRel,
-            Ordering::Acquire,
-        )
+    pub fn current_id(&self) -> Option<DictationSessionId> {
+        self.data().id
+    }
+
+    fn data(&self) -> MutexGuard<'_, DictationSessionData> {
+        match self.data.lock() {
+            Ok(data) => data,
+            Err(poisoned) => poisoned.into_inner(),
+        }
     }
 }
 
@@ -157,9 +151,13 @@ mod tests {
         let session = DictationSession::default();
 
         assert_eq!(DictationToggleAction::Start, session.request_toggle(false));
+        let id = session.current_id();
         assert_eq!(DictationSessionState::Starting, session.state());
         assert!(session.recording_started());
-        assert_eq!(DictationToggleAction::Finish, session.request_toggle(false));
+        assert!(matches!(
+            session.request_toggle(false),
+            DictationToggleAction::Finish(finished_id) if Some(finished_id) == id
+        ));
         assert_eq!(DictationSessionState::Finishing, session.state());
         session.complete();
         assert_eq!(DictationSessionState::Idle, session.state());
@@ -179,7 +177,7 @@ mod tests {
             session.request_toggle(false)
         );
         assert!(session.recording_started());
-        assert!(session.request_finish());
+        assert!(session.request_finish().is_some());
         assert_eq!(
             DictationToggleAction::IgnoreFinishing,
             session.request_toggle(false)
@@ -196,8 +194,12 @@ mod tests {
 
         assert_eq!(DictationToggleAction::Start, session.request_toggle(false));
         assert!(session.recording_started());
+        let id = session.current_id();
+        assert!(id.is_some());
         assert!(session.request_cancel());
-        assert!(session.begin_retained_processing());
+        if let Some(id) = id {
+            assert!(session.begin_retained_processing(id));
+        }
         session.complete();
         assert_eq!(DictationSessionState::Idle, session.state());
     }

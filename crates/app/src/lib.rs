@@ -2,6 +2,7 @@
 
 mod audio_recording;
 mod cancelled_recording;
+mod dictation_completion;
 mod dictation_session;
 mod dictionary_learning;
 mod feedback_sound;
@@ -21,6 +22,7 @@ pub use audio_recording::{
     convert_interleaved_f32_to_pcm16,
 };
 pub use cancelled_recording::CancelledRecordingStore;
+pub use dictation_completion::{DictationHandoff, DictationSessionId, OwnedRecognition};
 pub use dictation_session::{DictationSession, DictationSessionState, DictationToggleAction};
 pub use dictionary_learning::{
     CandidateAssessmentSource, CandidateDecision, DictionaryCandidateAssessment,

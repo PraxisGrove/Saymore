@@ -48,12 +48,13 @@ pub fn wire(
     let finish_session = Arc::clone(&session);
     let finish_processing = processing.clone();
     overlay.on_finish(move || {
-        if finish_session.request_finish() {
+        if let Some(id) = finish_session.request_finish() {
             dictation_finish::finish_recording(
                 finish_ui.clone(),
                 finish_overlays.clone(),
                 Arc::clone(&finish_recorder),
                 Arc::clone(&finish_session),
+                id,
                 finish_processing.clone(),
             );
         }
@@ -118,6 +119,7 @@ pub fn cancel(
     if !session.request_cancel() {
         return;
     }
+    let id = session.current_id();
     let _ = limit_overlay.upgrade_in_event_loop(|overlay| {
         let _ = overlay.hide();
     });
@@ -130,8 +132,15 @@ pub fn cancel(
     let cancelled = Arc::clone(cancelled);
     let _ = ui.upgrade_in_event_loop(move |ui| match result {
         Ok(recording) => {
+            let Some(id) = id else {
+                apply_recording_error(
+                    &ui,
+                    &RecordingError::Capture("cancelled recording has no session id".to_owned()),
+                );
+                return;
+            };
             let generation = match cancelled.lock() {
-                Ok(mut cancelled) => cancelled.retain(recording, Instant::now()),
+                Ok(mut cancelled) => cancelled.retain(id, recording, Instant::now()),
                 Err(_) => {
                     apply_recording_error(
                         &ui,
@@ -195,14 +204,17 @@ fn undo_cancelled_recording(
         .upgrade()
         .map(|overlay| overlay.get_session_generation())
         .unwrap_or_default();
-    if !session.begin_retained_processing() {
+    let Some(id) = session.current_id() else {
+        return;
+    };
+    if !session.begin_retained_processing(id) {
         return;
     }
-    let recording = cancelled
+    let handoff = cancelled
         .lock()
         .ok()
         .and_then(|mut cancelled| cancelled.take(Instant::now()));
-    let Some(recording) = recording else {
+    let Some(handoff) = handoff else {
         session.complete();
         return;
     };
@@ -226,12 +238,12 @@ fn undo_cancelled_recording(
     let spawn_result = std::thread::Builder::new()
         .name("saymore-undo-dictation".to_owned())
         .spawn(move || {
-            let result = process_cancelled_recording(
-                &recording,
-                &processing,
-                plan,
+            let result = dictation_finish::process_recording(
+                handoff,
                 &event_ui,
                 &event_overlay,
+                &processing,
+                plan,
             );
             session.complete();
             let _ = event_ui.upgrade_in_event_loop(move |ui| {
@@ -239,7 +251,6 @@ fn undo_cancelled_recording(
                     status_overlay: event_overlay,
                     overlay_generation,
                     result_overlay,
-                    recording,
                     processing,
                     feedback_sounds_enabled: feedback_sounds_enabled.load(Ordering::Acquire),
                 };
@@ -258,90 +269,46 @@ fn undo_cancelled_recording(
     }
 }
 
-fn process_cancelled_recording(
-    recording: &template_app::PcmRecording,
-    processing: &TextProcessingServices,
-    plan: crate::refinement_runtime::RefinementPlan,
-    ui: &slint::Weak<AppWindow>,
-    overlay: &slint::Weak<RecordingOverlay>,
-) -> Result<
-    (
-        template_app::ProcessedText,
-        dictation_finish::PreparedHistory,
-    ),
-    template_app::SpeechRecognitionError,
-> {
-    processing.asr.start(Arc::new(|_| {}))?;
-    for chunk in recording.samples.chunks(1_600) {
-        processing.asr.push_audio(chunk.to_vec())?;
-    }
-    let transcript = processing.asr.finish()?;
-    let activity_ui = ui.clone();
-    let activity_overlay = overlay.clone();
-    let relevant_terms =
-        refinement_runtime::dictionary_terms_for_current_refinement(&processing.storage);
-    processing
-        .refinement
-        .process_final_transcript(&transcript, plan, relevant_terms, move || {
-            dictation_finish::show_processing_activity(
-                &activity_ui,
-                &activity_overlay,
-                refinement_runtime::ProcessingActivity::Refining,
-            );
-        })
-        .map(|outcome| {
-            let history = dictation_finish::prepare_history(
-                processing,
-                recording,
-                &transcript,
-                outcome.llm_refined_text.as_deref(),
-                &outcome.processed,
-            );
-            (outcome.processed, history)
-        })
-}
-
 struct UndoDeliveryContext {
     status_overlay: slint::Weak<RecordingOverlay>,
     overlay_generation: i32,
     result_overlay: slint::Weak<ResultOverlay>,
-    recording: template_app::PcmRecording,
     processing: TextProcessingServices,
     feedback_sounds_enabled: bool,
 }
 
 fn apply_undo_result(
     ui: &AppWindow,
-    result: Result<
-        (
-            template_app::ProcessedText,
-            dictation_finish::PreparedHistory,
-        ),
-        template_app::SpeechRecognitionError,
-    >,
+    result: dictation_finish::FinishResult,
     context: UndoDeliveryContext,
 ) {
-    let (processed, history) = match result {
-        Ok(result) => result,
-        Err(error) => {
+    let finished = match result {
+        Ok(finished) => finished,
+        Err(dictation_finish::FinishError::Recording(error)) => {
+            apply_recording_error(ui, &error);
+            hide_overlay_after_delay(context.status_overlay);
+            return;
+        }
+        Err(dictation_finish::FinishError::Recognition(error)) => {
             apply_asr_error(ui, &error);
             hide_overlay_after_delay(context.status_overlay);
             return;
         }
     };
     settings_ui::mark_asr_runtime_healthy(ui);
-    if let Some(error) = history.error {
+    if let Some(error) = finished.history.error {
         tracing::warn!(event = "history.prepare_failed", reason = %error);
         ui.set_history_status(ui.global::<Translations>().get_storage_error());
     }
     delivery_runtime::schedule_delivery(delivery_runtime::DeliveryRequest {
+        id: finished.id,
         ui: ui.as_weak(),
         status_overlay: context.status_overlay,
         overlay_generation: context.overlay_generation,
         result_overlay: context.result_overlay,
-        recording: context.recording,
-        processed,
-        history: history.record,
+        recording: finished.recording,
+        processed: finished.processed,
+        history: finished.history.record,
         storage: context.processing.storage,
         refinement: context.processing.refinement,
         feedback_sounds_enabled: context.feedback_sounds_enabled,

@@ -1,8 +1,8 @@
 use std::sync::{Arc, Mutex};
 
 use template_app::{
-    DictionaryStore, SettingsStore, SpeechRecognitionError, SpeechRecognitionHints,
-    StreamingRecognitionSession, StreamingSpeechRecognizer,
+    DictionaryStore, OwnedRecognition, SettingsStore, SpeechRecognitionError,
+    SpeechRecognitionHints, StreamingSpeechRecognizer,
 };
 use template_infra::{
     JsonSettingsStore, OpenAiCompatibleSpeechRecognizer, VolcengineSpeechRecognizer,
@@ -11,8 +11,7 @@ use template_infra::{
 pub struct AsrSessionController {
     settings: Arc<JsonSettingsStore>,
     dictionary: Arc<dyn DictionaryStore>,
-    active: Mutex<Option<Box<dyn StreamingRecognitionSession>>>,
-    stream_error: Mutex<Option<SpeechRecognitionError>>,
+    active: Mutex<Option<OwnedRecognition>>,
 }
 
 impl AsrSessionController {
@@ -21,7 +20,6 @@ impl AsrSessionController {
             settings,
             dictionary,
             active: Mutex::new(None),
-            stream_error: Mutex::new(None),
         }
     }
 
@@ -64,69 +62,35 @@ impl AsrSessionController {
         } else {
             VolcengineSpeechRecognizer::new(settings.asr.volcengine)?.start(hints, on_partial)?
         };
-        if let Ok(mut stream_error) = self.stream_error.lock() {
-            *stream_error = None;
-        }
-        *active = Some(session);
+        *active = Some(OwnedRecognition::new(session));
         Ok(())
     }
 
     pub fn push_audio(&self, samples: Vec<i16>) -> Result<(), SpeechRecognitionError> {
-        let active = self
+        let mut active = self
             .active
             .lock()
             .map_err(|_| SpeechRecognitionError::Transport("ASR lock was poisoned".to_owned()))?;
-        let session = active.as_ref().ok_or_else(|| {
+        let recognition = active.as_mut().ok_or_else(|| {
             SpeechRecognitionError::Transport("ASR session is inactive".to_owned())
         })?;
-        let result = session.push_audio(samples);
-        drop(active);
-        if let Err(error) = &result
-            && let Ok(mut stream_error) = self.stream_error.lock()
-            && stream_error.is_none()
-        {
-            *stream_error = Some(error.clone());
-        }
-        result
+        recognition.push_audio(samples)
     }
 
-    pub fn finish(&self) -> Result<String, SpeechRecognitionError> {
-        let session = self
-            .active
+    pub fn take(&self) -> Result<OwnedRecognition, SpeechRecognitionError> {
+        self.active
             .lock()
             .map_err(|_| SpeechRecognitionError::Transport("ASR lock was poisoned".to_owned()))?
             .take()
-            .ok_or_else(|| {
-                SpeechRecognitionError::Transport("ASR session is inactive".to_owned())
-            })?;
-        let stream_error = self
-            .stream_error
-            .lock()
-            .map_err(|_| SpeechRecognitionError::Transport("ASR lock was poisoned".to_owned()))?
-            .take();
-        resolve_session_finish(stream_error, session.finish())
+            .ok_or_else(|| SpeechRecognitionError::Transport("ASR session is inactive".to_owned()))
     }
 
     pub fn cancel(&self) {
         if let Ok(mut active) = self.active.lock()
-            && let Some(session) = active.take()
+            && let Some(recognition) = active.take()
         {
-            session.cancel();
+            recognition.cancel();
         }
-        if let Ok(mut stream_error) = self.stream_error.lock() {
-            *stream_error = None;
-        }
-    }
-}
-
-fn resolve_session_finish<T>(
-    stream_error: Option<SpeechRecognitionError>,
-    finish_result: Result<T, SpeechRecognitionError>,
-) -> Result<T, SpeechRecognitionError> {
-    match (stream_error, finish_result) {
-        (_, Err(provider_error)) => Err(provider_error),
-        (Some(stream_error), Ok(_)) => Err(stream_error),
-        (None, Ok(value)) => Ok(value),
     }
 }
 
@@ -136,27 +100,13 @@ pub fn normalize_transcript(transcript: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{normalize_transcript, resolve_session_finish};
-    use template_app::SpeechRecognitionError;
+    use super::normalize_transcript;
 
     #[test]
     fn normalizes_surrounding_and_repeated_whitespace() {
         assert_eq!(
             "你好 Saymore。",
             normalize_transcript("  你好   Saymore。\n")
-        );
-    }
-
-    #[test]
-    fn finish_preserves_the_provider_error_after_the_stream_closes() {
-        assert_eq!(
-            Err(SpeechRecognitionError::Authentication),
-            resolve_session_finish::<String>(
-                Some(SpeechRecognitionError::Transport(
-                    "ASR session stopped".to_owned()
-                )),
-                Err(SpeechRecognitionError::Authentication)
-            )
         );
     }
 }

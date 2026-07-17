@@ -3,12 +3,11 @@ use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 use slint::ComponentHandle;
 use template_app::{
-    AudioRecorder, DictationSession, HistoryDelivery, HistoryRefinement, LocalSettingsStore,
-    NewHistoryRecord, ProviderConfigStore, RecordingError, RefinementFallbackReason,
-    RefinementStatus, SpeechRecognitionError,
+    AudioRecorder, DictationHandoff, DictationSession, DictationSessionId, HistoryDelivery,
+    HistoryRefinement, LocalSettingsStore, NewHistoryRecord, ProviderConfigStore, RecordingError,
+    RefinementFallbackReason, RefinementStatus, SpeechRecognitionError,
 };
 use template_infra::MacOsAudioRecorder;
-use uuid::Uuid;
 
 use crate::refinement_runtime::ProcessingActivity;
 use crate::{
@@ -17,24 +16,37 @@ use crate::{
     ui_status::{apply_asr_error, apply_recording_error},
 };
 
-enum FinishError {
+pub(crate) enum FinishError {
     Recording(RecordingError),
     Recognition(SpeechRecognitionError),
 }
 
-struct FinishedRecording {
-    recording: template_app::PcmRecording,
-    processed: template_app::ProcessedText,
-    history: PreparedHistory,
+pub(crate) struct FinishedRecording {
+    pub(crate) id: DictationSessionId,
+    pub(crate) recording: template_app::PcmRecording,
+    pub(crate) processed: template_app::ProcessedText,
+    pub(crate) history: PreparedHistory,
 }
 
-type FinishResult = Result<FinishedRecording, FinishError>;
+pub(crate) type FinishResult = Result<FinishedRecording, FinishError>;
+
+struct FinishWorkerContext {
+    ui: slint::Weak<AppWindow>,
+    overlays: DictationOverlays,
+    recorder: Arc<Mutex<MacOsAudioRecorder>>,
+    session: Arc<DictationSession>,
+    id: DictationSessionId,
+    processing: TextProcessingServices,
+    plan: crate::refinement_runtime::RefinementPlan,
+    overlay_generation: i32,
+}
 
 pub fn finish_recording(
     ui: slint::Weak<AppWindow>,
     overlays: DictationOverlays,
     recorder: Arc<Mutex<MacOsAudioRecorder>>,
     session: Arc<DictationSession>,
+    id: DictationSessionId,
     processing: TextProcessingServices,
 ) {
     let _ = overlays.limit.upgrade_in_event_loop(|limit| {
@@ -67,15 +79,16 @@ pub fn finish_recording(
             if std::thread::Builder::new()
                 .name("saymore-finish-dictation".to_owned())
                 .spawn(move || {
-                    finish_recording_worker(
-                        worker_ui,
+                    finish_recording_worker(FinishWorkerContext {
+                        ui: worker_ui,
                         overlays,
                         recorder,
                         session,
+                        id,
                         processing,
                         plan,
                         overlay_generation,
-                    );
+                    });
                 })
                 .is_err()
             {
@@ -96,15 +109,17 @@ pub fn finish_recording(
     }
 }
 
-fn finish_recording_worker(
-    ui: slint::Weak<AppWindow>,
-    overlays: DictationOverlays,
-    recorder: Arc<Mutex<MacOsAudioRecorder>>,
-    session: Arc<DictationSession>,
-    processing: TextProcessingServices,
-    plan: crate::refinement_runtime::RefinementPlan,
-    overlay_generation: i32,
-) {
+fn finish_recording_worker(context: FinishWorkerContext) {
+    let FinishWorkerContext {
+        ui,
+        overlays,
+        recorder,
+        session,
+        id,
+        processing,
+        plan,
+        overlay_generation,
+    } = context;
     let mut recorder = match recorder.lock() {
         Ok(recorder) if recorder.is_recording() => recorder,
         Ok(_) => {
@@ -123,8 +138,26 @@ fn finish_recording_worker(
         }
     };
 
-    let processing_result =
-        process_recording(recorder.stop(), &ui, &overlays.status, &processing, plan);
+    let recording_result = recorder.stop();
+    drop(recorder);
+    let handoff = match recording_result {
+        Ok(recording) => processing
+            .asr
+            .take()
+            .map(|recognition| DictationHandoff::Captured {
+                id,
+                recording,
+                recognition,
+            })
+            .map_err(FinishError::Recognition),
+        Err(error) => Ok(DictationHandoff::CaptureFailed {
+            id,
+            error,
+            recognition: processing.asr.take().ok(),
+        }),
+    };
+    let processing_result = handoff
+        .and_then(|handoff| process_recording(handoff, &ui, &overlays.status, &processing, plan));
     session.complete();
     let _ = ui.upgrade_in_event_loop(move |ui| {
         apply_finish_result(
@@ -137,30 +170,50 @@ fn finish_recording_worker(
     });
 }
 
-fn process_recording(
-    recording_result: Result<template_app::PcmRecording, RecordingError>,
+pub(crate) fn process_recording(
+    handoff: DictationHandoff,
     ui: &slint::Weak<AppWindow>,
     overlay: &slint::Weak<crate::ui::RecordingOverlay>,
     processing: &TextProcessingServices,
     plan: crate::refinement_runtime::RefinementPlan,
 ) -> FinishResult {
-    let transcription_result = match recording_result {
-        Ok(recording) => {
-            let started = Instant::now();
-            let result = processing
-                .asr
-                .finish()
-                .map(|text| (recording, text))
-                .map_err(FinishError::Recognition);
-            log_asr_finalization(&result, started.elapsed().as_millis());
+    let id = handoff.id();
+    let started = Instant::now();
+    let transcription_result = match handoff {
+        DictationHandoff::Captured {
+            id,
+            recording,
+            recognition,
+        } => recognition
+            .finish()
+            .map(|text| (id, recording, text))
+            .map_err(FinishError::Recognition),
+        DictationHandoff::Restored { id, recording } => {
+            let result = (|| {
+                processing.asr.start(Arc::new(|_| {}))?;
+                for chunk in recording.samples.chunks(1_600) {
+                    processing.asr.push_audio(chunk.to_vec())?;
+                }
+                processing.asr.take()?.finish()
+            })();
+            if result.is_err() {
+                processing.asr.cancel();
+            }
             result
+                .map(|text| (id, recording, text))
+                .map_err(FinishError::Recognition)
         }
-        Err(error) => {
-            processing.asr.cancel();
+        DictationHandoff::CaptureFailed {
+            error, recognition, ..
+        } => {
+            if let Some(recognition) = recognition {
+                recognition.cancel();
+            }
             Err(FinishError::Recording(error))
         }
     };
-    transcription_result.and_then(|(recording, transcript)| {
+    log_asr_finalization(id, &transcription_result, started.elapsed().as_millis());
+    transcription_result.and_then(|(id, recording, transcript)| {
         let activity_ui = ui.clone();
         let activity_overlay = overlay.clone();
         let relevant_terms =
@@ -176,6 +229,7 @@ fn process_recording(
             })
             .map(|outcome| {
                 let history = prepare_history(
+                    id,
                     processing,
                     &recording,
                     &transcript,
@@ -183,6 +237,7 @@ fn process_recording(
                     &outcome.processed,
                 );
                 FinishedRecording {
+                    id,
                     recording,
                     processed: outcome.processed,
                     history,
@@ -207,6 +262,7 @@ fn apply_finish_result(
                 ui.set_history_status(ui.global::<Translations>().get_storage_error());
             }
             delivery_runtime::schedule_delivery(delivery_runtime::DeliveryRequest {
+                id: finished.id,
                 ui: ui.as_weak(),
                 status_overlay: overlays.status,
                 overlay_generation,
@@ -238,13 +294,13 @@ pub(crate) struct PreparedHistory {
 }
 
 pub(crate) fn prepare_history(
+    id: DictationSessionId,
     processing: &TextProcessingServices,
     recording: &template_app::PcmRecording,
     raw_asr_text: &str,
     llm_refined_text: Option<&str>,
     processed: &template_app::ProcessedText,
 ) -> PreparedHistory {
-    let id = Uuid::new_v4().to_string();
     let settings = match processing.storage.load_settings() {
         Ok(settings) if settings.history_enabled => settings,
         Ok(_) => {
@@ -287,7 +343,7 @@ pub(crate) fn prepare_history(
             .map(str::to_owned)
     });
     let record = NewHistoryRecord {
-        id,
+        id: id.to_string(),
         created_at_ms: now_ms(),
         final_text: processed.text.clone(),
         raw_asr_text: experimental_asr_text(raw_asr_text),
@@ -352,16 +408,22 @@ fn now_ms() -> i64 {
         .unwrap_or_default()
 }
 
-fn log_asr_finalization<T>(result: &Result<T, FinishError>, duration_ms: u128) {
+fn log_asr_finalization<T>(
+    id: DictationSessionId,
+    result: &Result<T, FinishError>,
+    duration_ms: u128,
+) {
     match result {
         Ok(_) => tracing::info!(
             target: "saymore::diagnostics",
             event = "asr.finalized",
+            dictation_id = %id,
             duration_ms
         ),
         Err(FinishError::Recording(error)) => tracing::warn!(
             target: "saymore::diagnostics",
             event = "asr.finalization_failed",
+            dictation_id = %id,
             stage = "recording",
             reason = %error,
             duration_ms
@@ -369,6 +431,7 @@ fn log_asr_finalization<T>(result: &Result<T, FinishError>, duration_ms: u128) {
         Err(FinishError::Recognition(error)) => tracing::warn!(
             target: "saymore::diagnostics",
             event = "asr.finalization_failed",
+            dictation_id = %id,
             stage = "recognition",
             reason = %error,
             duration_ms

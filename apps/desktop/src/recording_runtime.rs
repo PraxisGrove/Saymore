@@ -34,11 +34,12 @@ pub(super) fn start_recording_shortcut(
                     reason = "session_busy"
                 );
             }
-            DictationToggleAction::Finish => dictation_finish::finish_recording(
+            DictationToggleAction::Finish(id) => dictation_finish::finish_recording(
                 shortcut_ui.clone(),
                 shortcut_overlays.clone(),
                 Arc::clone(&runtime.recorder),
                 Arc::clone(&runtime.session),
+                id,
                 runtime.processing.clone(),
             ),
             DictationToggleAction::Start => {
@@ -275,12 +276,13 @@ fn create_recording_metrics_callback(
                 });
             }
             recording_limit::RecordingLimitEvent::Finish => {
-                if limit_session.request_finish() {
+                if let Some(id) = limit_session.request_finish() {
                     dictation_finish::finish_recording(
                         limit_finish_ui.clone(),
                         limit_finish_overlays.clone(),
                         Arc::clone(&limit_recorder),
                         Arc::clone(&limit_session),
+                        id,
                         limit_processing.clone(),
                     );
                 }
