@@ -1,22 +1,21 @@
-use std::{
-    sync::{
-        Arc, Mutex,
-        atomic::{AtomicBool, Ordering},
-    },
-    thread,
+use std::sync::{
+    Arc,
+    atomic::{AtomicBool, Ordering},
 };
 
 use slint::ComponentHandle;
-use template_app::LocalSettingsStore;
-use template_infra::{SqliteStorage, activate_application};
+use template_app::LocalSettingsChange;
+use template_infra::activate_application;
 
-use crate::ui::{AppPage, AppWindow, SettingsSection, StatusTray};
+use crate::{
+    local_settings_runtime::LocalSettingsHandle,
+    ui::{AppPage, AppWindow, SettingsSection, StatusTray},
+};
 
 pub fn wire(
     tray: &StatusTray,
     ui: &AppWindow,
-    storage: Arc<SqliteStorage>,
-    settings_guard: Arc<Mutex<()>>,
+    settings: LocalSettingsHandle,
     paused: Arc<AtomicBool>,
     pause_recording: impl Fn() + 'static,
 ) {
@@ -31,8 +30,7 @@ pub fn wire(
     });
 
     let pause_tray = tray.as_weak();
-    let pause_storage = Arc::clone(&storage);
-    let pause_guard = Arc::clone(&settings_guard);
+    let pause_settings = settings;
     tray.on_toggle_pause(move || {
         let enabled = !paused.load(Ordering::Acquire);
         paused.store(enabled, Ordering::Release);
@@ -43,8 +41,7 @@ pub fn wire(
             pause_recording();
         }
         save_pause_setting(
-            Arc::clone(&pause_storage),
-            Arc::clone(&pause_guard),
+            pause_settings.clone(),
             Arc::clone(&paused),
             pause_tray.clone(),
             enabled,
@@ -76,27 +73,24 @@ pub(crate) fn show_window(ui: &slint::Weak<AppWindow>, section: Option<SettingsS
 }
 
 fn save_pause_setting(
-    storage: Arc<SqliteStorage>,
-    settings_guard: Arc<Mutex<()>>,
+    settings: LocalSettingsHandle,
     paused: Arc<AtomicBool>,
     tray: slint::Weak<StatusTray>,
     enabled: bool,
 ) {
     let rollback_paused = Arc::clone(&paused);
     let rollback_tray = tray.clone();
-    let spawn_result = thread::Builder::new()
-        .name("saymore-save-pause-setting".to_owned())
-        .spawn(move || {
-            let result = settings_guard.lock().map_err(|_| ()).and_then(|_guard| {
-                let mut settings = storage.load_settings().map_err(|_| ())?;
-                settings.dictation_paused = enabled;
-                storage.save_settings(settings).map_err(|_| ())
-            });
-            if result.is_err() {
+    let result = settings.submit(
+        LocalSettingsChange::SetDictationPaused(enabled),
+        move |result| {
+            if let Err(error) = result {
+                tracing::warn!(event = "tray.pause_save_failed", reason = %error);
                 rollback_pause(paused, tray, enabled);
             }
-        });
-    if spawn_result.is_err() {
+        },
+    );
+    if let Err(error) = result {
+        tracing::warn!(event = "tray.pause_submit_failed", reason = %error);
         rollback_pause(rollback_paused, rollback_tray, enabled);
     }
 }

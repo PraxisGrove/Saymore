@@ -6,17 +6,17 @@ use std::time::Duration;
 
 use slint::{ComponentHandle, SharedString, Timer, TimerMode};
 use template_app::{
-    AccessibilityAuthorization, AudioRecorder, LocalSettings, LocalSettingsStore,
+    AccessibilityAuthorization, AudioRecorder, LocalSettings, LocalSettingsChange,
     MicrophoneAuthorization, MicrophonePermissionProvider, OnboardingStatus, OnboardingStep,
     PcmChunk, RecordingMetrics, TextDeliverer,
 };
 use template_infra::{
-    MacOsAudioRecorder, MacOsMicrophonePermission, MacOsTextDeliverer, SqliteStorage,
-    activate_application, launch_at_login_status, open_microphone_privacy_settings,
-    set_launch_at_login,
+    MacOsAudioRecorder, MacOsMicrophonePermission, MacOsTextDeliverer, activate_application,
+    launch_at_login_status, open_microphone_privacy_settings, set_launch_at_login,
 };
 
 use crate::{
+    local_settings_runtime::{LocalSettingsHandle, LocalSettingsSubmissionError},
     main_window,
     ui::{AppPage, AppWindow, OnboardingWindow},
 };
@@ -25,6 +25,8 @@ const PERMISSION_POLL_INTERVAL: Duration = Duration::from_millis(500);
 const WINDOW_HANDOFF_DELAY: Duration = Duration::from_millis(50);
 const SOUND_DETECTED_LEVEL: f32 = 0.02;
 
+mod navigation;
+
 pub struct OnboardingRuntime {
     window: OnboardingWindow,
     initial_status: OnboardingStatus,
@@ -32,6 +34,7 @@ pub struct OnboardingRuntime {
     active: Arc<AtomicBool>,
     manual: Arc<AtomicBool>,
     shortcut: OnboardingShortcutHandler,
+    persistence: Arc<Persistence>,
     _permission_poll: Timer,
 }
 
@@ -46,16 +49,14 @@ pub struct OnboardingShortcutHandler {
 }
 
 struct Persistence {
-    storage: Arc<SqliteStorage>,
-    guard: Arc<Mutex<()>>,
+    settings: LocalSettingsHandle,
 }
 
 impl OnboardingRuntime {
     pub fn new(
         app: &AppWindow,
         settings: &LocalSettings,
-        storage: Arc<SqliteStorage>,
-        settings_guard: Arc<Mutex<()>>,
+        local_settings: LocalSettingsHandle,
         recorder: Arc<Mutex<MacOsAudioRecorder>>,
         microphone: MacOsMicrophonePermission,
         deliverer: MacOsTextDeliverer,
@@ -73,8 +74,7 @@ impl OnboardingRuntime {
             sound_detected: Arc::new(AtomicBool::new(false)),
         };
         let persistence = Arc::new(Persistence {
-            storage,
-            guard: settings_guard,
+            settings: local_settings,
         });
 
         window.set_step(i32::from(settings.onboarding_step.index()));
@@ -87,7 +87,7 @@ impl OnboardingRuntime {
             )
         }));
         update_permissions(&window, microphone, deliverer);
-        wire_navigation(
+        navigation::wire_navigation(
             &window,
             app,
             Arc::clone(&persistence),
@@ -124,6 +124,7 @@ impl OnboardingRuntime {
             active,
             manual,
             shortcut,
+            persistence,
             _permission_poll: permission_poll,
         })
     }
@@ -132,12 +133,7 @@ impl OnboardingRuntime {
         self.shortcut.clone()
     }
 
-    pub fn present_initial(
-        &self,
-        app: &AppWindow,
-        storage: &SqliteStorage,
-        settings_guard: &Mutex<()>,
-    ) -> Result<(), slint::PlatformError> {
+    pub fn present_initial(&self, app: &AppWindow) -> Result<(), slint::PlatformError> {
         if self.initial_status.should_present() {
             self.active.store(true, Ordering::Release);
             self.manual.store(false, Ordering::Release);
@@ -145,16 +141,22 @@ impl OnboardingRuntime {
             self.shortcut
                 .step
                 .store(self.initial_step.index(), Ordering::Release);
-            if self.initial_status == OnboardingStatus::NotStarted
-                && persist_state(
-                    storage,
-                    settings_guard,
+            if self.initial_status == OnboardingStatus::NotStarted {
+                let window = self.window.as_weak();
+                let result = self.persistence.save(
                     OnboardingStatus::InProgress,
                     self.initial_step,
-                )
-                .is_err()
-            {
-                self.window.set_action_status("save_failed".into());
+                    move |result| {
+                        if result.is_err()
+                            && let Some(window) = window.upgrade()
+                        {
+                            window.set_action_status("save_failed".into());
+                        }
+                    },
+                );
+                if result.is_err() {
+                    self.window.set_action_status("save_failed".into());
+                }
             }
             self.window.show()
         } else {
@@ -240,143 +242,6 @@ impl OnboardingShortcutHandler {
             window.set_microphone_test_complete(complete);
         });
     }
-}
-
-fn wire_navigation(
-    window: &OnboardingWindow,
-    app: &AppWindow,
-    persistence: Arc<Persistence>,
-    active: Arc<AtomicBool>,
-    manual: Arc<AtomicBool>,
-    step: Arc<AtomicU8>,
-    shortcut: OnboardingShortcutHandler,
-) {
-    wire_step_navigation(
-        window,
-        Arc::clone(&persistence),
-        Arc::clone(&manual),
-        step,
-        shortcut.clone(),
-    );
-    wire_completion_navigation(window, app, persistence, active, manual, shortcut);
-}
-
-fn wire_step_navigation(
-    window: &OnboardingWindow,
-    persistence: Arc<Persistence>,
-    manual: Arc<AtomicBool>,
-    step: Arc<AtomicU8>,
-    shortcut: OnboardingShortcutHandler,
-) {
-    let advance_window = window.as_weak();
-    let advance_persistence = Arc::clone(&persistence);
-    let advance_manual = Arc::clone(&manual);
-    let advance_step = Arc::clone(&step);
-    let advance_shortcut = shortcut.clone();
-    window.on_advance(move || {
-        let Some(window) = advance_window.upgrade() else {
-            return;
-        };
-        let next = u8::try_from(window.get_step())
-            .ok()
-            .and_then(|current| OnboardingStep::from_index(current.saturating_add(1)))
-            .unwrap_or(OnboardingStep::Complete);
-        advance_shortcut.stop_test();
-        if !advance_manual.load(Ordering::Acquire)
-            && advance_persistence
-                .save(OnboardingStatus::InProgress, next)
-                .is_err()
-        {
-            window.set_action_status("save_failed".into());
-            return;
-        }
-        advance_step.store(next.index(), Ordering::Release);
-        window.set_step(i32::from(next.index()));
-        window.set_action_status(SharedString::new());
-    });
-
-    let back_window = window.as_weak();
-    let back_persistence = Arc::clone(&persistence);
-    let back_manual = Arc::clone(&manual);
-    let back_step = Arc::clone(&step);
-    let back_shortcut = shortcut;
-    window.on_back(move || {
-        let Some(window) = back_window.upgrade() else {
-            return;
-        };
-        let current = u8::try_from(window.get_step()).unwrap_or_default();
-        let previous = OnboardingStep::from_index(current.saturating_sub(1))
-            .unwrap_or(OnboardingStep::Welcome);
-        back_shortcut.stop_test();
-        if !back_manual.load(Ordering::Acquire)
-            && back_persistence
-                .save(OnboardingStatus::InProgress, previous)
-                .is_err()
-        {
-            window.set_action_status("save_failed".into());
-            return;
-        }
-        back_step.store(previous.index(), Ordering::Release);
-        window.set_step(i32::from(previous.index()));
-        window.set_action_status(SharedString::new());
-    });
-}
-
-fn wire_completion_navigation(
-    window: &OnboardingWindow,
-    app: &AppWindow,
-    persistence: Arc<Persistence>,
-    active: Arc<AtomicBool>,
-    manual: Arc<AtomicBool>,
-    shortcut: OnboardingShortcutHandler,
-) {
-    let skip_window = window.as_weak();
-    let skip_app = app.as_weak();
-    let skip_persistence = Arc::clone(&persistence);
-    let skip_active = Arc::clone(&active);
-    let skip_manual = Arc::clone(&manual);
-    let skip_shortcut = shortcut;
-    window.on_skip(move || {
-        let Some(window) = skip_window.upgrade() else {
-            return;
-        };
-        skip_shortcut.stop_test();
-        if !skip_manual.load(Ordering::Acquire)
-            && skip_persistence
-                .save(OnboardingStatus::Skipped, OnboardingStep::Welcome)
-                .is_err()
-        {
-            window.set_action_status("save_failed".into());
-            return;
-        }
-        skip_active.store(false, Ordering::Release);
-        if let Some(app) = skip_app.upgrade() {
-            let _ = show_main_window(&app);
-        }
-        schedule_hide(skip_window.clone());
-    });
-
-    let finish_window = window.as_weak();
-    let finish_app = app.as_weak();
-    let finish_active = Arc::clone(&active);
-    let finish_persistence = persistence;
-    window.on_finish(move || {
-        let Some(window) = finish_window.upgrade() else {
-            return;
-        };
-        if finish_persistence
-            .save(OnboardingStatus::Completed, OnboardingStep::Complete)
-            .is_err()
-        {
-            window.set_action_status("save_failed".into());
-            return;
-        }
-        finish_active.store(false, Ordering::Release);
-        if let Some(app) = finish_app.upgrade() {
-            let _ = show_main_window(&app);
-        }
-        schedule_hide(finish_window.clone());
-    });
 }
 
 fn wire_permissions(
@@ -482,25 +347,6 @@ fn accessibility_status(status: AccessibilityAuthorization) -> &'static str {
     match status {
         AccessibilityAuthorization::Granted => "granted",
         AccessibilityAuthorization::Denied => "denied",
-    }
-}
-
-fn persist_state(
-    storage: &SqliteStorage,
-    guard: &Mutex<()>,
-    status: OnboardingStatus,
-    step: OnboardingStep,
-) -> Result<(), ()> {
-    let _guard = guard.lock().map_err(|_| ())?;
-    let mut settings = storage.load_settings().map_err(|_| ())?;
-    settings.onboarding_status = status;
-    settings.onboarding_step = step;
-    storage.save_settings(settings).map_err(|_| ())
-}
-
-impl Persistence {
-    fn save(&self, status: OnboardingStatus, step: OnboardingStep) -> Result<(), ()> {
-        persist_state(&self.storage, &self.guard, status, step)
     }
 }
 

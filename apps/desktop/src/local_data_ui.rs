@@ -6,10 +6,12 @@ use std::{
 
 use slint::{ComponentHandle, ModelRc, SharedString, Timer, VecModel};
 use template_app::{
-    HistoryCursor, HistoryRecord, HistoryRetention, HistoryStore, LocalSettingsStore,
+    HistoryCursor, HistoryRecord, HistoryRetention, HistoryStore, LocalSettingsChange,
+    LocalSettingsStore, MicrophoneSelection,
 };
 use template_infra::{MacOsAudioRecorder, SqliteStorage, copy_text_to_clipboard};
 
+use crate::local_settings_runtime::LocalSettingsHandle;
 use crate::ui::{
     AppWindow, AudioInputDevice as UiAudioInputDevice,
     HistoryRetentionOption as UiHistoryRetention, Translations,
@@ -17,9 +19,13 @@ use crate::ui::{
 
 mod dictionary_ui;
 mod history_query;
+mod local_settings;
 
 use history_query::{
     apply_history_error, load_more_history_async, refresh_history_async, set_history_model,
+};
+use local_settings::{
+    apply_settings, refresh_microphone_devices_async, schedule_history_cleanup, wire_local_settings,
 };
 
 #[derive(Default)]
@@ -37,7 +43,7 @@ pub fn wire(
     ui: &AppWindow,
     storage: Arc<SqliteStorage>,
     recorder: Arc<Mutex<MacOsAudioRecorder>>,
-    settings_guard: Arc<Mutex<()>>,
+    settings: LocalSettingsHandle,
 ) {
     let state = Arc::new(Mutex::new(UiDataState::default()));
     let dictionary_state = Arc::new(Mutex::new(dictionary_ui::DictionaryUiState::default()));
@@ -48,7 +54,13 @@ pub fn wire(
     load_initial(ui, &storage, &dictionary_state);
     wire_history(ui, Arc::clone(&storage), Arc::clone(&state));
     dictionary_ui::wire(ui, Arc::clone(&storage), dictionary_state);
-    wire_local_settings(ui, Arc::clone(&storage), settings_guard, recorder);
+    wire_local_settings(
+        ui,
+        Arc::clone(&storage),
+        Arc::clone(&state),
+        settings,
+        recorder,
+    );
     refresh_microphone_devices_async(ui.as_weak(), Arc::clone(&storage));
     schedule_history_cleanup(ui.as_weak(), storage, state);
 }
@@ -290,295 +302,6 @@ fn commit_history_delete(
             }
         });
     });
-}
-
-fn wire_local_settings(
-    ui: &AppWindow,
-    storage: Arc<SqliteStorage>,
-    settings_guard: Arc<Mutex<()>>,
-    recorder: Arc<Mutex<MacOsAudioRecorder>>,
-) {
-    let history_ui = ui.as_weak();
-    let history_store = Arc::clone(&storage);
-    let history_guard = Arc::clone(&settings_guard);
-    ui.on_set_history_enabled(move |enabled| {
-        update_settings(
-            history_ui.clone(),
-            Arc::clone(&history_store),
-            Arc::clone(&history_guard),
-            move |settings| settings.history_enabled = enabled,
-        );
-    });
-    let retention_ui = ui.as_weak();
-    let retention_store = Arc::clone(&storage);
-    let retention_guard = Arc::clone(&settings_guard);
-    ui.on_set_history_retention(move |selection| {
-        let (enabled, retention) = match selection {
-            UiHistoryRetention::Never => (false, HistoryRetention::SevenDays),
-            UiHistoryRetention::OneDay => (true, HistoryRetention::OneDay),
-            UiHistoryRetention::SevenDays => (true, HistoryRetention::SevenDays),
-            UiHistoryRetention::ThirtyDays => (true, HistoryRetention::ThirtyDays),
-            UiHistoryRetention::Forever => (true, HistoryRetention::Forever),
-        };
-        update_settings(
-            retention_ui.clone(),
-            Arc::clone(&retention_store),
-            Arc::clone(&retention_guard),
-            move |settings| {
-                settings.history_enabled = enabled;
-                settings.history_retention = retention;
-            },
-        );
-    });
-
-    let microphone_ui = ui.as_weak();
-    let microphone_store = Arc::clone(&storage);
-    let microphone_guard = Arc::clone(&settings_guard);
-    let microphone_recorder = Arc::clone(&recorder);
-    ui.on_select_microphone(move |id, name| {
-        save_microphone_selection_async(
-            microphone_ui.clone(),
-            Arc::clone(&microphone_store),
-            Arc::clone(&microphone_guard),
-            Arc::clone(&microphone_recorder),
-            (!id.is_empty()).then(|| id.to_string()),
-            (!name.is_empty()).then(|| name.to_string()),
-        );
-    });
-
-    let refresh_microphone_ui = ui.as_weak();
-    let refresh_microphone_store = Arc::clone(&storage);
-    ui.on_refresh_microphones(move || {
-        refresh_microphone_devices_async(
-            refresh_microphone_ui.clone(),
-            Arc::clone(&refresh_microphone_store),
-        );
-    });
-}
-
-fn save_microphone_selection_async(
-    ui: slint::Weak<AppWindow>,
-    storage: Arc<SqliteStorage>,
-    guard: Arc<Mutex<()>>,
-    recorder: Arc<Mutex<MacOsAudioRecorder>>,
-    preferred_id: Option<String>,
-    preferred_name: Option<String>,
-) {
-    spawn_named("saymore-save-microphone-selection", move || {
-        let saved_id = preferred_id.clone();
-        let result = guard
-            .lock()
-            .map_err(|_| "settings update lock was poisoned".to_owned())
-            .and_then(|_guard| {
-                let mut settings = storage.load_settings().map_err(|error| error.to_string())?;
-                settings.preferred_microphone_id = preferred_id;
-                settings.preferred_microphone_name = preferred_name;
-                storage
-                    .save_settings(settings.clone())
-                    .map(|()| settings)
-                    .map_err(|error| error.to_string())
-            });
-        if result.is_ok() {
-            if let Ok(mut recorder) = recorder.lock() {
-                recorder.set_preferred_input_device_id(saved_id);
-            } else {
-                tracing::error!(
-                    event = "microphone.selection_update_failed",
-                    reason = "recorder lock was poisoned"
-                );
-            }
-        }
-        let refresh_ui = ui.clone();
-        let refresh_storage = Arc::clone(&storage);
-        let _ = ui.upgrade_in_event_loop(move |ui| match result {
-            Ok(settings) => {
-                apply_settings(&ui, &settings);
-                apply_microphone_devices(&ui, &settings, Vec::new());
-                ui.set_microphone_selection_status(SharedString::new());
-                refresh_microphone_devices_async(refresh_ui, refresh_storage);
-            }
-            Err(error) => {
-                tracing::warn!(event = "microphone.selection_save_failed", reason = %error);
-                ui.set_microphone_selection_status(
-                    ui.global::<Translations>().get_settings_save_failed(),
-                );
-            }
-        });
-    });
-}
-
-fn refresh_microphone_devices_async(ui: slint::Weak<AppWindow>, storage: Arc<SqliteStorage>) {
-    if let Some(window) = ui.upgrade() {
-        window.set_microphone_devices_loading(true);
-    }
-    spawn_named("saymore-list-microphones", move || {
-        let result = storage
-            .load_settings()
-            .map_err(|error| error.to_string())
-            .and_then(|settings| {
-                MacOsAudioRecorder::input_devices()
-                    .map(|devices| (settings, devices))
-                    .map_err(|error| error.to_string())
-            });
-        let _ = ui.upgrade_in_event_loop(move |ui| {
-            ui.set_microphone_devices_loading(false);
-            match result {
-                Ok((settings, devices)) => apply_microphone_devices(&ui, &settings, devices),
-                Err(error) => {
-                    tracing::warn!(event = "microphone.list_failed", reason = %error);
-                    ui.set_microphone_selection_status(
-                        ui.global::<Translations>().get_microphone_load_failed(),
-                    );
-                }
-            }
-        });
-    });
-}
-
-fn update_settings(
-    ui: slint::Weak<AppWindow>,
-    storage: Arc<SqliteStorage>,
-    guard: Arc<Mutex<()>>,
-    change: impl FnOnce(&mut template_app::LocalSettings) + Send + 'static,
-) {
-    spawn_named("saymore-save-local-settings", move || {
-        let result = guard
-            .lock()
-            .map_err(|_| "settings update lock was poisoned".to_owned())
-            .and_then(|_guard| {
-                let mut settings = storage.load_settings().map_err(|error| error.to_string())?;
-                change(&mut settings);
-                storage
-                    .save_settings(settings.clone())
-                    .map(|()| settings)
-                    .map_err(|error| error.to_string())
-            });
-        let _ = ui.upgrade_in_event_loop(move |ui| match result {
-            Ok(settings) => {
-                apply_settings(&ui, &settings);
-                ui.invoke_refresh_history();
-            }
-            Err(error) => {
-                tracing::warn!(event = "history.settings_save_failed", reason = %error);
-                ui.set_history_status(ui.global::<Translations>().get_settings_save_failed());
-            }
-        });
-    });
-}
-
-fn schedule_history_cleanup(
-    ui: slint::Weak<AppWindow>,
-    storage: Arc<SqliteStorage>,
-    state: Arc<Mutex<UiDataState>>,
-) {
-    Timer::single_shot(Duration::from_secs(24 * 60 * 60), move || {
-        schedule_history_cleanup(ui.clone(), Arc::clone(&storage), Arc::clone(&state));
-        refresh_history_after_cleanup(ui, storage, state);
-    });
-}
-
-fn refresh_history_after_cleanup(
-    ui: slint::Weak<AppWindow>,
-    storage: Arc<SqliteStorage>,
-    state: Arc<Mutex<UiDataState>>,
-) {
-    spawn_named("saymore-cleanup-history", move || {
-        let now = now_ms();
-        let history_result = storage.cleanup_history(now);
-        match history_result {
-            Ok(_) => {
-                let usage_ui = ui.clone();
-                let _ = usage_ui.upgrade_in_event_loop(|ui| ui.invoke_refresh_usage());
-                refresh_history_async(ui, storage, state);
-            }
-            Err(error) => {
-                let message = error.to_string();
-                let _ = ui.upgrade_in_event_loop(move |ui| {
-                    tracing::warn!(event = "history.scheduled_cleanup_failed", reason = %message);
-                    ui.set_history_status(ui.global::<Translations>().get_storage_error());
-                });
-            }
-        }
-    });
-}
-
-fn apply_settings(ui: &AppWindow, settings: &template_app::LocalSettings) {
-    ui.set_history_enabled(settings.history_enabled);
-    ui.set_history_retention(if !settings.history_enabled {
-        UiHistoryRetention::Never
-    } else {
-        match settings.history_retention {
-            HistoryRetention::OneDay => UiHistoryRetention::OneDay,
-            HistoryRetention::SevenDays => UiHistoryRetention::SevenDays,
-            HistoryRetention::ThirtyDays => UiHistoryRetention::ThirtyDays,
-            HistoryRetention::Forever => UiHistoryRetention::Forever,
-        }
-    });
-    ui.set_diagnostics_enabled(settings.diagnostics_logging_enabled);
-}
-
-fn apply_microphone_devices(
-    ui: &AppWindow,
-    settings: &template_app::LocalSettings,
-    devices: Vec<template_app::AudioInputDevice>,
-) {
-    let default_name = devices
-        .iter()
-        .find(|device| device.is_system_default)
-        .map(|device| device.name.as_str());
-    let default_label = default_name.map_or_else(
-        || {
-            ui.global::<Translations>()
-                .get_microphone_system_default()
-                .to_string()
-        },
-        |name| {
-            ui.global::<Translations>()
-                .invoke_microphone_system_default_named(name.into())
-                .to_string()
-        },
-    );
-    let selected_available = settings
-        .preferred_microphone_id
-        .as_deref()
-        .is_some_and(|id| devices.iter().any(|device| device.id == id));
-    let selection_label = settings
-        .preferred_microphone_id
-        .as_deref()
-        .and_then(|id| {
-            devices
-                .iter()
-                .find(|device| device.id == id)
-                .map(|device| device.name.clone())
-        })
-        .or_else(|| {
-            settings.preferred_microphone_name.as_deref().map(|name| {
-                ui.global::<Translations>()
-                    .invoke_microphone_disconnected(name.into())
-                    .to_string()
-            })
-        })
-        .unwrap_or_else(|| default_label.clone());
-    let devices = devices
-        .into_iter()
-        .map(|device| UiAudioInputDevice {
-            id: SharedString::from(device.id),
-            name: SharedString::from(device.name),
-        })
-        .collect::<Vec<_>>();
-
-    ui.set_microphone_devices(ModelRc::new(VecModel::from(devices)));
-    ui.set_microphone_selection_id(SharedString::from(
-        settings
-            .preferred_microphone_id
-            .as_deref()
-            .unwrap_or_default(),
-    ));
-    ui.set_microphone_default_label(SharedString::from(default_label));
-    ui.set_microphone_selection_label(SharedString::from(selection_label));
-    if settings.preferred_microphone_id.is_none() || selected_available {
-        ui.set_microphone_selection_status(SharedString::new());
-    }
 }
 
 fn now_ms() -> i64 {

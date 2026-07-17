@@ -1,13 +1,10 @@
-use std::{
-    sync::{Arc, Mutex},
-    thread,
-};
-
 use slint::{ComponentHandle, SharedString};
-use template_app::{LocalSettingsStore, UiLanguagePreference};
-use template_infra::SqliteStorage;
+use template_app::{LocalSettingsChange, UiLanguagePreference};
 
-use crate::ui::{AppWindow, Translations, UiLanguage};
+use crate::{
+    local_settings_runtime::LocalSettingsHandle,
+    ui::{AppWindow, Translations, UiLanguage},
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EffectiveLanguage {
@@ -41,12 +38,7 @@ pub fn initialize(
     Ok(LanguageContext { system_language })
 }
 
-pub fn wire(
-    ui: &AppWindow,
-    storage: Arc<SqliteStorage>,
-    settings_guard: Arc<Mutex<()>>,
-    context: LanguageContext,
-) {
+pub fn wire(ui: &AppWindow, settings: LocalSettingsHandle, context: LanguageContext) {
     let weak_ui = ui.as_weak();
     ui.on_set_ui_language(move |language| {
         let Some(ui) = weak_ui.upgrade() else {
@@ -57,35 +49,22 @@ pub fn wire(
         ui.set_ui_language_status(SharedString::new());
 
         let save_ui = ui.as_weak();
-        let save_storage = Arc::clone(&storage);
-        let save_guard = Arc::clone(&settings_guard);
-        let spawn_result = thread::Builder::new()
-            .name("saymore-save-ui-language".to_owned())
-            .spawn(move || {
-                let result = save_guard
-                    .lock()
-                    .map_err(|_| "settings update lock was poisoned".to_owned())
-                    .and_then(|_guard| {
-                        let mut settings = save_storage
-                            .load_settings()
-                            .map_err(|error| error.to_string())?;
-                        settings.ui_language = preference;
-                        save_storage
-                            .save_settings(settings)
-                            .map_err(|error| error.to_string())
-                    });
-                let _ = save_ui.upgrade_in_event_loop(move |ui| {
-                    finish_language_change(&ui, preference, context, result);
-                });
-            });
+        let submit_result = settings.submit(
+            LocalSettingsChange::SetUiLanguage(preference),
+            move |result| {
+                if let Some(ui) = save_ui.upgrade() {
+                    finish_language_change(
+                        &ui,
+                        preference,
+                        context,
+                        result.map(|_| ()).map_err(|error| error.to_string()),
+                    );
+                }
+            },
+        );
 
-        if spawn_result.is_err() {
-            finish_language_change(
-                &ui,
-                preference,
-                context,
-                Err("failed to start settings worker".to_owned()),
-            );
+        if let Err(error) = submit_result {
+            finish_language_change(&ui, preference, context, Err(error.to_string()));
         }
     });
 }

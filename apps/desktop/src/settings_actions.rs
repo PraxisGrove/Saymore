@@ -2,14 +2,14 @@ use std::{
     path::PathBuf,
     process::Command,
     sync::{
-        Arc, Mutex,
+        Arc,
         atomic::{AtomicBool, Ordering},
     },
     thread,
 };
 
 use slint::{ComponentHandle, ModelRc, SharedString, VecModel};
-use template_app::LocalSettingsStore;
+use template_app::{LocalSettingsChange, LocalSettingsStore};
 use template_infra::SqliteStorage;
 #[cfg(target_os = "macos")]
 use template_infra::{
@@ -19,6 +19,7 @@ use template_infra::{
 
 use crate::{
     diagnostics::{DiagnosticsController, DiagnosticsReportText},
+    local_settings_runtime::LocalSettingsHandle,
     ui::{AppWindow, Translations},
 };
 
@@ -27,71 +28,50 @@ mod shortcut;
 pub fn wire(
     ui: &AppWindow,
     storage: Arc<SqliteStorage>,
-    settings_guard: Arc<Mutex<()>>,
+    settings: LocalSettingsHandle,
     feedback_sounds_enabled: Arc<AtomicBool>,
     diagnostics: DiagnosticsController,
     data_directory: PathBuf,
     shortcut_controller: MacOsShortcutController,
 ) {
     let logging_ui = ui.as_weak();
-    let logging_storage = Arc::clone(&storage);
-    let logging_guard = Arc::clone(&settings_guard);
+    let logging_settings = settings.clone();
     let logging_diagnostics = diagnostics.clone();
     ui.on_set_diagnostics_enabled(move |enabled| {
         set_diagnostics_logging(
             logging_ui.clone(),
-            Arc::clone(&logging_storage),
-            Arc::clone(&logging_guard),
+            logging_settings.clone(),
             logging_diagnostics.clone(),
             enabled,
         );
     });
 
     let update_ui = ui.as_weak();
-    let update_storage = Arc::clone(&storage);
-    let update_guard = Arc::clone(&settings_guard);
+    let update_settings = settings.clone();
     ui.on_set_automatic_update_checks(move |enabled| {
-        set_automatic_update_checks(
-            update_ui.clone(),
-            Arc::clone(&update_storage),
-            Arc::clone(&update_guard),
-            enabled,
-        );
+        set_automatic_update_checks(update_ui.clone(), update_settings.clone(), enabled);
     });
 
     let feedback_ui = ui.as_weak();
-    let feedback_storage = Arc::clone(&storage);
-    let feedback_guard = Arc::clone(&settings_guard);
+    let feedback_settings = settings.clone();
     let feedback_state = Arc::clone(&feedback_sounds_enabled);
     ui.on_set_feedback_sounds_enabled(move |enabled| {
         set_feedback_sounds_enabled(
             feedback_ui.clone(),
-            Arc::clone(&feedback_storage),
-            Arc::clone(&feedback_guard),
+            feedback_settings.clone(),
             Arc::clone(&feedback_state),
             enabled,
         );
     });
 
     let clipboard_ui = ui.as_weak();
-    let clipboard_storage = Arc::clone(&storage);
-    let clipboard_guard = Arc::clone(&settings_guard);
+    let clipboard_settings = settings.clone();
     ui.on_set_copy_to_clipboard(move |enabled| {
-        set_copy_to_clipboard(
-            clipboard_ui.clone(),
-            Arc::clone(&clipboard_storage),
-            Arc::clone(&clipboard_guard),
-            enabled,
-        );
+        set_copy_to_clipboard(clipboard_ui.clone(), clipboard_settings.clone(), enabled);
     });
 
-    wire_platform_settings(ui, Arc::clone(&storage), Arc::clone(&settings_guard));
-    shortcut::wire_shortcut_settings(
-        ui,
-        Arc::clone(&storage),
-        Arc::clone(&settings_guard),
-        shortcut_controller,
-    );
+    wire_platform_settings(ui, Arc::clone(&storage), settings.clone());
+    shortcut::wire_shortcut_settings(ui, settings, shortcut_controller);
 
     let export_ui = ui.as_weak();
     let export_diagnostics = diagnostics;
@@ -117,16 +97,16 @@ pub fn wire(
 fn wire_platform_settings(
     ui: &AppWindow,
     storage: Arc<SqliteStorage>,
-    settings_guard: Arc<Mutex<()>>,
+    settings: LocalSettingsHandle,
 ) {
     let dock_ui = ui.as_weak();
-    let dock_storage = Arc::clone(&storage);
-    let dock_guard = Arc::clone(&settings_guard);
+    let dock_settings = settings;
+    let dock_pending = Arc::new(AtomicBool::new(false));
     ui.on_set_show_in_dock(move |visible| {
         set_show_in_dock(
             dock_ui.clone(),
-            Arc::clone(&dock_storage),
-            Arc::clone(&dock_guard),
+            dock_settings.clone(),
+            Arc::clone(&dock_pending),
             visible,
         );
     });
@@ -172,23 +152,28 @@ fn wire_platform_settings(
 fn wire_platform_settings(
     _ui: &AppWindow,
     _storage: Arc<SqliteStorage>,
-    _settings_guard: Arc<Mutex<()>>,
+    _settings: LocalSettingsHandle,
 ) {
 }
 
 #[cfg(target_os = "macos")]
 fn set_show_in_dock(
     ui: slint::Weak<AppWindow>,
-    storage: Arc<SqliteStorage>,
-    settings_guard: Arc<Mutex<()>>,
+    settings: LocalSettingsHandle,
+    pending: Arc<AtomicBool>,
     visible: bool,
 ) {
     let Some(window) = ui.upgrade() else {
         return;
     };
     let previous = window.get_show_in_dock();
+    if pending.swap(true, Ordering::AcqRel) {
+        window.set_show_in_dock(dock_is_visible().unwrap_or(previous));
+        return;
+    }
     window.set_show_in_dock_status(SharedString::new());
     if let Err(error) = set_dock_visible(visible) {
+        pending.store(false, Ordering::Release);
         tracing::warn!(event = "settings.dock_visibility_failed", reason = %error);
         window.set_show_in_dock(previous);
         window.set_show_in_dock_status(window.global::<Translations>().get_settings_save_failed());
@@ -196,70 +181,71 @@ fn set_show_in_dock(
     }
 
     let failure_ui = ui.clone();
-    if thread::Builder::new()
-        .name("saymore-save-dock-setting".to_owned())
-        .spawn(move || {
-            let result = settings_guard.lock().map_err(|_| ()).and_then(|_guard| {
-                let mut settings = storage.load_settings().map_err(|_| ())?;
-                settings.show_in_dock = visible;
-                storage.save_settings(settings).map_err(|_| ())
-            });
-            let _ = ui.upgrade_in_event_loop(move |window| match result {
-                Ok(()) => window.set_show_in_dock(visible),
-                Err(()) => {
+    let completion_pending = Arc::clone(&pending);
+    let result = settings.submit(
+        LocalSettingsChange::SetDockVisibility(visible),
+        move |result| {
+            completion_pending.store(false, Ordering::Release);
+            let Some(window) = ui.upgrade() else {
+                return;
+            };
+            match result {
+                Ok(_) => window.set_show_in_dock(visible),
+                Err(error) => {
+                    tracing::warn!(event = "settings.dock_save_failed", reason = %error);
                     let _ = set_dock_visible(previous);
                     window.set_show_in_dock(previous);
                     window.set_show_in_dock_status(
                         window.global::<Translations>().get_settings_save_failed(),
                     );
                 }
-            });
-        })
-        .is_err()
+            }
+        },
+    );
+    if result.is_err() {
+        pending.store(false, Ordering::Release);
+    }
+    if let Err(error) = result
         && let Some(window) = failure_ui.upgrade()
     {
+        tracing::warn!(event = "settings.dock_submit_failed", reason = %error);
         let _ = set_dock_visible(previous);
         window.set_show_in_dock(previous);
         window.set_show_in_dock_status(window.global::<Translations>().get_settings_save_failed());
     }
 }
 
-fn set_copy_to_clipboard(
-    ui: slint::Weak<AppWindow>,
-    storage: Arc<SqliteStorage>,
-    settings_guard: Arc<Mutex<()>>,
-    enabled: bool,
-) {
+fn set_copy_to_clipboard(ui: slint::Weak<AppWindow>, settings: LocalSettingsHandle, enabled: bool) {
     let Some(window) = ui.upgrade() else {
         return;
     };
     let previous = window.get_copy_to_clipboard();
     window.set_copy_to_clipboard_status(SharedString::new());
     let failure_ui = ui.clone();
-    if thread::Builder::new()
-        .name("saymore-save-clipboard-setting".to_owned())
-        .spawn(move || {
-            let result = settings_guard.lock().map_err(|_| ()).and_then(|_guard| {
-                let mut settings = storage.load_settings().map_err(|_| ())?;
-                settings.copy_to_clipboard = enabled;
-                storage.save_settings(settings).map_err(|_| ())
-            });
-            let _ = ui.upgrade_in_event_loop(move |window| match result {
-                Ok(()) => {
-                    window.set_copy_to_clipboard(enabled);
-                    window.set_copy_to_clipboard_status(SharedString::new());
+    let result = settings.submit(
+        LocalSettingsChange::SetCopyToClipboard(enabled),
+        move |result| {
+            if let Some(window) = ui.upgrade() {
+                match result {
+                    Ok(_) => {
+                        window.set_copy_to_clipboard(enabled);
+                        window.set_copy_to_clipboard_status(SharedString::new());
+                    }
+                    Err(error) => {
+                        tracing::warn!(event = "settings.clipboard_save_failed", reason = %error);
+                        window.set_copy_to_clipboard(previous);
+                        window.set_copy_to_clipboard_status(
+                            window.global::<Translations>().get_settings_save_failed(),
+                        );
+                    }
                 }
-                Err(()) => {
-                    window.set_copy_to_clipboard(previous);
-                    window.set_copy_to_clipboard_status(
-                        window.global::<Translations>().get_settings_save_failed(),
-                    );
-                }
-            });
-        })
-        .is_err()
+            }
+        },
+    );
+    if let Err(error) = result
         && let Some(window) = failure_ui.upgrade()
     {
+        tracing::warn!(event = "settings.clipboard_submit_failed", reason = %error);
         window.set_copy_to_clipboard(previous);
         window.set_copy_to_clipboard_status(
             window.global::<Translations>().get_settings_save_failed(),
@@ -269,8 +255,7 @@ fn set_copy_to_clipboard(
 
 fn set_automatic_update_checks(
     ui: slint::Weak<AppWindow>,
-    storage: Arc<SqliteStorage>,
-    settings_guard: Arc<Mutex<()>>,
+    settings: LocalSettingsHandle,
     enabled: bool,
 ) {
     let Some(window) = ui.upgrade() else {
@@ -279,33 +264,33 @@ fn set_automatic_update_checks(
     let previous = window.get_automatic_update_checks();
     window.set_automatic_update_status(SharedString::new());
     let failure_ui = ui.clone();
-    if thread::Builder::new()
-        .name("saymore-save-update-check-setting".to_owned())
-        .spawn(move || {
-            let result = settings_guard.lock().map_err(|_| ()).and_then(|_guard| {
-                let mut settings = storage.load_settings().map_err(|_| ())?;
-                settings.automatic_update_checks = enabled;
-                storage.save_settings(settings).map_err(|_| ())
-            });
-            let _ = ui.upgrade_in_event_loop(move |window| match result {
-                Ok(()) => {
+    let result = settings.submit(
+        LocalSettingsChange::SetAutomaticUpdateChecks(enabled),
+        move |result| {
+            if let Some(window) = ui.upgrade() {
+                match result {
+                Ok(_) => {
                     window.set_automatic_update_checks(enabled);
                     window.set_automatic_update_status(SharedString::new());
                     if enabled {
                         window.invoke_check_for_updates();
                     }
                 }
-                Err(()) => {
+                Err(error) => {
+                    tracing::warn!(event = "settings.update_check_save_failed", reason = %error);
                     window.set_automatic_update_checks(previous);
                     window.set_automatic_update_status(
                         window.global::<Translations>().get_settings_save_failed(),
                     );
                 }
-            });
-        })
-        .is_err()
+                }
+            }
+        },
+    );
+    if let Err(error) = result
         && let Some(window) = failure_ui.upgrade()
     {
+        tracing::warn!(event = "settings.update_check_submit_failed", reason = %error);
         window.set_automatic_update_checks(previous);
         window.set_automatic_update_status(
             window.global::<Translations>().get_settings_save_failed(),
@@ -315,8 +300,7 @@ fn set_automatic_update_checks(
 
 fn set_feedback_sounds_enabled(
     ui: slint::Weak<AppWindow>,
-    storage: Arc<SqliteStorage>,
-    settings_guard: Arc<Mutex<()>>,
+    settings: LocalSettingsHandle,
     feedback_sounds_enabled: Arc<AtomicBool>,
     enabled: bool,
 ) {
@@ -326,32 +310,34 @@ fn set_feedback_sounds_enabled(
     let previous = feedback_sounds_enabled.load(Ordering::Acquire);
     window.set_feedback_sounds_status(SharedString::new());
     let failure_ui = ui.clone();
-    if thread::Builder::new()
-        .name("saymore-save-feedback-sound-setting".to_owned())
-        .spawn(move || {
-            let result = settings_guard.lock().map_err(|_| ()).and_then(|_guard| {
-                let mut settings = storage.load_settings().map_err(|_| ())?;
-                settings.feedback_sounds_enabled = enabled;
-                storage.save_settings(settings).map_err(|_| ())
-            });
-            let _ = ui.upgrade_in_event_loop(move |window| match result {
-                Ok(()) => {
-                    feedback_sounds_enabled.store(enabled, Ordering::Release);
-                    window.set_feedback_sounds_enabled(enabled);
-                    window.set_feedback_sounds_status(SharedString::new());
+    let committed_feedback_sounds = Arc::clone(&feedback_sounds_enabled);
+    let result = settings.submit(
+        LocalSettingsChange::SetFeedbackSounds(enabled),
+        move |result| {
+            if let Some(window) = ui.upgrade() {
+                match result {
+                    Ok(_) => {
+                        committed_feedback_sounds.store(enabled, Ordering::Release);
+                        window.set_feedback_sounds_enabled(enabled);
+                        window.set_feedback_sounds_status(SharedString::new());
+                    }
+                    Err(error) => {
+                        tracing::warn!(event = "settings.feedback_save_failed", reason = %error);
+                        committed_feedback_sounds.store(previous, Ordering::Release);
+                        window.set_feedback_sounds_enabled(previous);
+                        window.set_feedback_sounds_status(
+                            window.global::<Translations>().get_settings_save_failed(),
+                        );
+                    }
                 }
-                Err(()) => {
-                    feedback_sounds_enabled.store(previous, Ordering::Release);
-                    window.set_feedback_sounds_enabled(previous);
-                    window.set_feedback_sounds_status(
-                        window.global::<Translations>().get_settings_save_failed(),
-                    );
-                }
-            });
-        })
-        .is_err()
+            }
+        },
+    );
+    if let Err(error) = result
         && let Some(window) = failure_ui.upgrade()
     {
+        tracing::warn!(event = "settings.feedback_submit_failed", reason = %error);
+        feedback_sounds_enabled.store(previous, Ordering::Release);
         window.set_feedback_sounds_enabled(previous);
         window
             .set_feedback_sounds_status(window.global::<Translations>().get_settings_save_failed());
@@ -360,8 +346,7 @@ fn set_feedback_sounds_enabled(
 
 fn set_diagnostics_logging(
     ui: slint::Weak<AppWindow>,
-    storage: Arc<SqliteStorage>,
-    settings_guard: Arc<Mutex<()>>,
+    settings: LocalSettingsHandle,
     diagnostics: DiagnosticsController,
     enabled: bool,
 ) {
@@ -371,31 +356,31 @@ fn set_diagnostics_logging(
     }
 
     let failure_ui = ui.clone();
-    if thread::Builder::new()
-        .name("saymore-save-diagnostics-setting".to_owned())
-        .spawn(move || {
-            let result = settings_guard.lock().map_err(|_| ()).and_then(|_guard| {
-                let mut settings = storage.load_settings().map_err(|_| ())?;
-                settings.diagnostics_logging_enabled = enabled;
-                storage.save_settings(settings).map_err(|_| ())
-            });
-            let _ = ui.upgrade_in_event_loop(move |window| match result {
-                Ok(()) => {
-                    diagnostics.set_enabled(enabled);
-                    window.set_diagnostics_enabled(enabled);
-                    window.set_diagnostics_status(SharedString::new());
+    let result = settings.submit(
+        LocalSettingsChange::SetDiagnosticsLogging(enabled),
+        move |result| {
+            if let Some(window) = ui.upgrade() {
+                match result {
+                    Ok(_) => {
+                        diagnostics.set_enabled(enabled);
+                        window.set_diagnostics_enabled(enabled);
+                        window.set_diagnostics_status(SharedString::new());
+                    }
+                    Err(error) => {
+                        tracing::warn!(event = "settings.diagnostics_save_failed", reason = %error);
+                        window.set_diagnostics_enabled(previous);
+                        window.set_diagnostics_status(
+                            window.global::<Translations>().get_settings_save_failed(),
+                        );
+                    }
                 }
-                Err(()) => {
-                    window.set_diagnostics_enabled(previous);
-                    window.set_diagnostics_status(
-                        window.global::<Translations>().get_settings_save_failed(),
-                    );
-                }
-            });
-        })
-        .is_err()
+            }
+        },
+    );
+    if let Err(error) = result
         && let Some(window) = failure_ui.upgrade()
     {
+        tracing::warn!(event = "settings.diagnostics_submit_failed", reason = %error);
         window.set_diagnostics_enabled(previous);
         window.set_diagnostics_status(window.global::<Translations>().get_settings_save_failed());
     }

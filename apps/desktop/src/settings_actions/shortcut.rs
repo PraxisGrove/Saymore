@@ -2,51 +2,60 @@ use super::*;
 
 pub(super) fn wire_shortcut_settings(
     ui: &AppWindow,
-    storage: Arc<SqliteStorage>,
-    settings_guard: Arc<Mutex<()>>,
+    settings: LocalSettingsHandle,
     controller: MacOsShortcutController,
 ) {
+    let pending = Arc::new(AtomicBool::new(false));
     if let Ok(shortcuts) = controller.current() {
         apply_shortcut_ui(ui, &shortcuts, SharedString::new());
     }
     let capture_ui = ui.as_weak();
-    let capture_storage = Arc::clone(&storage);
-    let capture_guard = Arc::clone(&settings_guard);
+    let capture_settings = settings.clone();
     let capture_controller = controller.clone();
+    let capture_pending = Arc::clone(&pending);
     ui.on_begin_shortcut_capture(move || {
+        if capture_pending.load(Ordering::Acquire) {
+            return;
+        }
         begin_shortcut_capture(
             capture_ui.clone(),
-            Arc::clone(&capture_storage),
-            Arc::clone(&capture_guard),
+            capture_settings.clone(),
             capture_controller.clone(),
+            Arc::clone(&capture_pending),
             ShortcutCaptureTarget::Add,
         );
     });
 
     let edit_ui = ui.as_weak();
-    let edit_storage = Arc::clone(&storage);
-    let edit_guard = Arc::clone(&settings_guard);
+    let edit_settings = settings.clone();
     let edit_controller = controller.clone();
+    let edit_pending = Arc::clone(&pending);
     ui.on_edit_shortcut(move |index| {
+        if edit_pending.load(Ordering::Acquire) {
+            return;
+        }
         let Ok(index) = usize::try_from(index) else {
             return;
         };
         begin_shortcut_capture(
             edit_ui.clone(),
-            Arc::clone(&edit_storage),
-            Arc::clone(&edit_guard),
+            edit_settings.clone(),
             edit_controller.clone(),
+            Arc::clone(&edit_pending),
             ShortcutCaptureTarget::Replace(index),
         );
     });
 
     let remove_ui = ui.as_weak();
     ui.on_remove_shortcut(move |index| {
+        if pending.load(Ordering::Acquire) {
+            return;
+        }
         remove_shortcut(
             remove_ui.clone(),
-            Arc::clone(&storage),
-            Arc::clone(&settings_guard),
+            settings.clone(),
             controller.clone(),
+            Arc::clone(&pending),
             index,
         );
     });
@@ -60,9 +69,9 @@ enum ShortcutCaptureTarget {
 
 fn begin_shortcut_capture(
     ui: slint::Weak<AppWindow>,
-    storage: Arc<SqliteStorage>,
-    settings_guard: Arc<Mutex<()>>,
+    settings: LocalSettingsHandle,
     controller: MacOsShortcutController,
+    pending: Arc<AtomicBool>,
     target: ShortcutCaptureTarget,
 ) {
     let receiver = match controller.begin_capture() {
@@ -87,12 +96,7 @@ fn begin_shortcut_capture(
             };
             let _ = ui.upgrade_in_event_loop(move |window| match result {
                 Ok(shortcut) => apply_captured_shortcut(
-                    &window,
-                    storage,
-                    settings_guard,
-                    controller,
-                    target,
-                    shortcut,
+                    &window, settings, controller, pending, target, shortcut,
                 ),
                 Err(MacOsShortcutError::CaptureCancelled) => {
                     window.set_shortcut_capturing(false);
@@ -114,9 +118,9 @@ fn begin_shortcut_capture(
 
 fn apply_captured_shortcut(
     window: &AppWindow,
-    storage: Arc<SqliteStorage>,
-    settings_guard: Arc<Mutex<()>>,
+    settings: LocalSettingsHandle,
     controller: MacOsShortcutController,
+    pending: Arc<AtomicBool>,
     target: ShortcutCaptureTarget,
     shortcut: MacOsShortcut,
 ) {
@@ -152,14 +156,7 @@ fn apply_captured_shortcut(
             *existing = shortcut;
         }
     }
-    persist_shortcuts(
-        window,
-        storage,
-        settings_guard,
-        controller,
-        shortcuts,
-        status,
-    );
+    persist_shortcuts(window, settings, controller, pending, shortcuts, status);
 }
 
 impl ShortcutCaptureTarget {
@@ -173,9 +170,9 @@ impl ShortcutCaptureTarget {
 
 fn remove_shortcut(
     ui: slint::Weak<AppWindow>,
-    storage: Arc<SqliteStorage>,
-    settings_guard: Arc<Mutex<()>>,
+    settings: LocalSettingsHandle,
     controller: MacOsShortcutController,
+    pending: Arc<AtomicBool>,
     index: i32,
 ) {
     let Some(window) = ui.upgrade() else {
@@ -197,9 +194,9 @@ fn remove_shortcut(
     shortcuts.remove(index);
     persist_shortcuts(
         &window,
-        storage,
-        settings_guard,
+        settings,
         controller,
+        pending,
         shortcuts,
         SharedString::new(),
     );
@@ -207,18 +204,24 @@ fn remove_shortcut(
 
 fn persist_shortcuts(
     window: &AppWindow,
-    storage: Arc<SqliteStorage>,
-    settings_guard: Arc<Mutex<()>>,
+    settings: LocalSettingsHandle,
     controller: MacOsShortcutController,
+    pending: Arc<AtomicBool>,
     shortcuts: Vec<MacOsShortcut>,
     status: SharedString,
 ) {
+    if pending.swap(true, Ordering::AcqRel) {
+        window.set_shortcut_status(window.global::<Translations>().get_shortcut_save_failed());
+        return;
+    }
     let ui = window.as_weak();
     let Ok(previous) = controller.current() else {
+        pending.store(false, Ordering::Release);
         window.set_shortcut_status(window.global::<Translations>().get_shortcut_save_failed());
         return;
     };
     if controller.replace(shortcuts.clone()).is_err() {
+        pending.store(false, Ordering::Release);
         window.set_shortcut_status(window.global::<Translations>().get_shortcut_save_failed());
         return;
     }
@@ -226,20 +229,21 @@ fn persist_shortcuts(
     let rollback_ui = ui.clone();
     let rollback_controller = controller.clone();
     let rollback_previous = previous.clone();
-    let spawn = thread::Builder::new()
-        .name("saymore-save-shortcut".to_owned())
-        .spawn(move || {
-            let result = settings_guard.lock().map_err(|_| ()).and_then(|_guard| {
-                let mut settings = storage.load_settings().map_err(|_| ())?;
-                settings.dictation_shortcuts =
-                    shortcuts.iter().map(MacOsShortcut::storage_value).collect();
-                storage.save_settings(settings).map_err(|_| ())
-            });
-            if result.is_err() {
+    let completion_pending = Arc::clone(&pending);
+    let stored_shortcuts = shortcuts.iter().map(MacOsShortcut::storage_value).collect();
+    let result = settings.submit(
+        LocalSettingsChange::ReplaceDictationShortcuts(stored_shortcuts),
+        move |result| {
+            completion_pending.store(false, Ordering::Release);
+            if let Err(error) = result {
+                tracing::warn!(event = "shortcut.save_failed", reason = %error);
                 rollback_shortcut(rollback_ui, rollback_controller, rollback_previous);
             }
-        });
-    if spawn.is_err() {
+        },
+    );
+    if let Err(error) = result {
+        pending.store(false, Ordering::Release);
+        tracing::warn!(event = "shortcut.submit_failed", reason = %error);
         rollback_shortcut(ui, controller, previous);
     }
 }

@@ -18,8 +18,8 @@ use slint::{SharedString, Timer};
 #[cfg(target_os = "macos")]
 use template_app::{
     AudioRecorder, CancelledRecordingStore, DictationSession, DictationSessionId,
-    DictationToggleAction, LocalSettingsStore, MicrophonePermissionProvider, PcmChunk,
-    RecordingError, RecordingMetrics, RecordingStarted,
+    DictationToggleAction, LocalSettingsMutator, LocalSettingsStore, MicrophonePermissionProvider,
+    PcmChunk, RecordingError, RecordingMetrics, RecordingStarted,
 };
 #[cfg(target_os = "macos")]
 use template_app::{FeedbackSound, TextDeliverer};
@@ -78,6 +78,8 @@ mod home_stats;
 mod i18n;
 #[cfg(target_os = "macos")]
 mod local_data_ui;
+#[cfg(target_os = "macos")]
+mod local_settings_runtime;
 #[cfg(target_os = "macos")]
 mod main_window;
 #[cfg(target_os = "macos")]
@@ -295,7 +297,8 @@ struct WiredCore {
     microphone_access: microphone_access::MicrophoneAccess,
     onboarding: onboarding::OnboardingRuntime,
     authorization_poll: authorization_ui::AuthorizationPoll,
-    local_settings_guard: Arc<Mutex<()>>,
+    local_settings: local_settings_runtime::LocalSettingsHandle,
+    _local_settings_runtime: local_settings_runtime::LocalSettingsRuntime,
 }
 
 #[cfg(target_os = "macos")]
@@ -331,18 +334,21 @@ fn wire_core_services(
         microphone,
     );
     settings_ui::wire(&windows.ui, Arc::clone(&bootstrap.settings_store));
-    let local_settings_guard = Arc::new(Mutex::new(()));
+    let settings_store: Arc<dyn LocalSettingsStore> = bootstrap.local_storage.clone();
+    let local_settings_runtime = local_settings_runtime::LocalSettingsRuntime::new(Arc::new(
+        LocalSettingsMutator::new(settings_store),
+    ))?;
+    let local_settings = local_settings_runtime.handle();
     i18n::wire(
         &windows.ui,
-        Arc::clone(&bootstrap.local_storage),
-        Arc::clone(&local_settings_guard),
+        local_settings.clone(),
         windows.language_context,
     );
     wire_local_features(
         &windows.ui,
         Arc::clone(&bootstrap.local_storage),
         Arc::clone(&recorder),
-        Arc::clone(&local_settings_guard),
+        local_settings.clone(),
         Arc::clone(&feedback_sounds_enabled),
         bootstrap.diagnostics.clone(),
         LocalFeatureOptions {
@@ -354,8 +360,7 @@ fn wire_core_services(
     let onboarding = onboarding::OnboardingRuntime::new(
         &windows.ui,
         &bootstrap.local_settings,
-        Arc::clone(&bootstrap.local_storage),
-        Arc::clone(&local_settings_guard),
+        local_settings.clone(),
         Arc::clone(&recorder),
         microphone,
         deliverer,
@@ -370,7 +375,8 @@ fn wire_core_services(
         microphone_access,
         onboarding,
         authorization_poll,
-        local_settings_guard,
+        local_settings,
+        _local_settings_runtime: local_settings_runtime,
     })
 }
 
@@ -428,8 +434,7 @@ fn run_wired_desktop(
     status_tray::wire(
         &tray,
         &windows.ui,
-        Arc::clone(&bootstrap.local_storage),
-        Arc::clone(&core.local_settings_guard),
+        core.local_settings.clone(),
         paused,
         pause_recording,
     );
@@ -441,13 +446,7 @@ fn run_wired_desktop(
         windows.microphone_intro_overlay.window(),
         windows.microphone_permission_overlay.window(),
     ]);
-    run_desktop_event_loop(
-        &windows.ui,
-        &tray,
-        &core.onboarding,
-        &bootstrap.local_storage,
-        &core.local_settings_guard,
-    )?;
+    run_desktop_event_loop(&windows.ui, &tray, &core.onboarding)?;
     drop(core.authorization_poll);
     drop(core.feedback_sounds_enabled);
     Ok(())
@@ -510,11 +509,9 @@ fn run_desktop_event_loop(
     ui: &AppWindow,
     tray: &StatusTray,
     onboarding: &onboarding::OnboardingRuntime,
-    storage: &SqliteStorage,
-    settings_guard: &Mutex<()>,
 ) -> Result<(), slint::PlatformError> {
     tray.show()?;
-    onboarding.present_initial(ui, storage, settings_guard)?;
+    onboarding.present_initial(ui)?;
     slint::run_event_loop_until_quit()?;
     tray.hide()?;
     onboarding.hide();
@@ -547,23 +544,18 @@ fn wire_local_features(
     ui: &AppWindow,
     storage: Arc<SqliteStorage>,
     recorder: Arc<Mutex<MacOsAudioRecorder>>,
-    settings_guard: Arc<Mutex<()>>,
+    settings: local_settings_runtime::LocalSettingsHandle,
     feedback_sounds_enabled: Arc<AtomicBool>,
     diagnostics: diagnostics::DiagnosticsController,
     options: LocalFeatureOptions,
 ) {
     home_stats::wire(ui, Arc::clone(&storage), options.data_directory.clone());
-    local_data_ui::wire(
-        ui,
-        Arc::clone(&storage),
-        recorder,
-        Arc::clone(&settings_guard),
-    );
+    local_data_ui::wire(ui, Arc::clone(&storage), recorder, settings.clone());
     update_check::wire(ui);
     settings_actions::wire(
         ui,
         storage,
-        settings_guard,
+        settings,
         feedback_sounds_enabled,
         diagnostics,
         options.data_directory,
