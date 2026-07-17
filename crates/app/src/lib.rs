@@ -22,7 +22,14 @@ pub use audio_recording::{
     convert_interleaved_f32_to_pcm16,
 };
 pub use cancelled_recording::CancelledRecordingStore;
-pub use dictation_completion::{DictationHandoff, DictationSessionId, OwnedRecognition};
+pub use dictation_completion::{
+    CompletedDictation, DictationCompletion, DictationCompletionAdapters, DictationCompletionClock,
+    DictationCompletionError, DictationCompletionPolicy, DictationCompletionResult,
+    DictationHandoff, DictationHistoryMetadata, DictationHistoryPolicy, DictationHistoryResult,
+    DictationHistorySkipReason, DictationHistoryWriter, DictationPolicyError,
+    DictationPolicySource, DictationSessionId, FailedDictation, FinalTranscriptRefiner,
+    OwnedRecognition, RestoredRecordingTranscriber,
+};
 pub use dictation_session::{DictationSession, DictationSessionState, DictationToggleAction};
 pub use dictionary_learning::{
     CandidateAssessmentSource, CandidateDecision, DictionaryCandidateAssessment,

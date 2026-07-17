@@ -8,7 +8,7 @@ license.workspace = true
 publish = false
 
 [features]
-history-experiments = []
+history-experiments = ["template-app/history-experiments"]
 
 [[test]]
 name = "i18n_runtime"
