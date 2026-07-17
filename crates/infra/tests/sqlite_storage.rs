@@ -91,9 +91,10 @@ fn history_record(id: &str, created_at_ms: i64, final_text: &str) -> NewHistoryR
 fn expected_fresh_settings() -> LocalSettings {
     #[cfg(target_os = "windows")]
     {
-        let mut settings = LocalSettings::default();
-        settings.dictation_shortcuts = vec!["windows:right-alt".to_owned()];
-        settings
+        LocalSettings {
+            dictation_shortcuts: vec!["windows:right-alt".to_owned()],
+            ..LocalSettings::default()
+        }
     }
     #[cfg(not(target_os = "windows"))]
     {
