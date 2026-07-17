@@ -162,7 +162,7 @@ mod tests {
     fn anchors_capture_unicode_insertion() {
         assert_eq!(
             Some(("你好".to_owned(), "世界".to_owned())),
-            insertion_anchors("你好世界", "你好，Saymore 世界", ", Saymore")
+            insertion_anchors("你好世界", "你好🌟世界", "🌟")
         );
     }
 
