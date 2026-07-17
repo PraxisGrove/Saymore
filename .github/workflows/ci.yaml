@@ -53,8 +53,8 @@ jobs:
       - name: Clippy
         run: cargo clippy --workspace --all-targets -- -D warnings
 
-      - name: Build
-        run: cargo build --workspace --all-targets --release
+      - name: Build release application
+        run: cargo build -p saymore-desktop --release
 
       - name: Size gate
         run: cargo run -p xtask -- size
