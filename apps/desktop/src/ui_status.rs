@@ -1,8 +1,7 @@
 use slint::{ComponentHandle, SharedString};
 use template_app::{
-    AccessibilityAuthorization, MicrophoneAuthorization, PcmRecording, ProcessedText,
-    RecordingError, RefinementStatus, SpeechRecognitionError, TextDeliveryError,
-    TextDeliveryOutcome,
+    AccessibilityAuthorization, MicrophoneAuthorization, ProcessedText, RecordingError,
+    RefinementStatus, SpeechRecognitionError, TextDeliveryError, TextDeliveryOutcome,
 };
 
 use crate::ui::{AppWindow, Translations};
@@ -20,7 +19,7 @@ pub fn apply_recording_started(ui: &AppWindow) {
 
 pub fn apply_transcription_completed(
     ui: &AppWindow,
-    recording: &PcmRecording,
+    audio_duration_ms: u64,
     processed: &ProcessedText,
     delivery: Result<TextDeliveryOutcome, TextDeliveryError>,
 ) {
@@ -45,7 +44,7 @@ pub fn apply_transcription_completed(
     match delivery {
         Ok(outcome) => {
             ui.set_recording_status(delivery_status(ui, &processed.refinement, outcome));
-            ui.set_recording_detail(completion_detail(ui, recording, processed, outcome));
+            ui.set_recording_detail(completion_detail(ui, audio_duration_ms, processed, outcome));
         }
         Err(error) => {
             let translations = ui.global::<Translations>();
@@ -93,7 +92,7 @@ fn delivery_status(
 
 fn completion_detail(
     ui: &AppWindow,
-    recording: &PcmRecording,
+    audio_duration_ms: u64,
     processed: &ProcessedText,
     outcome: TextDeliveryOutcome,
 ) -> SharedString {
@@ -101,7 +100,7 @@ fn completion_detail(
         return fallback_detail(ui, reason);
     }
     ui.global::<Translations>().invoke_recording_completion(
-        format_duration(recording.duration_ms).into(),
+        format_duration(audio_duration_ms).into(),
         i32::try_from(processed.text.chars().count()).unwrap_or(i32::MAX),
         delivery_outcome_label(ui, outcome),
     )

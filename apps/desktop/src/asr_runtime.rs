@@ -1,8 +1,9 @@
 use std::sync::{Arc, Mutex};
 
 use template_app::{
-    DictationSessionId, DictionaryStore, OwnedRecognition, SettingsStore, SpeechRecognitionError,
-    SpeechRecognitionHints, StreamingSpeechRecognizer,
+    DictationSessionId, DictionaryStore, OwnedRecognition, PcmRecording,
+    RestoredRecordingTranscriber, SettingsStore, SpeechRecognitionError, SpeechRecognitionHints,
+    StreamingSpeechRecognizer,
 };
 use template_infra::{
     JsonSettingsStore, OpenAiCompatibleSpeechRecognizer, VolcengineSpeechRecognizer,
@@ -96,19 +97,22 @@ impl AsrSessionController {
     }
 }
 
-pub fn normalize_transcript(transcript: &str) -> String {
-    transcript.split_whitespace().collect::<Vec<_>>().join(" ")
-}
-
-#[cfg(test)]
-mod tests {
-    use super::normalize_transcript;
-
-    #[test]
-    fn normalizes_surrounding_and_repeated_whitespace() {
-        assert_eq!(
-            "你好 Saymore。",
-            normalize_transcript("  你好   Saymore。\n")
-        );
+impl RestoredRecordingTranscriber for AsrSessionController {
+    fn transcribe(
+        &self,
+        id: DictationSessionId,
+        recording: &PcmRecording,
+    ) -> Result<String, SpeechRecognitionError> {
+        let result = (|| {
+            self.start(id, Arc::new(|_| {}))?;
+            for chunk in recording.samples.chunks(1_600) {
+                self.push_audio(chunk.to_vec())?;
+            }
+            self.take()?.finish()
+        })();
+        if result.is_err() {
+            self.cancel();
+        }
+        result
     }
 }
