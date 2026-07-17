@@ -27,7 +27,7 @@ jobs:
       tag: ${{ steps.version.outputs.tag }}
       source-sha: ${{ steps.source.outputs.sha }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           ref: main
           fetch-depth: 0
@@ -126,7 +126,7 @@ jobs:
       APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
       APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           ref: ${{ needs.plan.outputs.source-sha }}
 
@@ -198,7 +198,7 @@ jobs:
     if: needs.plan.outputs.should-release == 'true'
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           ref: ${{ needs.plan.outputs.source-sha }}
 
@@ -243,7 +243,7 @@ jobs:
     needs: [plan, package-macos, package-windows]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           ref: ${{ needs.plan.outputs.source-sha }}
           fetch-depth: 0
