@@ -1,4 +1,5 @@
 use super::*;
+use slint::{ModelRc, VecModel};
 
 pub(super) fn wire_shortcut_settings(
     ui: &AppWindow,
@@ -272,7 +273,7 @@ fn rollback_shortcut(
 fn apply_shortcut_ui(window: &AppWindow, shortcuts: &[MacOsShortcut], status: SharedString) {
     let labels: Vec<SharedString> = shortcuts
         .iter()
-        .map(|shortcut| shortcut_display_label(window, shortcut))
+        .map(|shortcut| shortcut.display_label().into())
         .collect();
     if let Some(first) = labels.first() {
         window.set_shortcut_label(first.clone());
@@ -281,14 +282,6 @@ fn apply_shortcut_ui(window: &AppWindow, shortcuts: &[MacOsShortcut], status: Sh
     window.set_shortcut_status(status);
     window.set_shortcut_error_index(-2);
     window.set_shortcut_capturing(false);
-}
-
-fn shortcut_display_label(window: &AppWindow, shortcut: &MacOsShortcut) -> SharedString {
-    if shortcut.storage_value() == "right-command" {
-        window.global::<Translations>().get_shortcut_right_command()
-    } else {
-        shortcut.display_label().into()
-    }
 }
 
 fn shortcut_error_label(window: &AppWindow, error: &MacOsShortcutError) -> SharedString {

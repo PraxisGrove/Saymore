@@ -1,11 +1,15 @@
 use std::{
     collections::HashSet,
-    collections::hash_map::DefaultHasher,
     fs,
     fs::File,
-    hash::{Hash, Hasher},
     path::{Path, PathBuf},
     sync::{Mutex, OnceLock},
+};
+
+#[cfg(target_os = "windows")]
+use std::{
+    collections::hash_map::DefaultHasher,
+    hash::{Hash, Hasher},
 };
 
 use fs2::FileExt;

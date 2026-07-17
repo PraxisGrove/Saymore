@@ -74,6 +74,11 @@ fn round_trips_fn_physical_key_combinations() {
 }
 
 #[test]
+fn default_shortcut_uses_an_english_platform_label() {
+    assert_eq!("Right Command", MacOsShortcut::default().display_label());
+}
+
+#[test]
 fn rejects_known_system_shortcuts() {
     assert_eq!(
         Err(MacOsShortcutError::SystemReserved),

@@ -100,6 +100,13 @@ and reactivates the old set. Capture is limited to a short-lived key-state
 sampler, suppresses shortcut actions while active, and ends after completion,
 Escape, or runtime shutdown.
 
+Shortcut storage values are stable platform identifiers, not display text. The
+current UI uses the platform adapters' English labels consistently. A future
+localized-keyboard-label change must expose structured key and modifier names
+instead of special-casing individual storage values. Every added locale must
+cover the complete named-key vocabulary in the translation build validation so
+one shortcut cannot mix localized and fallback-English parts.
+
 `xtask` owns repository maintenance, local preview and ad-hoc bundle workflows,
 and size-gate commands. Formal distribution metadata lives with the desktop
 package; GitHub Actions coordinates native runners and `cargo-packager` for

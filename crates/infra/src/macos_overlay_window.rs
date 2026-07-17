@@ -1,4 +1,4 @@
-use std::{ffi::c_void, ptr::NonNull, sync::OnceLock};
+use std::{cell::Cell, ffi::c_void, ptr::NonNull, sync::OnceLock};
 
 use objc2::{
     ClassType, MainThreadMarker, ffi, msg_send,
@@ -16,6 +16,30 @@ use thiserror::Error;
 const BOTTOM_MARGIN: f64 = 12.0;
 static HOOKED_WINIT_CLASS: OnceLock<&'static AnyClass> = OnceLock::new();
 static NONACTIVATING_MARKER_KEY: u8 = 0;
+
+thread_local! {
+    static OVERLAY_PRESENTATION_ACTIVE: Cell<bool> = const { Cell::new(false) };
+}
+
+struct OverlayPresentationGuard<'a> {
+    presenting: &'a Cell<bool>,
+}
+
+impl<'a> OverlayPresentationGuard<'a> {
+    fn enter(presenting: &'a Cell<bool>) -> Option<Self> {
+        if presenting.replace(true) {
+            None
+        } else {
+            Some(Self { presenting })
+        }
+    }
+}
+
+impl Drop for OverlayPresentationGuard<'_> {
+    fn drop(&mut self) {
+        self.presenting.set(false);
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
 pub enum MacOsOverlayWindowError {
@@ -192,8 +216,13 @@ unsafe extern "C-unwind" fn show_window_without_stealing_focus(
     };
     let is_overlay = !marker.is_null();
     if is_overlay {
-        // This is the presentation path for configured overlays only.
-        let _: () = unsafe { msg_send![window, orderFrontRegardless] };
+        let _ = OVERLAY_PRESENTATION_ACTIVE.try_with(|presenting| {
+            let Some(_guard) = OverlayPresentationGuard::enter(presenting) else {
+                return;
+            };
+            // Winit uses orderFront: for visible windows that must not become key.
+            let _: () = unsafe { msg_send![window, orderFront: sender] };
+        });
     } else if let Some(winit_class) = HOOKED_WINIT_CLASS.get().copied() {
         // Preserve Winit's normal key-window behavior for every unmarked window.
         let _: () = unsafe { msg_send![super(window, winit_class), makeKeyAndOrderFront: sender] };
@@ -214,5 +243,17 @@ mod tests {
             overlay_style_mask(NSWindowStyleMask::Borderless)
                 .contains(NSWindowStyleMask::NonactivatingPanel)
         );
+    }
+
+    #[test]
+    fn nested_overlay_presentation_is_suppressed() {
+        let presenting = Cell::new(false);
+        let first = OverlayPresentationGuard::enter(&presenting);
+
+        assert!(first.is_some());
+        assert!(OverlayPresentationGuard::enter(&presenting).is_none());
+
+        drop(first);
+        assert!(OverlayPresentationGuard::enter(&presenting).is_some());
     }
 }

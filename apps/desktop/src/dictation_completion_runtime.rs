@@ -1,6 +1,7 @@
 use std::{
     io,
-    sync::{Arc, Mutex},
+    sync::{Arc, Mutex, mpsc},
+    time::Duration,
 };
 
 use slint::ComponentHandle;
@@ -19,6 +20,7 @@ use template_infra::{JsonSettingsStore, SqliteStorage, SystemClock, copy_text_to
 use crate::{
     asr_runtime::AsrSessionController,
     overlay_generation_matches,
+    recording_runtime::{OVERLAY_EXIT_DURATION, animate_overlay_hide},
     refinement_runtime::{ProcessingActivity, RefinementPlan, RefinementRuntime},
     ui::{AppWindow, RecordingOverlay, Translations},
 };
@@ -193,11 +195,20 @@ fn hide_status_before_delivery(
     overlay_generation: i32,
 ) -> Arc<dyn Fn() + Send + Sync> {
     Arc::new(move || {
-        let _ = overlay.upgrade_in_event_loop(move |overlay| {
+        let (hidden_tx, hidden_rx) = mpsc::sync_channel(1);
+        let queued = overlay.upgrade_in_event_loop(move |overlay| {
             if overlay_generation_matches(overlay_generation, overlay.get_session_generation()) {
-                let _ = overlay.hide();
+                animate_overlay_hide(&overlay, move || {
+                    let _ = hidden_tx.send(());
+                });
+            } else {
+                let _ = hidden_tx.send(());
             }
         });
+        if queued.is_ok() {
+            let wait = OVERLAY_EXIT_DURATION + Duration::from_millis(200);
+            let _ = hidden_rx.recv_timeout(wait);
+        }
     })
 }
 

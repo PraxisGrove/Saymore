@@ -220,7 +220,9 @@ impl Persistence {
 
 #[cfg(test)]
 mod tests {
-    use super::{next_step, previous_step};
+    use super::next_step;
+    #[cfg(target_os = "windows")]
+    use super::previous_step;
     use template_app::OnboardingStep;
 
     #[test]

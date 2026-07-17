@@ -181,7 +181,7 @@ fn schedule_cancel_expiration(
             && let Some(overlay) = overlay.upgrade()
             && overlay_generation_matches(overlay_generation, overlay.get_session_generation())
         {
-            let _ = overlay.hide();
+            crate::recording_runtime::animate_overlay_hide(&overlay, || {});
         }
     });
 }

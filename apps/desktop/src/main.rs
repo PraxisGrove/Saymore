@@ -71,6 +71,8 @@ mod home_stats;
 mod i18n;
 mod local_data_ui;
 mod local_settings_runtime;
+#[cfg(target_os = "macos")]
+mod macos_text_delivery_runtime;
 mod main_window;
 mod microphone_access;
 mod onboarding;
@@ -110,6 +112,8 @@ pub(crate) fn overlay_generation_matches(scheduled: i32, current: i32) -> bool {
 use desktop_core::{PlatformAdapters, WiredCore, wire_core_services};
 use dictation_completion_runtime::DictationRuntime;
 use feedback_runtime::play_feedback_sound;
+#[cfg(target_os = "macos")]
+use macos_text_delivery_runtime::MacOsMainThreadTextDeliverer;
 pub(crate) use recording_runtime::hide_overlay_after_delay;
 use ui_status::*;
 
@@ -184,7 +188,9 @@ fn run_macos(bootstrap: DesktopBootstrap) -> Result<(), Box<dyn Error>> {
 #[cfg(target_os = "macos")]
 fn macos_platform_adapters(bootstrap: &DesktopBootstrap) -> PlatformAdapters {
     let microphone: Arc<dyn MicrophonePermissionProvider> = Arc::new(MacOsMicrophonePermission);
-    let deliverer: Arc<dyn CorrectionObservingTextDeliverer> = Arc::new(MacOsTextDeliverer);
+    let deliverer: Arc<dyn CorrectionObservingTextDeliverer> = Arc::new(
+        MacOsMainThreadTextDeliverer::new(Arc::new(MacOsTextDeliverer)),
+    );
     let recorder: RecorderHandle = Arc::new(Mutex::new(Box::new(
         MacOsAudioRecorder::with_preferred_input_device_id(
             bootstrap.local_settings.preferred_microphone_id.clone(),
@@ -211,6 +217,7 @@ struct DesktopBootstrap {
     local_storage: Arc<SqliteStorage>,
     local_settings: template_app::LocalSettings,
     diagnostics: diagnostics::DiagnosticsController,
+    #[cfg_attr(not(target_os = "windows"), allow(dead_code))]
     instance_guard: AppInstanceGuard,
     #[cfg(target_os = "macos")]
     _ax_compatibility_server: Option<ax_compatibility_server::AxCompatibilityServer>,

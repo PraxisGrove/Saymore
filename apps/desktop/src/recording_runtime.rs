@@ -3,7 +3,8 @@ use crate::asr_runtime::AsrSessionController;
 use crate::ui::{AppPage, Translations};
 use template_app::SpeechRecognitionError;
 
-const OVERLAY_PRERENDER_DELAY: Duration = Duration::from_millis(17);
+const OVERLAY_REVEAL_DELAY: Duration = Duration::from_millis(17);
+pub(crate) const OVERLAY_EXIT_DURATION: Duration = Duration::from_millis(110);
 
 pub(super) fn start_recording_shortcut(
     ui: &AppWindow,
@@ -350,30 +351,51 @@ fn first_recording_overlay(
     overlay.set_session_generation(generation);
     overlay.set_mode(0);
     overlay.set_recording_level(0.0);
-    overlay.window().request_redraw();
+    overlay.set_revealed(false);
+    let present_started = Instant::now();
+    let result = overlay_window::present(overlay.window());
+    tracing::info!(
+        target: "saymore::diagnostics",
+        event = "recording.overlay_presented",
+        dictation_id = %id,
+        present_ms = present_started.elapsed().as_millis(),
+        total_ms = startup_started.elapsed().as_millis()
+    );
+    if let Err(error) = result {
+        tracing::warn!(
+            target: "saymore::diagnostics",
+            event = "recording.overlay_present_failed",
+            dictation_id = %id,
+            reason = %error
+        );
+        return;
+    }
     let overlay = overlay.as_weak();
-    Timer::single_shot(OVERLAY_PRERENDER_DELAY, move || {
+    Timer::single_shot(OVERLAY_REVEAL_DELAY, move || {
         if let Some(overlay) = overlay.upgrade()
             && overlay_generation_matches(generation, overlay.get_session_generation())
         {
-            let present_started = Instant::now();
-            let result = overlay_window::present(overlay.window());
-            tracing::info!(
-                target: "saymore::diagnostics",
-                event = "recording.overlay_presented",
-                dictation_id = %id,
-                present_ms = present_started.elapsed().as_millis(),
-                total_ms = startup_started.elapsed().as_millis()
-            );
-            if let Err(error) = result {
-                tracing::warn!(
-                    target: "saymore::diagnostics",
-                    event = "recording.overlay_present_failed",
-                    dictation_id = %id,
-                    reason = %error
-                );
-            }
+            overlay.set_revealed(true);
         }
+    });
+}
+
+pub(crate) fn animate_overlay_hide(
+    overlay: &RecordingOverlay,
+    completion: impl FnOnce() + 'static,
+) {
+    let generation = overlay.get_session_generation();
+    overlay.set_revealed(false);
+    let overlay = overlay.as_weak();
+    Timer::single_shot(OVERLAY_EXIT_DURATION, move || {
+        if let Some(overlay) = overlay.upgrade()
+            && overlay_generation_matches(generation, overlay.get_session_generation())
+        {
+            let _ = overlay.hide();
+            overlay.set_mode(0);
+            overlay.set_recording_level(0.0);
+        }
+        completion();
     });
 }
 
@@ -392,7 +414,7 @@ pub(crate) fn hide_overlay_after_delay(overlay: slint::Weak<RecordingOverlay>) {
         if let Some(overlay) = overlay.upgrade()
             && overlay_generation_matches(generation, overlay.get_session_generation())
         {
-            let _ = overlay.hide();
+            animate_overlay_hide(&overlay, || {});
         }
     });
 }

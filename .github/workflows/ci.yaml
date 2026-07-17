@@ -27,6 +27,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install --yes \
+            libasound2-dev \
             libfontconfig-dev \
             libgbm-dev \
             libinput-dev \

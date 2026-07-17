@@ -3,6 +3,7 @@ use std::{error::Error, path::Path};
 use template_infra::AppEnvironment;
 
 const ENVIRONMENT_FLAG: &str = "--environment";
+#[cfg(any(target_os = "windows", test))]
 const AUTOSTART_FLAG: &str = "--autostart";
 const DEVELOPMENT_MARKER: &str = "saymore-development-environment";
 
@@ -13,6 +14,7 @@ pub fn resolve() -> Result<AppEnvironment, Box<dyn Error>> {
     resolve_from(std::env::args().skip(1), default_for_build())
 }
 
+#[cfg(target_os = "windows")]
 pub fn started_automatically() -> bool {
     std::env::args()
         .skip(1)

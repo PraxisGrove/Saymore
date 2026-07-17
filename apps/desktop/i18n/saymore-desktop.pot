@@ -33,12 +33,6 @@ msgctxt "recording.start-hint"
 msgid "Press Right Command to start"
 msgstr ""
 
-#: apps/desktop/ui/app-window.slint:74 apps/desktop/ui/translations.slint:62
-#: apps/desktop/ui/app-window.slint:74 apps/desktop/ui/translations.slint:62
-msgctxt "shortcut.right-command"
-msgid "Right Command"
-msgstr ""
-
 #: apps/desktop/ui/app-window.slint:87 apps/desktop/ui/sidebar.slint:6
 #: apps/desktop/ui/app-window.slint:87 apps/desktop/ui/sidebar.slint:6
 msgctxt "storage.usage.calculating"

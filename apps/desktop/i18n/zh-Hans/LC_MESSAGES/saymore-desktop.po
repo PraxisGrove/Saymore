@@ -29,12 +29,7 @@ msgstr "等待录音"
 #: apps/desktop/ui/app-window.slint:73
 msgctxt "recording.start-hint"
 msgid "Press Right Command to start"
-msgstr "单击右 Command 开始"
-
-#: apps/desktop/ui/app-window.slint:74 apps/desktop/ui/translations.slint:62
-msgctxt "shortcut.right-command"
-msgid "Right Command"
-msgstr "右 Command"
+msgstr "按 Right Command 开始"
 
 #: apps/desktop/ui/app-window.slint:87 apps/desktop/ui/sidebar.slint:6
 msgctxt "storage.usage.calculating"
