@@ -2,6 +2,7 @@
 # https://github.com/j178/prek
 
 minimum_prek_version: 0.2.0
+default_install_hook_types: [pre-commit, pre-push]
 
 repos:
   - repo: "https://github.com/pre-commit/pre-commit-hooks"
@@ -51,13 +52,23 @@ repos:
 
   - repo: local
     hooks:
+      - id: rustfmt-pre-push
+        name: rustfmt (pre-push)
+        entry: cargo fmt --all --check
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-push]
+
+  - repo: local
+    hooks:
       - id: cargo-check
         name: cargo check
         entry: cargo check --workspace --all-targets
         language: system
-        types: [rust]
         pass_filenames: false
-        stages: [push]
+        always_run: true
+        stages: [pre-push]
 
   - repo: local
     hooks:
@@ -66,21 +77,48 @@ repos:
         entry: cargo nextest run --workspace --all-targets
         language: system
         pass_filenames: false
-        stages: [push]
+        always_run: true
+        stages: [pre-push]
 
       - id: cargo-doc-test
         name: cargo doc tests
         entry: cargo test --workspace --doc
         language: system
         pass_filenames: false
-        stages: [push]
+        always_run: true
+        stages: [pre-push]
+
+      - id: clippy-pre-push
+        name: clippy (pre-push)
+        entry: cargo clippy --workspace --all-targets -- -D warnings
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-push]
 
       - id: cargo-deny
         name: cargo deny
         entry: cargo deny check
         language: system
         pass_filenames: false
-        stages: [push]
+        always_run: true
+        stages: [pre-push]
+
+      - id: cargo-build-release
+        name: cargo build (release)
+        entry: cargo build --workspace --all-targets --release
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-push]
+
+      - id: xtask-size
+        name: xtask size gate
+        entry: cargo run -p xtask -- size
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-push]
 
   - repo: https://github.com/crate-ci/typos
     rev: v1.41.0

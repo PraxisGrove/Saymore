@@ -1,103 +1,79 @@
 # AGENTS.md
 
-This repository contains the Saymore Rust desktop application. Keep it easy for
-humans and coding agents to understand, modify, verify, and review.
+Saymore is a local-first Rust desktop application built with Slint. Optimize for
+small, explicit changes that humans and agents can understand and verify.
 
-## Verification Workflow
+## Working Rules
 
-During implementation, run only the checks that are relevant to the code being
-changed, such as a focused test target or `cargo check` for the owning crate.
-Do not run the full workspace gate or a dual-axis code review merely because an
-ordinary task is ending.
+- Before editing, read the request or spec, inspect the working tree, identify
+  the owning crate, and read the relevant project documentation.
+- Preserve changes that are not yours. Do not perform unrelated cleanup or
+  silently expand scope.
+- Work on one coherent feature or fix at a time. Add dependencies, widen public
+  APIs, or edit generated artifacts only when the requested behavior requires
+  it.
+- Update the owning document when a change alters architecture, behavior,
+  workflow, or another documented contract.
 
-## Pre-Push Workflow
+## Architecture
 
-Immediately before any `git push`, run the full workspace gate below. Use
-standard Cargo commands as the source of truth:
+- `crates/app` owns business types, invariants, use cases, orchestration, and
+  port traits. It must not contain Slint or concrete filesystem, network,
+  database, or process implementations.
+- `crates/infra` owns concrete implementations of app ports and may depend on
+  `app`.
+- `apps/desktop` owns Slint UI, dependency wiring, and process lifecycle. It may
+  depend on `app` and `infra`; reusable crates must not depend on Slint.
+- `crates/xtask` owns required repository maintenance and packaging automation.
+- Preserve `desktop -> app` and `desktop -> infra -> app`. Never introduce a
+  reverse dependency to avoid defining a proper port.
+- Keep public APIs intentional and modules focused. Add a crate only for a
+  substantial ownership or dependency boundary.
 
-```bash
-cargo fmt --all --check
-cargo check --workspace --all-targets
-cargo nextest run --workspace --all-targets
-cargo test --workspace --doc
-cargo clippy --workspace --all-targets -- -D warnings
-cargo deny check
-cargo build --workspace --all-targets --release
-cargo run -p xtask -- size
-```
+## Rust Constraints
 
-`cargo-nextest` and `cargo-deny` are required for the mature-project gate.
-`just`, `prek`, and release helpers are optional conveniences.
+- Production code must not use `unwrap`, `expect`, `panic`, `todo`,
+  `unimplemented`, or assertions for validation. Reject invalid state at a
+  boundary and return explicit errors.
+- Prefer types that make invalid or ambiguous calls difficult: avoid unclear
+  boolean or `Option` positional parameters and use exhaustive matches for
+  closed domains.
+- Document new traits with their role and implementation expectations.
+- Put shared dependency versions in the workspace manifest and use
+  `workspace = true` from member crates where possible.
+- Do not add behavior to files or functions that already exceed the enforced
+  size limits; split them first. See `docs/development.md` for thresholds.
 
-After the gate passes, review the complete change being pushed along two axes:
+## Tests
 
-- Standards: conformance with the repository's documented engineering rules.
-- Spec: conformance with the originating request, issue, PRD, or specification.
+- Test observable behavior and contracts, not private implementation details.
+- Do not expose production APIs only for tests or add tests for static constants
+  and removed behavior.
+- Keep unit tests near pure logic. Put integration tests in the owning crate's
+  `tests/` directory; share helpers only after duplication becomes meaningful.
 
-Resolve blocking findings before pushing. If review fixes materially change the
-code, rerun the affected checks; rerun the full gate when the changes are broad.
+## Verification
 
-## Architecture Rules
+- During implementation, run the smallest checks that cover the changed crate
+  and behavior. Documentation-only changes do not require Rust workspace gates.
+- `.pre-commit-config.yaml` is the single source of truth for commit and push
+  gates. Run `prek install --prepare-hooks` once per checkout and never bypass
+  the installed hooks with `--no-verify`.
+- Do not claim completion until the requested outcome is present, relevant tests
+  pass, affected documentation is current, and the final diff has been reviewed
+  for both repository standards and fidelity to the originating request.
+- In the final report, list verification evidence and disclose checks that could
+  not run, remaining risks, or follow-up work.
 
-- Keep crate boundaries clear: `app`, `infra`, `desktop`, and `xtask` have
-  distinct responsibilities.
-- Put business rules, use cases, and port traits in `app`; keep it free of UI,
-  filesystem, network, and process implementations.
-- Put concrete implementations in `infra`.
-- Keep `desktop` focused on Slint UI, dependency wiring, and process behavior.
-- Prefer adding a focused module or crate over growing a central catch-all file.
-- Keep public crate APIs small. Export intent, not implementation details.
+## Documentation
 
-## Rust Style
+- Architecture and boundaries: `docs/architecture.md`
+- Development workflow, dependencies, and size limits: `docs/development.md`
+- Testing and review: `docs/testing.md`, `docs/review.md`
+- Error and validation policy: `docs/error-handling.md`, `docs/fail-fast.md`
+- Technology decisions: `docs/technology-stack.md`, `docs/adr/`
+- Product scope and feature decisions: `docs/product/`
 
-- Use inline format arguments when possible: `format!("{name}")`.
-- Avoid boolean or ambiguous `Option` positional parameters when they make
-  callsites hard to read. Prefer enums, named constructors, or small value types.
-- Production code must not use `unwrap`, `expect`, `panic`, `todo`, or
-  `unimplemented`; return explicit errors or reject invalid state at
-  construction/parsing boundaries.
-- Do not use production assertions as validation. Tests may use assertions to
-  verify behavior.
-- Prefer exhaustive `match` statements over wildcard arms when the domain is
-  closed and meaningful.
-- Newly added traits must include doc comments explaining their role and what
-  implementations are expected to provide.
-- Do not add one-off helper functions that are referenced only once unless they
-  isolate genuinely complex logic.
-
-## Size Limits
-
-- Target Rust source files under 500 lines, excluding tests.
-- Files over 600 lines are warnings and should have a split plan.
-- Files over 800 lines should be split before adding more behavior.
-- Functions over 80 lines are warnings.
-- Functions over 150 lines should be split unless there is a documented reason.
-
-## Testing Rules
-
-- Test behavior and contracts, not implementation details.
-- Prefer comparing complete values over asserting field by field.
-- Do not add tests for static constants or for logic that was removed.
-- Do not expose production APIs only to make tests easier.
-- Put integration tests in the owning crate's `tests/` directory.
-- Move shared test helpers into a dedicated test module or test-support crate
-  once duplication becomes meaningful.
-
-## Review Rules
-
-- Keep non-mechanical changes under roughly 500 changed lines when possible.
-- Split changes over 800 lines into reviewable stages unless the diff is purely
-  mechanical.
-- Public API changes must explain expected callers and migration impact.
-- Dependency changes must explain why the dependency is needed.
-- Generated code and handwritten code should be separated clearly.
-
-## Technology Choices
-
-- Keep the workspace dependency-light.
-- Prefer `thiserror` for library errors and `anyhow` for binary/xtask boundary
-  errors.
-- Prefer `tracing` for observability once runtime diagnostics are needed.
-- Prefer `tokio` for async Rust and `axum` for new HTTP services when a project
-  actually needs a web framework.
-- Required project automation belongs in Rust under `crates/xtask`.
+For work spanning sessions, leave the current objective, completed work,
+verification, blockers, changed files, and next step in the originating issue,
+spec, or existing progress artifact.
