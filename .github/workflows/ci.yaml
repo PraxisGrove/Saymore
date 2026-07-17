@@ -14,7 +14,16 @@ on:
 
 jobs:
   rust:
-    runs-on: ubuntu-latest
+    name: Rust (${{ matrix.platform }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macOS
+            os: macos-14
+          - platform: Windows
+            os: windows-latest
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v6
 
@@ -22,22 +31,6 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
-
-      - name: Install Linux desktop dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install --yes \
-            libasound2-dev \
-            libfontconfig-dev \
-            libgbm-dev \
-            libinput-dev \
-            libseat-dev \
-            libsystemd-dev \
-            libudev-dev \
-            libxcb-shape0-dev \
-            libxcb-xfixes0-dev \
-            libxkbcommon-dev \
-            libxkbcommon-x11-dev
 
       - name: Setup Rust cache
         uses: Swatinem/rust-cache@v2
@@ -60,13 +53,18 @@ jobs:
       - name: Clippy
         run: cargo clippy --workspace --all-targets -- -D warnings
 
-      - name: Dependency policy
-        uses: EmbarkStudios/cargo-deny-action@v2
-        with:
-          command: check
-
       - name: Build
         run: cargo build --workspace --all-targets --release
 
       - name: Size gate
         run: cargo run -p xtask -- size
+
+  dependency-policy:
+    name: Dependency policy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          command: check

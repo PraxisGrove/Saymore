@@ -6,6 +6,7 @@ on:
   workflow_dispatch:
 
 permissions:
+  actions: read
   contents: write
 
 concurrency:
@@ -90,6 +91,29 @@ jobs:
           fi
           echo "sha=$sha" >> "$GITHUB_OUTPUT"
 
+      - name: Require successful CI for release source
+        uses: actions/github-script@v9
+        env:
+          SOURCE_SHA: ${{ steps.source.outputs.sha }}
+        with:
+          script: |
+            const { data } = await github.rest.actions.listWorkflowRuns({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: "ci.yaml",
+              branch: "main",
+              event: "push",
+              status: "completed",
+              head_sha: process.env.SOURCE_SHA,
+              per_page: 10,
+            });
+            const successful = data.workflow_runs.some(
+              (run) => run.head_sha === process.env.SOURCE_SHA && run.conclusion === "success",
+            );
+            if (!successful) {
+              core.setFailed(`CI has not passed for release source ${process.env.SOURCE_SHA}`);
+            }
+
   package-macos:
     name: Package macOS universal DMG
     needs: plan
@@ -158,18 +182,18 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          for file in dist/*.dmg; do
+          for file in apps/desktop/dist/*.dmg; do
             mv "$file" "${file%.dmg}-unsigned.dmg"
           done
 
       - uses: actions/upload-artifact@v4
         with:
           name: release-macos
-          path: dist/*.dmg
+          path: apps/desktop/dist/*.dmg
           if-no-files-found: error
 
   package-windows:
-    name: Package Windows preview
+    name: Package Windows NSIS installer
     needs: plan
     if: needs.plan.outputs.should-release == 'true'
     runs-on: windows-latest
@@ -202,69 +226,21 @@ jobs:
       - name: Use user-facing installer name
         shell: pwsh
         run: |
-          $installer = Get-ChildItem dist\saymore-desktop_*_*-setup.exe -File -ErrorAction Stop
+          $installer = Get-ChildItem apps\desktop\dist\saymore-desktop_*_*-setup.exe -File -ErrorAction Stop
           if ($installer.Count -ne 1) {
             throw "Expected exactly one Saymore NSIS installer, found $($installer.Count)"
           }
-          Move-Item -LiteralPath $installer.FullName -Destination dist\Saymore-Setup.exe
+          Move-Item -LiteralPath $installer.FullName -Destination apps\desktop\dist\Saymore-Setup.exe
 
       - uses: actions/upload-artifact@v4
         with:
-          name: preview-windows
-          path: dist/*.exe
-          if-no-files-found: error
-
-  package-linux:
-    name: Package Linux preview
-    needs: plan
-    if: needs.plan.outputs.should-release == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          ref: ${{ needs.plan.outputs.source-sha }}
-
-      - uses: dtolnay/rust-toolchain@stable
-
-      - name: Install Linux desktop dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install --yes \
-            libfontconfig-dev \
-            libfuse2 \
-            libgbm-dev \
-            libinput-dev \
-            libseat-dev \
-            libsystemd-dev \
-            libudev-dev \
-            libxcb-shape0-dev \
-            libxcb-xfixes0-dev \
-            libxkbcommon-dev \
-            libxkbcommon-x11-dev
-
-      - name: Install release tools
-        uses: taiki-e/install-action@v2
-        with:
-          tool: cargo-edit@${{ env.CARGO_EDIT_VERSION }},cargo-packager@${{ env.CARGO_PACKAGER_VERSION }}
-
-      - name: Set release version
-        run: cargo set-version --workspace "${{ needs.plan.outputs.version }}"
-
-      - name: Build application
-        run: cargo build -p saymore-desktop --release
-
-      - name: Package AppImage
-        run: cargo packager --release --packages saymore-desktop --formats appimage --out-dir dist
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: preview-linux
-          path: dist/*.AppImage
+          name: release-windows
+          path: apps/desktop/dist/*.exe
           if-no-files-found: error
 
   publish:
     name: Publish GitHub Release
-    needs: [plan, package-macos, package-windows, package-linux]
+    needs: [plan, package-macos, package-windows]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -272,30 +248,10 @@ jobs:
           ref: ${{ needs.plan.outputs.source-sha }}
           fetch-depth: 0
 
-      - name: Setup Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          components: rustfmt, clippy
-
-      - name: Install Linux desktop dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install --yes \
-            libfontconfig-dev \
-            libgbm-dev \
-            libinput-dev \
-            libseat-dev \
-            libsystemd-dev \
-            libudev-dev \
-            libxcb-shape0-dev \
-            libxcb-xfixes0-dev \
-            libxkbcommon-dev \
-            libxkbcommon-x11-dev
-
-      - name: Install release gate tools
+      - name: Install release tool
         uses: taiki-e/install-action@v2
         with:
-          tool: cargo-edit@${{ env.CARGO_EDIT_VERSION }},nextest
+          tool: cargo-edit@${{ env.CARGO_EDIT_VERSION }}
 
       - name: Prepare release version
         env:
@@ -303,24 +259,6 @@ jobs:
         run: |
           cargo set-version --workspace "$VERSION"
           cargo metadata --format-version=1 --no-deps > /dev/null
-
-      - name: Run Rust quality gate
-        run: |
-          cargo fmt --all --check
-          cargo check --workspace --all-targets
-          cargo nextest run --workspace --all-targets
-          cargo test --workspace --doc
-          cargo clippy --workspace --all-targets -- -D warnings
-
-      - name: Check dependency policy
-        uses: EmbarkStudios/cargo-deny-action@v2
-        with:
-          command: check
-
-      - name: Run release build and size gate
-        run: |
-          cargo build --workspace --all-targets --release
-          cargo run -p xtask -- size
 
       - name: Commit version and create tag
         shell: bash
@@ -345,9 +283,14 @@ jobs:
           name: release-macos
           path: dist
 
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-windows
+          path: dist
+
       - name: Generate checksums
         working-directory: dist
-        run: sha256sum ./*.dmg > SHA256SUMS
+        run: sha256sum ./* > SHA256SUMS
 
       - name: Create or repair GitHub Release
         shell: bash
