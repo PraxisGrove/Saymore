@@ -1,4 +1,5 @@
 use super::*;
+use crate::asr_runtime::AsrSessionController;
 
 const OVERLAY_PRERENDER_DELAY: Duration = Duration::from_millis(17);
 
@@ -42,7 +43,8 @@ pub(super) fn start_recording_shortcut(
                 Arc::clone(&runtime.recorder),
                 Arc::clone(&runtime.session),
                 id,
-                runtime.processing.clone(),
+                runtime.dictation.clone(),
+                Arc::clone(&runtime.feedback_sounds_enabled),
             ),
             DictationToggleAction::Start(id) => {
                 let shortcut_started = Instant::now();
@@ -74,7 +76,7 @@ pub(super) fn start_recording_shortcut(
             &runtime.recorder,
             &runtime.session,
             &runtime.cancelled,
-            &runtime.processing.asr,
+            &runtime.dictation.asr,
         ),
     });
 }
@@ -101,7 +103,7 @@ fn begin_recording(
         return;
     };
     let on_metrics = create_recording_metrics_callback(ui, overlays, runtime, id);
-    let streaming_asr = Arc::clone(&runtime.processing.asr);
+    let streaming_asr = Arc::clone(&runtime.dictation.asr);
     let on_audio_chunk = Arc::new(move |chunk: PcmChunk| {
         let _ = streaming_asr.push_audio(chunk.samples);
     });
@@ -139,7 +141,7 @@ fn start_streaming_asr(
         });
     });
     let asr_started = Instant::now();
-    if let Err(error) = runtime.processing.asr.start(id, on_partial) {
+    if let Err(error) = runtime.dictation.asr.start(id, on_partial) {
         runtime.session.startup_failed();
         tracing::warn!(
             target: "saymore::diagnostics",
@@ -174,14 +176,14 @@ fn queue_recording_start_ui(
         overlay: overlays.status.clone(),
         first_recording: Arc::clone(&runtime.first_recording),
         session: Arc::clone(&runtime.session),
-        asr: Arc::clone(&runtime.processing.asr),
+        asr: Arc::clone(&runtime.dictation.asr),
         recorder: Arc::clone(&runtime.recorder),
-        feedback_sounds_enabled: Arc::clone(&runtime.processing.feedback_sounds_enabled),
+        feedback_sounds_enabled: Arc::clone(&runtime.feedback_sounds_enabled),
         show_device: runtime.first_recording.load(Ordering::Relaxed),
         startup_started,
     };
     let queue_failure_session = Arc::clone(&runtime.session);
-    let queue_failure_asr = Arc::clone(&runtime.processing.asr);
+    let queue_failure_asr = Arc::clone(&runtime.dictation.asr);
     let queue_failure_recorder = Arc::clone(&runtime.recorder);
     let ui_queued = Instant::now();
     if event_ui
@@ -292,7 +294,8 @@ fn create_recording_metrics_callback(
     let limit_finish_overlays = overlays.clone();
     let limit_recorder = Arc::clone(&runtime.recorder);
     let limit_session = Arc::clone(&runtime.session);
-    let limit_processing = runtime.processing.clone();
+    let limit_dictation = runtime.dictation.clone();
+    let limit_feedback_sounds = Arc::clone(&runtime.feedback_sounds_enabled);
     Arc::new(move |metrics| {
         recording_metrics::update(&metrics_ui, &metrics_overlay, metrics);
         match limit_tracker.observe(metrics.elapsed_ms) {
@@ -320,7 +323,8 @@ fn create_recording_metrics_callback(
                         Arc::clone(&limit_recorder),
                         Arc::clone(&limit_session),
                         id,
-                        limit_processing.clone(),
+                        limit_dictation.clone(),
+                        Arc::clone(&limit_feedback_sounds),
                     );
                 }
             }

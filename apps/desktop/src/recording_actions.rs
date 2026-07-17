@@ -1,5 +1,5 @@
 use std::{
-    sync::{Arc, Mutex, atomic::Ordering},
+    sync::{Arc, Mutex},
     time::Instant,
 };
 
@@ -8,18 +8,20 @@ use template_app::{AudioRecorder, CancelledRecordingStore, DictationSession, Rec
 use template_infra::MacOsAudioRecorder;
 
 use crate::{
-    CANCEL_UNDO_WINDOW, DictationOverlays, TextProcessingServices, delivery_runtime,
-    dictation_finish, hide_overlay_after_delay, overlay_generation_matches, refinement_runtime,
-    settings_ui,
+    CANCEL_UNDO_WINDOW, DictationOverlays,
+    dictation_completion_runtime::DictationRuntime,
+    dictation_finish, overlay_generation_matches, refinement_runtime,
     ui::{AppWindow, RecordingLimitOverlay, RecordingOverlay, ResultOverlay, Translations},
-    ui_status::{apply_asr_error, apply_recording_error},
+    ui_status::apply_recording_error,
 };
 
+#[derive(Clone)]
 pub(crate) struct RecordingActionRuntime {
     pub(crate) recorder: Arc<Mutex<MacOsAudioRecorder>>,
     pub(crate) session: Arc<DictationSession>,
     pub(crate) cancelled: Arc<Mutex<CancelledRecordingStore>>,
-    pub(crate) processing: TextProcessingServices,
+    pub(crate) dictation: DictationRuntime,
+    pub(crate) feedback_sounds_enabled: Arc<std::sync::atomic::AtomicBool>,
 }
 
 pub fn wire(
@@ -29,11 +31,28 @@ pub fn wire(
     limit_overlay: &RecordingLimitOverlay,
     runtime: RecordingActionRuntime,
 ) -> impl Fn() + 'static {
+    let finish_ui = ui.as_weak();
+    let finish_overlays = DictationOverlays::new(overlay, result_overlay, limit_overlay);
+    let finish_runtime = runtime.clone();
+    overlay.on_finish(move || {
+        if let Some(id) = finish_runtime.session.request_finish() {
+            dictation_finish::finish_recording(
+                finish_ui.clone(),
+                finish_overlays.clone(),
+                Arc::clone(&finish_runtime.recorder),
+                Arc::clone(&finish_runtime.session),
+                id,
+                finish_runtime.dictation.clone(),
+                Arc::clone(&finish_runtime.feedback_sounds_enabled),
+            );
+        }
+    });
     let RecordingActionRuntime {
         recorder,
         session,
         cancelled,
-        processing,
+        dictation,
+        feedback_sounds_enabled,
     } = runtime;
     let pause_ui = ui.as_weak();
     let pause_overlay = overlay.as_weak();
@@ -41,31 +60,13 @@ pub fn wire(
     let pause_recorder = Arc::clone(&recorder);
     let pause_session = Arc::clone(&session);
     let pause_cancelled = Arc::clone(&cancelled);
-    let pause_asr = Arc::clone(&processing.asr);
-    let finish_ui = ui.as_weak();
-    let finish_overlays = DictationOverlays::new(overlay, result_overlay, limit_overlay);
-    let finish_recorder = Arc::clone(&recorder);
-    let finish_session = Arc::clone(&session);
-    let finish_processing = processing.clone();
-    overlay.on_finish(move || {
-        if let Some(id) = finish_session.request_finish() {
-            dictation_finish::finish_recording(
-                finish_ui.clone(),
-                finish_overlays.clone(),
-                Arc::clone(&finish_recorder),
-                Arc::clone(&finish_session),
-                id,
-                finish_processing.clone(),
-            );
-        }
-    });
-
+    let pause_asr = Arc::clone(&dictation.asr);
     let cancel_ui = ui.as_weak();
     let cancel_overlay = overlay.as_weak();
     let cancel_limit = limit_overlay.as_weak();
     let cancel_session = Arc::clone(&session);
     let cancel_store = Arc::clone(&cancelled);
-    let cancel_asr = Arc::clone(&processing.asr);
+    let cancel_asr = Arc::clone(&dictation.asr);
     overlay.on_cancel(move || {
         cancel(
             &cancel_ui,
@@ -81,7 +82,8 @@ pub fn wire(
     let undo_ui = ui.as_weak();
     let undo_overlay = overlay.as_weak();
     let undo_result_overlay = result_overlay.as_weak();
-    let undo_processing = processing;
+    let undo_dictation = dictation;
+    let undo_feedback_sounds = feedback_sounds_enabled;
     let undo_session = Arc::clone(&session);
     overlay.on_undo_cancel(move || {
         undo_cancelled_recording(
@@ -90,7 +92,8 @@ pub fn wire(
             undo_result_overlay.clone(),
             &cancelled,
             Arc::clone(&undo_session),
-            undo_processing.clone(),
+            undo_dictation.clone(),
+            Arc::clone(&undo_feedback_sounds),
         );
     });
 
@@ -190,7 +193,8 @@ fn undo_cancelled_recording(
     result_overlay: slint::Weak<ResultOverlay>,
     cancelled: &Mutex<CancelledRecordingStore>,
     session: Arc<DictationSession>,
-    processing: TextProcessingServices,
+    dictation: DictationRuntime,
+    feedback_sounds_enabled: Arc<std::sync::atomic::AtomicBool>,
 ) {
     let overlay_generation = overlay
         .upgrade()
@@ -210,8 +214,9 @@ fn undo_cancelled_recording(
         session.complete();
         return;
     };
-    let plan = processing.refinement.plan();
+    let mut copy_to_clipboard = false;
     if let Some(ui) = ui.upgrade() {
+        copy_to_clipboard = ui.get_copy_to_clipboard();
         let processing_label =
             refinement_runtime::ProcessingActivity::Transcribing.localized_label(&ui);
         ui.set_recording_status(processing_label.clone());
@@ -221,94 +226,17 @@ fn undo_cancelled_recording(
             overlay.set_processing_label(processing_label);
         }
     }
-    let event_ui = ui.clone();
-    let event_overlay = overlay.clone();
-    let failure_ui = ui.clone();
-    let failure_overlay = overlay.clone();
-    let failure_session = Arc::clone(&session);
-    let feedback_sounds_enabled = Arc::clone(&processing.feedback_sounds_enabled);
-    let spawn_result = std::thread::Builder::new()
-        .name("saymore-undo-dictation".to_owned())
-        .spawn(move || {
-            let result = dictation_finish::process_recording(
-                handoff,
-                &event_ui,
-                &event_overlay,
-                &processing,
-                plan,
-            );
-            session.complete();
-            let _ = event_ui.upgrade_in_event_loop(move |ui| {
-                let context = UndoDeliveryContext {
-                    status_overlay: event_overlay,
-                    overlay_generation,
-                    result_overlay,
-                    processing,
-                    feedback_sounds_enabled: feedback_sounds_enabled.load(Ordering::Acquire),
-                };
-                apply_undo_result(&ui, result, context);
-            });
-        });
-    if spawn_result.is_err() {
-        failure_session.complete();
-        let _ = failure_ui.upgrade_in_event_loop(move |ui| {
-            apply_recording_error(
-                &ui,
-                &RecordingError::Capture("failed to start transcription worker".to_owned()),
-            );
-            hide_overlay_after_delay(failure_overlay);
-        });
-    }
-}
-
-struct UndoDeliveryContext {
-    status_overlay: slint::Weak<RecordingOverlay>,
-    overlay_generation: i32,
-    result_overlay: slint::Weak<ResultOverlay>,
-    processing: TextProcessingServices,
-    feedback_sounds_enabled: bool,
-}
-
-fn apply_undo_result(
-    ui: &AppWindow,
-    result: dictation_finish::FinishResult,
-    context: UndoDeliveryContext,
-) {
-    let finished = match result {
-        Ok(finished) => finished,
-        Err(dictation_finish::FinishError::Recording(error)) => {
-            apply_recording_error(ui, &error);
-            hide_overlay_after_delay(context.status_overlay);
-            return;
-        }
-        Err(dictation_finish::FinishError::Recognition(error)) => {
-            apply_asr_error(ui, &error);
-            hide_overlay_after_delay(context.status_overlay);
-            return;
-        }
-    };
-    settings_ui::mark_asr_runtime_healthy(ui);
-    if let Some(error) = finished.history.error {
-        tracing::warn!(
-            target: "saymore::diagnostics",
-            event = "history.prepare_failed",
-            dictation_id = %finished.id,
-            reason = %error
-        );
-        ui.set_history_status(ui.global::<Translations>().get_storage_error());
-    }
-    delivery_runtime::schedule_delivery(delivery_runtime::DeliveryRequest {
-        id: finished.id,
-        ui: ui.as_weak(),
-        status_overlay: context.status_overlay,
-        overlay_generation: context.overlay_generation,
-        result_overlay: context.result_overlay,
-        recording: finished.recording,
-        processed: finished.processed,
-        history: finished.history.record,
-        storage: context.processing.storage,
-        refinement: context.processing.refinement,
-        feedback_sounds_enabled: context.feedback_sounds_enabled,
-        copy_to_clipboard: ui.get_copy_to_clipboard(),
-    });
+    dictation_finish::finish_retained_recording(
+        dictation_finish::CompletionWorkerContext {
+            ui: ui.clone(),
+            status_overlay: overlay.clone(),
+            result_overlay,
+            overlay_generation,
+            session,
+            dictation,
+            feedback_sounds_enabled,
+            copy_to_clipboard,
+        },
+        handoff,
+    );
 }

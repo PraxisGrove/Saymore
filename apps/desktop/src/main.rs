@@ -18,8 +18,8 @@ use slint::{SharedString, Timer};
 #[cfg(target_os = "macos")]
 use template_app::{
     AudioRecorder, CancelledRecordingStore, DictationSession, DictationSessionId,
-    DictationToggleAction, DictionaryStore, LocalSettingsStore, MicrophonePermissionProvider,
-    PcmChunk, RecordingError, RecordingMetrics, RecordingStarted,
+    DictationToggleAction, LocalSettingsStore, MicrophonePermissionProvider, PcmChunk,
+    RecordingError, RecordingMetrics, RecordingStarted,
 };
 #[cfg(target_os = "macos")]
 use template_app::{FeedbackSound, TextDeliverer};
@@ -64,6 +64,8 @@ mod ax_compatibility_server;
 mod delivery_runtime;
 #[cfg(target_os = "macos")]
 mod diagnostics;
+#[cfg(target_os = "macos")]
+mod dictation_completion_runtime;
 #[cfg(target_os = "macos")]
 mod dictation_finish;
 #[cfg(target_os = "macos")]
@@ -110,13 +112,11 @@ mod ui_status;
 mod update_check;
 
 #[cfg(target_os = "macos")]
-use asr_runtime::AsrSessionController;
+use dictation_completion_runtime::DictationRuntime;
 #[cfg(target_os = "macos")]
 use feedback_runtime::{initialize as initialize_feedback_sounds, play_feedback_sound};
 #[cfg(target_os = "macos")]
 pub(crate) use recording_runtime::{hide_overlay_after_delay, overlay_generation_matches};
-#[cfg(target_os = "macos")]
-use refinement_runtime::RefinementRuntime;
 #[cfg(target_os = "macos")]
 use ui_status::*;
 
@@ -146,16 +146,6 @@ impl DictationOverlays {
 }
 
 #[cfg(target_os = "macos")]
-#[derive(Clone)]
-pub(crate) struct TextProcessingServices {
-    pub(crate) asr: Arc<AsrSessionController>,
-    pub(crate) refinement: Arc<RefinementRuntime>,
-    pub(crate) storage: Arc<SqliteStorage>,
-    pub(crate) provider_config: Arc<JsonSettingsStore>,
-    pub(crate) feedback_sounds_enabled: Arc<AtomicBool>,
-}
-
-#[cfg(target_os = "macos")]
 struct ShortcutRuntime {
     recorder: Arc<Mutex<MacOsAudioRecorder>>,
     microphone_access: microphone_access::MicrophoneAccess,
@@ -164,7 +154,8 @@ struct ShortcutRuntime {
     cancelled: Arc<Mutex<CancelledRecordingStore>>,
     paused: Arc<AtomicBool>,
     onboarding: onboarding::OnboardingShortcutHandler,
-    processing: TextProcessingServices,
+    dictation: DictationRuntime,
+    feedback_sounds_enabled: Arc<AtomicBool>,
 }
 
 #[cfg(target_os = "macos")]
@@ -175,22 +166,16 @@ struct LocalFeatureOptions {
 }
 
 #[cfg(target_os = "macos")]
-fn create_text_processing_services(
+fn create_dictation_runtime(
     settings_store: &Arc<JsonSettingsStore>,
     local_storage: &Arc<SqliteStorage>,
-    feedback_sounds_enabled: &Arc<AtomicBool>,
-) -> Result<TextProcessingServices, Box<dyn Error>> {
-    let dictionary: Arc<dyn DictionaryStore> = local_storage.clone();
-    Ok(TextProcessingServices {
-        asr: Arc::new(AsrSessionController::new(
-            Arc::clone(settings_store),
-            dictionary,
-        )),
-        refinement: Arc::new(RefinementRuntime::new(Arc::clone(settings_store))?),
-        storage: Arc::clone(local_storage),
-        provider_config: Arc::clone(settings_store),
-        feedback_sounds_enabled: Arc::clone(feedback_sounds_enabled),
-    })
+    deliverer: MacOsTextDeliverer,
+) -> Result<DictationRuntime, Box<dyn Error>> {
+    Ok(DictationRuntime::new(
+        Arc::clone(settings_store),
+        Arc::clone(local_storage),
+        Arc::new(deliverer),
+    )?)
 }
 
 fn main() -> ExitCode {
@@ -306,7 +291,7 @@ struct WiredCore {
     session: Arc<DictationSession>,
     cancelled: Arc<Mutex<CancelledRecordingStore>>,
     feedback_sounds_enabled: Arc<AtomicBool>,
-    processing: TextProcessingServices,
+    dictation: DictationRuntime,
     microphone_access: microphone_access::MicrophoneAccess,
     onboarding: onboarding::OnboardingRuntime,
     authorization_poll: authorization_ui::AuthorizationPoll,
@@ -329,10 +314,10 @@ fn wire_core_services(
     let (session, cancelled) = recording_state::initialize(CANCEL_UNDO_WINDOW);
     let feedback_sounds_enabled =
         initialize_feedback_sounds(bootstrap.local_settings.feedback_sounds_enabled);
-    let processing = create_text_processing_services(
+    let dictation = create_dictation_runtime(
         &bootstrap.settings_store,
         &bootstrap.local_storage,
-        &feedback_sounds_enabled,
+        deliverer,
     )?;
     update_authorizations(
         &windows.ui,
@@ -381,7 +366,7 @@ fn wire_core_services(
         session,
         cancelled,
         feedback_sounds_enabled,
-        processing,
+        dictation,
         microphone_access,
         onboarding,
         authorization_poll,
@@ -414,7 +399,8 @@ fn run_wired_desktop(
             recorder: Arc::clone(&core.recorder),
             session: Arc::clone(&core.session),
             cancelled: Arc::clone(&core.cancelled),
-            processing: core.processing.clone(),
+            dictation: core.dictation.clone(),
+            feedback_sounds_enabled: Arc::clone(&core.feedback_sounds_enabled),
         },
     );
     let overlays = DictationOverlays::new(
@@ -434,7 +420,8 @@ fn run_wired_desktop(
             cancelled: core.cancelled,
             paused: Arc::clone(&paused),
             onboarding: core.onboarding.shortcut_handler(),
-            processing: core.processing,
+            dictation: core.dictation,
+            feedback_sounds_enabled: Arc::clone(&core.feedback_sounds_enabled),
         },
     );
     let tray = StatusTray::new()?;
