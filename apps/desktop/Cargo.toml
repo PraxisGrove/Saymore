@@ -11,7 +11,7 @@ publish = false
 product-name = "Saymore"
 identifier = "com.saymore.desktop"
 category = "Productivity"
-icons = ["icons/icon.icns", "icons/saymore-mark-3d-136.png"]
+icons = ["icons/icon.icns", "icons/icon.ico"]
 resources = [{ src = "packaging/resources", target = "" }]
 
 [package.metadata.packager.macos]
@@ -24,6 +24,9 @@ allow-downgrades = false
 
 [package.metadata.packager.nsis]
 installer-mode = "currentUser"
+installer-icon = "icons/icon.ico"
+header-image = "packaging/windows/nsis-header.bmp"
+sidebar-image = "packaging/windows/nsis-sidebar.bmp"
 
 [features]
 history-experiments = ["template-app/history-experiments"]
@@ -39,6 +42,17 @@ workspace = true
 slint-build = { workspace = true }
 rspolib = { workspace = true }
 
+[target.'cfg(target_os = "windows")'.build-dependencies]
+winresource = { workspace = true }
+
+[target.'cfg(target_os = "windows")'.dependencies]
+windows = { workspace = true, features = [
+    "Win32_Foundation",
+    "Win32_Graphics_Dwm",
+    "Win32_System_LibraryLoader",
+    "Win32_UI_WindowsAndMessaging",
+] }
+
 [dependencies]
 slint = { workspace = true }
 sys-locale = { workspace = true }
@@ -49,12 +63,6 @@ tracing-subscriber = { workspace = true }
 chrono = { workspace = true }
 num-format = { workspace = true }
 uuid = { workspace = true }
-
-[dev-dependencies]
-serde_json = { workspace = true }
-
-[target.'cfg(target_os = "macos")'.dependencies]
-raw-window-handle = { workspace = true }
 tokio = { workspace = true }
 tokio-util = { workspace = true }
 rfd = { workspace = true }
@@ -62,6 +70,8 @@ reqwest = { workspace = true }
 rustls = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+raw-window-handle = { workspace = true }
 
-[target.'cfg(target_os = "macos")'.dev-dependencies]
+[dev-dependencies]
+serde_json = { workspace = true }
 httpmock = { workspace = true }

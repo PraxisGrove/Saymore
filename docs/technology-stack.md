@@ -72,6 +72,16 @@ Cross-platform wrappers are acceptable only when they preserve the behavior
 Saymore needs; global shortcuts and text delivery remain explicit platform
 adapters.
 
+Windows uses protected filesystem ACLs, atomic file replacement, current-user
+Run-key integration, instance activation events, and nonactivating tool-window
+styles. `keyring` is compiled with `windows-native`, so Windows history keys are
+stored in Credential Manager rather than a fallback file. The formal Windows
+executable, installer, Start menu entry, and desktop shortcut use the
+repository's 1024px black-background icon master. The running main and
+onboarding windows use a separately embedded transparent icon matching the tray
+identity. The `cargo run -p xtask -- windows-icons` command builds and validates
+every `.ico` representation from either master.
+
 ## Packaging
 
 Cargo remains the source of truth for builds. `cargo-packager` creates formal
@@ -133,7 +143,21 @@ The desktop UI migration completed on 2026-07-12:
 
 The first cloud ASR vertical slice now streams 16 kHz PCM to Volcengine over a
 background WebSocket session, keeps provider partial results in memory, and
-delivers one normalized final transcript through the existing macOS text
-delivery adapter. Windows platform work starts only after the macOS product is
-stable enough for formal packaging and release; it will reuse the same app use
-cases and Slint UI while adding the platform-specific adapters.
+delivers one normalized final transcript through the platform text-delivery
+adapter. Windows now runs the shared desktop bootstrap, Slint UI, provider
+settings, local storage, history, dictionary, ASR, and dictation completion
+code, with the same CPAL recorder used by macOS. Windows uses AppCapability for
+microphone state, RegisterHotKey plus a Right Alt-only low-level hook for toggle
+and recording-only Escape handling, UI Automation for focused editable-control
+and sensitive-target detection, temporary clipboard paste through SendInput, and
+nonactivating topmost Slint overlays.
+
+Windows text delivery deliberately reports `ClipboardAttempted` when the target
+does not expose a safe bounded range for verification. The clipboard is restored
+after the paste when its sequence number shows that the temporary text is still
+current; a concurrent user copy wins instead. UI Automation and OLE run on a
+dedicated STA worker, and focus is compared before and after delivery. Password
+fields are treated as sensitive and never enter history or correction
+observation. Unpackaged Win32 applications on older Windows builds cannot expose
+every microphone policy source; an unavailable or failed capability query maps
+to restricted rather than granted.

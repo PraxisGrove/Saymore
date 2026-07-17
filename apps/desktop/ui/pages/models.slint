@@ -142,17 +142,34 @@ component ApiKeyField inherits Rectangle {
     background: AppColors.sidebar;
     clip: true;
 
-    field-input := TextInput {
+    ContextMenuArea {
         x: 15px;
         width: parent.width - 55px;
-        text <=> root.value;
-        input-type: root.reveal ? InputType.text : InputType.password;
-        accessible-label: root.accessible-name;
-        accessible-value: root.value.is-empty ? "" : @tr("common.value-entered" => "Entered");
-        color: AppColors.text;
-        font-size: 12px;
-        vertical-alignment: center;
-        accepted => { root.accepted(self.text); }
+
+        Menu {
+            MenuItem { title: @tr("common.cut" => "Cut"); activated => { field-input.cut(); } }
+            MenuItem { title: @tr("common.copy" => "Copy"); activated => { field-input.copy(); } }
+            MenuItem { title: @tr("common.paste" => "Paste"); activated => { field-input.paste(); } }
+            MenuItem { title: @tr("common.select-all" => "Select All"); activated => { field-input.select-all(); } }
+        }
+
+        field-input := TextInput {
+            text <=> root.value;
+            input-type: root.reveal ? InputType.text : InputType.password;
+            accessible-label: root.accessible-name;
+            accessible-value: root.value.is-empty ? "" : @tr("common.value-entered" => "Entered");
+            color: AppColors.text;
+            font-size: 12px;
+            vertical-alignment: center;
+            accepted => { root.accepted(self.text); }
+            key-pressed(event) => {
+                if event.modifiers.control && (event.text == "v" || event.text == "V") {
+                    self.paste();
+                    return accept;
+                }
+                return reject;
+            }
+        }
     }
     Image { x: parent.width - 27px; y: 13px; width: 16px; height: 16px; source: @image-url("../../icons/lucide/eye.svg"); colorize: AppColors.text-muted; }
     TouchArea { x: parent.width - 40px; width: 40px; mouse-cursor: pointer; clicked => { root.toggle-reveal(); } }

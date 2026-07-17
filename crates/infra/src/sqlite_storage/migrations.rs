@@ -47,7 +47,7 @@ pub(super) fn apply(connection: &mut Connection) -> Result<(), StorageError> {
         add_dictation_shortcut_setting(connection)?;
     }
     if version < 12 {
-        add_multiple_dictation_shortcuts(connection)?;
+        add_multiple_dictation_shortcuts(connection, fresh_install)?;
     }
     if version < 13 {
         add_onboarding_state(connection, fresh_install)?;
@@ -115,7 +115,10 @@ fn add_onboarding_state(
     transaction.commit().map_err(unavailable)
 }
 
-fn add_multiple_dictation_shortcuts(connection: &mut Connection) -> Result<(), StorageError> {
+fn add_multiple_dictation_shortcuts(
+    connection: &mut Connection,
+    fresh_install: bool,
+) -> Result<(), StorageError> {
     let transaction = connection.transaction().map_err(unavailable)?;
     if !app_settings_has_column(&transaction, "dictation_shortcuts")? {
         transaction
@@ -128,10 +131,28 @@ fn add_multiple_dictation_shortcuts(connection: &mut Connection) -> Result<(), S
             )
             .map_err(unavailable)?;
     }
+    if fresh_install && let Some(shortcut) = fresh_install_shortcut() {
+        transaction
+            .execute(
+                "UPDATE app_settings SET dictation_shortcuts = ?1 WHERE singleton = 1",
+                [shortcut],
+            )
+            .map_err(unavailable)?;
+    }
     transaction
         .execute_batch("PRAGMA user_version = 12;")
         .map_err(unavailable)?;
     transaction.commit().map_err(unavailable)
+}
+
+#[cfg(target_os = "windows")]
+fn fresh_install_shortcut() -> Option<&'static str> {
+    Some("windows:right-alt")
+}
+
+#[cfg(not(target_os = "windows"))]
+fn fresh_install_shortcut() -> Option<&'static str> {
+    None
 }
 
 fn add_dictation_shortcut_setting(connection: &mut Connection) -> Result<(), StorageError> {

@@ -16,7 +16,6 @@ impl AppEnvironment {
         }
     }
 
-    #[cfg(target_os = "macos")]
     pub(crate) fn history_secret_service(self) -> &'static str {
         match self {
             Self::Production => "com.saymore.desktop",
@@ -86,7 +85,7 @@ mod tests {
         assert_eq!(PathBuf::from("application-data/Saymore"), production);
         assert_eq!(PathBuf::from("application-data/Saymore Dev"), development);
         assert_ne!(production, development);
-        #[cfg(target_os = "macos")]
+        #[cfg(any(target_os = "macos", target_os = "windows"))]
         assert_ne!(
             AppEnvironment::Production.history_secret_service(),
             AppEnvironment::Development.history_secret_service()

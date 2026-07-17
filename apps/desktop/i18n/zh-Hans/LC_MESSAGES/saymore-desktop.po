@@ -182,6 +182,13 @@ msgstr ""
 "助功能权限设置。"
 
 #: apps/desktop/ui/onboarding.slint:200
+msgctxt "onboarding.welcome.detail-windows"
+msgid ""
+"Saymore lets you use your voice in any text field. Set up your microphone "
+"and default shortcut in about a minute."
+msgstr "Saymore 让你在任意输入框中使用语音。大约一分钟即可完成麦克风和默认快捷键设置。"
+
+#: apps/desktop/ui/onboarding.slint:200
 msgctxt "onboarding.start"
 msgid "Start setup"
 msgstr "开始设置"
@@ -242,6 +249,16 @@ msgstr "现在请说话，再按一次快捷键结束测试。"
 msgctxt "onboarding.shortcut.waiting"
 msgid "Press the shortcut to start the local microphone test."
 msgstr "按下快捷键开始本地麦克风测试。"
+
+#: apps/desktop/ui/onboarding.slint:223
+msgctxt "onboarding.shortcut.press-again"
+msgid "Press again to finish"
+msgstr "再次按下即可结束"
+
+#: apps/desktop/ui/onboarding.slint:223
+msgctxt "onboarding.shortcut.press-to-start"
+msgid "Press shortcut to start"
+msgstr "按快捷键开始"
 
 #: apps/desktop/ui/onboarding.slint:222
 msgctxt "onboarding.test.stop"
@@ -1730,6 +1747,26 @@ msgctxt "common.value-entered"
 msgid "Entered"
 msgstr "已填写"
 
+#: apps/desktop/ui/pages/models.slint:150
+msgctxt "common.cut"
+msgid "Cut"
+msgstr "剪切"
+
+#: apps/desktop/ui/pages/models.slint:151
+msgctxt "common.copy"
+msgid "Copy"
+msgstr "复制"
+
+#: apps/desktop/ui/pages/models.slint:152
+msgctxt "common.paste"
+msgid "Paste"
+msgstr "粘贴"
+
+#: apps/desktop/ui/pages/models.slint:153
+msgctxt "common.select-all"
+msgid "Select All"
+msgstr "全选"
+
 #: apps/desktop/ui/pages/models.slint:181
 msgctxt "models.polishing.consent.title"
 msgid "Enable text polishing?"
@@ -2248,6 +2285,11 @@ msgstr "重新运行新手引导"
 msgctxt "settings.onboarding.detail"
 msgid "Review microphone, shortcut, and Accessibility setup."
 msgstr "重新检查麦克风、快捷键和辅助功能设置。"
+
+#: apps/desktop/ui/pages/settings.slint:541
+msgctxt "settings.onboarding.detail-windows"
+msgid "Review microphone and shortcut setup."
+msgstr "重新检查麦克风和快捷键设置。"
 
 #: apps/desktop/ui/pages/settings.slint:532
 msgctxt "settings.onboarding.open"

@@ -43,7 +43,7 @@ pub enum TextDeliveryError {
     /// A secure control was targeted, but its restricted paste could not be completed.
     #[error("restricted secure text delivery failed: {0}")]
     SecureDeliveryFailed(String),
-    #[error("macOS accessibility operation failed: {0}")]
+    #[error("operating-system accessibility operation failed: {0}")]
     System(String),
 }
 

@@ -1,17 +1,16 @@
 use std::sync::{
-    Arc, Mutex,
+    Arc,
     atomic::{AtomicBool, Ordering},
 };
 
 use slint::ComponentHandle;
 use template_app::{
-    AudioRecorder, DictationCompletionError, DictationCompletionResult, DictationHandoff,
-    DictationSession, DictationSessionId, FailedDictation, RecordingError,
+    DictationCompletionError, DictationCompletionResult, DictationHandoff, DictationSession,
+    DictationSessionId, FailedDictation, RecordingError,
 };
-use template_infra::MacOsAudioRecorder;
 
 use crate::{
-    DictationOverlays, delivery_runtime,
+    DictationOverlays, RecorderHandle, delivery_runtime,
     dictation_completion_runtime::{CompletionContext, DictationRuntime},
     hide_overlay_after_delay,
     refinement_runtime::ProcessingActivity,
@@ -32,14 +31,14 @@ pub(crate) struct CompletionWorkerContext {
 
 struct FinishWorkerContext {
     completion: CompletionWorkerContext,
-    recorder: Arc<Mutex<MacOsAudioRecorder>>,
+    recorder: RecorderHandle,
     id: DictationSessionId,
 }
 
 pub fn finish_recording(
     ui: slint::Weak<AppWindow>,
     overlays: DictationOverlays,
-    recorder: Arc<Mutex<MacOsAudioRecorder>>,
+    recorder: RecorderHandle,
     session: Arc<DictationSession>,
     id: DictationSessionId,
     dictation: DictationRuntime,

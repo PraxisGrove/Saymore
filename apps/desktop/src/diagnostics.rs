@@ -1,8 +1,7 @@
 use std::{
     fs,
-    fs::{File, OpenOptions, Permissions},
+    fs::{File, OpenOptions},
     io::{self, Write},
-    os::unix::fs::{OpenOptionsExt, PermissionsExt},
     path::{Path, PathBuf},
     sync::{
         Arc, Mutex,
@@ -159,20 +158,15 @@ fn is_safe_event(value: &str) -> bool {
 }
 
 fn write_private_report(destination: &Path, contents: &[u8]) -> Result<(), io::Error> {
-    let mut file = OpenOptions::new()
-        .create(true)
-        .truncate(true)
-        .write(true)
-        .mode(0o600)
-        .open(destination)?;
+    let mut file = open_private_report(destination)?;
     file.write_all(contents)?;
     file.flush()?;
-    fs::set_permissions(destination, Permissions::from_mode(0o600))
+    restrict_file_permissions(destination)
 }
 
 fn prepare_directory(directory: &Path) -> Result<(), io::Error> {
     fs::create_dir_all(directory)?;
-    fs::set_permissions(directory, Permissions::from_mode(0o700))
+    restrict_directory_permissions(directory)
 }
 
 struct BoundedLogWriter {
@@ -256,13 +250,70 @@ impl Write for BoundedLogWriter {
 }
 
 fn open_log(path: &Path) -> Result<File, io::Error> {
-    let file = OpenOptions::new()
+    let file = open_private_log(path)?;
+    restrict_file_permissions(path)?;
+    Ok(file)
+}
+
+#[cfg(target_os = "macos")]
+fn open_private_report(path: &Path) -> Result<File, io::Error> {
+    use std::os::unix::fs::OpenOptionsExt;
+
+    OpenOptions::new()
+        .create(true)
+        .truncate(true)
+        .write(true)
+        .mode(0o600)
+        .open(path)
+}
+
+#[cfg(not(target_os = "macos"))]
+fn open_private_report(path: &Path) -> Result<File, io::Error> {
+    OpenOptions::new()
+        .create(true)
+        .truncate(true)
+        .write(true)
+        .open(path)
+}
+
+#[cfg(target_os = "macos")]
+fn open_private_log(path: &Path) -> Result<File, io::Error> {
+    use std::os::unix::fs::OpenOptionsExt;
+
+    OpenOptions::new()
         .create(true)
         .append(true)
         .mode(0o600)
-        .open(path)?;
-    fs::set_permissions(path, Permissions::from_mode(0o600))?;
-    Ok(file)
+        .open(path)
+}
+
+#[cfg(not(target_os = "macos"))]
+fn open_private_log(path: &Path) -> Result<File, io::Error> {
+    OpenOptions::new().create(true).append(true).open(path)
+}
+
+#[cfg(target_os = "macos")]
+fn restrict_directory_permissions(path: &Path) -> Result<(), io::Error> {
+    use std::os::unix::fs::PermissionsExt;
+
+    fs::set_permissions(path, fs::Permissions::from_mode(0o700))
+}
+
+#[cfg(not(target_os = "macos"))]
+fn restrict_directory_permissions(_path: &Path) -> Result<(), io::Error> {
+    Ok(())
+}
+
+#[cfg(target_os = "macos")]
+fn restrict_file_permissions(path: &Path) -> Result<(), io::Error> {
+    use std::os::unix::fs::PermissionsExt;
+
+    fs::set_permissions(path, fs::Permissions::from_mode(0o600))
+}
+
+#[cfg(not(target_os = "macos"))]
+fn restrict_file_permissions(_path: &Path) -> Result<(), io::Error> {
+    Ok(())
 }
 
 #[cfg(test)]
@@ -271,6 +322,8 @@ mod tests {
     use std::sync::atomic::{AtomicUsize, Ordering};
 
     use super::*;
+    #[cfg(target_os = "macos")]
+    use std::os::unix::fs::PermissionsExt;
 
     static TEST_ID: AtomicUsize = AtomicUsize::new(0);
 
@@ -299,15 +352,19 @@ mod tests {
         };
         assert_eq!(20, current.len());
         assert_eq!(MAX_LOG_BYTES - 10, previous.len());
+        #[cfg(target_os = "macos")]
         let Ok(directory_mode) = directory
             .metadata()
             .map(|metadata| metadata.permissions().mode())
         else {
             panic!("diagnostics directory should have permissions");
         };
-        assert_eq!(0o700, directory_mode & 0o777);
-        assert_eq!(0o600, current.permissions().mode() & 0o777);
-        assert_eq!(0o600, previous.permissions().mode() & 0o777);
+        #[cfg(target_os = "macos")]
+        {
+            assert_eq!(0o700, directory_mode & 0o777);
+            assert_eq!(0o600, current.permissions().mode() & 0o777);
+            assert_eq!(0o600, previous.permissions().mode() & 0o777);
+        }
         assert!(fs::remove_dir_all(directory).is_ok());
     }
 

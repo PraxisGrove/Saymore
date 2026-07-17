@@ -1,21 +1,26 @@
 use std::sync::{
-    Arc, Mutex,
+    Arc,
     atomic::{AtomicBool, AtomicU8, Ordering},
 };
 use std::time::Duration;
 
 use slint::{ComponentHandle, SharedString, Timer, TimerMode};
 use template_app::{
-    AccessibilityAuthorization, AudioRecorder, LocalSettings, LocalSettingsChange,
-    MicrophoneAuthorization, MicrophonePermissionProvider, OnboardingStatus, OnboardingStep,
-    PcmChunk, RecordingMetrics, TextDeliverer,
+    AccessibilityAuthorization, LocalSettings, LocalSettingsChange, MicrophoneAuthorization,
+    MicrophonePermissionProvider, OnboardingStatus, OnboardingStep, PcmChunk, RecordingMetrics,
+    TextDeliverer,
 };
+use template_infra::AppEnvironment;
+#[cfg(target_os = "windows")]
+use template_infra::{WindowsLaunchAtLogin, open_windows_microphone_privacy_settings};
+#[cfg(target_os = "macos")]
 use template_infra::{
-    MacOsAudioRecorder, MacOsMicrophonePermission, MacOsTextDeliverer, activate_application,
-    launch_at_login_status, open_microphone_privacy_settings, set_launch_at_login,
+    activate_application, launch_at_login_status, open_microphone_privacy_settings,
+    set_launch_at_login,
 };
 
 use crate::{
+    RecorderHandle,
     local_settings_runtime::{LocalSettingsHandle, LocalSettingsSubmissionError},
     main_window,
     ui::{AppPage, AppWindow, OnboardingWindow},
@@ -41,7 +46,7 @@ pub struct OnboardingRuntime {
 #[derive(Clone)]
 pub struct OnboardingShortcutHandler {
     window: slint::Weak<OnboardingWindow>,
-    recorder: Arc<Mutex<MacOsAudioRecorder>>,
+    recorder: RecorderHandle,
     active: Arc<AtomicBool>,
     step: Arc<AtomicU8>,
     test_active: Arc<AtomicBool>,
@@ -56,15 +61,19 @@ impl OnboardingRuntime {
     pub fn new(
         app: &AppWindow,
         settings: &LocalSettings,
+        environment: AppEnvironment,
         local_settings: LocalSettingsHandle,
-        recorder: Arc<Mutex<MacOsAudioRecorder>>,
-        microphone: MacOsMicrophonePermission,
-        deliverer: MacOsTextDeliverer,
+        recorder: RecorderHandle,
+        microphone: Arc<dyn MicrophonePermissionProvider>,
+        deliverer: Arc<dyn TextDeliverer>,
     ) -> Result<Self, slint::PlatformError> {
         let window = OnboardingWindow::new()?;
+        #[cfg(target_os = "windows")]
+        crate::windows_window::integrate_onboarding(&window);
         let active = Arc::new(AtomicBool::new(false));
         let manual = Arc::new(AtomicBool::new(false));
-        let step = Arc::new(AtomicU8::new(settings.onboarding_step.index()));
+        let initial_step = supported_step(settings.onboarding_step);
+        let step = Arc::new(AtomicU8::new(initial_step.index()));
         let shortcut = OnboardingShortcutHandler {
             window: window.as_weak(),
             recorder,
@@ -77,16 +86,11 @@ impl OnboardingRuntime {
             settings: local_settings,
         });
 
-        window.set_step(i32::from(settings.onboarding_step.index()));
-        window.set_default_shortcut_label("Right Command".into());
-        window.set_launch_at_login(launch_at_login_status().is_ok_and(|status| {
-            matches!(
-                status,
-                template_infra::LaunchAtLoginStatus::Enabled
-                    | template_infra::LaunchAtLoginStatus::RequiresApproval
-            )
-        }));
-        update_permissions(&window, microphone, deliverer);
+        window.set_step(i32::from(initial_step.index()));
+        window.set_default_shortcut_label(default_shortcut_label().into());
+        window.set_show_accessibility_step(cfg!(target_os = "macos"));
+        window.set_launch_at_login(launch_at_login_enabled(environment));
+        update_permissions(&window, &*microphone, &*deliverer);
         navigation::wire_navigation(
             &window,
             app,
@@ -96,8 +100,8 @@ impl OnboardingRuntime {
             step,
             shortcut.clone(),
         );
-        wire_permissions(&window, microphone, deliverer, shortcut.clone());
-        wire_launch_at_login(&window);
+        wire_permissions(&window, Arc::clone(&microphone), Arc::clone(&deliverer));
+        wire_launch_at_login(&window, environment);
         wire_manual_rerun(
             app,
             &window,
@@ -113,14 +117,14 @@ impl OnboardingRuntime {
             if poll_active.load(Ordering::Acquire)
                 && let Some(window) = poll_window.upgrade()
             {
-                update_permissions(&window, microphone, deliverer);
+                update_permissions(&window, &*microphone, &*deliverer);
             }
         });
 
         Ok(Self {
             window,
             initial_status: settings.onboarding_status,
-            initial_step: settings.onboarding_step,
+            initial_step,
             active,
             manual,
             shortcut,
@@ -246,45 +250,67 @@ impl OnboardingShortcutHandler {
 
 fn wire_permissions(
     window: &OnboardingWindow,
-    microphone: MacOsMicrophonePermission,
-    deliverer: MacOsTextDeliverer,
-    shortcut: OnboardingShortcutHandler,
+    microphone: Arc<dyn MicrophonePermissionProvider>,
+    deliverer: Arc<dyn TextDeliverer>,
 ) {
     let microphone_window = window.as_weak();
+    let requested_microphone = Arc::clone(&microphone);
+    let microphone_deliverer = Arc::clone(&deliverer);
     window.on_request_microphone(move || {
-        match microphone.authorization() {
+        match requested_microphone.authorization() {
             MicrophoneAuthorization::NotDetermined => {
-                microphone.request_authorization();
+                requested_microphone.request_authorization();
             }
             MicrophoneAuthorization::Denied | MicrophoneAuthorization::Restricted => {
-                let _ = open_microphone_privacy_settings();
+                let _ = open_platform_microphone_privacy_settings();
             }
             MicrophoneAuthorization::Granted => {}
         }
         if let Some(window) = microphone_window.upgrade() {
-            update_permissions(&window, microphone, deliverer);
+            update_permissions(&window, &*requested_microphone, &*microphone_deliverer);
         }
     });
-
-    let test_shortcut = shortcut;
-    window.on_toggle_microphone_test(move || test_shortcut.toggle_test());
 
     let accessibility_window = window.as_weak();
     window.on_request_accessibility(move || {
         deliverer.request_authorization();
         if let Some(window) = accessibility_window.upgrade() {
-            update_permissions(&window, microphone, deliverer);
+            update_permissions(&window, &*microphone, &*deliverer);
         }
     });
 }
 
-fn wire_launch_at_login(window: &OnboardingWindow) {
+#[cfg(target_os = "macos")]
+fn wire_launch_at_login(window: &OnboardingWindow, _environment: AppEnvironment) {
     let launch_window = window.as_weak();
     window.on_set_launch_at_login(move |enabled| {
         let Some(window) = launch_window.upgrade() else {
             return;
         };
         if set_launch_at_login(enabled).is_err() {
+            window.set_launch_at_login(!enabled);
+            window.set_action_status("save_failed".into());
+        } else {
+            window.set_action_status(SharedString::new());
+        }
+    });
+}
+
+#[cfg(target_os = "windows")]
+fn wire_launch_at_login(window: &OnboardingWindow, environment: AppEnvironment) {
+    let integration = WindowsLaunchAtLogin::for_current_executable(environment)
+        .map(Arc::new)
+        .ok();
+    let launch_window = window.as_weak();
+    window.on_set_launch_at_login(move |enabled| {
+        let Some(window) = launch_window.upgrade() else {
+            return;
+        };
+        let result = integration
+            .as_ref()
+            .ok_or(())
+            .and_then(|integration| integration.set_enabled(enabled).map_err(|_| ()));
+        if result.is_err() {
             window.set_launch_at_login(!enabled);
             window.set_action_status("save_failed".into());
         } else {
@@ -323,8 +349,8 @@ fn wire_manual_rerun(
 
 fn update_permissions(
     window: &OnboardingWindow,
-    microphone: MacOsMicrophonePermission,
-    deliverer: MacOsTextDeliverer,
+    microphone: &dyn MicrophonePermissionProvider,
+    deliverer: &dyn TextDeliverer,
 ) {
     let microphone_authorization = microphone.authorization();
     window.set_microphone_authorized(microphone_authorization == MicrophoneAuthorization::Granted);
@@ -350,15 +376,71 @@ fn accessibility_status(status: AccessibilityAuthorization) -> &'static str {
     }
 }
 
+fn supported_step(step: OnboardingStep) -> OnboardingStep {
+    #[cfg(target_os = "windows")]
+    if step == OnboardingStep::Accessibility {
+        return OnboardingStep::Complete;
+    }
+    step
+}
+
 fn show_main_window(app: &AppWindow) -> Result<(), slint::PlatformError> {
     app.set_current_page(AppPage::Home);
     app.show()?;
     app.window().request_redraw();
     main_window::schedule_titlebar_integration(app);
-    if let Err(error) = activate_application() {
+    if let Err(error) = activate_platform_window(app) {
         tracing::warn!(event = "onboarding.main_window_activate_failed", reason = %error);
     }
     Ok(())
+}
+
+#[cfg(target_os = "macos")]
+fn default_shortcut_label() -> &'static str {
+    "Right Command"
+}
+
+#[cfg(target_os = "windows")]
+fn default_shortcut_label() -> &'static str {
+    "Right Alt"
+}
+
+#[cfg(target_os = "macos")]
+fn launch_at_login_enabled(_environment: AppEnvironment) -> bool {
+    launch_at_login_status().is_ok_and(|status| {
+        matches!(
+            status,
+            template_infra::LaunchAtLoginStatus::Enabled
+                | template_infra::LaunchAtLoginStatus::RequiresApproval
+        )
+    })
+}
+
+#[cfg(target_os = "windows")]
+fn launch_at_login_enabled(environment: AppEnvironment) -> bool {
+    WindowsLaunchAtLogin::for_current_executable(environment)
+        .and_then(|integration| integration.is_enabled())
+        .unwrap_or(false)
+}
+
+#[cfg(target_os = "macos")]
+fn open_platform_microphone_privacy_settings() -> Result<(), String> {
+    open_microphone_privacy_settings().map_err(|error| error.to_string())
+}
+
+#[cfg(target_os = "windows")]
+fn open_platform_microphone_privacy_settings() -> Result<(), String> {
+    open_windows_microphone_privacy_settings().map_err(|error| error.to_string())
+}
+
+#[cfg(target_os = "macos")]
+fn activate_platform_window(_app: &AppWindow) -> Result<(), String> {
+    activate_application().map_err(|error| error.to_string())
+}
+
+#[cfg(target_os = "windows")]
+fn activate_platform_window(app: &AppWindow) -> Result<(), String> {
+    crate::status_tray::activate_main_window(app)
 }
 
 fn display_microphone_level(level: f32) -> f32 {
@@ -375,7 +457,8 @@ fn schedule_hide<T: ComponentHandle + 'static>(component: slint::Weak<T>) {
 
 #[cfg(test)]
 mod tests {
-    use super::display_microphone_level;
+    use super::{display_microphone_level, supported_step};
+    use template_app::OnboardingStep;
 
     #[test]
     fn microphone_display_level_makes_quiet_speech_visible_and_stays_bounded() {
@@ -383,5 +466,18 @@ mod tests {
         assert!(display_microphone_level(0.02) > 0.3);
         assert_eq!(1.0, display_microphone_level(1.0));
         assert_eq!(1.0, display_microphone_level(2.0));
+    }
+
+    #[test]
+    fn persisted_onboarding_step_is_supported_by_the_current_platform() {
+        #[cfg(target_os = "windows")]
+        assert_eq!(
+            OnboardingStep::Complete,
+            supported_step(OnboardingStep::Accessibility)
+        );
+        assert_eq!(
+            OnboardingStep::Microphone,
+            supported_step(OnboardingStep::Microphone)
+        );
     }
 }

@@ -1,10 +1,8 @@
 use std::{
     fs,
-    fs::{File, OpenOptions, Permissions},
+    fs::File,
     io::{BufReader, BufWriter, Write},
-    os::unix::fs::{OpenOptionsExt, PermissionsExt},
     path::{Path, PathBuf},
-    process,
     sync::{Mutex, MutexGuard},
 };
 
@@ -17,8 +15,10 @@ use uuid::Uuid;
 
 use crate::app_paths::{AppEnvironment, AppPaths};
 
+mod platform_fs;
 mod schema;
 
+use platform_fs::{atomic_replace, open_private_file, restrict_directory_permissions};
 use schema::{LegacySettings, StoredCatalog, catalog_to_settings, legacy_catalog};
 
 const CONFIG_VERSION: u32 = 3;
@@ -149,25 +149,24 @@ impl JsonSettingsStore {
             SettingsStoreError::Unavailable("settings path has no parent".to_owned())
         })?;
         fs::create_dir_all(parent).map_err(io_error)?;
-        fs::set_permissions(parent, Permissions::from_mode(0o700)).map_err(io_error)?;
+        restrict_directory_permissions(parent)?;
 
         let temporary = temporary_path(&self.path);
-        let file = OpenOptions::new()
-            .create(true)
-            .truncate(true)
-            .write(true)
-            .mode(0o600)
-            .open(&temporary)
-            .map_err(io_error)?;
-        let mut writer = BufWriter::new(file);
-        serde_json::to_writer_pretty(&mut writer, &StoredCatalog::from(catalog))
-            .map_err(json_error)?;
-        writer.write_all(b"\n").map_err(io_error)?;
-        writer.flush().map_err(io_error)?;
-        writer.get_ref().sync_all().map_err(io_error)?;
-        fs::rename(&temporary, &self.path).map_err(io_error)?;
-        fs::set_permissions(&self.path, Permissions::from_mode(0o600)).map_err(io_error)?;
-        Ok(())
+        let result = (|| {
+            let file = open_private_file(&temporary)?;
+            let mut writer = BufWriter::new(file);
+            serde_json::to_writer_pretty(&mut writer, &StoredCatalog::from(catalog))
+                .map_err(json_error)?;
+            writer.write_all(b"\n").map_err(io_error)?;
+            writer.flush().map_err(io_error)?;
+            writer.get_ref().sync_all().map_err(io_error)?;
+            drop(writer);
+            atomic_replace(&temporary, &self.path)
+        })();
+        if result.is_err() {
+            let _ = fs::remove_file(&temporary);
+        }
+        result
     }
 }
 
@@ -383,7 +382,7 @@ fn validate_catalog(catalog: &ProviderCatalog) -> Result<(), SettingsStoreError>
 }
 
 fn temporary_path(path: &Path) -> PathBuf {
-    path.with_extension(format!("json.tmp-{}", process::id()))
+    path.with_extension(format!("json.tmp-{}", Uuid::new_v4()))
 }
 
 fn io_error(error: std::io::Error) -> SettingsStoreError {

@@ -522,6 +522,7 @@ fn asr_available_on_home(configured: bool, error: bool, _pending_test: bool) -> 
     configured && !error
 }
 
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 pub(crate) fn mark_asr_runtime_healthy(ui: &AppWindow) {
     apply_pending_test(ui, false);
     apply_status(

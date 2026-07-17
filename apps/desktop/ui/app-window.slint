@@ -64,6 +64,8 @@ export component AppWindow inherits Window {
     in property <string> launch-at-login-status: "";
     in-out property <bool> show-in-dock: true;
     in property <string> show-in-dock-status: "";
+    in property <bool> show-dock-setting: true;
+    in property <bool> show-accessibility-setting: true;
     in property <bool> recording-active: false;
     in property <bool> recording-failed: false;
     in property <bool> recording-complete: false;
@@ -74,6 +76,7 @@ export component AppWindow inherits Window {
     in property <string> shortcut-label: @tr("shortcut.right-command" => "Right Command");
     in property <[string]> shortcut-labels;
     in property <string> shortcut-status: "";
+    in property <int> shortcut-error-index: -2;
     in-out property <bool> shortcut-capturing: false;
     in property <bool> shortcut-enabled: true;
     in property <string> usage-total-minutes: "0";
@@ -415,8 +418,11 @@ export component AppWindow inherits Window {
         launch-at-login-status: root.launch-at-login-status;
         show-in-dock <=> root.show-in-dock;
         show-in-dock-status: root.show-in-dock-status;
+        show-dock-setting: root.show-dock-setting;
+        show-accessibility-setting: root.show-accessibility-setting;
         shortcut-labels: root.shortcut-labels;
         shortcut-status: root.shortcut-status;
+        shortcut-error-index: root.shortcut-error-index;
         shortcut-capturing <=> root.shortcut-capturing;
         back-to-app => { root.current-page = AppPage.home; }
         open-microphone-settings => { root.open-microphone-settings(); }

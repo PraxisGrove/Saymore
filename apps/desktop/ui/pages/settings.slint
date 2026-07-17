@@ -94,13 +94,14 @@ component SettingSwitch inherits Rectangle {
 
 component ShortcutAddButton inherits Rectangle {
     in property <bool> capturing;
+    in property <bool> error;
     callback begin-capture();
 
     width: 126px;
     height: 36px;
     border-radius: 8px;
     border-width: root.capturing ? 2px : 1px;
-    border-color: root.capturing ? AppColors.brand : AppColors.border;
+    border-color: root.error ? AppColors.danger : root.capturing ? AppColors.brand : AppColors.border;
     background: recorder-touch.has-hover ? AppColors.surface-subtle : AppColors.sidebar;
     accessible-role: button;
     accessible-label: root.capturing ? @tr("settings.shortcut.capture.prompt" => "Press a new shortcut") : @tr("settings.shortcut.add-another" => "Add another");
@@ -126,12 +127,13 @@ component ShortcutAddButton inherits Rectangle {
 component ShortcutRow inherits Rectangle {
     in property <string> label;
     in property <bool> only-shortcut;
+    in property <bool> error;
     callback edit();
     callback remove();
     height: 40px;
     border-radius: 8px;
     border-width: 1px;
-    border-color: AppColors.border;
+    border-color: root.error ? AppColors.danger : AppColors.border;
     background: edit-touch.has-hover ? AppColors.surface-subtle : AppColors.surface;
     accessible-role: button;
     accessible-label: @tr("settings.shortcut.edit" => "Edit shortcut");
@@ -404,8 +406,11 @@ export component SettingsPage inherits Rectangle {
     in property <string> launch-at-login-status: "";
     in-out property <bool> show-in-dock: true;
     in property <string> show-in-dock-status: "";
+    in property <bool> show-dock-setting: true;
+    in property <bool> show-accessibility-setting: true;
     in property <[string]> shortcut-labels;
     in property <string> shortcut-status: "";
+    in property <int> shortcut-error-index: -2;
     in-out property <bool> shortcut-capturing: false;
     in-out property <SettingsSection> current-section: SettingsSection.general;
     callback back-to-app();
@@ -434,7 +439,7 @@ export component SettingsPage inherits Rectangle {
     private property <length> shortcut-extra-height: max(0, root.shortcut-labels.length - 1) * 48px;
     private property <string> section-title: root.current-section == SettingsSection.general ? @tr("settings.section.general" => "General") : root.current-section == SettingsSection.shortcuts-audio ? @tr("settings.section.shortcuts-audio" => "Shortcuts & Audio") : root.current-section == SettingsSection.delivery-permissions ? @tr("settings.section.delivery-permissions" => "Delivery & Permissions") : root.current-section == SettingsSection.privacy-history ? @tr("settings.section.privacy-data" => "Privacy & Data") : @tr("settings.section.about-updates" => "About & Updates");
     private property <string> section-detail: root.current-section == SettingsSection.general ? @tr("settings.general.detail" => "Control how Saymore starts, appears, and looks on this device.") : root.current-section == SettingsSection.shortcuts-audio ? @tr("settings.shortcuts-audio.detail" => "Choose how voice input starts and how audio feedback works.") : root.current-section == SettingsSection.delivery-permissions ? @tr("settings.delivery-permissions.detail" => "Choose how recognized text is delivered and review system permissions.") : root.current-section == SettingsSection.privacy-history ? @tr("settings.privacy-data.detail" => "Review local data storage and manage diagnostics.") : @tr("settings.about-updates.detail" => "View version information, update status, and product links.");
-    private property <length> content-height: root.current-section == SettingsSection.general ? (root.compact ? 1015px : 735px) : root.current-section == SettingsSection.shortcuts-audio ? (root.compact ? 840px : 570px) + root.shortcut-extra-height : root.current-section == SettingsSection.delivery-permissions ? (root.compact ? 790px : 570px) : root.current-section == SettingsSection.privacy-history ? (root.compact ? 900px : 630px) : (root.compact ? 790px : 600px);
+    private property <length> content-height: root.current-section == SettingsSection.general ? (root.compact ? (root.show-dock-setting ? 1015px : 867px) : 735px) : root.current-section == SettingsSection.shortcuts-audio ? (root.compact ? 840px : 570px) + root.shortcut-extra-height : root.current-section == SettingsSection.delivery-permissions ? (root.compact ? 790px : 570px) : root.current-section == SettingsSection.privacy-history ? (root.compact ? 900px : 630px) : (root.compact ? 790px : 600px);
     private property <string> export-button-label: root.diagnostics-export-status == "exporting" ? @tr("settings.diagnostics.exporting" => "Exporting…") : root.diagnostics-export-status == "success" ? @tr("settings.diagnostics.exported" => "Exported") : root.diagnostics-export-status == "failed" ? @tr("settings.diagnostics.export-again" => "Export again") : @tr("settings.diagnostics.export-report" => "Export report");
     private property <string> update-button-label: root.update-status == "checking" ? @tr("settings.update.checking" => "Checking…") : root.update-status == "failed" ? @tr("settings.update.check-again" => "Check again") : @tr("settings.update.check" => "Check for updates");
     private property <string> update-message: root.update-status == "checking" ? @tr("settings.update.checking-detail" => "Checking for updates…") : root.update-status == "latest" ? @tr("settings.update.latest" => "You’re up to date") : root.update-status == "available" ? @tr("settings.update.available" => "Saymore {} is available", root.update-version) : root.update-status == "failed" ? root.update-detail : @tr("settings.update.not-checked" => "Updates have not been checked yet");
@@ -486,7 +491,7 @@ export component SettingsPage inherits Rectangle {
                                     Text { x: 20px; y: 96px; width: parent.width - 40px; text: root.launch-at-login-status.is-empty ? @tr("settings.launch-at-login.detail" => "Prepare voice input in the background after you sign in.") : root.launch-at-login-status; color: root.launch-at-login-status.is-empty ? AppColors.text-muted : AppColors.danger; font-size: 11px; overflow: elide; }
                                     SettingSwitch { x: parent.width - 62px; y: 20px; checked: root.launch-at-login; toggled(value) => { root.set-launch-at-login(value); } }
                                 }
-                                Rectangle {
+                                if root.show-dock-setting: Rectangle {
                                     horizontal-stretch: 1; border-radius: 10px; background: AppColors.surface;
                                     SettingsIcon { x: 20px; y: 20px; source: @image-url("../../icons/lucide/dock.svg"); }
                                     Text { x: 20px; y: 72px; text: @tr("settings.show-in-dock.title" => "Show in Dock"); color: AppColors.ink; font-size: 13px; font-weight: 650; }
@@ -495,7 +500,7 @@ export component SettingsPage inherits Rectangle {
                                 }
                             }
                             if root.compact: VerticalLayout {
-                                height: 280px;
+                                height: root.show-dock-setting ? 280px : 132px;
                                 spacing: 16px;
                                 Rectangle {
                                     height: 132px; border-radius: 10px; background: AppColors.surface;
@@ -504,7 +509,7 @@ export component SettingsPage inherits Rectangle {
                                     Text { x: 20px; y: 96px; width: parent.width - 40px; text: root.launch-at-login-status.is-empty ? @tr("settings.launch-at-login.detail" => "Prepare voice input in the background after you sign in.") : root.launch-at-login-status; color: root.launch-at-login-status.is-empty ? AppColors.text-muted : AppColors.danger; font-size: 11px; overflow: elide; }
                                     SettingSwitch { x: parent.width - 62px; y: 20px; checked: root.launch-at-login; toggled(value) => { root.set-launch-at-login(value); } }
                                 }
-                                Rectangle {
+                                if root.show-dock-setting: Rectangle {
                                     height: 132px; border-radius: 10px; background: AppColors.surface;
                                     SettingsIcon { x: 20px; y: 20px; source: @image-url("../../icons/lucide/dock.svg"); }
                                     Text { x: 20px; y: 72px; text: @tr("settings.show-in-dock.title" => "Show in Dock"); color: AppColors.ink; font-size: 13px; font-weight: 650; }
@@ -536,7 +541,7 @@ export component SettingsPage inherits Rectangle {
                                 height: 67px; border-radius: 10px; background: AppColors.surface;
                                 Image { x: 24px; y: 25px; width: 16px; height: 16px; source: @image-url("../../icons/lucide/refresh-cw.svg"); colorize: AppColors.text-muted; }
                                 Text { x: 54px; y: 15px; text: @tr("settings.onboarding.title" => "Run setup again"); color: AppColors.ink; font-size: 13px; font-weight: 650; }
-                                Text { x: 54px; y: 37px; text: @tr("settings.onboarding.detail" => "Review microphone, shortcut, and Accessibility setup."); color: AppColors.text-muted; font-size: 10px; }
+                                Text { x: 54px; y: 37px; text: root.show-accessibility-setting ? @tr("settings.onboarding.detail" => "Review microphone, shortcut, and Accessibility setup.") : @tr("settings.onboarding.detail-windows" => "Review microphone and shortcut setup."); color: AppColors.text-muted; font-size: 10px; }
                                 SettingsActionButton { x: parent.width - 150px; y: 15px; width: 130px; label: @tr("settings.onboarding.open" => "Open setup"); icon: @image-url("../../icons/lucide/chevron-right.svg"); activated => { root.rerun-onboarding(); } }
                             }
                         }
@@ -560,6 +565,7 @@ export component SettingsPage inherits Rectangle {
                                         width: 218px;
                                         label: label;
                                         only-shortcut: root.shortcut-labels.length == 1;
+                                        error: root.shortcut-error-index == index;
                                         edit => { root.edit-shortcut(index); }
                                         remove => { root.remove-shortcut(index); }
                                     }
@@ -568,9 +574,10 @@ export component SettingsPage inherits Rectangle {
                                     x: parent.width - 146px;
                                     y: 24px + root.shortcut-labels.length * 48px;
                                     capturing <=> root.shortcut-capturing;
+                                    error: root.shortcut-error-index == -1;
                                     begin-capture => { root.begin-shortcut-capture(); }
                                 }
-                                Text { x: 70px; y: 77px; width: parent.width - 340px; text: root.shortcut-status.is-empty ? @tr("settings.shortcut.cancel" => "Esc to cancel") : root.shortcut-status; color: root.shortcut-status.is-empty ? AppColors.text-muted : AppColors.danger; font-size: 10px; wrap: word-wrap; }
+                                Text { x: root.shortcut-error-index >= -1 ? parent.width - 238px : 70px; y: root.shortcut-error-index == -1 ? 64px + root.shortcut-labels.length * 48px : root.shortcut-error-index >= 0 ? 58px + root.shortcut-error-index * 48px : 77px; width: root.shortcut-error-index >= -1 ? 218px : parent.width - 340px; text: root.shortcut-status.is-empty ? @tr("settings.shortcut.cancel" => "Esc to cancel") : root.shortcut-status; color: root.shortcut-status.is-empty ? AppColors.text-muted : AppColors.danger; font-size: 10px; wrap: word-wrap; }
                             }
                             Text { height: 20px; text: @tr("settings.audio.title" => "Audio"); color: AppColors.text; font-size: 13px; font-weight: 650; vertical-alignment: center; }
                             Rectangle {
@@ -621,12 +628,12 @@ export component SettingsPage inherits Rectangle {
                             if !root.compact: HorizontalLayout {
                                 height: 130px; spacing: 16px;
                                 PermissionCard { horizontal-stretch: 1; icon: @image-url("../../icons/lucide/audio-lines.svg"); title: @tr("settings.permissions.microphone.title" => "Microphone"); detail: root.microphone-authorized ? @tr("settings.permissions.microphone.granted-detail" => "Captures your voice only while voice input is active.") : @tr("settings.permissions.microphone.required-detail" => "Allow microphone access to start voice input."); status: root.microphone-status; granted: root.microphone-authorized; open-system-settings => { root.open-microphone-settings(); } }
-                                PermissionCard { horizontal-stretch: 1; icon: @image-url("../../icons/lucide/check.svg"); title: @tr("settings.permissions.accessibility.title" => "Accessibility"); detail: root.authorized ? @tr("settings.permissions.accessibility.granted-detail" => "Inserts recognized text into the app you are using.") : @tr("settings.permissions.accessibility.required-detail" => "Allow Accessibility access to insert recognized text automatically."); status: root.authorization-status; granted: root.authorized; open-system-settings => { root.open-accessibility-settings(); } }
+                                if root.show-accessibility-setting: PermissionCard { horizontal-stretch: 1; icon: @image-url("../../icons/lucide/check.svg"); title: @tr("settings.permissions.accessibility.title" => "Accessibility"); detail: root.authorized ? @tr("settings.permissions.accessibility.granted-detail" => "Inserts recognized text into the app you are using.") : @tr("settings.permissions.accessibility.required-detail" => "Allow Accessibility access to insert recognized text automatically."); status: root.authorization-status; granted: root.authorized; open-system-settings => { root.open-accessibility-settings(); } }
                             }
                             if root.compact: VerticalLayout {
-                                height: 276px; spacing: 16px;
+                                height: root.show-accessibility-setting ? 276px : 130px; spacing: 16px;
                                 PermissionCard { height: 130px; icon: @image-url("../../icons/lucide/audio-lines.svg"); title: @tr("settings.permissions.microphone.title" => "Microphone"); detail: root.microphone-authorized ? @tr("settings.permissions.microphone.granted-detail" => "Captures your voice only while voice input is active.") : @tr("settings.permissions.microphone.required-detail" => "Allow microphone access to start voice input."); status: root.microphone-status; granted: root.microphone-authorized; open-system-settings => { root.open-microphone-settings(); } }
-                                PermissionCard { height: 130px; icon: @image-url("../../icons/lucide/check.svg"); title: @tr("settings.permissions.accessibility.title" => "Accessibility"); detail: root.authorized ? @tr("settings.permissions.accessibility.granted-detail" => "Inserts recognized text into the app you are using.") : @tr("settings.permissions.accessibility.required-detail" => "Allow Accessibility access to insert recognized text automatically."); status: root.authorization-status; granted: root.authorized; open-system-settings => { root.open-accessibility-settings(); } }
+                                if root.show-accessibility-setting: PermissionCard { height: 130px; icon: @image-url("../../icons/lucide/check.svg"); title: @tr("settings.permissions.accessibility.title" => "Accessibility"); detail: root.authorized ? @tr("settings.permissions.accessibility.granted-detail" => "Inserts recognized text into the app you are using.") : @tr("settings.permissions.accessibility.required-detail" => "Allow Accessibility access to insert recognized text automatically."); status: root.authorization-status; granted: root.authorized; open-system-settings => { root.open-accessibility-settings(); } }
                             }
                             Text { height: 18px; text: @tr("settings.permissions.system-managed" => "Permission status is managed by the system and refreshes automatically."); color: AppColors.text-muted; font-size: 10px; }
                         }

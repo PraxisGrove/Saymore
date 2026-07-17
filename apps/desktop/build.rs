@@ -1,6 +1,11 @@
 use std::{collections::HashMap, path::Path};
 
 fn main() {
+    #[cfg(target_os = "windows")]
+    if let Err(error) = embed_windows_resources() {
+        eprintln!("failed to embed Windows resources: {error}");
+        std::process::exit(1);
+    }
     println!("cargo:rerun-if-changed=i18n");
     if let Err(error) = validate_translations(
         Path::new("i18n/saymore-desktop.pot"),
@@ -14,6 +19,15 @@ fn main() {
         eprintln!("failed to compile Saymore UI: {error}");
         std::process::exit(1);
     }
+}
+
+#[cfg(target_os = "windows")]
+fn embed_windows_resources() -> Result<(), std::io::Error> {
+    println!("cargo:rerun-if-changed=icons/taskbar.ico");
+    winresource::WindowsResource::new()
+        .set_icon("icons/taskbar.ico")
+        .set_icon_with_id("icons/taskbar.ico", "2")
+        .compile()
 }
 
 fn validate_translations(template_path: &Path, translation_path: &Path) -> Result<(), String> {

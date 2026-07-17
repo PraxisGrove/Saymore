@@ -10,10 +10,7 @@ use std::{
 use chrono::{Duration, Local, NaiveDate, TimeZone};
 use slint::{ComponentHandle, ModelRc, SharedString, VecModel};
 use template_app::{USAGE_TREND_DAYS, UsageSummary, load_usage_summary};
-use template_infra::{
-    SqliteStorage, directory_usage_bytes, open_accessibility_privacy_settings,
-    open_microphone_privacy_settings,
-};
+use template_infra::{SqliteStorage, directory_usage_bytes};
 
 use crate::{
     regional_format,
@@ -32,16 +29,41 @@ pub fn wire(ui: &AppWindow, storage: Arc<SqliteStorage>, data_directory: PathBuf
         );
     });
     ui.on_open_microphone_settings(move || {
-        if let Err(error) = open_microphone_privacy_settings() {
+        if let Err(error) = open_microphone_settings() {
             tracing::warn!(event = "microphone.settings_open_failed", reason = %error);
         }
     });
     ui.on_open_accessibility_settings(move || {
-        if let Err(error) = open_accessibility_privacy_settings() {
+        if let Err(error) = open_accessibility_settings() {
             tracing::warn!(event = "accessibility.settings_open_failed", reason = %error);
         }
     });
     ui.invoke_refresh_usage();
+}
+
+#[cfg(target_os = "macos")]
+fn open_microphone_settings() -> Result<(), String> {
+    template_infra::open_microphone_privacy_settings().map_err(|error| error.to_string())
+}
+
+#[cfg(target_os = "windows")]
+fn open_microphone_settings() -> Result<(), String> {
+    template_infra::open_windows_microphone_privacy_settings().map_err(|error| error.to_string())
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
+fn open_microphone_settings() -> Result<(), String> {
+    Err("microphone settings integration is not available on this platform yet".to_owned())
+}
+
+#[cfg(target_os = "macos")]
+fn open_accessibility_settings() -> Result<(), String> {
+    template_infra::open_accessibility_privacy_settings().map_err(|error| error.to_string())
+}
+
+#[cfg(not(target_os = "macos"))]
+fn open_accessibility_settings() -> Result<(), String> {
+    Err("accessibility settings integration is not available on this platform yet".to_owned())
 }
 
 fn refresh(

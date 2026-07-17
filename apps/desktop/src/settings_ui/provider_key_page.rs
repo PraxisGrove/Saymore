@@ -1,8 +1,9 @@
-use std::process::Command;
-
 use slint::ComponentHandle;
 
-use crate::ui::{AppWindow, LlmProvider as UiLlmProvider, Translations};
+use crate::{
+    platform_open,
+    ui::{AppWindow, LlmProvider as UiLlmProvider, Translations},
+};
 
 pub(super) const VOLCENGINE_KEY_PAGE: &str =
     "https://console.volcengine.com/ark/region:ark+cn-beijing/apiKey";
@@ -18,7 +19,7 @@ pub(super) fn wire(ui: &AppWindow) {
         let Some(url) = url(ui.get_model_tab(), ui.get_llm_provider()) else {
             return;
         };
-        if Command::new("/usr/bin/open").arg(url).spawn().is_err() {
+        if platform_open::open(url).is_err() {
             let message = ui
                 .global::<Translations>()
                 .get_models_open_key_page_failed();

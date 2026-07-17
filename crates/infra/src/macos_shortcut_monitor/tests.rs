@@ -16,11 +16,11 @@ fn modifier_event(code: i64, flags: CGEventFlags) -> CGEvent {
 #[test]
 fn supports_multiple_shortcuts_and_rejects_duplicates() {
     let fn_key = MacOsShortcut::modifier(63);
-    let command_space = MacOsShortcut::from_capture(" ", true, false, false, false);
-    let Ok(command_space) = command_space else {
-        panic!("Command-Space should be representable even when it may conflict");
+    let command_a = MacOsShortcut::from_capture("A", true, false, false, false);
+    let Ok(command_a) = command_a else {
+        panic!("Command-A should be representable");
     };
-    let controller = MacOsShortcutController::new(vec![fn_key.clone(), command_space]);
+    let controller = MacOsShortcutController::new(vec![fn_key.clone(), command_a]);
     assert_eq!(
         2,
         controller
@@ -74,12 +74,11 @@ fn round_trips_fn_physical_key_combinations() {
 }
 
 #[test]
-fn known_conflicts_are_warnings_not_invalid_shortcuts() {
-    let shortcut = MacOsShortcut::from_capture(" ", true, false, false, false);
-    let Ok(shortcut) = shortcut else {
-        panic!("known conflicts should remain configurable");
-    };
-    assert!(shortcut.likely_system_conflict());
+fn rejects_known_system_shortcuts() {
+    assert_eq!(
+        Err(MacOsShortcutError::SystemReserved),
+        MacOsShortcut::from_capture(" ", true, false, false, false)
+    );
     assert!(!MacOsShortcut::modifier(63).likely_system_conflict());
 }
 

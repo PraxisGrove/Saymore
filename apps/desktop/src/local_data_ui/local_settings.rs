@@ -5,7 +5,7 @@ pub(super) fn wire_local_settings(
     storage: Arc<SqliteStorage>,
     state: Arc<Mutex<UiDataState>>,
     settings: LocalSettingsHandle,
-    recorder: Arc<Mutex<MacOsAudioRecorder>>,
+    recorder: RecorderHandle,
 ) {
     wire_history_settings(ui, Arc::clone(&storage), state, settings.clone());
     wire_microphone_settings(ui, storage, settings, recorder);
@@ -77,12 +77,12 @@ fn wire_microphone_settings(
     ui: &AppWindow,
     storage: Arc<SqliteStorage>,
     settings: LocalSettingsHandle,
-    recorder: Arc<Mutex<MacOsAudioRecorder>>,
+    recorder: RecorderHandle,
 ) {
     let microphone_ui = ui.as_weak();
     let microphone_store = Arc::clone(&storage);
     let microphone_settings = settings;
-    let microphone_recorder = recorder;
+    let microphone_recorder = Arc::clone(&recorder);
     ui.on_select_microphone(move |id, name| {
         save_microphone_selection_async(
             microphone_ui.clone(),
@@ -96,10 +96,12 @@ fn wire_microphone_settings(
 
     let refresh_microphone_ui = ui.as_weak();
     let refresh_microphone_store = Arc::clone(&storage);
+    let refresh_microphone_recorder = recorder;
     ui.on_refresh_microphones(move || {
         refresh_microphone_devices_async(
             refresh_microphone_ui.clone(),
             Arc::clone(&refresh_microphone_store),
+            Arc::clone(&refresh_microphone_recorder),
         );
     });
 }
@@ -108,7 +110,7 @@ fn save_microphone_selection_async(
     ui: slint::Weak<AppWindow>,
     storage: Arc<SqliteStorage>,
     settings: LocalSettingsHandle,
-    recorder: Arc<Mutex<MacOsAudioRecorder>>,
+    recorder: RecorderHandle,
     preferred_id: Option<String>,
     preferred_name: Option<String>,
 ) {
@@ -142,7 +144,7 @@ fn save_microphone_selection_async(
                     apply_microphone_devices(&ui, &committed, Vec::new());
                     ui.set_microphone_selection_status(SharedString::new());
                 }
-                refresh_microphone_devices_async(refresh_ui, storage);
+                refresh_microphone_devices_async(refresh_ui, storage, Arc::clone(&recorder));
             }
             Err(error) => apply_microphone_settings_error(&ui, error),
         },
@@ -155,6 +157,7 @@ fn save_microphone_selection_async(
 pub(super) fn refresh_microphone_devices_async(
     ui: slint::Weak<AppWindow>,
     storage: Arc<SqliteStorage>,
+    recorder: RecorderHandle,
 ) {
     if let Some(window) = ui.upgrade() {
         window.set_microphone_devices_loading(true);
@@ -164,7 +167,10 @@ pub(super) fn refresh_microphone_devices_async(
             .load_settings()
             .map_err(|error| error.to_string())
             .and_then(|settings| {
-                MacOsAudioRecorder::input_devices()
+                recorder
+                    .lock()
+                    .map_err(|_| "recorder lock was poisoned".to_owned())?
+                    .input_devices()
                     .map(|devices| (settings, devices))
                     .map_err(|error| error.to_string())
             });

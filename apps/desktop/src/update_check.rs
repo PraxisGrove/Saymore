@@ -1,5 +1,4 @@
 use std::{
-    process::Command,
     sync::{
         Arc, Mutex,
         atomic::{AtomicBool, Ordering},
@@ -11,7 +10,10 @@ use std::{
 use serde::Deserialize;
 use slint::{ComponentHandle, SharedString};
 
-use crate::ui::{AppWindow, Translations};
+use crate::{
+    platform_open,
+    ui::{AppWindow, Translations},
+};
 
 const RELEASES_URL: &str = "https://api.github.com/repos/PraxisGrove/Saymore/releases/latest";
 const RELEASES_PREFIX: &str = "https://github.com/PraxisGrove/Saymore/releases/";
@@ -125,7 +127,7 @@ fn open_download_page(ui: slint::Weak<AppWindow>, url: Option<String>) {
     let _ = thread::Builder::new()
         .name("saymore-open-update-download".to_owned())
         .spawn(move || {
-            let result = Command::new("/usr/bin/open").arg(url).status();
+            let result = platform_open::open(url);
             if let Err(error) = result {
                 tracing::warn!(event = "update.download_page_open_failed", reason = %error);
                 let _ = ui.upgrade_in_event_loop(move |window| {

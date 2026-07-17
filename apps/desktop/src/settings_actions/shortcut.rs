@@ -85,6 +85,7 @@ fn begin_shortcut_capture(
     };
     if let Some(window) = ui.upgrade() {
         window.set_shortcut_status(SharedString::new());
+        window.set_shortcut_error_index(target.ui_error_index());
         window.set_shortcut_capturing(true);
     }
     let failure_ui = ui.clone();
@@ -101,6 +102,7 @@ fn begin_shortcut_capture(
                 Err(MacOsShortcutError::CaptureCancelled) => {
                     window.set_shortcut_capturing(false);
                     window.set_shortcut_status(SharedString::new());
+                    window.set_shortcut_error_index(-2);
                 }
                 Err(error) => {
                     window.set_shortcut_capturing(false);
@@ -164,6 +166,13 @@ impl ShortcutCaptureTarget {
         match self {
             Self::Add => None,
             Self::Replace(index) => Some(index),
+        }
+    }
+
+    fn ui_error_index(self) -> i32 {
+        match self {
+            Self::Add => -1,
+            Self::Replace(index) => i32::try_from(index).map_or(i32::MAX, |value| value),
         }
     }
 }
@@ -270,6 +279,7 @@ fn apply_shortcut_ui(window: &AppWindow, shortcuts: &[MacOsShortcut], status: Sh
     }
     window.set_shortcut_labels(ModelRc::new(VecModel::from(labels)));
     window.set_shortcut_status(status);
+    window.set_shortcut_error_index(-2);
     window.set_shortcut_capturing(false);
 }
 
@@ -286,6 +296,7 @@ fn shortcut_error_label(window: &AppWindow, error: &MacOsShortcutError) -> Share
     match error {
         MacOsShortcutError::Duplicate => translations.get_shortcut_duplicate(),
         MacOsShortcutError::MissingModifier => translations.get_shortcut_missing_modifier(),
+        MacOsShortcutError::SystemReserved => translations.get_shortcut_reserved(),
         MacOsShortcutError::InvalidStorageValue => translations.get_shortcut_unsupported(),
         MacOsShortcutError::StateUnavailable => translations.get_shortcut_save_failed(),
         MacOsShortcutError::CaptureActive => translations.get_shortcut_capture_active(),

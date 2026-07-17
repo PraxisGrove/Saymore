@@ -90,6 +90,42 @@ cargo run -p xtask -- bundle-macos
 If `just` is installed, `just preview` and `just release` are optional aliases
 for these two commands.
 
+### Windows packaging preview
+
+The formal Windows application icon uses the black-background master at
+`apps/desktop/icons/icon-master.png`. The running main window uses the separate
+transparent `apps/desktop/icons/taskbar-master.png`, matching the tray icon.
+Regenerate and validate both multi-resolution icons without external source
+paths:
+
+```bash
+cargo run -p xtask -- windows-icons
+cargo run -p xtask -- windows-icons --master apps/desktop/icons/taskbar-master.png --output apps/desktop/icons/taskbar.ico
+```
+
+On Windows, a local NSIS preview uses the same commands as the release workflow:
+
+```bash
+cargo build -p saymore-desktop --release
+cargo packager --release --packages saymore-desktop --formats nsis --binaries-dir target/release --out-dir dist
+Move-Item dist\saymore-desktop_*_*-setup.exe dist\Saymore-Setup.exe
+```
+
+The desktop build uses `apps/desktop/icons/taskbar.ico` as the executable's
+default icon so the Start menu, desktop shortcut, and taskbar grouping all use
+the transparent logo. The same icon is embedded separately for the running main
+window. `cargo-packager` uses the formal black-background `icon.ico` for the
+installer executable and transparent-logo artwork from `taskbar-master.png` for
+the NSIS header/sidebar images, while retaining the `.icns` asset for macOS.
+Release packaging renames the user-facing artifact to `Saymore-Setup.exe`.
+
+NSIS does not receive automatic translations from Windows. `cargo-packager`
+defaults to English and can select the current Windows UI language only when the
+corresponding NSIS language is explicitly bundled. Each added language must be
+visually verified at supported DPI scales; the stock Simplified Chinese welcome
+copy currently needs a shorter custom template before it can be enabled without
+line overlap at 150% scaling.
+
 The ad-hoc bundle is for local testing only. Formal signed and notarized DMGs
 are built by the release workflow described in `docs/releasing.md`.
 

@@ -12,3 +12,7 @@ path = "src/main.rs"
 
 [lints]
 workspace = true
+
+[dependencies]
+ico = { workspace = true }
+image = { workspace = true }

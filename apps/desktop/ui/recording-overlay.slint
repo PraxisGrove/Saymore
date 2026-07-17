@@ -43,7 +43,14 @@ export component RecordingOverlay inherits Window {
                 accessible-label: @tr("recording.cancel.accessible-label" => "Cancel recording");
                 accessible-action-default => { root.cancel(); }
 
-                Text { text: "×"; color: #d1cfc5; font-size: 18px; horizontal-alignment: center; vertical-alignment: center; }
+                Image {
+                    x: 7px;
+                    y: 7px;
+                    width: 14px;
+                    height: 14px;
+                    source: @image-url("../icons/lucide/x.svg");
+                    colorize: #d1cfc5;
+                }
                 cancel-area := TouchArea { mouse-cursor: pointer; clicked => { root.cancel(); } }
             }
 
@@ -70,7 +77,14 @@ export component RecordingOverlay inherits Window {
                 accessible-label: @tr("recording.finish.accessible-label" => "Finish recording");
                 accessible-action-default => { root.finish(); }
 
-                Text { text: "✓"; color: #141413; font-size: 17px; font-weight: 700; horizontal-alignment: center; vertical-alignment: center; }
+                Image {
+                    x: 9px;
+                    y: 9px;
+                    width: 10px;
+                    height: 10px;
+                    source: @image-url("../icons/lucide/check.svg");
+                    colorize: #141413;
+                }
                 finish-area := TouchArea { mouse-cursor: pointer; clicked => { root.finish(); } }
             }
         }

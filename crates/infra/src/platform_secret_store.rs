@@ -24,7 +24,7 @@ pub struct PlatformSecretStore {
 #[derive(Debug)]
 enum SecretBackend {
     Keychain {
-        service: &'static str,
+        service: String,
     },
     #[cfg(target_os = "macos")]
     File(FileSecretStore),
@@ -49,7 +49,7 @@ impl PlatformSecretStore {
 
         Ok(Self {
             backend: SecretBackend::Keychain {
-                service: environment.history_secret_service(),
+                service: environment.history_secret_service().to_owned(),
             },
         })
     }
@@ -218,11 +218,101 @@ fn map_error(error: KeyringError) -> SecretStoreError {
         KeyringError::TooLong(_, _)
         | KeyringError::Invalid(_, _)
         | KeyringError::BadEncoding(_)
-        | KeyringError::Ambiguous(_) => SecretStoreError::Invalid(error.to_string()),
+        | KeyringError::Ambiguous(_) => SecretStoreError::Invalid(
+            "the operating-system credential store rejected the credential".to_owned(),
+        ),
         KeyringError::PlatformFailure(_)
         | KeyringError::NoStorageAccess(_)
-        | KeyringError::NoEntry => SecretStoreError::Unavailable(error.to_string()),
-        _ => SecretStoreError::Unavailable(error.to_string()),
+        | KeyringError::NoEntry => SecretStoreError::Unavailable(
+            "the operating-system credential store is unavailable".to_owned(),
+        ),
+        _ => SecretStoreError::Unavailable(
+            "the operating-system credential store operation failed".to_owned(),
+        ),
+    }
+}
+
+#[cfg(all(test, target_os = "windows"))]
+mod windows_tests {
+    use super::*;
+
+    struct TestCredential {
+        service: String,
+    }
+
+    impl TestCredential {
+        fn new() -> Self {
+            Self {
+                service: format!(
+                    "com.saymore.desktop.test.{}.{}",
+                    std::process::id(),
+                    uuid::Uuid::new_v4()
+                ),
+            }
+        }
+
+        fn store(&self) -> PlatformSecretStore {
+            PlatformSecretStore {
+                backend: SecretBackend::Keychain {
+                    service: self.service.clone(),
+                },
+            }
+        }
+    }
+
+    impl Drop for TestCredential {
+        fn drop(&mut self) {
+            let _ = PlatformSecretStore::delete_keychain_secret(&self.service, HISTORY_KEY_ACCOUNT);
+            let _ = PlatformSecretStore::delete_keychain_secret(
+                &self.service,
+                LEGACY_HISTORY_KEY_ACCOUNT,
+            );
+        }
+    }
+
+    #[test]
+    fn credential_manager_round_trips_overwrites_deletes_and_migrates_legacy_key() {
+        let credential = TestCredential::new();
+        let store = credential.store();
+        let first = vec![1, 3, 5, 7];
+        let replacement = vec![2, 4, 6, 8];
+
+        assert_eq!(Ok(None), store.load_history_key());
+        assert_eq!(Ok(()), store.save_history_key(&first));
+        assert_eq!(Ok(Some(first)), store.load_history_key());
+        assert_eq!(Ok(()), store.save_history_key(&replacement));
+        assert_eq!(Ok(Some(replacement)), store.load_history_key());
+        assert_eq!(Ok(()), store.delete_history_key());
+        assert_eq!(Ok(None), store.load_history_key());
+
+        let legacy = vec![9, 7, 5, 3];
+        assert_eq!(
+            Ok(()),
+            PlatformSecretStore::save_keychain_secret(
+                &credential.service,
+                LEGACY_HISTORY_KEY_ACCOUNT,
+                &legacy,
+            )
+        );
+        assert_eq!(Ok(Some(legacy.clone())), store.load_history_key());
+        assert_eq!(
+            Ok(Some(legacy)),
+            PlatformSecretStore::load_keychain_secret(&credential.service, HISTORY_KEY_ACCOUNT,)
+        );
+        assert_eq!(Ok(()), store.delete_history_key());
+        assert_eq!(Ok(None), store.load_history_key());
+    }
+
+    #[test]
+    fn production_and_development_use_stable_distinct_services() {
+        assert_eq!(
+            "com.saymore.desktop",
+            AppEnvironment::Production.history_secret_service()
+        );
+        assert_eq!(
+            "com.saymore.desktop.dev",
+            AppEnvironment::Development.history_secret_service()
+        );
     }
 }
 

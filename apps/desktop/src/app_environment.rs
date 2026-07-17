@@ -3,6 +3,7 @@ use std::{error::Error, path::Path};
 use template_infra::AppEnvironment;
 
 const ENVIRONMENT_FLAG: &str = "--environment";
+const AUTOSTART_FLAG: &str = "--autostart";
 const DEVELOPMENT_MARKER: &str = "saymore-development-environment";
 
 pub fn resolve() -> Result<AppEnvironment, Box<dyn Error>> {
@@ -10,6 +11,12 @@ pub fn resolve() -> Result<AppEnvironment, Box<dyn Error>> {
         return Ok(AppEnvironment::Development);
     }
     resolve_from(std::env::args().skip(1), default_for_build())
+}
+
+pub fn started_automatically() -> bool {
+    std::env::args()
+        .skip(1)
+        .any(|argument| argument == AUTOSTART_FLAG)
 }
 
 fn bundled_environment(executable: &Path) -> Option<AppEnvironment> {
@@ -108,6 +115,18 @@ mod tests {
                 AppEnvironment::Production,
             )
             .is_err()
+        );
+    }
+
+    #[test]
+    fn environment_parser_ignores_the_autostart_marker() {
+        assert_eq!(
+            Ok(AppEnvironment::Production),
+            resolve_from(
+                [AUTOSTART_FLAG.to_owned()].into_iter(),
+                AppEnvironment::Production,
+            )
+            .map_err(|error| error.to_string())
         );
     }
 

@@ -192,6 +192,13 @@ msgid ""
 msgstr ""
 
 #: apps/desktop/ui/onboarding.slint:200
+msgctxt "onboarding.welcome.detail-windows"
+msgid ""
+"Saymore lets you use your voice in any text field. Set up your microphone "
+"and default shortcut in about a minute."
+msgstr ""
+
+#: apps/desktop/ui/onboarding.slint:200
 msgctxt "onboarding.start"
 msgid "Start setup"
 msgstr ""
@@ -251,6 +258,16 @@ msgstr ""
 #: apps/desktop/ui/onboarding.slint:220
 msgctxt "onboarding.shortcut.waiting"
 msgid "Press the shortcut to start the local microphone test."
+msgstr ""
+
+#: apps/desktop/ui/onboarding.slint:223
+msgctxt "onboarding.shortcut.press-again"
+msgid "Press again to finish"
+msgstr ""
+
+#: apps/desktop/ui/onboarding.slint:223
+msgctxt "onboarding.shortcut.press-to-start"
+msgid "Press shortcut to start"
 msgstr ""
 
 #: apps/desktop/ui/onboarding.slint:222
@@ -1763,6 +1780,26 @@ msgctxt "common.value-entered"
 msgid "Entered"
 msgstr ""
 
+#: apps/desktop/ui/pages/models.slint:150
+msgctxt "common.cut"
+msgid "Cut"
+msgstr ""
+
+#: apps/desktop/ui/pages/models.slint:151
+msgctxt "common.copy"
+msgid "Copy"
+msgstr ""
+
+#: apps/desktop/ui/pages/models.slint:152
+msgctxt "common.paste"
+msgid "Paste"
+msgstr ""
+
+#: apps/desktop/ui/pages/models.slint:153
+msgctxt "common.select-all"
+msgid "Select All"
+msgstr ""
+
 #: apps/desktop/ui/pages/models.slint:181
 msgctxt "models.polishing.consent.title"
 msgid "Enable text polishing?"
@@ -2296,6 +2333,11 @@ msgstr ""
 #: apps/desktop/ui/pages/settings.slint:531
 msgctxt "settings.onboarding.detail"
 msgid "Review microphone, shortcut, and Accessibility setup."
+msgstr ""
+
+#: apps/desktop/ui/pages/settings.slint:541
+msgctxt "settings.onboarding.detail-windows"
+msgid "Review microphone and shortcut setup."
 msgstr ""
 
 #: apps/desktop/ui/pages/settings.slint:532

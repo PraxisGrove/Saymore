@@ -195,7 +195,18 @@ jobs:
         run: cargo build -p saymore-desktop --release
 
       - name: Package NSIS installer
-        run: cargo packager --release --packages saymore-desktop --formats nsis --out-dir dist
+        run: >-
+          cargo packager --release --packages saymore-desktop --formats nsis
+          --binaries-dir target/release --out-dir dist
+
+      - name: Use user-facing installer name
+        shell: pwsh
+        run: |
+          $installer = Get-ChildItem dist\saymore-desktop_*_*-setup.exe -File -ErrorAction Stop
+          if ($installer.Count -ne 1) {
+            throw "Expected exactly one Saymore NSIS installer, found $($installer.Count)"
+          }
+          Move-Item -LiteralPath $installer.FullName -Destination dist\Saymore-Setup.exe
 
       - uses: actions/upload-artifact@v4
         with:

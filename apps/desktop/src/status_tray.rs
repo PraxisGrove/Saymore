@@ -4,7 +4,10 @@ use std::sync::{
 };
 
 use slint::ComponentHandle;
+#[cfg(target_os = "windows")]
+use slint::winit_030::WinitWindowAccessor;
 use template_app::LocalSettingsChange;
+#[cfg(target_os = "macos")]
 use template_infra::activate_application;
 
 use crate::{
@@ -67,9 +70,22 @@ pub(crate) fn show_window(ui: &slint::Weak<AppWindow>, section: Option<SettingsS
         tracing::warn!(event = "tray.window_show_failed", reason = %error);
         return;
     }
-    if let Err(error) = activate_application() {
+    if let Err(error) = activate_main_window(&window) {
         tracing::warn!(event = "tray.application_activate_failed", reason = %error);
     }
+}
+
+#[cfg(target_os = "macos")]
+pub(crate) fn activate_main_window(_window: &AppWindow) -> Result<(), String> {
+    activate_application().map_err(|error| error.to_string())
+}
+
+#[cfg(target_os = "windows")]
+pub(crate) fn activate_main_window(window: &AppWindow) -> Result<(), String> {
+    window
+        .window()
+        .with_winit_window(|window| window.focus_window())
+        .ok_or_else(|| "the Windows main window is not available".to_owned())
 }
 
 fn save_pause_setting(

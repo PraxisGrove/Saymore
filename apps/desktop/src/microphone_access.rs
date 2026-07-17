@@ -1,6 +1,11 @@
 use slint::ComponentHandle;
+use std::sync::Arc;
 use template_app::{MicrophoneAuthorization, MicrophonePermissionProvider};
-use template_infra::{MacOsMicrophonePermission, open_microphone_privacy_settings};
+
+#[cfg(target_os = "macos")]
+use template_infra::open_microphone_privacy_settings;
+#[cfg(target_os = "windows")]
+use template_infra::open_windows_microphone_privacy_settings;
 
 use crate::{
     overlay_window,
@@ -19,19 +24,19 @@ enum ShortcutPermissionAction {
 pub struct MicrophoneAccess {
     intro: slint::Weak<MicrophoneIntroOverlay>,
     permission: slint::Weak<MicrophonePermissionOverlay>,
-    provider: MacOsMicrophonePermission,
+    provider: Arc<dyn MicrophonePermissionProvider>,
 }
 
 pub fn wire(
     ui: &AppWindow,
     intro: &MicrophoneIntroOverlay,
     permission: &MicrophonePermissionOverlay,
-    provider: MacOsMicrophonePermission,
+    provider: Arc<dyn MicrophonePermissionProvider>,
 ) -> MicrophoneAccess {
     let access = MicrophoneAccess {
         intro: intro.as_weak(),
         permission: permission.as_weak(),
-        provider,
+        provider: Arc::clone(&provider),
     };
 
     let dismiss_intro = intro.as_weak();
@@ -39,10 +44,11 @@ pub fn wire(
 
     let continue_intro = intro.as_weak();
     let continue_ui = ui.as_weak();
+    let continue_provider = Arc::clone(&provider);
     intro.on_continue_requested(move || {
         hide(&continue_intro);
         if let Some(ui) = continue_ui.upgrade() {
-            update_microphone_authorization(&ui, provider.request_authorization());
+            update_microphone_authorization(&ui, continue_provider.request_authorization());
         }
     });
 
@@ -52,19 +58,30 @@ pub fn wire(
     let settings_permission = permission.as_weak();
     permission.on_open_settings(move || {
         hide(&settings_permission);
-        if let Err(error) = open_microphone_privacy_settings() {
+        if let Err(error) = open_platform_microphone_privacy_settings() {
             tracing::warn!(event = "microphone.settings_open_failed", reason = %error);
         }
     });
 
     let settings_ui = ui.as_weak();
+    let settings_provider = provider;
     ui.on_request_microphone_authorization(move || {
         if let Some(ui) = settings_ui.upgrade() {
-            update_microphone_authorization(&ui, provider.request_authorization());
+            update_microphone_authorization(&ui, settings_provider.request_authorization());
         }
     });
 
     access
+}
+
+#[cfg(target_os = "macos")]
+fn open_platform_microphone_privacy_settings() -> Result<(), String> {
+    open_microphone_privacy_settings().map_err(|error| error.to_string())
+}
+
+#[cfg(target_os = "windows")]
+fn open_platform_microphone_privacy_settings() -> Result<(), String> {
+    open_windows_microphone_privacy_settings().map_err(|error| error.to_string())
 }
 
 impl MicrophoneAccess {

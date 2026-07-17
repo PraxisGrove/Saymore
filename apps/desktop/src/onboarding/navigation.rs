@@ -37,7 +37,7 @@ fn wire_step_navigation(
         };
         let next = u8::try_from(window.get_step())
             .ok()
-            .and_then(|current| OnboardingStep::from_index(current.saturating_add(1)))
+            .map(next_step)
             .unwrap_or(OnboardingStep::Complete);
         advance_shortcut.stop_test();
         if advance_manual.load(Ordering::Acquire) {
@@ -67,8 +67,7 @@ fn wire_step_navigation(
             return;
         };
         let current = u8::try_from(window.get_step()).unwrap_or_default();
-        let previous = OnboardingStep::from_index(current.saturating_sub(1))
-            .unwrap_or(OnboardingStep::Welcome);
+        let previous = previous_step(current);
         back_shortcut.stop_test();
         if back_manual.load(Ordering::Acquire) {
             finish_step_change(&window, &back_step, previous, Ok(()));
@@ -86,6 +85,22 @@ fn wire_step_navigation(
             }
         }
     });
+}
+
+fn next_step(current: u8) -> OnboardingStep {
+    #[cfg(target_os = "windows")]
+    if current == OnboardingStep::Microphone.index() {
+        return OnboardingStep::Complete;
+    }
+    OnboardingStep::from_index(current.saturating_add(1)).unwrap_or(OnboardingStep::Complete)
+}
+
+fn previous_step(current: u8) -> OnboardingStep {
+    #[cfg(target_os = "windows")]
+    if current == OnboardingStep::Complete.index() {
+        return OnboardingStep::Microphone;
+    }
+    OnboardingStep::from_index(current.saturating_sub(1)).unwrap_or(OnboardingStep::Welcome)
 }
 
 fn finish_step_change(
@@ -200,5 +215,29 @@ impl Persistence {
             LocalSettingsChange::SetOnboardingProgress { status, step },
             move |result| completion(result.map(|_| ()).map_err(|error| error.to_string())),
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{next_step, previous_step};
+    use template_app::OnboardingStep;
+
+    #[test]
+    fn platform_navigation_uses_only_supported_onboarding_steps() {
+        assert_eq!(
+            OnboardingStep::Microphone,
+            next_step(OnboardingStep::Welcome.index())
+        );
+        #[cfg(target_os = "windows")]
+        assert_eq!(
+            OnboardingStep::Complete,
+            next_step(OnboardingStep::Microphone.index())
+        );
+        #[cfg(target_os = "windows")]
+        assert_eq!(
+            OnboardingStep::Microphone,
+            previous_step(OnboardingStep::Complete.index())
+        );
     }
 }

@@ -72,6 +72,17 @@ pub enum RecordingError {
 /// live metrics without blocking the audio callback, and release the device when
 /// `stop` returns.
 pub trait AudioRecorder: Send {
+    /// Lists input devices currently visible to this recorder's platform adapter.
+    fn input_devices(&self) -> Result<Vec<AudioInputDevice>, RecordingError>;
+
+    /// Updates the preferred input device used by the next recording session.
+    fn set_preferred_input_device_id(&mut self, id: Option<String>);
+
+    /// Prepares platform capture resources without starting a recording.
+    fn prepare(&mut self) -> Result<(), RecordingError>;
+
+    fn is_recording(&self) -> bool;
+
     fn start(
         &mut self,
         on_metrics: Arc<dyn Fn(RecordingMetrics) + Send + Sync>,

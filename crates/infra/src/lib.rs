@@ -5,6 +5,8 @@ mod sqlite_storage;
 
 mod app_instance_guard;
 mod app_paths;
+mod cpal_audio_recorder;
+mod dictation_shortcut;
 mod dictionary_files;
 mod model_discovery;
 mod openai_transcriptions_asr;
@@ -35,8 +37,34 @@ mod macos_main_window;
 #[cfg(target_os = "macos")]
 mod macos_overlay_window;
 
-#[cfg(target_os = "macos")]
-mod macos_settings_store;
+mod json_settings_store;
+
+#[cfg(target_os = "windows")]
+mod windows_microphone_permission;
+
+#[cfg(target_os = "windows")]
+mod windows_launch_at_login;
+
+#[cfg(target_os = "windows")]
+mod windows_feedback_sound;
+
+#[cfg(target_os = "windows")]
+mod windows_shortcut_monitor;
+
+#[cfg(target_os = "windows")]
+mod windows_shortcut_capture;
+
+#[cfg(target_os = "windows")]
+mod windows_shortcut_registry;
+
+#[cfg(target_os = "windows")]
+mod windows_right_alt_hook;
+
+#[cfg(target_os = "windows")]
+mod windows_text_delivery;
+
+#[cfg(target_os = "windows")]
+mod windows_overlay_window;
 
 #[cfg(target_os = "macos")]
 mod macos_microphone_permission;
@@ -72,8 +100,31 @@ pub use macos_main_window::{MacOsMainWindowError, configure_main_window};
 #[cfg(target_os = "macos")]
 pub use macos_overlay_window::{MacOsOverlayWindowError, configure_overlay_window};
 
-#[cfg(target_os = "macos")]
-pub use macos_settings_store::JsonSettingsStore;
+pub use json_settings_store::JsonSettingsStore;
+
+#[cfg(target_os = "windows")]
+pub use windows_microphone_permission::{
+    WindowsMicrophonePermission, WindowsMicrophoneSettingsError,
+    open_windows_microphone_privacy_settings,
+};
+
+#[cfg(target_os = "windows")]
+pub use windows_launch_at_login::{WindowsLaunchAtLogin, WindowsLaunchAtLoginError};
+
+#[cfg(target_os = "windows")]
+pub use windows_feedback_sound::WindowsFeedbackSoundPlayer;
+
+#[cfg(target_os = "windows")]
+pub use windows_shortcut_monitor::{
+    WindowsShortcut, WindowsShortcutController, WindowsShortcutError, WindowsShortcutMonitor,
+    WindowsShortcutUpdate,
+};
+
+#[cfg(target_os = "windows")]
+pub use windows_text_delivery::{WindowsTextDeliverer, copy_text_to_clipboard};
+
+#[cfg(target_os = "windows")]
+pub use windows_overlay_window::{WindowsOverlayWindowError, configure_windows_overlay_window};
 
 #[cfg(target_os = "macos")]
 pub use macos_microphone_permission::{
@@ -82,8 +133,7 @@ pub use macos_microphone_permission::{
 
 #[cfg(target_os = "macos")]
 pub use macos_shortcut_monitor::{
-    DictationShortcutAction, MacOsShortcut, MacOsShortcutController, MacOsShortcutError,
-    MacOsShortcutMonitor,
+    MacOsShortcut, MacOsShortcutController, MacOsShortcutError, MacOsShortcutMonitor,
 };
 
 #[cfg(target_os = "macos")]
@@ -96,6 +146,8 @@ pub use macos_text_delivery::{
 pub use app_instance_guard::{AppInstanceGuard, AppInstanceGuardError};
 pub use app_paths::{AppEnvironment, AppPaths};
 pub use chat_completions_llm::ChatCompletionsLlmProvider;
+pub use cpal_audio_recorder::CpalAudioRecorder;
+pub use dictation_shortcut::DictationShortcutAction;
 pub use dictionary_files::{DictionaryFileError, DictionaryFileReport, DictionaryFiles};
 pub use model_discovery::{ModelDiscoveryError, discover_models};
 pub use openai_transcriptions_asr::OpenAiCompatibleSpeechRecognizer;

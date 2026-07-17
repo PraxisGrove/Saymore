@@ -1,10 +1,17 @@
-use std::time::Duration;
-
+#[cfg(target_os = "macos")]
 use raw_window_handle::{HasWindowHandle, RawWindowHandle};
+#[cfg(any(target_os = "macos", target_os = "windows"))]
+use slint::ComponentHandle;
+#[cfg(target_os = "macos")]
+use slint::Timer;
+#[cfg(any(target_os = "macos", target_os = "windows"))]
 use slint::winit_030::{EventResult, WinitWindowAccessor, winit::event::WindowEvent};
-use slint::{ComponentHandle, Timer};
+#[cfg(target_os = "macos")]
+use std::time::Duration;
 use template_app::LocalSettings;
-use template_infra::{AppEnvironment, configure_main_window};
+use template_infra::AppEnvironment;
+#[cfg(target_os = "macos")]
+use template_infra::configure_main_window;
 
 use crate::{
     i18n::{self, LanguageContext},
@@ -20,11 +27,16 @@ pub fn initialize(
     ui.set_automatic_update_checks(settings.automatic_update_checks);
     ui.set_feedback_sounds_enabled(settings.feedback_sounds_enabled);
     ui.set_development_environment(environment == AppEnvironment::Development);
-    keep_running_after_main_window_close(ui);
+    ui.set_show_dock_setting(cfg!(target_os = "macos"));
+    ui.set_show_accessibility_setting(cfg!(target_os = "macos"));
+    #[cfg(target_os = "windows")]
+    crate::windows_window::integrate(ui);
+    configure_close_behavior(ui);
     Ok(context)
 }
 
-fn keep_running_after_main_window_close(ui: &AppWindow) {
+#[cfg(any(target_os = "macos", target_os = "windows"))]
+fn configure_close_behavior(ui: &AppWindow) {
     ui.window().on_winit_window_event(|window, event| {
         if !matches!(event, WindowEvent::CloseRequested) {
             return EventResult::Propagate;
@@ -37,6 +49,10 @@ fn keep_running_after_main_window_close(ui: &AppWindow) {
     });
 }
 
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
+fn configure_close_behavior(_ui: &AppWindow) {}
+
+#[cfg(target_os = "macos")]
 pub fn schedule_titlebar_integration(ui: &AppWindow) {
     let initial_ui = ui.as_weak();
     Timer::single_shot(Duration::from_millis(100), move || {
@@ -58,6 +74,15 @@ pub fn schedule_titlebar_integration(ui: &AppWindow) {
     });
 }
 
+#[cfg(target_os = "windows")]
+pub fn schedule_titlebar_integration(ui: &AppWindow) {
+    crate::windows_window::refresh(ui);
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
+pub fn schedule_titlebar_integration(_ui: &AppWindow) {}
+
+#[cfg(target_os = "macos")]
 fn integrate_titlebar(ui: &AppWindow) -> Result<(), String> {
     let handle = ui.window().window_handle();
     handle

@@ -1,10 +1,12 @@
 use std::{
     collections::BTreeMap,
-    env,
+    env, process,
     sync::atomic::{AtomicUsize, Ordering},
 };
 
 use super::*;
+#[cfg(unix)]
+use std::os::unix::fs::PermissionsExt;
 use template_app::{ActiveProviders, ChatCompletionsLlmSettings, LlmProviderPreset};
 
 static TEST_ID: AtomicUsize = AtomicUsize::new(0);
@@ -13,7 +15,7 @@ static TEST_ID: AtomicUsize = AtomicUsize::new(0);
 fn saves_and_loads_volcengine_settings_with_private_permissions() {
     let directory = test_directory();
     let path = directory.join("config.json");
-    let store = JsonSettingsStore::at_path(path.clone());
+    let store = JsonSettingsStore::at_path(path);
     let settings = SaymoreSettings {
         asr: AsrSettings {
             volcengine: VolcengineAsrSettings {
@@ -37,10 +39,37 @@ fn saves_and_loads_volcengine_settings_with_private_permissions() {
 
     assert!(store.save(&settings).is_ok());
     assert_eq!(Ok(settings), store.load());
-    let Ok(metadata) = fs::metadata(&path) else {
+    #[cfg(unix)]
+    let Ok(metadata) = fs::metadata(&store.path) else {
         panic!("saved settings should have metadata");
     };
+    #[cfg(unix)]
     assert_eq!(0o600, metadata.permissions().mode() & 0o777);
+    let _ = fs::remove_dir_all(directory);
+}
+
+#[test]
+fn a_second_save_atomically_replaces_the_complete_document() {
+    let directory = test_directory();
+    let path = directory.join("config.json");
+    let store = JsonSettingsStore::at_path(path.clone());
+    let mut catalog = ProviderCatalog::default();
+    catalog.save_llm_provider_config(LlmProviderPreset::SenseNova, "first-key");
+    assert_eq!(Ok(()), store.save_catalog(&catalog));
+
+    catalog.save_llm_provider_config(LlmProviderPreset::SenseNova, "second-key");
+    assert_eq!(Ok(()), store.save_catalog(&catalog));
+
+    let Ok(document) = fs::read_to_string(path) else {
+        panic!("replaced provider config should remain readable");
+    };
+    let Ok(value): Result<serde_json::Value, _> = serde_json::from_str(&document) else {
+        panic!("replaced provider config should contain complete JSON");
+    };
+    assert_eq!(Some(3), value["version"].as_u64());
+    assert!(document.contains("second-key"));
+    assert!(!document.contains("first-key"));
+    assert_eq!(Ok(catalog), store.load_catalog());
     let _ = fs::remove_dir_all(directory);
 }
 

@@ -22,12 +22,13 @@ component OnboardingButton inherits Rectangle {
 
 component OnboardingStepItem inherits Rectangle {
     in property <int> number;
+    in property <int> step-value: root.number - 1;
     in property <string> label;
     in property <int> current-step;
     height: 32px;
     background: transparent;
-    property <bool> complete: root.number - 1 < root.current-step;
-    property <bool> active: root.number - 1 == root.current-step;
+    property <bool> complete: root.step-value < root.current-step;
+    property <bool> active: root.step-value == root.current-step;
     Rectangle {
         x: 0;
         y: 4px;
@@ -136,12 +137,12 @@ export component OnboardingWindow inherits Window {
     in property <string> accessibility-status: "";
     in-out property <bool> launch-at-login: false;
     in property <string> action-status: "";
+    in property <bool> show-accessibility-step: true;
 
     callback advance();
     callback back();
     callback skip();
     callback request-microphone();
-    callback toggle-microphone-test();
     callback request-accessibility();
     callback finish();
     callback set-launch-at-login(bool);
@@ -169,8 +170,8 @@ export component OnboardingWindow inherits Window {
             spacing: 12px;
             OnboardingStepItem { number: 1; label: @tr("onboarding.step.welcome" => "Welcome"); current-step: root.step; }
             OnboardingStepItem { number: 2; label: @tr("onboarding.step.microphone" => "Microphone & shortcut"); current-step: root.step; }
-            OnboardingStepItem { number: 3; label: @tr("onboarding.step.accessibility" => "Accessibility"); current-step: root.step; }
-            OnboardingStepItem { number: 4; label: @tr("onboarding.step.complete" => "Finish"); current-step: root.step; }
+            if root.show-accessibility-step: OnboardingStepItem { number: 3; label: @tr("onboarding.step.accessibility" => "Accessibility"); current-step: root.step; }
+            OnboardingStepItem { number: root.show-accessibility-step ? 4 : 3; step-value: 3; label: @tr("onboarding.step.complete" => "Finish"); current-step: root.step; }
         }
         Text {
             x: 28px;
@@ -196,13 +197,13 @@ export component OnboardingWindow inherits Window {
                 Image { x: 14px; y: 14px; width: 44px; height: 44px; source: @image-url("../icons/saymore-mark-3d-136.png"); image-fit: contain; }
             }
             Text { x: 0; y: 142px; width: 520px; text: @tr("onboarding.welcome.title" => "Type less. Say more."); color: AppColors.ink; font-size: 32px; font-weight: 700; wrap: word-wrap; }
-            Text { x: 0; y: 200px; width: 500px; text: @tr("onboarding.welcome.detail" => "Saymore lets you use your voice in any text field. Set up your microphone, default shortcut, and Accessibility permission in about a minute."); color: AppColors.text-muted; font-size: 13px; wrap: word-wrap; }
+            Text { x: 0; y: 200px; width: 500px; text: root.show-accessibility-step ? @tr("onboarding.welcome.detail" => "Saymore lets you use your voice in any text field. Set up your microphone, default shortcut, and Accessibility permission in about a minute.") : @tr("onboarding.welcome.detail-windows" => "Saymore lets you use your voice in any text field. Set up your microphone and default shortcut in about a minute."); color: AppColors.text-muted; font-size: 13px; wrap: word-wrap; }
             OnboardingButton { x: 0; y: 326px; label: @tr("onboarding.start" => "Start setup"); primary: true; activated => { root.advance(); } }
         }
 
         if root.step == 1: Rectangle {
             x: 54px; y: 38px; width: 562px; height: 500px; background: transparent;
-            Text { x: 0; y: 0; text: "2 / 4"; color: AppColors.text-muted; font-size: 11px; font-weight: 650; }
+            Text { x: 0; y: 0; text: root.show-accessibility-step ? "2 / 4" : "2 / 3"; color: AppColors.text-muted; font-size: 11px; font-weight: 650; }
             Text { x: 0; y: 34px; text: @tr("onboarding.microphone.title" => "Test your microphone"); color: AppColors.ink; font-size: 28px; font-weight: 700; }
             Text { x: 0; y: 78px; width: 540px; text: @tr("onboarding.microphone.detail" => "Allow microphone access, press {}, and say a few words. The waveform responds to your voice without sending audio anywhere.", root.default-shortcut-label); color: AppColors.text-muted; font-size: 12px; wrap: word-wrap; }
             Rectangle {
@@ -215,11 +216,11 @@ export component OnboardingWindow inherits Window {
             }
             Rectangle {
                 x: 0; y: 318px; width: 562px; height: 128px; border-radius: 10px; background: AppColors.surface-muted;
-                Rectangle { x: 20px; y: 20px; width: 40px; height: 40px; border-radius: 10px; background: #FFFFFF; Text { text: "⌘"; color: AppColors.text; font-size: 20px; horizontal-alignment: center; vertical-alignment: center; } }
+                Rectangle { x: 20px; y: 20px; width: 40px; height: 40px; border-radius: 10px; background: #FFFFFF; Image { x: 10px; y: 10px; width: 20px; height: 20px; source: @image-url("../icons/lucide/keyboard.svg"); colorize: AppColors.text; } }
                 Text { x: 76px; y: 17px; text: @tr("onboarding.shortcut.try" => "Try the default shortcut"); color: AppColors.ink; font-size: 12px; font-weight: 650; }
                 Text { x: 76px; y: 43px; width: 280px; text: root.microphone-test-complete ? @tr("onboarding.shortcut.success" => "Microphone and shortcut are working.") : root.microphone-test-active ? @tr("onboarding.shortcut.speak" => "Speak now, then press the shortcut again to finish.") : @tr("onboarding.shortcut.waiting" => "Press the shortcut to start the local microphone test."); color: root.microphone-test-complete ? AppColors.success : AppColors.text-muted; font-size: 10px; wrap: word-wrap; }
                 Rectangle { x: 390px; y: 20px; width: 152px; height: 42px; border-radius: 8px; background: #FFFFFF; border-color: AppColors.border; border-width: 1px; Text { text: root.default-shortcut-label; color: AppColors.ink; font-size: 12px; font-weight: 650; horizontal-alignment: center; vertical-alignment: center; } }
-                if root.microphone-authorized: OnboardingButton { x: 390px; y: 76px; width: 152px; height: 34px; label: root.microphone-test-active ? @tr("onboarding.test.stop" => "Finish test") : @tr("onboarding.test.start" => "Start test"); activated => { root.toggle-microphone-test(); } }
+                if root.microphone-authorized: Text { x: 390px; y: 76px; width: 152px; height: 34px; text: root.microphone-test-active ? @tr("onboarding.shortcut.press-again" => "Press again to finish") : @tr("onboarding.shortcut.press-to-start" => "Press shortcut to start"); color: root.microphone-test-active ? AppColors.brand-strong : AppColors.text-muted; font-size: 10px; font-weight: 650; horizontal-alignment: center; vertical-alignment: center; }
             }
         }
 
@@ -240,8 +241,8 @@ export component OnboardingWindow inherits Window {
 
         if root.step == 3: Rectangle {
             x: 54px; y: 38px; width: 562px; height: 500px; background: transparent;
-            Text { x: 0; y: 0; text: "4 / 4"; color: AppColors.text-muted; font-size: 11px; font-weight: 650; }
-            Rectangle { x: 0; y: 38px; width: 42px; height: 42px; border-radius: 12px; background: AppColors.success-soft; Text { text: "✓"; color: AppColors.success; font-size: 18px; font-weight: 700; horizontal-alignment: center; vertical-alignment: center; } }
+            Text { x: 0; y: 0; text: root.show-accessibility-step ? "4 / 4" : "3 / 3"; color: AppColors.text-muted; font-size: 11px; font-weight: 650; }
+            Rectangle { x: 0; y: 38px; width: 42px; height: 42px; border-radius: 12px; background: AppColors.success-soft; Image { x: 12px; y: 12px; width: 18px; height: 18px; source: @image-url("../icons/lucide/check.svg"); colorize: AppColors.success; } }
             Text { x: 0; y: 104px; text: @tr("onboarding.complete.title" => "Saymore is ready"); color: AppColors.ink; font-size: 28px; font-weight: 700; }
             Text { x: 0; y: 148px; width: 520px; text: @tr("onboarding.complete.detail" => "Press {} in any text field to start speaking, then press it again to finish.", root.default-shortcut-label); color: AppColors.text-muted; font-size: 12px; wrap: word-wrap; }
             Rectangle { x: 0; y: 202px; width: 562px; height: 68px; border-radius: 10px; background: AppColors.surface-muted; Text { x: 20px; y: 14px; text: @tr("onboarding.complete.shortcut" => "Your voice input shortcut"); color: AppColors.text-muted; font-size: 10px; } Text { x: 20px; y: 36px; text: root.default-shortcut-label; color: AppColors.ink; font-size: 13px; font-weight: 650; } }

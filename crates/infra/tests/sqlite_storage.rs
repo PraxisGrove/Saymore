@@ -12,6 +12,8 @@ use template_app::{
     SecretStore, SecretStoreError, StorageError, UiLanguagePreference,
 };
 use template_infra::SqliteStorage;
+#[cfg(target_os = "windows")]
+use template_infra::WindowsShortcut;
 
 #[derive(Default)]
 struct MemorySecretStore {
@@ -86,6 +88,15 @@ fn history_record(id: &str, created_at_ms: i64, final_text: &str) -> NewHistoryR
     }
 }
 
+fn expected_fresh_settings() -> LocalSettings {
+    let mut settings = LocalSettings::default();
+    #[cfg(target_os = "windows")]
+    {
+        settings.dictation_shortcuts = vec!["windows:right-alt".to_owned()];
+    }
+    settings
+}
+
 #[test]
 fn settings_are_typed_and_persisted_across_restarts() -> Result<(), Box<dyn std::error::Error>> {
     let directory = tempfile::tempdir()?;
@@ -93,7 +104,7 @@ fn settings_are_typed_and_persisted_across_restarts() -> Result<(), Box<dyn std:
     let secrets = Arc::new(MemorySecretStore::default());
     let store = SqliteStorage::start(path.clone(), secrets.clone())?;
 
-    assert_eq!(LocalSettings::default(), store.load_settings()?);
+    assert_eq!(expected_fresh_settings(), store.load_settings()?);
     let changed = LocalSettings {
         history_enabled: false,
         history_retention: HistoryRetention::ThirtyDays,
@@ -115,6 +126,26 @@ fn settings_are_typed_and_persisted_across_restarts() -> Result<(), Box<dyn std:
 
     let reopened = SqliteStorage::start(path, secrets)?;
     assert_eq!(changed, reopened.load_settings()?);
+    Ok(())
+}
+
+#[cfg(target_os = "windows")]
+#[test]
+fn fresh_windows_install_has_a_registerable_platform_default()
+-> Result<(), Box<dyn std::error::Error>> {
+    let directory = tempfile::tempdir()?;
+    let store = SqliteStorage::start(
+        directory.path().join("saymore.sqlite3"),
+        Arc::new(MemorySecretStore::default()),
+    )?;
+    let settings = store.load_settings()?;
+    assert_eq!(1, settings.dictation_shortcuts.len());
+    assert!(
+        settings
+            .dictation_shortcuts
+            .first()
+            .is_some_and(|value| WindowsShortcut::from_storage_value(value).is_ok())
+    );
     Ok(())
 }
 
@@ -409,7 +440,7 @@ fn existing_history_is_locked_when_its_key_is_missing() -> Result<(), Box<dyn st
         Err(StorageError::HistoryLocked),
         reopened.history_page(None, 50)
     );
-    assert_eq!(LocalSettings::default(), reopened.load_settings()?);
+    assert_eq!(expected_fresh_settings(), reopened.load_settings()?);
     Ok(())
 }
 

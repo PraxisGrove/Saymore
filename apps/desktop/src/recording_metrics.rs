@@ -2,8 +2,8 @@ use slint::ComponentHandle;
 use template_app::RecordingMetrics;
 
 use crate::{
-    RecordingOverlay, format_duration,
-    ui::{AppWindow, Translations},
+    ui::{AppWindow, RecordingOverlay, Translations},
+    ui_status::format_duration,
 };
 
 pub(crate) fn update(

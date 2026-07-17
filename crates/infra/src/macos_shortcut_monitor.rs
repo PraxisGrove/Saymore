@@ -15,6 +15,8 @@ use std::{
 };
 use thiserror::Error;
 
+use crate::DictationShortcutAction;
+
 mod event_tap;
 mod key_mapping;
 
@@ -28,18 +30,14 @@ const ESCAPE_KEY_CODE: i64 = 53;
 type ShortcutCaptureResult = Result<MacOsShortcut, MacOsShortcutError>;
 type ShortcutCaptureSender = Sender<ShortcutCaptureResult>;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum DictationShortcutAction {
-    Toggle,
-    Cancel,
-}
-
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
 pub enum MacOsShortcutError {
     #[error("this shortcut is already configured")]
     Duplicate,
     #[error("this shortcut requires Command, Control, Option, or Fn")]
     MissingModifier,
+    #[error("this shortcut is reserved by macOS")]
+    SystemReserved,
     #[error("the saved shortcut is invalid")]
     InvalidStorageValue,
     #[error("the shortcut state is unavailable")]
@@ -250,6 +248,9 @@ impl MacOsShortcut {
             && !self.option
         {
             return Err(MacOsShortcutError::MissingModifier);
+        }
+        if self.likely_system_conflict() {
+            return Err(MacOsShortcutError::SystemReserved);
         }
         Ok(self)
     }

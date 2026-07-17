@@ -1,22 +1,23 @@
 use super::*;
 use crate::asr_runtime::AsrSessionController;
+use crate::ui::{AppPage, Translations};
+use template_app::SpeechRecognitionError;
 
 const OVERLAY_PRERENDER_DELAY: Duration = Duration::from_millis(17);
 
-#[cfg(target_os = "macos")]
 pub(super) fn start_recording_shortcut(
     ui: &AppWindow,
     overlays: DictationOverlays,
-    controller: MacOsShortcutController,
+    controller: settings_actions::PlatformShortcutController,
     runtime: ShortcutRuntime,
-) {
+) -> Result<PlatformShortcutMonitor, String> {
     let shortcut_ui = ui.as_weak();
     let shortcut_overlays = overlays;
     let monitor_session = Arc::clone(&runtime.session);
     let is_recording: Arc<dyn Fn() -> bool + Send + Sync> =
         Arc::new(move || monitor_session.is_recording());
-    MacOsShortcutMonitor::start(is_recording, controller, move |action| match action {
-        DictationShortcutAction::Toggle if runtime.onboarding.handle_toggle() => {}
+    start_platform_shortcut_monitor(is_recording, controller, move |action| match action {
+        DictationShortcutAction::Toggle if (runtime.onboarding_toggle)() => {}
         DictationShortcutAction::Toggle => match runtime
             .session
             .request_toggle(runtime.paused.load(Ordering::Acquire))
@@ -78,10 +79,9 @@ pub(super) fn start_recording_shortcut(
             &runtime.cancelled,
             &runtime.dictation.asr,
         ),
-    });
+    })
 }
 
-#[cfg(target_os = "macos")]
 fn begin_recording(
     ui: &slint::Weak<AppWindow>,
     overlays: &DictationOverlays,
@@ -150,8 +150,15 @@ fn start_streaming_asr(
             stage = "asr",
             duration_ms = startup_started.elapsed().as_millis()
         );
+        let reveal_configuration = should_reveal_asr_configuration(&error);
         let event_ui = ui.clone();
-        let _ = event_ui.upgrade_in_event_loop(move |ui| apply_asr_error(&ui, &error));
+        let _ = event_ui.upgrade_in_event_loop(move |ui| {
+            apply_asr_error(&ui, &error);
+            if reveal_configuration {
+                ui.set_current_page(AppPage::Models);
+                status_tray::show_window(&ui.as_weak(), None);
+            }
+        });
         return None;
     }
     Some(asr_started.elapsed().as_millis())
@@ -224,7 +231,7 @@ struct RecordingStartUiContext {
     first_recording: Arc<AtomicBool>,
     session: Arc<DictationSession>,
     asr: Arc<AsrSessionController>,
-    recorder: Arc<Mutex<MacOsAudioRecorder>>,
+    recorder: RecorderHandle,
     feedback_sounds_enabled: Arc<AtomicBool>,
     show_device: bool,
     startup_started: Instant,
@@ -279,7 +286,6 @@ fn apply_recording_start_result(
     }
 }
 
-#[cfg(target_os = "macos")]
 fn create_recording_metrics_callback(
     ui: &slint::Weak<AppWindow>,
     overlays: &DictationOverlays,
@@ -332,7 +338,6 @@ fn create_recording_metrics_callback(
     })
 }
 
-#[cfg(target_os = "macos")]
 fn first_recording_overlay(
     overlay: &RecordingOverlay,
     device_name: &str,
@@ -372,19 +377,12 @@ fn first_recording_overlay(
     });
 }
 
-#[cfg(target_os = "macos")]
-pub(crate) fn overlay_generation_matches(scheduled: i32, current: i32) -> bool {
-    scheduled == current
-}
-
-#[cfg(target_os = "macos")]
 pub(super) fn prepare_overlay_window(window: &slint::Window) {
     if let Err(error) = overlay_window::prepare(window) {
         tracing::warn!(event = "overlay.prepare_failed", reason = %error);
     }
 }
 
-#[cfg(target_os = "macos")]
 pub(crate) fn hide_overlay_after_delay(overlay: slint::Weak<RecordingOverlay>) {
     let generation = overlay
         .upgrade()
@@ -399,13 +397,58 @@ pub(crate) fn hide_overlay_after_delay(overlay: slint::Weak<RecordingOverlay>) {
     });
 }
 
-#[cfg(all(test, target_os = "macos"))]
+#[cfg(target_os = "macos")]
+pub(super) struct PlatformShortcutMonitor;
+
+#[cfg(target_os = "windows")]
+pub(super) struct PlatformShortcutMonitor {
+    _monitor: template_infra::WindowsShortcutMonitor,
+}
+
+fn should_reveal_asr_configuration(error: &SpeechRecognitionError) -> bool {
+    matches!(error, SpeechRecognitionError::NotConfigured)
+}
+
+#[cfg(target_os = "macos")]
+fn start_platform_shortcut_monitor(
+    is_recording: Arc<dyn Fn() -> bool + Send + Sync>,
+    controller: settings_actions::PlatformShortcutController,
+    on_action: impl Fn(DictationShortcutAction) + Send + 'static,
+) -> Result<PlatformShortcutMonitor, String> {
+    MacOsShortcutMonitor::start(is_recording, controller, on_action);
+    Ok(PlatformShortcutMonitor)
+}
+
+#[cfg(target_os = "windows")]
+fn start_platform_shortcut_monitor(
+    is_recording: Arc<dyn Fn() -> bool + Send + Sync>,
+    controller: settings_actions::PlatformShortcutController,
+    on_action: impl Fn(DictationShortcutAction) + Send + 'static,
+) -> Result<PlatformShortcutMonitor, String> {
+    template_infra::WindowsShortcutMonitor::start(is_recording, controller, on_action)
+        .map(|monitor| PlatformShortcutMonitor { _monitor: monitor })
+        .map_err(|error| error.to_string())
+}
+
+#[cfg(test)]
 mod overlay_lifecycle_tests {
-    use super::overlay_generation_matches;
+    use template_app::SpeechRecognitionError;
+
+    use super::{overlay_generation_matches, should_reveal_asr_configuration};
 
     #[test]
     fn stale_overlay_work_cannot_affect_a_new_session() {
         assert!(overlay_generation_matches(7, 7));
         assert!(!overlay_generation_matches(7, 8));
+    }
+
+    #[test]
+    fn missing_asr_configuration_requires_visible_setup() {
+        assert!(should_reveal_asr_configuration(
+            &SpeechRecognitionError::NotConfigured
+        ));
+        assert!(!should_reveal_asr_configuration(
+            &SpeechRecognitionError::Authentication
+        ));
     }
 }

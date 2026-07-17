@@ -9,13 +9,13 @@ use template_app::{
     HistoryCursor, HistoryRecord, HistoryRetention, HistoryStore, LocalSettingsChange,
     LocalSettingsStore, MicrophoneSelection,
 };
-use template_infra::{MacOsAudioRecorder, SqliteStorage, copy_text_to_clipboard};
+use template_infra::SqliteStorage;
 
-use crate::local_settings_runtime::LocalSettingsHandle;
 use crate::ui::{
     AppWindow, AudioInputDevice as UiAudioInputDevice,
     HistoryRetentionOption as UiHistoryRetention, Translations,
 };
+use crate::{RecorderHandle, local_settings_runtime::LocalSettingsHandle};
 
 mod dictionary_ui;
 mod history_query;
@@ -42,7 +42,7 @@ struct UiDataState {
 pub fn wire(
     ui: &AppWindow,
     storage: Arc<SqliteStorage>,
-    recorder: Arc<Mutex<MacOsAudioRecorder>>,
+    recorder: RecorderHandle,
     settings: LocalSettingsHandle,
 ) {
     let state = Arc::new(Mutex::new(UiDataState::default()));
@@ -59,9 +59,9 @@ pub fn wire(
         Arc::clone(&storage),
         Arc::clone(&state),
         settings,
-        recorder,
+        Arc::clone(&recorder),
     );
-    refresh_microphone_devices_async(ui.as_weak(), Arc::clone(&storage));
+    refresh_microphone_devices_async(ui.as_weak(), Arc::clone(&storage), recorder);
     schedule_history_cleanup(ui.as_weak(), storage, state);
 }
 
@@ -139,7 +139,7 @@ fn wire_history_item_actions(
                 .map(|record| record.final_text.clone())
         });
         if let Some(text) = text {
-            let _ = copy_text_to_clipboard(&text);
+            copy_history_text(&text);
         }
     });
 
@@ -167,6 +167,19 @@ fn wire_history_item_actions(
             }
         }
     });
+}
+
+#[cfg(target_os = "macos")]
+fn copy_history_text(text: &str) {
+    let _ = template_infra::copy_text_to_clipboard(text);
+}
+
+#[cfg(not(target_os = "macos"))]
+fn copy_history_text(_text: &str) {
+    tracing::warn!(
+        event = "history.copy_unavailable",
+        reason = "clipboard integration is not available on this platform yet"
+    );
 }
 
 fn wire_history_bulk_actions(

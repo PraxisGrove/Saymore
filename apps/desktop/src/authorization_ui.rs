@@ -1,8 +1,7 @@
-use std::time::Duration;
+use std::{sync::Arc, time::Duration};
 
 use slint::{ComponentHandle, Timer, TimerMode};
 use template_app::{MicrophonePermissionProvider, TextDeliverer};
-use template_infra::{MacOsMicrophonePermission, MacOsTextDeliverer};
 
 use crate::{
     AppWindow,
@@ -17,13 +16,14 @@ pub(crate) struct AuthorizationPoll {
 
 pub(crate) fn wire(
     ui: &AppWindow,
-    deliverer: MacOsTextDeliverer,
-    microphone: MacOsMicrophonePermission,
+    deliverer: Arc<dyn TextDeliverer>,
+    microphone: Arc<dyn MicrophonePermissionProvider>,
 ) -> AuthorizationPoll {
     let request_accessibility_ui = ui.as_weak();
+    let request_deliverer = Arc::clone(&deliverer);
     ui.on_request_authorization(move || {
         if let Some(ui) = request_accessibility_ui.upgrade() {
-            update_accessibility_authorization(&ui, deliverer.request_authorization());
+            update_accessibility_authorization(&ui, request_deliverer.request_authorization());
         }
     });
 

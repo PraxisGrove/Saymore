@@ -5,10 +5,9 @@ use std::{
 
 use slint::{ComponentHandle, Timer};
 use template_app::{AudioRecorder, CancelledRecordingStore, DictationSession, RecordingError};
-use template_infra::MacOsAudioRecorder;
 
 use crate::{
-    CANCEL_UNDO_WINDOW, DictationOverlays,
+    CANCEL_UNDO_WINDOW, DictationOverlays, RecorderHandle,
     dictation_completion_runtime::DictationRuntime,
     dictation_finish, overlay_generation_matches, refinement_runtime,
     ui::{AppWindow, RecordingLimitOverlay, RecordingOverlay, ResultOverlay, Translations},
@@ -17,7 +16,7 @@ use crate::{
 
 #[derive(Clone)]
 pub(crate) struct RecordingActionRuntime {
-    pub(crate) recorder: Arc<Mutex<MacOsAudioRecorder>>,
+    pub(crate) recorder: RecorderHandle,
     pub(crate) session: Arc<DictationSession>,
     pub(crate) cancelled: Arc<Mutex<CancelledRecordingStore>>,
     pub(crate) dictation: DictationRuntime,
@@ -114,7 +113,7 @@ pub fn cancel(
     ui: &slint::Weak<AppWindow>,
     overlay: &slint::Weak<RecordingOverlay>,
     limit_overlay: &slint::Weak<RecordingLimitOverlay>,
-    recorder: &Mutex<MacOsAudioRecorder>,
+    recorder: &Mutex<Box<dyn AudioRecorder>>,
     session: &DictationSession,
     cancelled: &Arc<Mutex<CancelledRecordingStore>>,
     asr: &crate::asr_runtime::AsrSessionController,
