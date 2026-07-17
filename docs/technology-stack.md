@@ -14,23 +14,23 @@ The decision and migration consequences are recorded in
 
 ## Committed Stack
 
-| Area | Choice | Responsibility |
-|---|---|---|
-| Language | Current stable Rust (1.97.0 locally), Edition 2024 | All application and platform logic |
-| Desktop UI | `slint` | Settings, onboarding, history, status overlay, and result overlay |
-| Async runtime | `tokio` | Network requests, model downloads, and cancellable background work |
-| UI/background bridge | Typed Rust messages | Keep the Slint event loop responsive and isolate long-running work |
-| Audio capture | `cpal` | Cross-platform input-device discovery and PCM capture |
-| HTTP client | `reqwest` with Rustls | Cloud ASR, LLM providers, model manifests, and updates |
-| Serialization | `serde`, `serde_json`, `toml` | Configuration and provider protocols |
-| Local database | SQLite through `rusqlite` | Settings, history, dictionary, and model metadata |
-| Provider configuration | Versioned JSON restricted to the current user | Provider activation, model, and user-supplied API keys |
-| Secrets | OS credential-store adapters behind `SecretStore` | Account/session credentials and the local history data key |
-| Errors | `thiserror`; standard error composition at binary and xtask boundaries | Explicit library errors and entrypoint context |
-| Observability | `tracing`, `tracing-subscriber` | Local diagnostics without user-content logging |
-| Tests | Cargo test and `cargo-nextest` | Unit, integration, and provider contract tests |
-| Dependency policy | `cargo-deny` | License, advisory, source, and duplicate checks |
-| Packaging automation | Rust in `xtask` plus platform signing tools | `.app`/DMG on macOS and installer artifacts on Windows |
+| Area                   | Choice                                                                 | Responsibility                                                     |
+| ---------------------- | ---------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| Language               | Current stable Rust (1.97.0 locally), Edition 2024                     | All application and platform logic                                 |
+| Desktop UI             | `slint`                                                                | Settings, onboarding, history, status overlay, and result overlay  |
+| Async runtime          | `tokio`                                                                | Network requests, model downloads, and cancellable background work |
+| UI/background bridge   | Typed Rust messages                                                    | Keep the Slint event loop responsive and isolate long-running work |
+| Audio capture          | `cpal`                                                                 | Cross-platform input-device discovery and PCM capture              |
+| HTTP client            | `reqwest` with Rustls                                                  | Cloud ASR, LLM providers, model manifests, and updates             |
+| Serialization          | `serde`, `serde_json`, `toml`                                          | Configuration and provider protocols                               |
+| Local database         | SQLite through `rusqlite`                                              | Settings, history, dictionary, and model metadata                  |
+| Provider configuration | Versioned JSON restricted to the current user                          | Provider activation, model, and user-supplied API keys             |
+| Secrets                | OS credential-store adapters behind `SecretStore`                      | Account/session credentials and the local history data key         |
+| Errors                 | `thiserror`; standard error composition at binary and xtask boundaries | Explicit library errors and entrypoint context                     |
+| Observability          | `tracing`, `tracing-subscriber`                                        | Local diagnostics without user-content logging                     |
+| Tests                  | Cargo test and `cargo-nextest`                                         | Unit, integration, and provider contract tests                     |
+| Dependency policy      | `cargo-deny`                                                           | License, advisory, source, and duplicate checks                    |
+| Packaging automation   | Rust in `xtask` plus platform signing tools                            | `.app`/DMG on macOS and installer artifacts on Windows             |
 
 Versions are pinned through `Cargo.lock` when each dependency is introduced.
 Dependencies are added only when the vertical slice that uses them starts; this
@@ -58,10 +58,10 @@ application state into small UI view models. `app` must not depend on Slint
 types. Platform adapters and framework-specific handles stay in the desktop
 entrypoint or `infra`.
 
-Slint is a custom-rendered cross-platform UI toolkit. It produces native
-desktop binaries, but it does not make every control an AppKit or WinUI widget.
-Platform-specific behavior must therefore be validated on both operating
-systems instead of inferred from the macOS appearance.
+Slint is a custom-rendered cross-platform UI toolkit. It produces native desktop
+binaries, but it does not make every control an AppKit or WinUI widget.
+Platform-specific behavior must therefore be validated on both operating systems
+instead of inferred from the macOS appearance.
 
 ## Platform Integration
 
@@ -74,16 +74,19 @@ adapters.
 
 ## Packaging
 
-Cargo remains the source of truth for builds. `xtask` coordinates resource
-generation, bundle assembly, hashes, update manifests, and release checks.
-Apple and Microsoft platform tools still perform code signing, notarization,
-and installer creation where the operating system requires them.
+Cargo remains the source of truth for builds. `cargo-packager` creates formal
+release bundles and installers from package metadata, while GitHub Actions
+coordinates versioning, native builds, signing, notarization, checksums, and
+GitHub Releases. `xtask` continues to own local macOS Preview and ad-hoc bundle
+workflows. Apple and Microsoft platform tools still perform code signing and
+notarization where the operating system requires them.
 
 The target artifacts are:
 
 - macOS: a signed `.app` bundle distributed inside a DMG.
 - Windows: a signed application and one user-facing installer format selected
   during the Windows vertical slice.
+- Linux: an AppImage once the Linux platform adapters are production-ready.
 
 There is no Tauri CLI or Node.js packaging step in the target stack.
 
@@ -125,7 +128,8 @@ The desktop UI migration completed on 2026-07-12:
   through explicit `app` ports and macOS `infra` adapters.
 - React, TypeScript, Vite, Node.js, pnpm, Tauri, and WebView source and build
   configuration have been removed.
-- macOS `.app` creation and local signing are driven by Rust `xtask`.
+- Local macOS Preview and ad-hoc `.app` creation are driven by Rust `xtask`;
+  formal release packaging is driven by `cargo-packager`.
 
 The first cloud ASR vertical slice now streams 16 kHz PCM to Volcengine over a
 background WebSocket session, keeps provider partial results in memory, and

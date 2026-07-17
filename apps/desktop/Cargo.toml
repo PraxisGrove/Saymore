@@ -4,8 +4,26 @@ version.workspace = true
 description = "Saymore native desktop application"
 authors.workspace = true
 edition.workspace = true
-license.workspace = true
+license-file.workspace = true
 publish = false
+
+[package.metadata.packager]
+product-name = "Saymore"
+identifier = "com.saymore.desktop"
+category = "Productivity"
+icons = ["icons/icon.icns", "icons/saymore-mark-3d-136.png"]
+resources = [{ src = "packaging/resources", target = "" }]
+
+[package.metadata.packager.macos]
+minimum-system-version = "12.0"
+signing-identity = "Developer ID Application"
+info-plist-path = "packaging/macos/Info.plist"
+
+[package.metadata.packager.windows]
+allow-downgrades = false
+
+[package.metadata.packager.nsis]
+installer-mode = "currentUser"
 
 [features]
 history-experiments = ["template-app/history-experiments"]

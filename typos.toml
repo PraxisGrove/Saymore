@@ -23,3 +23,6 @@ locale = "en"
 iif = "iif"
 oif = "oif"
 ratatui = "ratatui"
+
+[default.extend-identifiers]
+flate2 = "flate2"

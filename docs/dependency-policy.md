@@ -28,7 +28,35 @@ Run `cargo deny check` as part of the pre-push gate. The repository-level
 dependency policy. During implementation, run it early when dependency metadata
 changes.
 
-Required project tasks should be implemented in Rust under `crates/xtask`.
+Required project tasks should normally be implemented in Rust under
+`crates/xtask`. Release hosting, repository API calls, secrets, and native
+runner coordination remain in GitHub Actions; platform package construction is
+delegated to the pinned `cargo-packager` CLI.
+
+## Release Tooling
+
+The release workflow pins `cargo-packager` 0.11.8 and `cargo-edit` 0.13.13. Both
+are actively maintained Rust tools licensed under MIT or Apache-2.0 and are
+installed as CI executables rather than linked into production crates.
+`cargo-packager` is used with its default CLI feature set because it supports
+the required DMG, NSIS, and AppImage formats plus macOS signing and
+notarization. `cargo-bundle` was rejected because its Windows support remains
+experimental; `cargo-dist` was rejected because its supported installer list
+does not cover the required DMG and AppImage combination.
+
+`cargo-edit` is installed with its default CLI feature set and used only for
+`cargo set-version` so the workspace manifest remains the single version source.
+Cargo has no built-in stable manifest version editor, and direct text
+replacement was rejected because it can miss inherited workspace versions and
+path dependency versions. A custom manifest editor, `cargo-release`, and
+`release-plz` were rejected as either bespoke maintenance or broader release
+frameworks than this workflow needs. Keeping these exact versions in the
+workflow makes release behavior reproducible and lets dependency updates be
+reviewed explicitly.
+
+All workspace crates are private and inherit the project's source-available
+license file. The cargo-deny license check ignores those private workspace
+members while continuing to enforce the allowlist for every external dependency.
 
 ## Slint License
 
@@ -42,8 +70,8 @@ license review or an in-application `AboutSlint` screen first.
 ## macOS Audio Capture
 
 The desktop recording slice uses `cpal` 0.18.1 for input-device discovery and
-audio capture. Rust's standard library has no audio-device API, and `cpal`
-keeps the capture port usable for the planned Windows adapter. Direct CoreAudio
+audio capture. Rust's standard library has no audio-device API, and `cpal` keeps
+the capture port usable for the planned Windows adapter. Direct CoreAudio
 bindings were rejected because they would duplicate stream negotiation and
 callback safety code; playback-oriented crates such as `rodio` do not solve
 input capture. `cpal` is maintained by the RustAudio organization and is
@@ -51,10 +79,10 @@ licensed under Apache-2.0.
 
 The macOS permission adapter uses `objc2-av-foundation` 0.3 with only
 `AVCaptureDevice`, `AVMediaFormat`, and `block2` features. This provides typed
-access to Apple's microphone authorization API; neither the standard library
-nor `cpal` owns the operating-system permission prompt. A handwritten
-Objective-C bridge was rejected because it would add unsafe FFI without
-reducing product dependencies. The `objc2` family is dual MIT/Apache-2.0.
+access to Apple's microphone authorization API; neither the standard library nor
+`cpal` owns the operating-system permission prompt. A handwritten Objective-C
+bridge was rejected because it would add unsafe FFI without reducing product
+dependencies. The `objc2` family is dual MIT/Apache-2.0.
 
 ## macOS Desktop Integration
 
@@ -68,8 +96,8 @@ Dock visibility and application activation use the existing `objc2-app-kit`
 dependency with the focused `NSApplication`, `NSResponder`, and
 `NSRunningApplication` features. Slint's `system-tray` feature provides the
 portable status-item and menu lifecycle; handwritten AppKit menu ownership was
-rejected because it would duplicate Slint's event-loop integration. The
-`objc2` family is actively maintained and dual MIT/Apache-2.0.
+rejected because it would duplicate Slint's event-loop integration. The `objc2`
+family is actively maintained and dual MIT/Apache-2.0.
 
 ## JSON Provider Configuration
 
@@ -114,8 +142,8 @@ The `app` port uses `async-trait` 0.1 so a configured provider can be held as a
 trait object. Native `async fn` in traits is not object-safe, while exposing a
 boxed-future signature would leak executor-oriented types into every adapter.
 `tokio-util` 0.7 supplies `CancellationToken`; a custom atomic flag plus async
-notification would duplicate cancellation and wake-up behavior. Both crates
-are actively maintained and dual MIT/Apache-2.0. Only Tokio's existing runtime,
+notification would duplicate cancellation and wake-up behavior. Both crates are
+actively maintained and dual MIT/Apache-2.0. Only Tokio's existing runtime,
 sync, time, and macro features are used, with `test-util` enabled for app tests.
 
 Provider contract tests use `httpmock` 0.8.3 as a development-only dependency.
@@ -127,16 +155,16 @@ enter production binaries.
 
 ## Local Diagnostics
 
-The desktop crate uses `tracing` 0.1 and `tracing-subscriber` 0.3 for structured,
-privacy-filtered runtime diagnostics. Packaged desktop applications do not have
-a reliable terminal, and a custom logger would duplicate event formatting,
-filtering, subscriber installation, and writer integration. Remote services such
-as Sentry were rejected for normal ASR and LLM request failures because these
-diagnostics should remain on the user's device.
+The desktop crate uses `tracing` 0.1 and `tracing-subscriber` 0.3 for
+structured, privacy-filtered runtime diagnostics. Packaged desktop applications
+do not have a reliable terminal, and a custom logger would duplicate event
+formatting, filtering, subscriber installation, and writer integration. Remote
+services such as Sentry were rejected for normal ASR and LLM request failures
+because these diagnostics should remain on the user's device.
 
 Both crates are actively maintained by the Tokio project and are licensed under
 MIT. Their default features are enabled: `tracing` uses `std` and `attributes`;
 `tracing-subscriber` uses its formatting, ANSI, registry, smallvec, tracing-log,
 and thread-local support. The installed subscriber filters on Saymore's explicit
-diagnostic target, disables ANSI output, and writes through the bounded local log
-adapter. Neither dependency enters the `app` crate.
+diagnostic target, disables ANSI output, and writes through the bounded local
+log adapter. Neither dependency enters the `app` crate.

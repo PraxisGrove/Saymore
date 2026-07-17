@@ -25,3 +25,6 @@ allow = [
     "Unicode-3.0",
     "Zlib",
 ]
+
+[licenses.private]
+ignore = true

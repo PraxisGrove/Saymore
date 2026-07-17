@@ -5,8 +5,8 @@ and Windows. It records speech from a global trigger, recognizes it, optionally
 normalizes and refines the transcript, and delivers final text to the current
 input position.
 
-The production desktop stack is Rust with Slint. See `docs/technology-stack.md` and
-`docs/adr/0003-use-slint-for-the-desktop-ui.md` for the accepted decision.
+The production desktop stack is Rust with Slint. See `docs/technology-stack.md`
+and `docs/adr/0003-use-slint-for-the-desktop-ui.md` for the accepted decision.
 
 [![Made with Slint](https://raw.githubusercontent.com/slint-ui/slint/master/logo/MadeWithSlint-logo-whitebg.png)](https://slint.dev/)
 
@@ -56,6 +56,15 @@ The MVP is a desktop-only application with no hosted Saymore backend. Product
 scope, platform order, provider boundaries, and vertical slices live in
 `docs/product/open-source-voice-input-wayfinder.md`.
 
+## License
+
+Saymore is source-available under the [PolyForm Shield License 1.0.0](LICENSE).
+Personal, internal organizational, and other noncompeting uses are permitted.
+Providing a product or service that competes with Saymore requires a separate
+commercial license from the maintainers. This is a source-available license, not
+an OSI-approved open-source license. Third-party assets retain their own
+licenses.
+
 ## Development
 
 Run focused checks while developing. Immediately before `git push`, run the full
@@ -85,7 +94,7 @@ the root `Cargo.toml`. Crates should inherit them:
 
 ```toml
 edition.workspace = true
-license.workspace = true
+license-file.workspace = true
 
 [lints]
 workspace = true
@@ -102,6 +111,8 @@ engineering guidance lives under `docs/`:
 
 - `docs/architecture.md`
 - `docs/development.md`
+- `docs/releasing.md`
+- `docs/adr/0005-use-polyform-shield-source-available-license.md`
 - `docs/technology-stack.md`
 - `docs/error-handling.md`
 - `docs/fail-fast.md`

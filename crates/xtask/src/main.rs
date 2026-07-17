@@ -10,6 +10,7 @@ mod macos_bundle;
 mod macos_preview;
 #[cfg(target_os = "macos")]
 mod macos_preview_signing;
+mod release_plan;
 
 const DEFAULT_WARN_FILE_LINES: usize = 600;
 const DEFAULT_MAX_FILE_LINES: usize = 800;
@@ -37,6 +38,7 @@ fn run(args: Vec<String>) -> Result<(), Box<dyn Error>> {
         "bundle-macos" => macos_bundle::run(),
         #[cfg(target_os = "macos")]
         "preview-macos" => macos_preview::run(&args[1..]),
+        "release-plan" => release_plan::run(&args[1..]),
         "size" => run_size_gate(SizeConfig::from_args(&args[1..])?),
         "help" | "-h" | "--help" => {
             print_help();
@@ -52,6 +54,7 @@ fn print_help() {
     println!("  bundle-macos");
     #[cfg(target_os = "macos")]
     println!("  preview-macos [--once]");
+    println!("  release-plan --github-output <path>");
     println!(
         "  size [--root <dir>] [--glob <glob>] [--warn-file-lines <n>] [--max-file-lines <n>] [--warn-fn-lines <n>] [--max-fn-lines <n>]"
     );

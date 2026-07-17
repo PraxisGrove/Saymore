@@ -158,6 +158,7 @@ fn sign(
 fn info_plist(spec: &BundleSpec<'_>) -> String {
     let app_name = spec.app_name;
     let bundle_identifier = spec.bundle_identifier;
+    let version = env!("CARGO_PKG_VERSION");
     format!(
         r#"<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -173,7 +174,7 @@ fn info_plist(spec: &BundleSpec<'_>) -> String {
   <array><string>en</string><string>zh-Hans</string></array>
   <key>CFBundleName</key><string>{app_name}</string>
   <key>CFBundlePackageType</key><string>APPL</string>
-  <key>CFBundleShortVersionString</key><string>0.1.0</string>
+  <key>CFBundleShortVersionString</key><string>{version}</string>
   <key>CFBundleVersion</key><string>1</string>
   <key>LSMinimumSystemVersion</key><string>12.0</string>
   <key>NSHighResolutionCapable</key><true/>

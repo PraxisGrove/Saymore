@@ -1,0 +1,348 @@
+name: Scheduled Release
+
+on:
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+    inputs:
+      force:
+        description: Release even when the 48-hour cadence is not due
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+
+concurrency:
+  group: scheduled-release
+  cancel-in-progress: false
+
+env:
+  CARGO_EDIT_VERSION: "0.13.13"
+  CARGO_PACKAGER_VERSION: "0.11.8"
+
+jobs:
+  plan:
+    name: Plan release
+    runs-on: ubuntu-latest
+    outputs:
+      should-release: ${{ steps.version.outputs.should-release }}
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
+      source-sha: ${{ steps.source.outputs.sha }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Read latest release state
+        id: release-state
+        uses: actions/github-script@v9
+        with:
+          script: |
+            let latest = null;
+            try {
+              latest = await github.rest.repos.getLatestRelease({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+              });
+            } catch (error) {
+              if (error.status !== 404) throw error;
+            }
+
+            let latestTag = "";
+            let publishedAtMs = "";
+            let aheadBy = 0;
+            if (latest) {
+              latestTag = latest.data.tag_name;
+              publishedAtMs = Date.parse(latest.data.published_at);
+              if (!Number.isFinite(publishedAtMs)) {
+                throw new Error(`Invalid release publication time: ${latest.data.published_at}`);
+              }
+              const comparison = await github.rest.repos.compareCommitsWithBasehead({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                basehead: `${latestTag}...${context.sha}`,
+              });
+              aheadBy = comparison.data.ahead_by;
+            }
+
+            core.setOutput("latest-tag", latestTag);
+            core.setOutput("published-at-ms", String(publishedAtMs));
+            core.setOutput("ahead-by", String(aheadBy));
+            core.setOutput("now-ms", String(Date.now()));
+
+      - name: Choose release eligibility and version
+        id: version
+        env:
+          SAYMORE_LATEST_TAG: ${{ steps.release-state.outputs.latest-tag }}
+          SAYMORE_LATEST_PUBLISHED_AT_MS: ${{ steps.release-state.outputs.published-at-ms }}
+          SAYMORE_AHEAD_BY: ${{ steps.release-state.outputs.ahead-by }}
+          SAYMORE_NOW_MS: ${{ steps.release-state.outputs.now-ms }}
+          SAYMORE_FORCE_RELEASE: ${{ inputs.force || false }}
+        run: cargo run -p xtask -- release-plan --github-output "$GITHUB_OUTPUT"
+
+      - name: Resolve release source
+        id: source
+        shell: bash
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          set -euo pipefail
+          if git rev-parse --verify --quiet "refs/tags/$TAG"; then
+            sha=$(git rev-list --max-count=1 "$TAG")
+          else
+            sha="$GITHUB_SHA"
+          fi
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+
+  package-macos:
+    name: Package macOS universal DMG
+    needs: plan
+    if: needs.plan.outputs.should-release == 'true'
+    runs-on: macos-14
+    env:
+      APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+      APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+      APPLE_ID: ${{ secrets.APPLE_ID }}
+      APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.plan.outputs.source-sha }}
+
+      - name: Require Apple distribution credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID; do
+            if [[ -z "${!name:-}" ]]; then
+              echo "Missing required GitHub secret: $name" >&2
+              exit 1
+            fi
+          done
+
+      - name: Setup Rust targets
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+
+      - name: Install release tools
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-edit@${{ env.CARGO_EDIT_VERSION }},cargo-packager@${{ env.CARGO_PACKAGER_VERSION }}
+
+      - name: Set release version
+        run: cargo set-version --workspace "${{ needs.plan.outputs.version }}"
+
+      - name: Build both macOS architectures
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo build -p saymore-desktop --release --target aarch64-apple-darwin
+          cargo build -p saymore-desktop --release --target x86_64-apple-darwin
+          mkdir -p target/universal-apple-darwin/release
+          lipo -create \
+            target/aarch64-apple-darwin/release/saymore-desktop \
+            target/x86_64-apple-darwin/release/saymore-desktop \
+            -output target/universal-apple-darwin/release/saymore-desktop
+
+      - name: Package, sign, and notarize DMG
+        run: >-
+          cargo packager --release --packages saymore-desktop --formats dmg
+          --target universal-apple-darwin --out-dir dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-macos
+          path: dist/*.dmg
+          if-no-files-found: error
+
+  package-windows:
+    name: Package Windows preview
+    needs: plan
+    if: needs.plan.outputs.should-release == 'true'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.plan.outputs.source-sha }}
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Install NSIS
+        run: choco install nsis --yes --no-progress
+
+      - name: Install release tools
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-edit@${{ env.CARGO_EDIT_VERSION }},cargo-packager@${{ env.CARGO_PACKAGER_VERSION }}
+
+      - name: Set release version
+        run: cargo set-version --workspace "${{ needs.plan.outputs.version }}"
+
+      - name: Build application
+        run: cargo build -p saymore-desktop --release
+
+      - name: Package NSIS installer
+        run: cargo packager --release --packages saymore-desktop --formats nsis --out-dir dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: preview-windows
+          path: dist/*.exe
+          if-no-files-found: error
+
+  package-linux:
+    name: Package Linux preview
+    needs: plan
+    if: needs.plan.outputs.should-release == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.plan.outputs.source-sha }}
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Linux desktop dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes \
+            libfontconfig-dev \
+            libfuse2 \
+            libgbm-dev \
+            libinput-dev \
+            libseat-dev \
+            libsystemd-dev \
+            libudev-dev \
+            libxcb-shape0-dev \
+            libxcb-xfixes0-dev \
+            libxkbcommon-dev \
+            libxkbcommon-x11-dev
+
+      - name: Install release tools
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-edit@${{ env.CARGO_EDIT_VERSION }},cargo-packager@${{ env.CARGO_PACKAGER_VERSION }}
+
+      - name: Set release version
+        run: cargo set-version --workspace "${{ needs.plan.outputs.version }}"
+
+      - name: Build application
+        run: cargo build -p saymore-desktop --release
+
+      - name: Package AppImage
+        run: cargo packager --release --packages saymore-desktop --formats appimage --out-dir dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: preview-linux
+          path: dist/*.AppImage
+          if-no-files-found: error
+
+  publish:
+    name: Publish GitHub Release
+    needs: [plan, package-macos, package-windows, package-linux]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.plan.outputs.source-sha }}
+          fetch-depth: 0
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Install Linux desktop dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes \
+            libfontconfig-dev \
+            libgbm-dev \
+            libinput-dev \
+            libseat-dev \
+            libsystemd-dev \
+            libudev-dev \
+            libxcb-shape0-dev \
+            libxcb-xfixes0-dev \
+            libxkbcommon-dev \
+            libxkbcommon-x11-dev
+
+      - name: Install release gate tools
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-edit@${{ env.CARGO_EDIT_VERSION }},nextest
+
+      - name: Prepare release version
+        env:
+          VERSION: ${{ needs.plan.outputs.version }}
+        run: |
+          cargo set-version --workspace "$VERSION"
+          cargo metadata --format-version=1 --no-deps > /dev/null
+
+      - name: Run Rust quality gate
+        run: |
+          cargo fmt --all --check
+          cargo check --workspace --all-targets
+          cargo nextest run --workspace --all-targets
+          cargo test --workspace --doc
+          cargo clippy --workspace --all-targets -- -D warnings
+
+      - name: Check dependency policy
+        uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          command: check
+
+      - name: Run release build and size gate
+        run: |
+          cargo build --workspace --all-targets --release
+          cargo run -p xtask -- size
+
+      - name: Commit version and create tag
+        shell: bash
+        env:
+          TAG: ${{ needs.plan.outputs.tag }}
+        run: |
+          set -euo pipefail
+          git fetch origin --tags
+          if ! git rev-parse --verify --quiet "refs/tags/$TAG"; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add Cargo.toml Cargo.lock
+            if ! git diff --cached --quiet; then
+              git commit -m "chore(release): $TAG"
+            fi
+            git tag --annotate "$TAG" --message "Saymore $TAG"
+            git push --atomic origin HEAD:main "$TAG"
+          fi
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-macos
+          path: dist
+
+      - name: Generate checksums
+        working-directory: dist
+        run: sha256sum ./*.dmg > SHA256SUMS
+
+      - name: Create or repair GitHub Release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.plan.outputs.tag }}
+        run: |
+          set -euo pipefail
+          if gh release view "$TAG" > /dev/null 2>&1; then
+            gh release upload "$TAG" dist/* --clobber
+          else
+            gh release create "$TAG" dist/* \
+              --verify-tag \
+              --generate-notes \
+              --latest \
+              --title "Saymore $TAG"
+          fi

@@ -41,8 +41,8 @@ There are two macOS app workflows:
 
 - `./scripts/dev-preview.sh` builds, installs, and watches the debug
   `Saymore Preview.app`.
-- `cargo run -p xtask -- bundle-macos` creates the release-profile
-  `Saymore.app` bundle.
+- `cargo run -p xtask -- bundle-macos` creates the release-profile `Saymore.app`
+  bundle.
 
 Use the persistent preview while iterating on the desktop UI:
 
@@ -58,17 +58,17 @@ does not preserve Accessibility authorization across rebuilt ad-hoc binaries.
 Grant the Preview app microphone and Accessibility permission once. Saving a
 Rust, Slint, Cargo, font, icon, or audio change performs an incremental debug
 build and restarts the preview app without changing that authorization identity.
-A failed build leaves the current preview open.
-`target/debug/saymore-desktop` is only an intermediate Cargo artifact; do not
-launch it as a separate preview app because it does not have the Preview bundle's
-stable macOS permission identity.
+A failed build leaves the current preview open. `target/debug/saymore-desktop`
+is only an intermediate Cargo artifact; do not launch it as a separate preview
+app because it does not have the Preview bundle's stable macOS permission
+identity.
 
 The signing identity is self-signed, local to the development machine, and used
-only for `Saymore Preview.app`; it does not replace release signing. On its first
-creation, macOS asks for user authentication once to trust that certificate for
-local code signing. The first Preview run after migrating from the old ad-hoc
-workflow also requires Accessibility to be enabled once again for the new stable
-identity.
+only for `Saymore Preview.app`; it does not replace release signing. On its
+first creation, macOS asks for user authentication once to trust that
+certificate for local code signing. The first Preview run after migrating from
+the old ad-hoc workflow also requires Accessibility to be enabled once again for
+the new stable identity.
 
 The Preview bundle is also the development environment. Its bundle marker forces
 the app to use `~/Library/Application Support/Saymore Dev`, the development
@@ -89,6 +89,9 @@ cargo run -p xtask -- bundle-macos
 
 If `just` is installed, `just preview` and `just release` are optional aliases
 for these two commands.
+
+The ad-hoc bundle is for local testing only. Formal signed and notarized DMGs
+are built by the release workflow described in `docs/releasing.md`.
 
 ## Optional Shortcuts
 

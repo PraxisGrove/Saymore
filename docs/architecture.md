@@ -22,11 +22,13 @@ will satisfy a port or depend on UI and operating-system implementations.
 database, HTTP, environment, or process adapters. It may depend on `app`.
 
 `apps/desktop` owns the Slint entrypoint, compiled `.slint` components, UI view
-models, callback wiring, and process lifecycle for the macOS and Windows app.
-It may depend on `app` and `infra`; those reusable crates must not depend on
-Slint.
+models, callback wiring, and process lifecycle for the macOS and Windows app. It
+may depend on `app` and `infra`; those reusable crates must not depend on Slint.
 
-`xtask` owns repository maintenance, preview, packaging, and size-gate commands.
+`xtask` owns repository maintenance, local preview and ad-hoc bundle workflows,
+and size-gate commands. Formal distribution metadata lives with the desktop
+package; GitHub Actions coordinates native runners and `cargo-packager` for
+signed release artifacts.
 
 ## Dependency Direction
 
@@ -37,8 +39,8 @@ desktop -> app
 desktop -> infra -> app
 ```
 
-Avoid reverse dependencies. If `app` needs an external capability, define an
-app port that can be implemented by `infra` instead.
+Avoid reverse dependencies. If `app` needs an external capability, define an app
+port that can be implemented by `infra` instead.
 
 ## Adding Crates
 

@@ -27,9 +27,8 @@ resolver = "2"
 
 [workspace.package]
 edition = "2024"
-license = "MIT OR Apache-2.0"
+license-file = "LICENSE"
 version = "0.1.0"
-
 ```
 
 Member crates should inherit:
@@ -37,7 +36,7 @@ Member crates should inherit:
 ```toml
 [package]
 edition.workspace = true
-license.workspace = true
+license-file.workspace = true
 version.workspace = true
 
 [lints]
@@ -49,5 +48,4 @@ workspace = true
 - Use `[workspace.dependencies]` for shared dependency versions.
 - Keep optional features near the crate that needs them.
 - Run `cargo tree -d` when duplicate versions appear.
-- Split crates when a dependency should not leak into the rest of the
-  workspace.
+- Split crates when a dependency should not leak into the rest of the workspace.
