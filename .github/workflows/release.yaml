@@ -198,7 +198,7 @@ jobs:
           }
           trap cleanup EXIT
 
-          hdiutil attach "${dmgs[0]}" -nobrowse -readonly -mountpoint "$mount_dir"
+          printf 'Y\n' | hdiutil attach "${dmgs[0]}" -nobrowse -readonly -mountpoint "$mount_dir"
           test -d "$mount_dir/Saymore.app"
           test -L "$mount_dir/Applications"
           test -f "$mount_dir/.background/dmg-background.png"
