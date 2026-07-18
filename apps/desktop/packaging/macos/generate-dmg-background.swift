@@ -29,11 +29,11 @@ NSRect(x: 0, y: 0, width: width, height: height).fill()
 NSColor(red: 79 / 255, green: 83 / 255, blue: 89 / 255, alpha: 1).setStroke()
 
 let swoop = NSBezierPath()
-swoop.move(to: NSPoint(x: 345, y: 195))
+swoop.move(to: NSPoint(x: 246, y: 195))
 swoop.curve(
-    to: NSPoint(x: 425, y: 213),
-    controlPoint1: NSPoint(x: 365, y: 230),
-    controlPoint2: NSPoint(x: 395, y: 235)
+    to: NSPoint(x: 397, y: 213),
+    controlPoint1: NSPoint(x: 278, y: 240),
+    controlPoint2: NSPoint(x: 337, y: 245)
 )
 swoop.lineWidth = 5.5
 swoop.lineCapStyle = .round
@@ -41,16 +41,16 @@ swoop.lineJoinStyle = .round
 swoop.stroke()
 
 let arrowhead = NSBezierPath()
-arrowhead.move(to: NSPoint(x: 412, y: 232))
+arrowhead.move(to: NSPoint(x: 384, y: 233))
 arrowhead.curve(
-    to: NSPoint(x: 429, y: 210),
-    controlPoint1: NSPoint(x: 418, y: 224),
-    controlPoint2: NSPoint(x: 424, y: 217)
+    to: NSPoint(x: 401, y: 211),
+    controlPoint1: NSPoint(x: 390, y: 225),
+    controlPoint2: NSPoint(x: 396, y: 218)
 )
 arrowhead.curve(
-    to: NSPoint(x: 405, y: 194),
-    controlPoint1: NSPoint(x: 421, y: 207),
-    controlPoint2: NSPoint(x: 413, y: 202)
+    to: NSPoint(x: 372, y: 195),
+    controlPoint1: NSPoint(x: 391, y: 208),
+    controlPoint2: NSPoint(x: 381, y: 203)
 )
 arrowhead.lineWidth = 5.5
 arrowhead.lineCapStyle = .round
