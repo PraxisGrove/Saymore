@@ -29,9 +29,15 @@ mode. Dependency policy runs separately on Ubuntu.
 ## Artifacts
 
 - macOS builds both Apple Silicon and Intel targets, combines them into one
-  universal binary, and publishes a DMG plus SHA-256 checksums to GitHub
-  Releases. With complete Apple credentials the DMG is signed and notarized;
-  otherwise its filename ends in `-unsigned.dmg`.
+  universal binary, and publishes a branded drag-to-Applications DMG plus
+  SHA-256 checksums to GitHub Releases. The repository-owned DMG background,
+  window size, and icon positions are declared in the desktop package metadata.
+  Packaging mounts the generated image and verifies its background, Finder
+  layout metadata, application bundle, and Applications link before upload.
+  Regenerate the committed background after design changes with
+  `swift apps/desktop/packaging/macos/generate-dmg-background.swift`. With
+  complete Apple credentials the DMG is signed and notarized; otherwise its
+  filename ends in `-unsigned.dmg`.
 - Windows builds an NSIS installer named `Saymore-Setup.exe` and publishes it,
   together with its SHA-256 checksum, to the same GitHub Release.
 

@@ -173,9 +173,37 @@ jobs:
             -output target/universal-apple-darwin/release/saymore-desktop
 
       - name: Package DMG
+        env:
+          # cargo-packager skips Finder layout customization when CI=true.
+          CI: "false"
         run: >-
           cargo packager --release --packages saymore-desktop --formats dmg
           --target universal-apple-darwin --out-dir dist
+
+      - name: Verify DMG presentation
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          dmgs=(apps/desktop/dist/*.dmg)
+          if [[ ${#dmgs[@]} -ne 1 ]]; then
+            echo "expected exactly one DMG, found ${#dmgs[@]}" >&2
+            exit 1
+          fi
+
+          mount_dir="$(mktemp -d)"
+          cleanup() {
+            hdiutil detach "$mount_dir" -quiet || true
+            rmdir "$mount_dir" || true
+          }
+          trap cleanup EXIT
+
+          hdiutil attach "${dmgs[0]}" -nobrowse -readonly -mountpoint "$mount_dir"
+          test -d "$mount_dir/Saymore.app"
+          test -L "$mount_dir/Applications"
+          test -f "$mount_dir/.background/dmg-background.png"
+          test -s "$mount_dir/.DS_Store"
+          strings "$mount_dir/.DS_Store" | grep -Fq "dmg-background.png"
 
       - name: Mark unsigned DMG
         if: steps.apple-auth.outputs.signed != 'true'

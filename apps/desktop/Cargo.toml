@@ -19,6 +19,13 @@ minimum-system-version = "12.0"
 signing-identity = "Developer ID Application"
 info-plist-path = "packaging/macos/Info.plist"
 
+[package.metadata.packager.dmg]
+background = "packaging/macos/dmg-background.png"
+windowPosition = { x = 200, y = 120 }
+windowSize = { width = 660, height = 420 }
+appPosition = { x = 165, y = 210 }
+appFolderPosition = { x = 495, y = 210 }
+
 [package.metadata.packager.windows]
 allow-downgrades = false
 
