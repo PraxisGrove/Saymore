@@ -23,6 +23,9 @@ mod macos_audio_recorder;
 mod macos_application_reopen;
 
 #[cfg(target_os = "macos")]
+mod macos_application_menu;
+
+#[cfg(target_os = "macos")]
 mod macos_feedback_sound;
 
 #[cfg(target_os = "macos")]
@@ -82,6 +85,9 @@ pub use macos_audio_recorder::MacOsAudioRecorder;
 
 #[cfg(target_os = "macos")]
 pub use macos_application_reopen::{MacOsApplicationReopenError, MacOsApplicationReopenHandler};
+
+#[cfg(target_os = "macos")]
+pub use macos_application_menu::{MacOsApplicationMenuError, install_macos_application_menu};
 
 #[cfg(target_os = "macos")]
 pub use macos_feedback_sound::MacOsFeedbackSoundPlayer;

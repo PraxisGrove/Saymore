@@ -421,6 +421,12 @@ fn run_desktop_event_loop(
     tray: &StatusTray,
     onboarding: &onboarding::OnboardingRuntime,
 ) -> Result<(), slint::PlatformError> {
+    slint::invoke_from_event_loop(|| {
+        if let Err(error) = template_infra::install_macos_application_menu() {
+            tracing::error!(event = "application.menu_install_failed", reason = %error);
+        }
+    })
+    .map_err(|error| slint::PlatformError::Other(error.to_string()))?;
     tray.show()?;
     onboarding.present_initial(ui)?;
     slint::run_event_loop_until_quit()?;

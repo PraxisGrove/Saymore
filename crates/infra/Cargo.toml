@@ -72,7 +72,7 @@ core-foundation-sys = "0.8"
 core-graphics = "0.25"
 keyring = { workspace = true, features = ["apple-native"] }
 objc2 = "0.6"
-objc2-app-kit = { version = "0.3", features = ["NSApplication", "NSEvent", "NSLayoutAnchor", "NSLayoutConstraint", "NSPasteboard", "NSPasteboardItem", "NSResponder", "NSRunningApplication", "NSScreen", "NSSound", "NSToolbar", "NSView", "NSWindow", "objc2-core-foundation"] }
+objc2-app-kit = { version = "0.3", features = ["NSApplication", "NSEvent", "NSLayoutAnchor", "NSLayoutConstraint", "NSMenu", "NSMenuItem", "NSPasteboard", "NSPasteboardItem", "NSResponder", "NSRunningApplication", "NSScreen", "NSSound", "NSToolbar", "NSView", "NSWindow", "objc2-core-foundation"] }
 objc2-av-foundation = { version = "0.3", features = ["AVCaptureDevice", "AVMediaFormat", "block2"] }
 objc2-foundation = { version = "0.3", features = ["NSArray", "NSData", "NSError", "NSString"] }
 objc2-service-management = { version = "0.3.2", default-features = false, features = ["SMAppService", "objc2", "objc2-foundation", "std"] }
