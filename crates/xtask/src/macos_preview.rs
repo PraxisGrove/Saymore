@@ -371,10 +371,12 @@ mod tests {
     }
 
     #[test]
-    fn preview_bundle_uses_a_persistent_signing_identity() {
+    fn preview_bundle_uses_a_stable_bundle_and_signing_identity() {
         let signing_directory = Path::new("preview-signing");
         let spec = preview_bundle_spec(signing_directory);
 
+        assert_eq!("Saymore Preview", spec.app_name);
+        assert_eq!(PREVIEW_BUNDLE_IDENTIFIER, spec.bundle_identifier);
         assert_eq!(
             BundleSigning::Keychain {
                 identity: PREVIEW_SIGNING_IDENTITY.to_owned(),
