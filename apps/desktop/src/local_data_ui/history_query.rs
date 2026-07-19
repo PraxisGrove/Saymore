@@ -183,6 +183,7 @@ fn history_item(ui: &AppWindow, record: &HistoryRecord, locale: chrono::Locale) 
     HistoryListItem {
         id: SharedString::from(&record.id),
         text: SharedString::from(&record.final_text),
+        preview_text: SharedString::from(history_preview(&record.final_text)),
         time: SharedString::from(history_time(record.created_at_ms, locale)),
         duration: translations.invoke_history_duration(
             i32::try_from(record.audio_duration_ms.div_ceil(1_000)).unwrap_or(i32::MAX),
@@ -200,6 +201,10 @@ fn history_item(ui: &AppWindow, record: &HistoryRecord, locale: chrono::Locale) 
             .map(SharedString::from)
             .unwrap_or_else(|| translations.get_history_model_not_used()),
     }
+}
+
+fn history_preview(text: &str) -> String {
+    text.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
 fn history_group(created_at_ms: i64) -> HistoryGroupKind {
@@ -315,6 +320,14 @@ mod tests {
         assert_eq!(
             "06-15",
             history_time_for_group(older, HistoryGroupKind::Older, chrono::Locale::zh_CN)
+        );
+    }
+
+    #[test]
+    fn history_preview_collapses_formatted_text_to_one_line() {
+        assert_eq!(
+            "I want three things: 1. Large. 2. Small. 3. Long.",
+            history_preview("I want three things:\n\n1. Large.\n2. Small.\r\n3. Long.")
         );
     }
 }

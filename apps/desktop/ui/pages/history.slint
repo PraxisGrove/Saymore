@@ -6,6 +6,7 @@ export enum HistoryRetentionOption { never, one-day, seven-days, thirty-days, fo
 export struct HistoryListItem {
     id: string,
     text: string,
+    preview-text: string,
     time: string,
     duration: string,
     input-status: string,
@@ -373,7 +374,7 @@ export component HistoryPage inherits Rectangle {
                                 clicked => { root.show-detail(item); }
                             }
                             Text { x: 18px; width: 72px; text: item.time; color: AppColors.text-muted; font-size: 10px; font-weight: 650; vertical-alignment: center; }
-                            Text { x: 90px; y: 10px; width: parent.width - 108px - (parent.hovered ? 78px : 0px); height: 20px; text: item.text; color: AppColors.ink; font-size: 12px; font-weight: 650; overflow: elide; vertical-alignment: center; }
+                            Text { x: 90px; y: 10px; width: parent.width - 108px - (parent.hovered ? 78px : 0px); height: 20px; text: item.preview-text; color: AppColors.ink; font-size: 12px; font-weight: 650; overflow: elide; vertical-alignment: center; }
                             Text { x: 90px; y: 32px; width: parent.width - 108px; height: 16px; text: @tr("history.item.summary" => "{}  ·  {}  ·  {}", item.duration, item.input-status, item.polish-status); color: AppColors.text-muted; font-size: 9px; vertical-alignment: center; }
                             HorizontalLayout {
                                 x: parent.width - 82px; y: 12px; width: 68px; height: 34px; spacing: 0px;
