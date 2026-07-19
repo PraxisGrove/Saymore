@@ -44,6 +44,11 @@ There are two macOS app workflows:
 - `cargo run -p xtask -- bundle-macos` creates the release-profile `Saymore.app`
   bundle.
 
+Both workflows compile the same `saymore-desktop` package and the same Rust and
+Slint sources. Preview differs only in build profile, app identity, signing, and
+development data paths; UI and behavior changes are therefore included the next
+time the release bundle is built.
+
 Use the persistent preview while iterating on the desktop UI:
 
 ```bash
@@ -69,6 +74,13 @@ first creation, macOS asks for user authentication once to trust that
 certificate for local code signing. The first Preview run after migrating from
 the old ad-hoc workflow also requires Accessibility to be enabled once again for
 the new stable identity.
+
+Do not distribute `Saymore Preview.app` to another Mac. Its certificate is
+trusted only on the machine that created it. Cross-machine testing must use the
+same Developer ID signed application identity as the release build. An unsigned
+or newly ad-hoc-signed replacement cannot promise that macOS will carry
+Microphone or Accessibility authorization forward, even when its bundle
+identifier and display name are unchanged.
 
 The Preview bundle is also the development environment. Its bundle marker forces
 the app to use `~/Library/Application Support/Saymore Dev`, the development
