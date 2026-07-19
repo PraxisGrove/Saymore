@@ -6,7 +6,7 @@ const MAX_CORRECTION_WORDS: usize = 3;
 const MAX_WHOLE_REPLACEMENT_CHARS: usize = 32;
 const HIGH_CONFIDENCE_THRESHOLD: u8 = 80;
 
-pub const DICTIONARY_CANDIDATE_INSTRUCTIONS: &str = r#"You classify whether a user's local text correction should become a personal voice-input dictionary entry. Prefer names, brands, products, projects, acronyms, technical or professional terms, and code identifiers in any language. Reject ordinary sentence fragments, actions, grammar edits, punctuation edits, and generic prose. Return only one JSON object with: decision (accept, reject, or uncertain), type (named_term, acronym, code_identifier, professional_phrase, ordinary_fragment, or unknown), and confidence (a number from 0 to 1)."#;
+pub const DICTIONARY_CANDIDATE_INSTRUCTIONS: &str = r#"You classify whether a user's local text correction should become a personal voice-input dictionary entry. Prefer names, brands, products, projects, acronyms, technical or professional terms, and code identifiers in any language. Reject single-character ASCII letter candidates because they are too ambiguous for automatic learning. Also reject ordinary sentence fragments, actions, grammar edits, punctuation edits, and generic prose. Return only one JSON object with: decision (accept, reject, or uncertain), type (named_term, acronym, code_identifier, professional_phrase, ordinary_fragment, or unknown), and confidence (a number from 0 to 1)."#;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CandidateDecision {
@@ -85,6 +85,9 @@ pub struct DictionaryCandidateEvidence {
 
 pub fn assess_dictionary_candidate(canonical: &str) -> DictionaryCandidateAssessment {
     let canonical = canonical.trim();
+    if let Some(assessment) = single_ascii_letter_assessment(canonical) {
+        return assessment;
+    }
     let chars = canonical.chars().collect::<Vec<_>>();
     let ascii_token = !canonical.is_empty()
         && canonical.is_ascii()
@@ -158,6 +161,20 @@ pub fn assess_dictionary_candidate(canonical: &str) -> DictionaryCandidateAssess
         confidence,
         source: CandidateAssessmentSource::Local,
     }
+}
+
+fn single_ascii_letter_assessment(canonical: &str) -> Option<DictionaryCandidateAssessment> {
+    let [character] = canonical.as_bytes() else {
+        return None;
+    };
+    character
+        .is_ascii_alphabetic()
+        .then_some(DictionaryCandidateAssessment {
+            decision: CandidateDecision::Reject,
+            kind: DictionaryCandidateKind::Unknown,
+            confidence: 100,
+            source: CandidateAssessmentSource::Local,
+        })
 }
 
 pub async fn review_dictionary_candidate(
@@ -386,6 +403,20 @@ mod tests {
         for (canonical, kind, decision) in cases {
             let assessment = assess_dictionary_candidate(canonical);
             assert_eq!((kind, decision), (assessment.kind, assessment.decision));
+        }
+    }
+
+    #[test]
+    fn rejects_single_ascii_letters_from_automatic_learning() {
+        let expected = DictionaryCandidateAssessment {
+            decision: CandidateDecision::Reject,
+            kind: DictionaryCandidateKind::Unknown,
+            confidence: 100,
+            source: CandidateAssessmentSource::Local,
+        };
+
+        for candidate in ["n", "N"] {
+            assert_eq!(expected, assess_dictionary_candidate(candidate));
         }
     }
 

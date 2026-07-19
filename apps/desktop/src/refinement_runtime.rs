@@ -5,10 +5,10 @@ use std::{
 };
 
 use template_app::{
-    ChatCompletionsLlmSettings, DictationSessionId, DictionaryCandidateAssessment,
-    FinalTextProcessingError, FinalTextProcessor, FinalTextRequest, RefinementEvaluation,
-    RefinementMode, RefinementStatus, SaymoreSettings, SettingsStore, assess_dictionary_candidate,
-    review_dictionary_candidate,
+    CandidateDecision, ChatCompletionsLlmSettings, DictationSessionId,
+    DictionaryCandidateAssessment, FinalTextProcessingError, FinalTextProcessor, FinalTextRequest,
+    RefinementEvaluation, RefinementMode, RefinementStatus, SaymoreSettings, SettingsStore,
+    assess_dictionary_candidate, review_dictionary_candidate,
 };
 #[cfg(test)]
 use template_infra::AppEnvironment;
@@ -137,6 +137,9 @@ impl RefinementRuntime {
         plan: RefinementPlan,
     ) -> DictionaryCandidateAssessment {
         let fallback = assess_dictionary_candidate(canonical);
+        if fallback.decision == CandidateDecision::Reject {
+            return fallback;
+        }
         let Some(settings) = plan.provider else {
             return fallback;
         };
@@ -356,6 +359,44 @@ mod tests {
         );
         assert_eq!(97, assessment.confidence);
         completion.assert();
+    }
+
+    #[test]
+    fn local_dictionary_rejection_cannot_be_overridden_by_the_provider() {
+        let server = MockServer::start();
+        let completion = server.mock(|when, then| {
+            when.method(POST).path("/v1/chat/completions");
+            then.status(200)
+                .header("content-type", "application/json")
+                .body(
+                    r#"{"choices":[{"message":{"content":"{\"decision\":\"accept\",\"type\":\"acronym\",\"confidence\":0.90}"}}]}"#,
+                );
+        });
+        let runtime = test_runtime();
+        let plan = RefinementPlan {
+            mode: RefinementMode::Enabled,
+            provider: Some(provider_settings(server.url("/v1"))),
+        };
+
+        let assessment = runtime.assess_dictionary_correction_with_plan(
+            DictationSessionId::generate(),
+            "n",
+            "use m here",
+            "use n here",
+            "en",
+            plan,
+        );
+
+        assert_eq!(
+            DictionaryCandidateAssessment {
+                decision: template_app::CandidateDecision::Reject,
+                kind: template_app::DictionaryCandidateKind::Unknown,
+                confidence: 100,
+                source: template_app::CandidateAssessmentSource::Local,
+            },
+            assessment
+        );
+        completion.assert_calls(0);
     }
 
     #[test]
