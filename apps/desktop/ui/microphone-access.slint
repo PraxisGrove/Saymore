@@ -80,3 +80,47 @@ export component MicrophonePermissionOverlay inherits Window {
         TouchArea { width: 258px; height: parent.height; clicked => { root.dismiss(); } }
     }
 }
+
+export component AccessibilityPermissionOverlay inherits Window {
+    title: "Saymore Accessibility Permission";
+    default-font-family: "Inter";
+    preferred-width: 420px;
+    preferred-height: 104px;
+    min-width: 420px;
+    min-height: 104px;
+    max-width: 420px;
+    max-height: 104px;
+    no-frame: true;
+    always-on-top: true;
+    background: transparent;
+    callback dismiss();
+    callback open-settings();
+
+    Rectangle {
+        x: 7px; y: 6px; width: 406px; height: 90px; border-radius: 16px;
+        background: #ffffff; border-width: 1px; border-color: #e6e5e0;
+
+        Rectangle {
+            x: 12px; y: 30px; width: 30px; height: 30px; border-radius: 9px; background: #f4f4f1;
+            Image { x: 7px; y: 7px; width: 16px; height: 16px; source: @image-url("../icons/lucide/shield.svg"); colorize: #373734; }
+        }
+        Text { x: 52px; y: 18px; width: 196px; text: @tr("accessibility.permission.title" => "Accessibility permission required"); color: #141413; font-size: 13px; font-weight: 700; overflow: elide; }
+        Text { x: 52px; y: 41px; width: 196px; height: 32px; text: @tr("accessibility.permission.detail" => "Allow Saymore to detect the shortcut and insert text."); color: #7b7974; font-size: 10px; wrap: word-wrap; }
+
+        Rectangle {
+            x: 254px; y: 28px; width: 112px; height: 34px; border-radius: 10px; background: settings-area.has-hover ? #373734 : #141413;
+            accessible-role: button; accessible-label: @tr("common.open-system-settings" => "Open System Settings");
+            accessible-action-default => { root.open-settings(); }
+            Text { x: 8px; width: parent.width - 16px; text: @tr("common.open-system-settings" => "Open System Settings"); color: #ffffff; font-size: 10px; font-weight: 650; horizontal-alignment: center; vertical-alignment: center; overflow: elide; }
+            settings-area := TouchArea { mouse-cursor: pointer; clicked => { root.open-settings(); } }
+        }
+        Rectangle {
+            x: 374px; y: 33px; width: 24px; height: 24px; border-radius: 6px;
+            background: close-area.has-hover ? #f4f4f1 : transparent;
+            accessible-role: button; accessible-label: @tr("common.close" => "Close");
+            accessible-action-default => { root.dismiss(); }
+            Image { x: 6px; y: 6px; width: 12px; height: 12px; source: @image-url("../icons/lucide/x.svg"); colorize: #7b7974; }
+            close-area := TouchArea { mouse-cursor: pointer; clicked => { root.dismiss(); } }
+        }
+    }
+}

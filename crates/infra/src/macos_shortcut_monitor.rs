@@ -19,6 +19,7 @@ use crate::DictationShortcutAction;
 
 mod event_tap;
 mod key_mapping;
+mod untrusted_poll;
 
 #[cfg(test)]
 use event_tap::{ModifierState, handle_modifier_event, mark_active_modifiers_used};
@@ -366,8 +367,9 @@ impl MacOsShortcutMonitor {
         is_recording: Arc<dyn Fn() -> bool + Send + Sync>,
         controller: MacOsShortcutController,
         on_action: impl Fn(DictationShortcutAction) + Send + 'static,
+        on_permission_required: impl Fn() + Send + 'static,
     ) {
-        event_tap::start(is_recording, controller, on_action);
+        event_tap::start(is_recording, controller, on_action, on_permission_required);
     }
 }
 

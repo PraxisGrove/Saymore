@@ -45,12 +45,14 @@ mod ui {
 
 use ui::AppWindow;
 #[cfg(target_os = "macos")]
-use ui::StatusTray;
+use ui::{AccessibilityPermissionOverlay, StatusTray};
 use ui::{
     DictionaryAddedOverlay, MicrophoneIntroOverlay, MicrophonePermissionOverlay,
     RecordingLimitOverlay, RecordingOverlay, ResultOverlay,
 };
 
+#[cfg(target_os = "macos")]
+mod accessibility_permission_prompt;
 mod app_environment;
 #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 mod asr_runtime;
@@ -148,6 +150,10 @@ struct ShortcutRuntime {
     cancelled: Arc<Mutex<CancelledRecordingStore>>,
     paused: Arc<AtomicBool>,
     onboarding_toggle: Arc<dyn Fn() -> bool + Send + Sync>,
+    #[cfg(target_os = "macos")]
+    onboarding_active: Arc<dyn Fn() -> bool + Send + Sync>,
+    #[cfg(target_os = "macos")]
+    accessibility_permission_prompt: accessibility_permission_prompt::AccessibilityPermissionPrompt,
     dictation: DictationRuntime,
     feedback_sounds_enabled: Arc<AtomicBool>,
 }
@@ -266,6 +272,8 @@ struct DesktopWindows {
     dictionary_added_overlay: DictionaryAddedOverlay,
     microphone_intro_overlay: MicrophoneIntroOverlay,
     microphone_permission_overlay: MicrophonePermissionOverlay,
+    #[cfg(target_os = "macos")]
+    accessibility_permission_overlay: AccessibilityPermissionOverlay,
     language_context: i18n::LanguageContext,
     #[cfg(target_os = "macos")]
     _reopen_handler: Option<MacOsApplicationReopenHandler>,
@@ -286,6 +294,8 @@ impl DesktopWindows {
             dictionary_added_overlay: DictionaryAddedOverlay::new()?,
             microphone_intro_overlay: MicrophoneIntroOverlay::new()?,
             microphone_permission_overlay: MicrophonePermissionOverlay::new()?,
+            #[cfg(target_os = "macos")]
+            accessibility_permission_overlay: AccessibilityPermissionOverlay::new()?,
             language_context,
             #[cfg(target_os = "macos")]
             _reopen_handler: reopen_handler,
@@ -328,7 +338,11 @@ fn run_wired_desktop(
         &windows.recording_limit_overlay,
     );
     let onboarding_shortcut = core.onboarding.shortcut_handler();
+    let permission_onboarding_shortcut = onboarding_shortcut.clone();
     let onboarding_toggle = Arc::new(move || onboarding_shortcut.handle_toggle());
+    let onboarding_active = Arc::new(move || permission_onboarding_shortcut.is_active());
+    let accessibility_permission_prompt =
+        accessibility_permission_prompt::wire(&windows.accessibility_permission_overlay);
     let _shortcut_monitor = recording_runtime::start_recording_shortcut(
         &windows.ui,
         overlays,
@@ -341,6 +355,8 @@ fn run_wired_desktop(
             cancelled: core.cancelled,
             paused: Arc::clone(&paused),
             onboarding_toggle,
+            onboarding_active,
+            accessibility_permission_prompt,
             dictation: core.dictation,
             feedback_sounds_enabled: Arc::clone(&core.feedback_sounds_enabled),
         },
@@ -361,6 +377,7 @@ fn run_wired_desktop(
         windows.dictionary_added_overlay.window(),
         windows.microphone_intro_overlay.window(),
         windows.microphone_permission_overlay.window(),
+        windows.accessibility_permission_overlay.window(),
     ]);
     run_desktop_event_loop(&windows.ui, &tray, &core.onboarding)?;
     drop(core.authorization_poll);

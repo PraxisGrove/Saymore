@@ -122,6 +122,16 @@ msgctxt "microphone.permission.detail"
 msgid "Allow Saymore to use the microphone to begin"
 msgstr "允许 Saymore 使用麦克风后即可开始"
 
+#: apps/desktop/ui/microphone-access.slint
+msgctxt "accessibility.permission.title"
+msgid "Accessibility permission required"
+msgstr "需要辅助功能权限"
+
+#: apps/desktop/ui/microphone-access.slint
+msgctxt "accessibility.permission.detail"
+msgid "Allow Saymore to detect the shortcut and insert text."
+msgstr "允许 Saymore 检测快捷键并自动输入文字。"
+
 #: apps/desktop/ui/microphone-access.slint:75
 msgctxt "common.open-system-settings"
 msgid "Open System Settings"

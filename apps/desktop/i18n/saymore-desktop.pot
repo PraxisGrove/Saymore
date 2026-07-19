@@ -130,6 +130,16 @@ msgctxt "microphone.permission.detail"
 msgid "Allow Saymore to use the microphone to begin"
 msgstr ""
 
+#: apps/desktop/ui/microphone-access.slint
+msgctxt "accessibility.permission.title"
+msgid "Accessibility permission required"
+msgstr ""
+
+#: apps/desktop/ui/microphone-access.slint
+msgctxt "accessibility.permission.detail"
+msgid "Allow Saymore to detect the shortcut and insert text."
+msgstr ""
+
 #: apps/desktop/ui/microphone-access.slint:75
 #: apps/desktop/ui/microphone-access.slint:75
 #: apps/desktop/ui/microphone-access.slint:75

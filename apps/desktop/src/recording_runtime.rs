@@ -17,70 +17,110 @@ pub(super) fn start_recording_shortcut(
     let monitor_session = Arc::clone(&runtime.session);
     let is_recording: Arc<dyn Fn() -> bool + Send + Sync> =
         Arc::new(move || monitor_session.is_recording());
-    start_platform_shortcut_monitor(is_recording, controller, move |action| match action {
-        DictationShortcutAction::Toggle if (runtime.onboarding_toggle)() => {}
-        DictationShortcutAction::Toggle => match runtime
-            .session
-            .request_toggle(runtime.paused.load(Ordering::Acquire))
-        {
-            DictationToggleAction::IgnorePaused => {
-                tracing::info!(
-                    target: "saymore::diagnostics",
-                    event = "recording.shortcut_ignored",
-                    reason = "paused"
-                );
-            }
-            DictationToggleAction::IgnoreStarting(id)
-            | DictationToggleAction::IgnoreFinishing(id) => {
-                tracing::info!(
-                    target: "saymore::diagnostics",
-                    event = "recording.shortcut_ignored",
-                    dictation_id = ?id,
-                    reason = "session_busy"
-                );
-            }
-            DictationToggleAction::Finish(id) => dictation_finish::finish_recording(
-                shortcut_ui.clone(),
-                shortcut_overlays.clone(),
-                Arc::clone(&runtime.recorder),
-                Arc::clone(&runtime.session),
-                id,
-                runtime.dictation.clone(),
-                Arc::clone(&runtime.feedback_sounds_enabled),
-            ),
-            DictationToggleAction::Start(id) => {
-                let shortcut_started = Instant::now();
-                let permission_started = Instant::now();
-                let allows_recording = runtime.microphone_access.allows_recording();
-                tracing::info!(
-                    target: "saymore::diagnostics",
-                    event = "recording.permission_checked",
-                    dictation_id = %id,
-                    duration_ms = permission_started.elapsed().as_millis()
-                );
-                if allows_recording {
-                    begin_recording(
-                        &shortcut_ui,
-                        &shortcut_overlays,
-                        &runtime,
-                        id,
-                        shortcut_started,
+    let on_permission_required = permission_required_callback(&runtime);
+    start_platform_shortcut_monitor(
+        is_recording,
+        controller,
+        move |action| match action {
+            DictationShortcutAction::Toggle if (runtime.onboarding_toggle)() => {}
+            DictationShortcutAction::Toggle => match runtime
+                .session
+                .request_toggle(runtime.paused.load(Ordering::Acquire))
+            {
+                DictationToggleAction::IgnorePaused => {
+                    tracing::info!(
+                        target: "saymore::diagnostics",
+                        event = "recording.shortcut_ignored",
+                        reason = "paused"
                     );
-                } else {
-                    runtime.session.startup_failed();
                 }
-            }
+                DictationToggleAction::IgnoreStarting(id)
+                | DictationToggleAction::IgnoreFinishing(id) => {
+                    tracing::info!(
+                        target: "saymore::diagnostics",
+                        event = "recording.shortcut_ignored",
+                        dictation_id = ?id,
+                        reason = "session_busy"
+                    );
+                }
+                DictationToggleAction::Finish(id) => dictation_finish::finish_recording(
+                    shortcut_ui.clone(),
+                    shortcut_overlays.clone(),
+                    Arc::clone(&runtime.recorder),
+                    Arc::clone(&runtime.session),
+                    id,
+                    runtime.dictation.clone(),
+                    Arc::clone(&runtime.feedback_sounds_enabled),
+                ),
+                DictationToggleAction::Start(id) => {
+                    let shortcut_started = Instant::now();
+                    let permission_started = Instant::now();
+                    let allows_recording = runtime.microphone_access.allows_recording();
+                    tracing::info!(
+                        target: "saymore::diagnostics",
+                        event = "recording.permission_checked",
+                        dictation_id = %id,
+                        duration_ms = permission_started.elapsed().as_millis()
+                    );
+                    if allows_recording {
+                        begin_recording(
+                            &shortcut_ui,
+                            &shortcut_overlays,
+                            &runtime,
+                            id,
+                            shortcut_started,
+                        );
+                    } else {
+                        runtime.session.startup_failed();
+                    }
+                }
+            },
+            DictationShortcutAction::Cancel => recording_actions::cancel(
+                &shortcut_ui,
+                &shortcut_overlays.status,
+                &shortcut_overlays.limit,
+                &runtime.recorder,
+                &runtime.session,
+                &runtime.cancelled,
+                &runtime.dictation.asr,
+            ),
         },
-        DictationShortcutAction::Cancel => recording_actions::cancel(
-            &shortcut_ui,
-            &shortcut_overlays.status,
-            &shortcut_overlays.limit,
-            &runtime.recorder,
-            &runtime.session,
-            &runtime.cancelled,
-            &runtime.dictation.asr,
-        ),
+        on_permission_required,
+    )
+}
+
+type PermissionRequiredCallback = Box<dyn Fn() + Send>;
+
+#[cfg(target_os = "macos")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum AccessibilityPromptAction {
+    Show,
+    SuppressDuringOnboarding,
+}
+
+#[cfg(target_os = "macos")]
+fn accessibility_prompt_action(onboarding_active: bool) -> AccessibilityPromptAction {
+    if onboarding_active {
+        AccessibilityPromptAction::SuppressDuringOnboarding
+    } else {
+        AccessibilityPromptAction::Show
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn permission_required_callback(runtime: &ShortcutRuntime) -> PermissionRequiredCallback {
+    let onboarding_active = Arc::clone(&runtime.onboarding_active);
+    let prompt = runtime.accessibility_permission_prompt.clone();
+    Box::new(move || {
+        if accessibility_prompt_action((onboarding_active)()) == AccessibilityPromptAction::Show {
+            prompt.show_required();
+        }
     })
+}
+
+#[cfg(target_os = "windows")]
+fn permission_required_callback(_runtime: &ShortcutRuntime) -> PermissionRequiredCallback {
+    Box::new(|| {})
 }
 
 fn begin_recording(
@@ -436,8 +476,9 @@ fn start_platform_shortcut_monitor(
     is_recording: Arc<dyn Fn() -> bool + Send + Sync>,
     controller: settings_actions::PlatformShortcutController,
     on_action: impl Fn(DictationShortcutAction) + Send + 'static,
+    on_permission_required: impl Fn() + Send + 'static,
 ) -> Result<PlatformShortcutMonitor, String> {
-    MacOsShortcutMonitor::start(is_recording, controller, on_action);
+    MacOsShortcutMonitor::start(is_recording, controller, on_action, on_permission_required);
     Ok(PlatformShortcutMonitor)
 }
 
@@ -446,6 +487,7 @@ fn start_platform_shortcut_monitor(
     is_recording: Arc<dyn Fn() -> bool + Send + Sync>,
     controller: settings_actions::PlatformShortcutController,
     on_action: impl Fn(DictationShortcutAction) + Send + 'static,
+    _on_permission_required: impl Fn() + Send + 'static,
 ) -> Result<PlatformShortcutMonitor, String> {
     template_infra::WindowsShortcutMonitor::start(is_recording, controller, on_action)
         .map(|monitor| PlatformShortcutMonitor { _monitor: monitor })
@@ -472,5 +514,22 @@ mod overlay_lifecycle_tests {
         assert!(!should_reveal_asr_configuration(
             &SpeechRecognitionError::Authentication
         ));
+    }
+}
+
+#[cfg(all(test, target_os = "macos"))]
+mod accessibility_prompt_tests {
+    use super::{AccessibilityPromptAction, accessibility_prompt_action};
+
+    #[test]
+    fn permission_prompt_is_suppressed_only_while_onboarding_is_active() {
+        assert_eq!(
+            AccessibilityPromptAction::Show,
+            accessibility_prompt_action(false)
+        );
+        assert_eq!(
+            AccessibilityPromptAction::SuppressDuringOnboarding,
+            accessibility_prompt_action(true)
+        );
     }
 }

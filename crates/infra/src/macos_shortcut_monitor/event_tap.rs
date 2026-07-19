@@ -4,6 +4,7 @@ pub(super) fn start(
     is_recording: Arc<dyn Fn() -> bool + Send + Sync>,
     controller: MacOsShortcutController,
     on_action: impl Fn(DictationShortcutAction) + Send + 'static,
+    on_permission_required: impl Fn() + Send + 'static,
 ) {
     let (sender, receiver) = channel();
     thread::spawn(move || {
@@ -16,6 +17,7 @@ pub(super) fn start(
         eprintln!("saymore_fn_trace phase=monitor-thread-started");
         #[cfg(debug_assertions)]
         let mut trust_logged = false;
+        let mut detector = super::untrusted_poll::UntrustedShortcutDetector::default();
         loop {
             // SAFETY: AXIsProcessTrusted has no preconditions and only reads TCC state.
             let trusted = unsafe { AXIsProcessTrusted() };
@@ -34,9 +36,32 @@ pub(super) fn start(
             {
                 return;
             }
-            thread::sleep(PERMISSION_RETRY_INTERVAL);
+            if !trusted {
+                if poll_untrusted_shortcuts(&controller, &mut detector) {
+                    on_permission_required();
+                }
+            } else {
+                thread::sleep(PERMISSION_RETRY_INTERVAL);
+            }
         }
     });
+}
+
+fn poll_untrusted_shortcuts(
+    controller: &MacOsShortcutController,
+    detector: &mut super::untrusted_poll::UntrustedShortcutDetector,
+) -> bool {
+    const POLL_INTERVAL: Duration = Duration::from_millis(20);
+    let attempts = PERMISSION_RETRY_INTERVAL.as_millis() / POLL_INTERVAL.as_millis();
+    for _ in 0..attempts {
+        if let Ok(shortcuts) = controller.current()
+            && detector.observe_system(&shortcuts)
+        {
+            return true;
+        }
+        thread::sleep(POLL_INTERVAL);
+    }
+    false
 }
 
 fn run_event_tap(

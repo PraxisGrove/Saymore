@@ -179,6 +179,10 @@ impl OnboardingRuntime {
 }
 
 impl OnboardingShortcutHandler {
+    pub fn is_active(&self) -> bool {
+        self.active.load(Ordering::Acquire)
+    }
+
     pub fn handle_toggle(&self) -> bool {
         if !self.active.load(Ordering::Acquire)
             || self.step.load(Ordering::Acquire) != OnboardingStep::Microphone.index()
