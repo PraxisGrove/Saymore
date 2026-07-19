@@ -4,6 +4,8 @@ use std::sync::{
 };
 use std::time::Duration;
 
+#[cfg(any(target_os = "macos", target_os = "windows"))]
+use slint::winit_030::{EventResult, WinitWindowAccessor, winit::event::WindowEvent};
 use slint::{ComponentHandle, SharedString, Timer, TimerMode};
 use template_app::{
     AccessibilityAuthorization, LocalSettings, LocalSettingsChange, MicrophoneAuthorization,
@@ -15,14 +17,15 @@ use template_infra::AppEnvironment;
 use template_infra::{WindowsLaunchAtLogin, open_windows_microphone_privacy_settings};
 #[cfg(target_os = "macos")]
 use template_infra::{
-    activate_application, launch_at_login_status, open_microphone_privacy_settings,
-    set_launch_at_login,
+    activate_application, launch_at_login_status, open_accessibility_privacy_settings,
+    open_microphone_privacy_settings, set_launch_at_login,
 };
 
 use crate::{
     RecorderHandle,
     local_settings_runtime::{LocalSettingsHandle, LocalSettingsSubmissionError},
     main_window,
+    permission_actions::{PermissionAction, microphone_permission_action},
     ui::{AppPage, AppWindow, OnboardingWindow},
 };
 
@@ -101,6 +104,7 @@ impl OnboardingRuntime {
             shortcut.clone(),
         );
         wire_permissions(&window, Arc::clone(&microphone), Arc::clone(&deliverer));
+        wire_permission_focus_refresh(&window, Arc::clone(&microphone), Arc::clone(&deliverer));
         wire_launch_at_login(&window, environment);
         wire_manual_rerun(
             app,
@@ -257,14 +261,13 @@ fn wire_permissions(
     let requested_microphone = Arc::clone(&microphone);
     let microphone_deliverer = Arc::clone(&deliverer);
     window.on_request_microphone(move || {
-        match requested_microphone.authorization() {
-            MicrophoneAuthorization::NotDetermined => {
+        match microphone_permission_action(requested_microphone.authorization()) {
+            PermissionAction::Request => {
                 requested_microphone.request_authorization();
             }
-            MicrophoneAuthorization::Denied | MicrophoneAuthorization::Restricted => {
+            PermissionAction::OpenSettings => {
                 let _ = open_platform_microphone_privacy_settings();
             }
-            MicrophoneAuthorization::Granted => {}
         }
         if let Some(window) = microphone_window.upgrade() {
             update_permissions(&window, &*requested_microphone, &*microphone_deliverer);
@@ -272,12 +275,52 @@ fn wire_permissions(
     });
 
     let accessibility_window = window.as_weak();
+    let accessibility_microphone = Arc::clone(&microphone);
+    let accessibility_deliverer = Arc::clone(&deliverer);
     window.on_request_accessibility(move || {
-        deliverer.request_authorization();
+        let _ = open_platform_accessibility_privacy_settings();
         if let Some(window) = accessibility_window.upgrade() {
+            update_permissions(
+                &window,
+                &*accessibility_microphone,
+                &*accessibility_deliverer,
+            );
+        }
+    });
+
+    let refresh_window = window.as_weak();
+    window.on_refresh_permissions(move || {
+        if let Some(window) = refresh_window.upgrade() {
             update_permissions(&window, &*microphone, &*deliverer);
         }
     });
+}
+
+#[cfg(any(target_os = "macos", target_os = "windows"))]
+fn wire_permission_focus_refresh(
+    window: &OnboardingWindow,
+    microphone: Arc<dyn MicrophonePermissionProvider>,
+    deliverer: Arc<dyn TextDeliverer>,
+) {
+    let refresh_window = window.as_weak();
+    window
+        .window()
+        .on_winit_window_event(move |_window, event| {
+            if matches!(event, WindowEvent::Focused(true))
+                && let Some(window) = refresh_window.upgrade()
+            {
+                update_permissions(&window, &*microphone, &*deliverer);
+            }
+            EventResult::Propagate
+        });
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
+fn wire_permission_focus_refresh(
+    _window: &OnboardingWindow,
+    _microphone: Arc<dyn MicrophonePermissionProvider>,
+    _deliverer: Arc<dyn TextDeliverer>,
+) {
 }
 
 #[cfg(target_os = "macos")]
@@ -426,6 +469,16 @@ fn launch_at_login_enabled(environment: AppEnvironment) -> bool {
 #[cfg(target_os = "macos")]
 fn open_platform_microphone_privacy_settings() -> Result<(), String> {
     open_microphone_privacy_settings().map_err(|error| error.to_string())
+}
+
+#[cfg(target_os = "macos")]
+fn open_platform_accessibility_privacy_settings() -> Result<(), String> {
+    open_accessibility_privacy_settings().map_err(|error| error.to_string())
+}
+
+#[cfg(not(target_os = "macos"))]
+fn open_platform_accessibility_privacy_settings() -> Result<(), String> {
+    Err("accessibility settings integration is unavailable on this platform".to_owned())
 }
 
 #[cfg(target_os = "windows")]

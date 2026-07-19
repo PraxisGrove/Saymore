@@ -160,6 +160,7 @@ export component AppWindow inherits Window {
     in-out property <bool> history-enabled: true;
     callback request-authorization();
     callback request-microphone-authorization();
+    callback refresh-authorizations();
     callback select-microphone(string, string);
     callback refresh-microphones();
     callback set-ui-language(UiLanguage);
@@ -427,6 +428,7 @@ export component AppWindow inherits Window {
         back-to-app => { root.current-page = AppPage.home; }
         open-microphone-settings => { root.open-microphone-settings(); }
         open-accessibility-settings => { root.open-accessibility-settings(); }
+        refresh-authorizations => { root.refresh-authorizations(); }
         select-microphone(id, name) => { root.select-microphone(id, name); }
         refresh-microphones => { root.refresh-microphones(); }
         set-ui-language(language) => { root.set-ui-language(language); }

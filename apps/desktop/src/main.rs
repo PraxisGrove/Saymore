@@ -77,6 +77,7 @@ mod main_window;
 mod microphone_access;
 mod onboarding;
 mod overlay_window;
+mod permission_actions;
 mod platform_open;
 mod recording_actions;
 #[cfg_attr(not(target_os = "macos"), allow(dead_code))]

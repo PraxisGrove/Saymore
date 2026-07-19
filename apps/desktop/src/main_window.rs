@@ -37,16 +37,40 @@ pub fn initialize(
 
 #[cfg(any(target_os = "macos", target_os = "windows"))]
 fn configure_close_behavior(ui: &AppWindow) {
-    ui.window().on_winit_window_event(|window, event| {
-        if !matches!(event, WindowEvent::CloseRequested) {
-            return EventResult::Propagate;
-        }
+    let refresh_ui = ui.as_weak();
+    ui.window()
+        .on_winit_window_event(move |window, event| match window_event_action(event) {
+            MainWindowEventAction::Hide => {
+                if let Err(error) = window.hide() {
+                    tracing::warn!(event = "main_window.hide_failed", reason = %error);
+                }
+                EventResult::PreventDefault
+            }
+            MainWindowEventAction::Propagate => EventResult::Propagate,
+            MainWindowEventAction::RefreshAuthorizations => {
+                if let Some(ui) = refresh_ui.upgrade() {
+                    ui.invoke_refresh_authorizations();
+                }
+                EventResult::Propagate
+            }
+        });
+}
 
-        if let Err(error) = window.hide() {
-            tracing::warn!(event = "main_window.hide_failed", reason = %error);
-        }
-        EventResult::PreventDefault
-    });
+#[cfg(any(target_os = "macos", target_os = "windows"))]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum MainWindowEventAction {
+    Hide,
+    Propagate,
+    RefreshAuthorizations,
+}
+
+#[cfg(any(target_os = "macos", target_os = "windows"))]
+fn window_event_action(event: &WindowEvent) -> MainWindowEventAction {
+    match event {
+        WindowEvent::CloseRequested => MainWindowEventAction::Hide,
+        WindowEvent::Focused(true) => MainWindowEventAction::RefreshAuthorizations,
+        _ => MainWindowEventAction::Propagate,
+    }
 }
 
 #[cfg(not(any(target_os = "macos", target_os = "windows")))]
@@ -94,4 +118,21 @@ fn integrate_titlebar(ui: &AppWindow) -> Result<(), String> {
             },
             _ => Err("the main window does not have an AppKit window handle".to_owned()),
         })
+}
+
+#[cfg(test)]
+mod tests {
+    #[cfg(any(target_os = "macos", target_os = "windows"))]
+    use super::{MainWindowEventAction, window_event_action};
+    #[cfg(any(target_os = "macos", target_os = "windows"))]
+    use slint::winit_030::winit::event::WindowEvent;
+
+    #[cfg(any(target_os = "macos", target_os = "windows"))]
+    #[test]
+    fn regaining_focus_refreshes_system_authorizations() {
+        assert_eq!(
+            MainWindowEventAction::RefreshAuthorizations,
+            window_event_action(&WindowEvent::Focused(true))
+        );
+    }
 }

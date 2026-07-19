@@ -127,6 +127,12 @@ msgctxt "common.open-system-settings"
 msgid "Open System Settings"
 msgstr "打开系统设置"
 
+#: apps/desktop/ui/onboarding.slint:240
+#: apps/desktop/ui/pages/settings.slint:345
+msgctxt "common.recheck"
+msgid "Recheck"
+msgstr "重新检测"
+
 #: apps/desktop/ui/onboarding.slint:117
 msgctxt "onboarding.window-title"
 msgid "Set up Saymore"
@@ -2393,7 +2399,7 @@ msgstr "用于将识别结果自动输入到当前应用。"
 
 #: apps/desktop/ui/pages/settings.slint:610
 msgctxt "settings.permissions.accessibility.required-detail"
-msgid "Allow Accessibility access to insert recognized text automatically."
+msgid "Enable Accessibility to insert recognized text."
 msgstr "允许辅助功能后才能自动输入识别结果。"
 
 #: apps/desktop/ui/pages/settings.slint:617

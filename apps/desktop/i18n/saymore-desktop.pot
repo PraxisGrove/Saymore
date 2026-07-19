@@ -138,6 +138,12 @@ msgctxt "common.open-system-settings"
 msgid "Open System Settings"
 msgstr ""
 
+#: apps/desktop/ui/onboarding.slint:240
+#: apps/desktop/ui/pages/settings.slint:345
+msgctxt "common.recheck"
+msgid "Recheck"
+msgstr ""
+
 #: apps/desktop/ui/onboarding.slint:117
 msgctxt "onboarding.window-title"
 msgid "Set up Saymore"
@@ -2449,7 +2455,7 @@ msgstr ""
 #: apps/desktop/ui/pages/settings.slint:610
 #: apps/desktop/ui/pages/settings.slint:610
 msgctxt "settings.permissions.accessibility.required-detail"
-msgid "Allow Accessibility access to insert recognized text automatically."
+msgid "Enable Accessibility to insert recognized text."
 msgstr ""
 
 #: apps/desktop/ui/pages/settings.slint:617

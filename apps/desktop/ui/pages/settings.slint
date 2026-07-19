@@ -13,6 +13,8 @@ component SettingsActionButton inherits Rectangle {
     in property <bool> enabled: true;
     in property <bool> primary: false;
     in property <string> state: "default";
+    in property <bool> show-icon: true;
+    in property <bool> icon-only: false;
     callback activated();
 
     width: 144px;
@@ -31,10 +33,10 @@ component SettingsActionButton inherits Rectangle {
     accessible-enabled: root.enabled;
     accessible-action-default => { if root.enabled { root.activated(); } }
 
-    Image { x: 17px; y: 12px; width: 16px; height: 16px; source: root.icon; colorize: !root.enabled ? AppColors.text-muted : root.state == "success" ? AppColors.success : root.state == "failure" ? AppColors.danger : root.primary ? #ffffff : AppColors.text; }
-    Text {
-        x: 42px;
-        width: parent.width - 54px;
+    if root.show-icon: Image { x: root.icon-only ? (parent.width - self.width) / 2 : 17px; y: (parent.height - self.height) / 2; width: 16px; height: 16px; source: root.icon; colorize: !root.enabled ? AppColors.text-muted : root.state == "success" ? AppColors.success : root.state == "failure" ? AppColors.danger : root.primary ? #ffffff : AppColors.text; }
+    if !root.icon-only: Text {
+        x: root.show-icon ? 42px : 12px;
+        width: parent.width - (root.show-icon ? 54px : 24px);
         text: root.label;
         color: !root.enabled ? AppColors.text-muted : root.state == "success" ? AppColors.success : root.state == "failure" ? AppColors.danger : root.primary ? #ffffff : AppColors.text;
         font-size: 12px;
@@ -310,23 +312,42 @@ component PermissionCard inherits Rectangle {
     in property <string> status;
     in property <bool> granted;
     callback open-system-settings();
+    callback recheck();
 
-    height: 130px;
+    height: 146px;
     border-radius: 10px;
-    background: AppColors.surface;
+    background: card-touch.has-hover ? AppColors.surface-subtle : AppColors.surface;
+    accessible-role: button;
+    accessible-label: root.title;
+    accessible-action-default => { root.open-system-settings(); }
+
+    card-touch := TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.open-system-settings(); }
+    }
 
     SettingsIcon { x: 20px; y: 20px; source: root.icon; icon-color: root.granted ? AppColors.text : AppColors.danger; }
-    Text { x: 70px; y: 21px; width: parent.width - 168px; text: root.title; color: AppColors.ink; font-size: 14px; font-weight: 650; overflow: elide; }
+    Text { x: 70px; y: 21px; width: parent.width - 176px; height: 24px; text: root.title; color: AppColors.ink; font-size: 14px; font-weight: 650; vertical-alignment: center; overflow: elide; }
     StatusLabel { x: parent.width - 94px; y: 20px; label: root.status; granted: root.granted; }
-    Text { x: 20px; y: 72px; width: parent.width - 40px; text: root.detail; color: AppColors.text-muted; font-size: 11px; }
-    if !root.granted: SettingsActionButton {
-        x: parent.width - 164px;
-        y: parent.height - 52px;
-        width: 144px;
+    Text { x: 70px; y: 50px; width: parent.width - 90px; height: 32px; text: root.detail; color: AppColors.text-muted; font-size: 11px; wrap: word-wrap; }
+    SettingsActionButton {
+        x: 20px;
+        y: parent.height - 44px;
+        width: parent.width - 76px;
         height: 32px;
         label: @tr("common.open-system-settings" => "Open System Settings");
         icon: @image-url("../../icons/lucide/settings.svg");
         activated => { root.open-system-settings(); }
+    }
+    SettingsActionButton {
+        x: parent.width - 52px;
+        y: parent.height - 44px;
+        width: 32px;
+        height: 32px;
+        label: @tr("common.recheck" => "Recheck");
+        icon: @image-url("../../icons/lucide/refresh-cw.svg");
+        icon-only: true;
+        activated => { root.recheck(); }
     }
 }
 
@@ -416,6 +437,7 @@ export component SettingsPage inherits Rectangle {
     callback back-to-app();
     callback open-microphone-settings();
     callback open-accessibility-settings();
+    callback refresh-authorizations();
     callback select-microphone(string, string);
     callback refresh-microphones();
     callback set-ui-language(UiLanguage);
@@ -626,14 +648,14 @@ export component SettingsPage inherits Rectangle {
                             }
                             Text { height: 20px; text: @tr("settings.permissions.title" => "System Permissions"); color: AppColors.text; font-size: 13px; font-weight: 650; vertical-alignment: center; }
                             if !root.compact: HorizontalLayout {
-                                height: 130px; spacing: 16px;
-                                PermissionCard { horizontal-stretch: 1; icon: @image-url("../../icons/lucide/audio-lines.svg"); title: @tr("settings.permissions.microphone.title" => "Microphone"); detail: root.microphone-authorized ? @tr("settings.permissions.microphone.granted-detail" => "Captures your voice only while voice input is active.") : @tr("settings.permissions.microphone.required-detail" => "Allow microphone access to start voice input."); status: root.microphone-status; granted: root.microphone-authorized; open-system-settings => { root.open-microphone-settings(); } }
-                                if root.show-accessibility-setting: PermissionCard { horizontal-stretch: 1; icon: @image-url("../../icons/lucide/check.svg"); title: @tr("settings.permissions.accessibility.title" => "Accessibility"); detail: root.authorized ? @tr("settings.permissions.accessibility.granted-detail" => "Inserts recognized text into the app you are using.") : @tr("settings.permissions.accessibility.required-detail" => "Allow Accessibility access to insert recognized text automatically."); status: root.authorization-status; granted: root.authorized; open-system-settings => { root.open-accessibility-settings(); } }
+                                height: 146px; spacing: 16px;
+                                PermissionCard { horizontal-stretch: 1; icon: @image-url("../../icons/lucide/audio-lines.svg"); title: @tr("settings.permissions.microphone.title" => "Microphone"); detail: root.microphone-authorized ? @tr("settings.permissions.microphone.granted-detail" => "Captures your voice only while voice input is active.") : @tr("settings.permissions.microphone.required-detail" => "Allow microphone access to start voice input."); status: root.microphone-status; granted: root.microphone-authorized; open-system-settings => { root.open-microphone-settings(); } recheck => { root.refresh-authorizations(); } }
+                                if root.show-accessibility-setting: PermissionCard { horizontal-stretch: 1; icon: @image-url("../../icons/lucide/check.svg"); title: @tr("settings.permissions.accessibility.title" => "Accessibility"); detail: root.authorized ? @tr("settings.permissions.accessibility.granted-detail" => "Inserts recognized text into the app you are using.") : @tr("settings.permissions.accessibility.required-detail" => "Enable Accessibility to insert recognized text."); status: root.authorization-status; granted: root.authorized; open-system-settings => { root.open-accessibility-settings(); } recheck => { root.refresh-authorizations(); } }
                             }
                             if root.compact: VerticalLayout {
-                                height: root.show-accessibility-setting ? 276px : 130px; spacing: 16px;
-                                PermissionCard { height: 130px; icon: @image-url("../../icons/lucide/audio-lines.svg"); title: @tr("settings.permissions.microphone.title" => "Microphone"); detail: root.microphone-authorized ? @tr("settings.permissions.microphone.granted-detail" => "Captures your voice only while voice input is active.") : @tr("settings.permissions.microphone.required-detail" => "Allow microphone access to start voice input."); status: root.microphone-status; granted: root.microphone-authorized; open-system-settings => { root.open-microphone-settings(); } }
-                                if root.show-accessibility-setting: PermissionCard { height: 130px; icon: @image-url("../../icons/lucide/check.svg"); title: @tr("settings.permissions.accessibility.title" => "Accessibility"); detail: root.authorized ? @tr("settings.permissions.accessibility.granted-detail" => "Inserts recognized text into the app you are using.") : @tr("settings.permissions.accessibility.required-detail" => "Allow Accessibility access to insert recognized text automatically."); status: root.authorization-status; granted: root.authorized; open-system-settings => { root.open-accessibility-settings(); } }
+                                height: root.show-accessibility-setting ? 308px : 146px; spacing: 16px;
+                                PermissionCard { height: 146px; icon: @image-url("../../icons/lucide/audio-lines.svg"); title: @tr("settings.permissions.microphone.title" => "Microphone"); detail: root.microphone-authorized ? @tr("settings.permissions.microphone.granted-detail" => "Captures your voice only while voice input is active.") : @tr("settings.permissions.microphone.required-detail" => "Allow microphone access to start voice input."); status: root.microphone-status; granted: root.microphone-authorized; open-system-settings => { root.open-microphone-settings(); } recheck => { root.refresh-authorizations(); } }
+                                if root.show-accessibility-setting: PermissionCard { height: 146px; icon: @image-url("../../icons/lucide/check.svg"); title: @tr("settings.permissions.accessibility.title" => "Accessibility"); detail: root.authorized ? @tr("settings.permissions.accessibility.granted-detail" => "Inserts recognized text into the app you are using.") : @tr("settings.permissions.accessibility.required-detail" => "Enable Accessibility to insert recognized text."); status: root.authorization-status; granted: root.authorized; open-system-settings => { root.open-accessibility-settings(); } recheck => { root.refresh-authorizations(); } }
                             }
                             Text { height: 18px; text: @tr("settings.permissions.system-managed" => "Permission status is managed by the system and refreshes automatically."); color: AppColors.text-muted; font-size: 10px; }
                         }

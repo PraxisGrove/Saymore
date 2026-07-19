@@ -144,6 +144,7 @@ export component OnboardingWindow inherits Window {
     callback skip();
     callback request-microphone();
     callback request-accessibility();
+    callback refresh-permissions();
     callback finish();
     callback set-launch-at-login(bool);
 
@@ -236,6 +237,7 @@ export component OnboardingWindow inherits Window {
                 Text { x: 92px; y: 52px; width: 420px; text: @tr("onboarding.accessibility.card-detail" => "Saymore does not use this permission to read password fields."); color: AppColors.text-muted; font-size: 10px; wrap: word-wrap; }
                 PermissionStatus { x: 24px; y: 104px; granted: root.accessibility-authorized; label: root.accessibility-status == "granted" ? @tr("onboarding.permission.granted-short" => "Enabled") : @tr("onboarding.permission.required-short" => "Required"); }
                 OnboardingButton { x: 24px; y: 150px; width: 182px; label: root.accessibility-authorized ? @tr("onboarding.permission.granted" => "Permission enabled") : @tr("onboarding.accessibility.open" => "Open System Settings"); primary: !root.accessibility-authorized; enabled: !root.accessibility-authorized; activated => { root.request-accessibility(); } }
+                OnboardingButton { x: 222px; y: 150px; width: 130px; label: @tr("common.recheck" => "Recheck"); activated => { root.refresh-permissions(); } }
             }
         }
 
