@@ -17,9 +17,11 @@ pub(super) fn start_recording_shortcut(
     let monitor_session = Arc::clone(&runtime.session);
     let is_recording: Arc<dyn Fn() -> bool + Send + Sync> =
         Arc::new(move || monitor_session.is_recording());
+    let shortcuts_enabled = shortcuts_enabled_callback(&runtime.paused);
     let on_permission_required = permission_required_callback(&runtime);
     start_platform_shortcut_monitor(
         is_recording,
+        shortcuts_enabled,
         controller,
         move |action| match action {
             DictationShortcutAction::Toggle if (runtime.onboarding_toggle)() => {}
@@ -89,32 +91,24 @@ pub(super) fn start_recording_shortcut(
     )
 }
 
+fn shortcuts_enabled_callback(paused: &Arc<AtomicBool>) -> Arc<dyn Fn() -> bool + Send + Sync> {
+    let paused = Arc::clone(paused);
+    Arc::new(move || !paused.load(Ordering::Acquire))
+}
+
 type PermissionRequiredCallback = Box<dyn Fn() + Send>;
 
 #[cfg(target_os = "macos")]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum AccessibilityPromptAction {
-    Show,
-    SuppressDuringOnboarding,
-}
-
-#[cfg(target_os = "macos")]
-fn accessibility_prompt_action(onboarding_active: bool) -> AccessibilityPromptAction {
-    if onboarding_active {
-        AccessibilityPromptAction::SuppressDuringOnboarding
-    } else {
-        AccessibilityPromptAction::Show
-    }
-}
-
-#[cfg(target_os = "macos")]
 fn permission_required_callback(runtime: &ShortcutRuntime) -> PermissionRequiredCallback {
-    let onboarding_active = Arc::clone(&runtime.onboarding_active);
+    let onboarding_toggle = Arc::clone(&runtime.onboarding_toggle);
     let prompt = runtime.accessibility_permission_prompt.clone();
     Box::new(move || {
-        if accessibility_prompt_action((onboarding_active)()) == AccessibilityPromptAction::Show {
-            prompt.show_required();
-        }
+        accessibility_permission_prompt::handle_required_shortcut(
+            onboarding_toggle.as_ref(),
+            || {
+                prompt.show_required();
+            },
+        );
     })
 }
 
@@ -474,17 +468,25 @@ fn should_reveal_asr_configuration(error: &SpeechRecognitionError) -> bool {
 #[cfg(target_os = "macos")]
 fn start_platform_shortcut_monitor(
     is_recording: Arc<dyn Fn() -> bool + Send + Sync>,
+    shortcuts_enabled: Arc<dyn Fn() -> bool + Send + Sync>,
     controller: settings_actions::PlatformShortcutController,
     on_action: impl Fn(DictationShortcutAction) + Send + 'static,
     on_permission_required: impl Fn() + Send + 'static,
 ) -> Result<PlatformShortcutMonitor, String> {
-    MacOsShortcutMonitor::start(is_recording, controller, on_action, on_permission_required);
+    MacOsShortcutMonitor::start(
+        is_recording,
+        shortcuts_enabled,
+        controller,
+        on_action,
+        on_permission_required,
+    );
     Ok(PlatformShortcutMonitor)
 }
 
 #[cfg(target_os = "windows")]
 fn start_platform_shortcut_monitor(
     is_recording: Arc<dyn Fn() -> bool + Send + Sync>,
+    _shortcuts_enabled: Arc<dyn Fn() -> bool + Send + Sync>,
     controller: settings_actions::PlatformShortcutController,
     on_action: impl Fn(DictationShortcutAction) + Send + 'static,
     _on_permission_required: impl Fn() + Send + 'static,
@@ -514,22 +516,5 @@ mod overlay_lifecycle_tests {
         assert!(!should_reveal_asr_configuration(
             &SpeechRecognitionError::Authentication
         ));
-    }
-}
-
-#[cfg(all(test, target_os = "macos"))]
-mod accessibility_prompt_tests {
-    use super::{AccessibilityPromptAction, accessibility_prompt_action};
-
-    #[test]
-    fn permission_prompt_is_suppressed_only_while_onboarding_is_active() {
-        assert_eq!(
-            AccessibilityPromptAction::Show,
-            accessibility_prompt_action(false)
-        );
-        assert_eq!(
-            AccessibilityPromptAction::SuppressDuringOnboarding,
-            accessibility_prompt_action(true)
-        );
     }
 }

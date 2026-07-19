@@ -34,6 +34,15 @@ impl AccessibilityPermissionPrompt {
     }
 }
 
+pub(crate) fn handle_required_shortcut(
+    onboarding_toggle: &(dyn Fn() -> bool + Send + Sync),
+    show_prompt: impl FnOnce(),
+) {
+    if !onboarding_toggle() {
+        show_prompt();
+    }
+}
+
 pub(crate) fn open_settings() {
     if let Err(error) = open_accessibility_privacy_settings() {
         tracing::warn!(event = "accessibility.settings_open_failed", reason = %error);
@@ -43,5 +52,27 @@ pub(crate) fn open_settings() {
 fn hide<T: ComponentHandle>(overlay: &slint::Weak<T>) {
     if let Some(overlay) = overlay.upgrade() {
         let _ = overlay.hide();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    use super::handle_required_shortcut;
+
+    #[test]
+    fn required_shortcut_is_handled_by_onboarding_or_shows_the_permission_prompt() {
+        let prompts = AtomicUsize::new(0);
+
+        handle_required_shortcut(&|| true, || {
+            prompts.fetch_add(1, Ordering::Relaxed);
+        });
+        assert_eq!(0, prompts.load(Ordering::Relaxed));
+
+        handle_required_shortcut(&|| false, || {
+            prompts.fetch_add(1, Ordering::Relaxed);
+        });
+        assert_eq!(1, prompts.load(Ordering::Relaxed));
     }
 }

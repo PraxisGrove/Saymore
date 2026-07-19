@@ -2,6 +2,7 @@ use super::*;
 
 pub(super) fn start(
     is_recording: Arc<dyn Fn() -> bool + Send + Sync>,
+    shortcuts_enabled: Arc<dyn Fn() -> bool + Send + Sync>,
     controller: MacOsShortcutController,
     on_action: impl Fn(DictationShortcutAction) + Send + 'static,
     on_permission_required: impl Fn() + Send + 'static,
@@ -30,6 +31,7 @@ pub(super) fn start(
                 && run_event_tap(
                     sender.clone(),
                     Arc::clone(&is_recording),
+                    Arc::clone(&shortcuts_enabled),
                     controller.clone(),
                 )
                 .is_ok()
@@ -37,7 +39,7 @@ pub(super) fn start(
                 return;
             }
             if !trusted {
-                if poll_untrusted_shortcuts(&controller, &mut detector) {
+                if poll_untrusted_shortcuts(&controller, &mut detector) && shortcuts_enabled() {
                     on_permission_required();
                 }
             } else {
@@ -67,6 +69,7 @@ fn poll_untrusted_shortcuts(
 fn run_event_tap(
     sender: Sender<DictationShortcutAction>,
     is_recording: Arc<dyn Fn() -> bool + Send + Sync>,
+    shortcuts_enabled: Arc<dyn Fn() -> bool + Send + Sync>,
     controller: MacOsShortcutController,
 ) -> Result<(), ()> {
     let modifier_state = Mutex::new(ModifierState::default());
@@ -87,6 +90,7 @@ fn run_event_tap(
                 &controller,
                 &sender,
                 is_recording.as_ref(),
+                shortcuts_enabled(),
             )
         },
     );
@@ -111,6 +115,7 @@ fn handle_event(
     controller: &MacOsShortcutController,
     sender: &Sender<DictationShortcutAction>,
     is_recording: &(dyn Fn() -> bool + Send + Sync),
+    shortcuts_enabled: bool,
 ) -> CallbackResult {
     #[cfg(debug_assertions)]
     if key_code(event) == 63
@@ -126,10 +131,10 @@ fn handle_event(
     }
     match event_type {
         CGEventType::FlagsChanged => {
-            handle_modifier_event(event, modifier_state, controller, sender)
+            handle_modifier_event(event, modifier_state, controller, sender, shortcuts_enabled)
         }
         CGEventType::KeyDown | CGEventType::KeyUp
-            if key_code(event) == 63 && controller.reserves_fn() =>
+            if key_code(event) == 63 && controller.reserves_fn(shortcuts_enabled) =>
         {
             CallbackResult::Drop
         }
@@ -147,7 +152,7 @@ fn handle_event(
         }
         CGEventType::KeyDown => {
             mark_active_modifiers_used(modifier_state);
-            handle_shortcut_key_down(event, controller, sender)
+            handle_shortcut_key_down(event, controller, sender, shortcuts_enabled)
         }
         _ => CallbackResult::Keep,
     }
@@ -164,11 +169,15 @@ fn capture_key_down(event: &CGEvent, controller: &MacOsShortcutController) {
     }
 }
 
-fn handle_shortcut_key_down(
+pub(super) fn handle_shortcut_key_down(
     event: &CGEvent,
     controller: &MacOsShortcutController,
     sender: &Sender<DictationShortcutAction>,
+    shortcuts_enabled: bool,
 ) -> CallbackResult {
+    if !shortcuts_enabled {
+        return CallbackResult::Keep;
+    }
     let matches = controller
         .current()
         .unwrap_or_default()
@@ -195,6 +204,7 @@ pub(super) fn handle_modifier_event(
     modifier_state: &Mutex<ModifierState>,
     controller: &MacOsShortcutController,
     sender: &Sender<DictationShortcutAction>,
+    shortcuts_enabled: bool,
 ) -> CallbackResult {
     let code = key_code(event);
     if !is_modifier_key(code) {
@@ -204,9 +214,15 @@ pub(super) fn handle_modifier_event(
         return CallbackResult::Keep;
     };
     if modifier_is_down(code, event.get_flags()) {
+        if !shortcuts_enabled && !controller.capturing() {
+            state.down.remove(&code);
+            state.used_in_chord.remove(&code);
+            state.suppressed.remove(&code);
+            return CallbackResult::Keep;
+        }
         state.down.insert(code);
         state.used_in_chord.remove(&code);
-        let suppress = code == 63 && controller.reserves_fn();
+        let suppress = code == 63 && controller.reserves_fn(shortcuts_enabled);
         if suppress {
             #[cfg(debug_assertions)]
             eprintln!("saymore_fn_trace phase=modifier-down result=drop");
@@ -240,6 +256,9 @@ pub(super) fn handle_modifier_event(
     if controller.capturing() {
         controller.finish_capture(MacOsShortcut::modifier(code));
         return CallbackResult::Drop;
+    }
+    if !shortcuts_enabled {
+        return CallbackResult::Keep;
     }
     let matches_shortcut = controller
         .current()

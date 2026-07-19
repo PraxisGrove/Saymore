@@ -22,7 +22,9 @@ mod key_mapping;
 mod untrusted_poll;
 
 #[cfg(test)]
-use event_tap::{ModifierState, handle_modifier_event, mark_active_modifiers_used};
+use event_tap::{
+    ModifierState, handle_modifier_event, handle_shortcut_key_down, mark_active_modifiers_used,
+};
 use key_mapping::{key_code_for_character, key_label, modifier_label};
 
 const PERMISSION_RETRY_INTERVAL: Duration = Duration::from_secs(1);
@@ -333,13 +335,14 @@ impl MacOsShortcutController {
             .unwrap_or(false)
     }
 
-    fn reserves_fn(&self) -> bool {
+    fn reserves_fn(&self, shortcuts_enabled: bool) -> bool {
         self.capturing()
-            || self
-                .current()
-                .unwrap_or_default()
-                .iter()
-                .any(|shortcut| shortcut.matches_modifier_release(63))
+            || shortcuts_enabled
+                && self
+                    .current()
+                    .unwrap_or_default()
+                    .iter()
+                    .any(|shortcut| shortcut.matches_modifier_release(63))
     }
 
     fn finish_capture(&self, shortcut: MacOsShortcut) {
@@ -365,11 +368,18 @@ pub struct MacOsShortcutMonitor;
 impl MacOsShortcutMonitor {
     pub fn start(
         is_recording: Arc<dyn Fn() -> bool + Send + Sync>,
+        shortcuts_enabled: Arc<dyn Fn() -> bool + Send + Sync>,
         controller: MacOsShortcutController,
         on_action: impl Fn(DictationShortcutAction) + Send + 'static,
         on_permission_required: impl Fn() + Send + 'static,
     ) {
-        event_tap::start(is_recording, controller, on_action, on_permission_required);
+        event_tap::start(
+            is_recording,
+            shortcuts_enabled,
+            controller,
+            on_action,
+            on_permission_required,
+        );
     }
 }
 

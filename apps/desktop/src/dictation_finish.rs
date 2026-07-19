@@ -213,43 +213,68 @@ fn apply_completion_result(
                 context.feedback_sounds_enabled.load(Ordering::Acquire),
             );
         }
-        DictationCompletionResult::Failed(FailedDictation {
-            id,
-            error: DictationCompletionError::Recording(RecordingError::NotRecording),
-        }) => tracing::warn!(
-            target: "saymore::diagnostics",
-            event = "asr.finalization_failed",
-            dictation_id = %id,
-            stage = "recording",
-            reason = %RecordingError::NotRecording
-        ),
-        DictationCompletionResult::Failed(FailedDictation {
-            id,
-            error: DictationCompletionError::Recording(error),
-        }) => {
-            tracing::warn!(
-                target: "saymore::diagnostics",
-                event = "asr.finalization_failed",
-                dictation_id = %id,
-                stage = "recording",
-                reason = %error
-            );
-            apply_recording_error(ui, &error);
-            hide_overlay_after_delay(context.status_overlay);
+        DictationCompletionResult::Failed(FailedDictation { id, error }) => {
+            match completion_failure_feedback(&error) {
+                CompletionFailureFeedback::Recording(error) => {
+                    tracing::warn!(
+                        target: "saymore::diagnostics",
+                        event = "asr.finalization_failed",
+                        dictation_id = %id,
+                        stage = "recording",
+                        reason = %error
+                    );
+                    apply_recording_failure(ui, context.status_overlay, error);
+                }
+                CompletionFailureFeedback::Recognition(error) => {
+                    tracing::warn!(
+                        target: "saymore::diagnostics",
+                        event = "asr.finalization_failed",
+                        dictation_id = %id,
+                        stage = "recognition",
+                        reason = %error
+                    );
+                    apply_asr_error(ui, error);
+                    hide_overlay_after_delay(context.status_overlay);
+                }
+            }
         }
-        DictationCompletionResult::Failed(FailedDictation {
-            id,
-            error: DictationCompletionError::Recognition(error),
-        }) => {
-            tracing::warn!(
-                target: "saymore::diagnostics",
-                event = "asr.finalization_failed",
-                dictation_id = %id,
-                stage = "recognition",
-                reason = %error
-            );
-            apply_asr_error(ui, &error);
-            hide_overlay_after_delay(context.status_overlay);
+    }
+}
+
+enum CompletionFailureFeedback<'a> {
+    Recording(&'a RecordingError),
+    Recognition(&'a template_app::SpeechRecognitionError),
+}
+
+fn completion_failure_feedback(error: &DictationCompletionError) -> CompletionFailureFeedback<'_> {
+    match error {
+        DictationCompletionError::Recording(error) => CompletionFailureFeedback::Recording(error),
+        DictationCompletionError::Recognition(error) => {
+            CompletionFailureFeedback::Recognition(error)
         }
+    }
+}
+
+fn apply_recording_failure(
+    ui: &AppWindow,
+    status_overlay: slint::Weak<RecordingOverlay>,
+    error: &RecordingError,
+) {
+    apply_recording_error(ui, error);
+    hide_overlay_after_delay(status_overlay);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn inactive_recorder_finishes_with_visible_failure_feedback() {
+        let error = DictationCompletionError::Recording(RecordingError::NotRecording);
+
+        assert!(matches!(
+            completion_failure_feedback(&error),
+            CompletionFailureFeedback::Recording(RecordingError::NotRecording)
+        ));
     }
 }

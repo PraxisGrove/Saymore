@@ -13,6 +13,10 @@ fn modifier_event(code: i64, flags: CGEventFlags) -> CGEvent {
     event
 }
 
+fn key_event(code: i64, flags: CGEventFlags) -> CGEvent {
+    modifier_event(code, flags)
+}
+
 #[test]
 fn supports_multiple_shortcuts_and_rejects_duplicates() {
     let fn_key = MacOsShortcut::modifier(63);
@@ -37,14 +41,15 @@ fn supports_multiple_shortcuts_and_rejects_duplicates() {
 #[test]
 fn reserves_fn_only_while_bound_or_capturing() {
     let fn_controller = MacOsShortcutController::new(vec![MacOsShortcut::modifier(63)]);
-    assert!(fn_controller.reserves_fn());
+    assert!(fn_controller.reserves_fn(true));
+    assert!(!fn_controller.reserves_fn(false));
 
     let command_controller = MacOsShortcutController::new(vec![MacOsShortcut::modifier(54)]);
-    assert!(!command_controller.reserves_fn());
+    assert!(!command_controller.reserves_fn(true));
     let Ok(_capture) = command_controller.begin_capture() else {
         panic!("shortcut capture should start");
     };
-    assert!(command_controller.reserves_fn());
+    assert!(command_controller.reserves_fn(false));
 }
 
 #[test]
@@ -117,6 +122,34 @@ fn consumes_escape_only_while_recording() {
 }
 
 #[test]
+fn paused_shortcuts_continue_to_macos_without_triggering_dictation() {
+    let controller = MacOsShortcutController::new(vec![
+        MacOsShortcut::modifier(54),
+        MacOsShortcut::physical(0, CGEventFlags::CGEventFlagCommand),
+    ]);
+    let modifier_state = Mutex::new(ModifierState::default());
+    let (sender, receiver) = channel();
+
+    let pressed = modifier_event(54, CGEventFlags::CGEventFlagCommand);
+    assert!(matches!(
+        handle_modifier_event(&pressed, &modifier_state, &controller, &sender, false),
+        CallbackResult::Keep
+    ));
+    let released = modifier_event(54, CGEventFlags::empty());
+    assert!(matches!(
+        handle_modifier_event(&released, &modifier_state, &controller, &sender, false),
+        CallbackResult::Keep
+    ));
+
+    let command_a = key_event(0, CGEventFlags::CGEventFlagCommand);
+    assert!(matches!(
+        handle_shortcut_key_down(&command_a, &controller, &sender, false),
+        CallbackResult::Keep
+    ));
+    assert!(receiver.try_recv().is_err());
+}
+
+#[test]
 fn bound_fn_press_and_release_trigger_dictation_without_reaching_macos() {
     let controller = MacOsShortcutController::new(vec![MacOsShortcut::modifier(63)]);
     let modifier_state = Mutex::new(ModifierState::default());
@@ -124,13 +157,13 @@ fn bound_fn_press_and_release_trigger_dictation_without_reaching_macos() {
 
     let pressed = modifier_event(63, CGEventFlags::CGEventFlagSecondaryFn);
     assert!(matches!(
-        handle_modifier_event(&pressed, &modifier_state, &controller, &sender),
+        handle_modifier_event(&pressed, &modifier_state, &controller, &sender, true),
         CallbackResult::Drop
     ));
 
     let released = modifier_event(63, CGEventFlags::empty());
     assert!(matches!(
-        handle_modifier_event(&released, &modifier_state, &controller, &sender),
+        handle_modifier_event(&released, &modifier_state, &controller, &sender, true),
         CallbackResult::Drop
     ));
     assert_eq!(Ok(DictationShortcutAction::Toggle), receiver.recv());
@@ -147,13 +180,13 @@ fn captured_fn_press_and_release_are_saved_without_reaching_macos() {
 
     let pressed = modifier_event(63, CGEventFlags::CGEventFlagSecondaryFn);
     assert!(matches!(
-        handle_modifier_event(&pressed, &modifier_state, &controller, &sender),
+        handle_modifier_event(&pressed, &modifier_state, &controller, &sender, true),
         CallbackResult::Drop
     ));
 
     let released = modifier_event(63, CGEventFlags::empty());
     assert!(matches!(
-        handle_modifier_event(&released, &modifier_state, &controller, &sender),
+        handle_modifier_event(&released, &modifier_state, &controller, &sender, true),
         CallbackResult::Drop
     ));
     assert_eq!(Ok(Ok(MacOsShortcut::modifier(63))), capture.recv());
@@ -167,14 +200,14 @@ fn bound_fn_used_in_a_chord_does_not_trigger_dictation_or_macos_fn_action() {
 
     let pressed = modifier_event(63, CGEventFlags::CGEventFlagSecondaryFn);
     assert!(matches!(
-        handle_modifier_event(&pressed, &modifier_state, &controller, &sender),
+        handle_modifier_event(&pressed, &modifier_state, &controller, &sender, true),
         CallbackResult::Drop
     ));
     mark_active_modifiers_used(&modifier_state);
 
     let released = modifier_event(63, CGEventFlags::empty());
     assert!(matches!(
-        handle_modifier_event(&released, &modifier_state, &controller, &sender),
+        handle_modifier_event(&released, &modifier_state, &controller, &sender, true),
         CallbackResult::Drop
     ));
     assert!(receiver.try_recv().is_err());
@@ -188,13 +221,13 @@ fn unbound_fn_events_continue_to_macos() {
 
     let pressed = modifier_event(63, CGEventFlags::CGEventFlagSecondaryFn);
     assert!(matches!(
-        handle_modifier_event(&pressed, &modifier_state, &controller, &sender),
+        handle_modifier_event(&pressed, &modifier_state, &controller, &sender, true),
         CallbackResult::Keep
     ));
 
     let released = modifier_event(63, CGEventFlags::empty());
     assert!(matches!(
-        handle_modifier_event(&released, &modifier_state, &controller, &sender),
+        handle_modifier_event(&released, &modifier_state, &controller, &sender, true),
         CallbackResult::Keep
     ));
     assert!(receiver.try_recv().is_err());
