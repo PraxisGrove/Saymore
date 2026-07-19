@@ -24,12 +24,13 @@ export component AppWindow inherits Window {
     default-font-family: "PingFang SC";
     default-font-size: 13px;
     preferred-width: 920px;
-    preferred-height: 620px;
+    preferred-height: root.macos-platform ? 700px : 620px;
     min-width: root.current-page == AppPage.settings ? 720px : 820px;
     min-height: 560px;
     background: AppColors.canvas;
 
     in-out property <AppPage> current-page: AppPage.home;
+    in property <bool> macos-platform: false;
     in property <bool> development-environment: false;
     in-out property <SettingsSection> settings-section: SettingsSection.general;
     in-out property <bool> focus-asr-config: false;

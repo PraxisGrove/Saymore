@@ -24,6 +24,7 @@ pub fn initialize(
     environment: AppEnvironment,
 ) -> Result<LanguageContext, slint::SelectBundledTranslationError> {
     let context = i18n::initialize(ui, settings.ui_language)?;
+    ui.set_macos_platform(cfg!(target_os = "macos"));
     ui.set_automatic_update_checks(settings.automatic_update_checks);
     ui.set_feedback_sounds_enabled(settings.feedback_sounds_enabled);
     ui.set_development_environment(environment == AppEnvironment::Development);
