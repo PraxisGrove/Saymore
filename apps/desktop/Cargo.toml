@@ -4,7 +4,8 @@ version.workspace = true
 description = "Saymore native desktop application"
 authors.workspace = true
 edition.workspace = true
-license-file.workspace = true
+# `cargo-packager` turns `license-file` into an install-time EULA for DMGs.
+license = "PolyForm-Shield-1.0.0"
 publish = false
 
 [package.metadata.packager]

@@ -198,7 +198,8 @@ jobs:
           }
           trap cleanup EXIT
 
-          printf 'Y\n' | hdiutil attach "${dmgs[0]}" -nobrowse -readonly -mountpoint "$mount_dir"
+          # Attaching without accepting input verifies that the DMG has no EULA prompt.
+          hdiutil attach "${dmgs[0]}" -nobrowse -readonly -mountpoint "$mount_dir" </dev/null
           test -d "$mount_dir/Saymore.app"
           test -L "$mount_dir/Applications"
           test -f "$mount_dir/.background/dmg-background.png"
