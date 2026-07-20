@@ -186,6 +186,7 @@ impl OnboardingRuntime {
 }
 
 impl OnboardingShortcutHandler {
+    #[cfg(target_os = "macos")]
     pub fn is_active(&self) -> bool {
         self.active.load(Ordering::Acquire)
     }
