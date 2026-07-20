@@ -250,6 +250,7 @@ mod tests {
 
     #[test]
     fn invalid_reserved_and_duplicate_combinations_are_rejected() {
+        assert!(validate_collection(&[]).is_ok());
         assert_eq!(
             Err(WindowsShortcutError::MissingModifier),
             WindowsShortcut::from_capture("space", false, false, false, false)

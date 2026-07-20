@@ -117,10 +117,10 @@ export component HomePage inherits Rectangle {
         VoiceMark { x: 20px; y: 18px; width: 40px; height: 40px; }
         Text { x: 74px; y: 29px; text: @tr("home.shortcut.title" => "Voice input shortcut"); color: AppColors.ink; font-size: 14px; font-weight: 700; }
         Rectangle {
-            x: parent.width - 87px; y: 25px; width: 66px; height: 26px; border-radius: 7px; background: root.shortcut-enabled ? AppColors.brand-soft : AppColors.surface-subtle;
-            Text { text: root.shortcut-enabled ? @tr("common.enabled" => "Enabled") : @tr("common.disabled" => "Disabled"); color: root.shortcut-enabled ? AppColors.brand-strong : AppColors.text-muted; font-size: 10px; font-weight: 650; horizontal-alignment: center; vertical-alignment: center; }
+            x: parent.width - 87px; y: 25px; width: 66px; height: 26px; border-radius: 7px; background: root.shortcut-enabled ? AppColors.brand-soft : AppColors.danger-soft;
+            Text { text: root.shortcut-enabled ? @tr("common.enabled" => "Enabled") : @tr("common.disabled" => "Disabled"); color: root.shortcut-enabled ? AppColors.brand-strong : AppColors.danger; font-size: 10px; font-weight: 650; horizontal-alignment: center; vertical-alignment: center; }
         }
-        ShortcutKeycap { x: 20px; y: 88px; label: root.primary-shortcut; }
+        if root.shortcut-enabled: ShortcutKeycap { x: 20px; y: 88px; label: root.primary-shortcut; }
         if root.shortcut-labels.length > 1: Rectangle {
             x: 186px; y: 93px; width: 34px; height: 24px; border-radius: 7px; background: AppColors.brand-soft;
             Text { text: "+" + (root.shortcut-labels.length - 1); color: AppColors.brand-strong; font-size: 9px; font-weight: 700; horizontal-alignment: center; vertical-alignment: center; }

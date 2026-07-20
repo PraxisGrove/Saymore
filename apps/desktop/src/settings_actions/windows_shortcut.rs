@@ -199,9 +199,6 @@ fn remove_shortcut(
         window.set_shortcut_status(window.global::<Translations>().get_shortcut_save_failed());
         return;
     };
-    if shortcuts.len() <= 1 {
-        return;
-    }
     if index >= shortcuts.len() {
         return;
     }
@@ -321,9 +318,8 @@ fn apply_shortcut_ui(window: &AppWindow, shortcuts: &[WindowsShortcut], status: 
         .copied()
         .map(|shortcut| shortcut.display_label().into())
         .collect();
-    if let Some(first) = labels.first() {
-        window.set_shortcut_label(first.clone());
-    }
+    window.set_shortcut_enabled(!labels.is_empty());
+    window.set_shortcut_label(labels.first().cloned().unwrap_or_default());
     window.set_shortcut_labels(ModelRc::new(VecModel::from(labels)));
     window.set_shortcut_status(status);
     window.set_shortcut_error_index(-2);

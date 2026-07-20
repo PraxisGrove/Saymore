@@ -125,7 +125,7 @@ fn settings_are_typed_and_persisted_across_restarts() -> Result<(), Box<dyn std:
         copy_to_clipboard: true,
         show_in_dock: false,
         dictation_paused: true,
-        dictation_shortcuts: vec!["fn".to_owned(), "command+key-40".to_owned()],
+        dictation_shortcuts: Vec::new(),
         onboarding_status: OnboardingStatus::InProgress,
         onboarding_step: OnboardingStep::Accessibility,
     };

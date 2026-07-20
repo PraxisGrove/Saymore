@@ -87,11 +87,12 @@ Win32 tool windows and therefore do not appear in the taskbar or Alt+Tab.
 
 ### Windows global shortcuts
 
-The application layer stores dictation shortcuts as opaque, non-empty strings.
-Platform adapters own parsing and registration. Existing macOS values remain
-unchanged, including `right-command`, `fn`, and numeric `key-*` combinations.
-Standard Windows combinations use the namespaced canonical form
-`windows:<modifiers>+<key>`, with modifiers ordered as `control`, `alt`,
+The application layer stores each configured dictation shortcut as an opaque,
+non-empty string, while the collection itself may be empty when the user
+disables all shortcuts. Platform adapters own parsing and registration. Existing
+macOS values remain unchanged, including `right-command`, `fn`, and numeric
+`key-*` combinations. Standard Windows combinations use the namespaced canonical
+form `windows:<modifiers>+<key>`, with modifiers ordered as `control`, `alt`,
 `shift`, and `windows`. The single-modifier default has the explicit form
 `windows:right-alt`. A Windows adapter rejects legacy macOS values instead of
 interpreting their key codes.
@@ -101,6 +102,10 @@ databases are not rewritten. If Windows opens an older database whose shortcuts
 contain no valid Windows value, the desktop runtime safely falls back to that
 same default without changing the stored value. This preserves customized data
 while keeping startup usable.
+
+An explicitly saved empty collection is not treated as invalid legacy data and
+must remain empty across restarts. Both platform monitors then register no
+dictation trigger, and the home page presents the shortcut state as disabled.
 
 Right Alt is the product default because it is a short, one-key dictation
 gesture. On keyboard layouts where Right Alt acts as AltGr, using AltGr may also

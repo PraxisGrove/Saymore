@@ -348,7 +348,7 @@ impl WindowsShortcutController {
     pub fn new(shortcuts: Vec<WindowsShortcut>) -> Self {
         Self {
             state: Arc::new(ControllerState {
-                shortcuts: RwLock::new(normalize_shortcuts(shortcuts)),
+                shortcuts: RwLock::new(shortcuts),
                 sender: Mutex::new(None),
                 capture_active: AtomicBool::new(false),
                 runtime_closed: AtomicBool::new(false),
@@ -448,20 +448,9 @@ fn request_monitor(
         .map_err(|_| WindowsShortcutError::RuntimeClosed)?
 }
 
-fn normalize_shortcuts(shortcuts: Vec<WindowsShortcut>) -> Vec<WindowsShortcut> {
-    if shortcuts.is_empty() {
-        vec![WindowsShortcut::default()]
-    } else {
-        shortcuts
-    }
-}
-
 pub(super) fn validate_collection(
     shortcuts: &[WindowsShortcut],
 ) -> Result<(), WindowsShortcutError> {
-    if shortcuts.is_empty() {
-        return Err(WindowsShortcutError::InvalidStorageValue);
-    }
     if shortcuts.iter().copied().collect::<HashSet<_>>().len() != shortcuts.len() {
         return Err(WindowsShortcutError::Duplicate);
     }

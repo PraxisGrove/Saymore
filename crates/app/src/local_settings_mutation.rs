@@ -40,8 +40,6 @@ pub enum LocalSettingsChange {
 
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
 pub enum LocalSettingsValidationError {
-    #[error("the dictation shortcut collection must not be empty")]
-    EmptyDictationShortcuts,
     #[error("the microphone identifier must not be blank")]
     BlankMicrophoneIdentifier,
     #[error("the microphone display name must not be blank")]
@@ -105,9 +103,6 @@ fn validate_settings(settings: &LocalSettings) -> Result<(), LocalSettingsValida
         (Some(_), None) | (None, Some(_)) => {
             Err(LocalSettingsValidationError::IncompleteMicrophoneSelection)
         }
-        _ if settings.dictation_shortcuts.is_empty() => {
-            Err(LocalSettingsValidationError::EmptyDictationShortcuts)
-        }
         _ => Ok(()),
     }
 }
@@ -123,9 +118,6 @@ fn validate_change(change: &LocalSettingsChange) -> Result<(), LocalSettingsVali
             if name.trim().is_empty() =>
         {
             Err(LocalSettingsValidationError::BlankMicrophoneName)
-        }
-        LocalSettingsChange::ReplaceDictationShortcuts(shortcuts) if shortcuts.is_empty() => {
-            Err(LocalSettingsValidationError::EmptyDictationShortcuts)
         }
         _ => Ok(()),
     }

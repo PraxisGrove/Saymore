@@ -173,17 +173,12 @@ fn encode_shortcuts(shortcuts: &[String]) -> String {
 }
 
 fn decode_shortcuts(value: &str) -> Vec<String> {
-    let shortcuts: Vec<_> = value
+    value
         .lines()
         .map(str::trim)
         .filter(|value| !value.is_empty())
         .map(str::to_owned)
-        .collect();
-    if shortcuts.is_empty() {
-        vec!["right-command".to_owned()]
-    } else {
-        shortcuts
-    }
+        .collect()
 }
 
 fn retention_from_days(days: Option<u16>) -> Result<HistoryRetention, StorageError> {

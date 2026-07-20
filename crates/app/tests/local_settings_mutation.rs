@@ -204,20 +204,18 @@ fn automatic_microphone_selection_clears_both_stored_fields() {
 }
 
 #[test]
-fn invalid_changes_are_rejected_before_storage_access() {
+fn removing_every_shortcut_is_persisted() {
     let store = Arc::new(FakeSettingsStore::new(LocalSettings::default()));
     let mutator = LocalSettingsMutator::new(store.clone());
 
     let result = mutator.apply(LocalSettingsChange::ReplaceDictationShortcuts(Vec::new()));
 
     assert_eq!(
-        Err(LocalSettingsMutationError::InvalidChange(
-            LocalSettingsValidationError::EmptyDictationShortcuts
-        )),
-        result
+        Some(Vec::new()),
+        result.ok().map(|settings| settings.dictation_shortcuts)
     );
-    assert_eq!(0, store.loads.load(Ordering::Relaxed));
-    assert_eq!(0, store.saves.load(Ordering::Relaxed));
+    assert_eq!(1, store.loads.load(Ordering::Relaxed));
+    assert_eq!(1, store.saves.load(Ordering::Relaxed));
 }
 
 #[test]

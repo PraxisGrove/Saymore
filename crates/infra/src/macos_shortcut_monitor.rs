@@ -287,11 +287,7 @@ pub struct MacOsShortcutController {
 impl MacOsShortcutController {
     pub fn new(shortcuts: Vec<MacOsShortcut>) -> Self {
         Self {
-            shortcuts: Arc::new(RwLock::new(if shortcuts.is_empty() {
-                vec![MacOsShortcut::default()]
-            } else {
-                shortcuts
-            })),
+            shortcuts: Arc::new(RwLock::new(shortcuts)),
             capture: Arc::new(Mutex::new(None)),
         }
     }

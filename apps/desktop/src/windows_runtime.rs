@@ -60,14 +60,15 @@ fn windows_platform_adapters(
             )),
             Arc::new(WindowsOutputAudioMuter),
         )));
-    let shortcut_controller = WindowsShortcutController::new(
-        bootstrap
-            .local_settings
-            .dictation_shortcuts
-            .iter()
-            .filter_map(|value| WindowsShortcut::from_storage_value(value).ok())
-            .collect(),
-    );
+    let stored_shortcuts = &bootstrap.local_settings.dictation_shortcuts;
+    let mut shortcuts: Vec<_> = stored_shortcuts
+        .iter()
+        .filter_map(|value| WindowsShortcut::from_storage_value(value).ok())
+        .collect();
+    if shortcuts.is_empty() && !stored_shortcuts.is_empty() {
+        shortcuts.push(WindowsShortcut::default());
+    }
+    let shortcut_controller = WindowsShortcutController::new(shortcuts);
     Ok(PlatformAdapters::new(
         recorder,
         microphone,

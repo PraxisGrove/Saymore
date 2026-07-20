@@ -39,6 +39,14 @@ fn supports_multiple_shortcuts_and_rejects_duplicates() {
 }
 
 #[test]
+fn empty_shortcut_collection_remains_disabled() {
+    let controller = MacOsShortcutController::new(Vec::new());
+
+    assert_eq!(Ok(Vec::new()), controller.current());
+    assert!(controller.replace(Vec::new()).is_ok());
+}
+
+#[test]
 fn reserves_fn_only_while_bound_or_capturing() {
     let fn_controller = MacOsShortcutController::new(vec![MacOsShortcut::modifier(63)]);
     assert!(fn_controller.reserves_fn(true));
