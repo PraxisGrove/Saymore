@@ -22,7 +22,7 @@ csv = "1"
 flate2 = "1.1.9"
 fs2 = "0.4"
 futures-util = "0.3.32"
-rusqlite = { version = "0.37.0", features = ["bundled"] }
+rusqlite = { version = "0.40.1", features = ["bundled"] }
 raw-window-handle = "0.6"
 rfd = "0.17"
 reqwest = { version = "0.13.4", default-features = false, features = ["json", "multipart", "rustls-no-provider", "stream"] }
