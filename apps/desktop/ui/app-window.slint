@@ -5,18 +5,19 @@ import { HistoryDialog, HistoryGroup, HistoryPage, HistoryRetentionOption } from
 import { DictionaryAddDialog, DictionaryDraft, DictionaryEvidenceItem, DictionaryFilterKind, DictionaryListItem, DictionaryPage, DictionaryRow } from "pages/dictionary.slint";
 import { AudioInputDevice, SettingsPage } from "pages/settings.slint";
 import { AppPage, AsrProvider, LlmProvider, SettingsSection, UiLanguage } from "components.slint";
-import { AppColors } from "color-system.slint";
+import { AppColors, ColorSchemePreference, ThemeId } from "color-system.slint";
 import { Translations } from "translations.slint";
 export { Translations } from "translations.slint";
 export { RecordingOverlay } from "recording-overlay.slint";
 export { ResultOverlay } from "result-overlay.slint";
 export { DictionaryAddedOverlay } from "dictionary-added-overlay.slint";
 export { RecordingLimitOverlay } from "recording-limit-overlay.slint";
-export { AccessibilityPermissionOverlay, MicrophoneIntroOverlay, MicrophonePermissionOverlay } from "microphone-access.slint";
+export { AccessibilityPermissionOverlay, AsrConfigurationOverlay, MicrophoneIntroOverlay, MicrophonePermissionOverlay } from "microphone-access.slint";
 export { StatusTray } from "status-tray.slint";
 export { OnboardingWindow } from "onboarding.slint";
 export { LlmProvider } from "components.slint";
 export { AsrProvider } from "components.slint";
+export { AppColors, ColorSchemePreference, ThemeId } from "color-system.slint";
 
 export component AppWindow inherits Window {
     private property <string> translation-marker: Translations.language-save-failed;
@@ -24,7 +25,7 @@ export component AppWindow inherits Window {
     default-font-family: "PingFang SC";
     default-font-size: 13px;
     preferred-width: 920px;
-    preferred-height: root.macos-platform ? 700px : 620px;
+    preferred-height: 700px;
     min-width: root.current-page == AppPage.settings ? 720px : 820px;
     min-height: 560px;
     background: AppColors.canvas;
@@ -48,6 +49,9 @@ export component AppWindow inherits Window {
     in property <UiLanguage> system-ui-language: UiLanguage.english;
     in property <bool> ui-language-saving: false;
     in property <string> ui-language-status: "";
+    in property <ThemeId> theme-id: ThemeId.lime-pulse;
+    in property <ColorSchemePreference> color-scheme: ColorSchemePreference.system;
+    in property <string> appearance-status: "";
     in-out property <bool> diagnostics-enabled: false;
     in property <string> diagnostics-status: "";
     in property <string> diagnostics-export-status: "idle";
@@ -99,6 +103,7 @@ export component AppWindow inherits Window {
     in property <bool> asr-configured: false;
     in property <bool> asr-home-available: false;
     in property <bool> asr-config-error: false;
+    in-out property <bool> asr-draft-error: false;
     in property <string> asr-config-status: @tr("models.status.not-configured.plain" => "Not configured");
     in-out property <bool> asr-testing: false;
     in-out property <bool> asr-pending-test: false;
@@ -119,6 +124,8 @@ export component AppWindow inherits Window {
     in property <bool> llm-provider-local: false;
     in property <string> llm-config-status: @tr("models.status.not-enabled" => "Not enabled");
     in-out property <bool> llm-config-dirty: false;
+    in-out property <bool> llm-testing: false;
+    in-out property <bool> llm-draft-error: false;
     in-out property <bool> llm-confirmation-visible: false;
     in-out property <int> model-tab: 0;
     in-out property <[string]> available-models;
@@ -165,6 +172,8 @@ export component AppWindow inherits Window {
     callback select-microphone(string, string);
     callback refresh-microphones();
     callback set-ui-language(UiLanguage);
+    callback set-theme(ThemeId);
+    callback set-color-scheme(ColorSchemePreference);
     callback refresh-localized-state();
     callback open-microphone-settings();
     callback open-accessibility-settings();
@@ -257,6 +266,7 @@ export component AppWindow inherits Window {
                 asr-pending-test: root.asr-pending-test;
                 asr-config-status: root.asr-config-status;
                 shortcut-label: root.shortcut-label;
+                shortcut-labels: root.shortcut-labels;
                 shortcut-enabled: root.shortcut-enabled;
                 usage-total-minutes: root.usage-total-minutes;
                 usage-total-characters: root.usage-total-characters;
@@ -289,6 +299,7 @@ export component AppWindow inherits Window {
                 custom-asr-configured: root.custom-asr-configured;
                 asr-configured: root.asr-configured;
                 asr-config-error: root.asr-config-error;
+                asr-draft-error <=> root.asr-draft-error;
                 asr-config-status: root.asr-config-status;
                 asr-testing <=> root.asr-testing;
                 asr-pending-test <=> root.asr-pending-test;
@@ -309,6 +320,8 @@ export component AppWindow inherits Window {
                 llm-provider-local: root.llm-provider-local;
                 llm-config-status: root.llm-config-status;
                 llm-config-dirty <=> root.llm-config-dirty;
+                llm-testing <=> root.llm-testing;
+                llm-draft-error <=> root.llm-draft-error;
                 llm-confirmation-visible <=> root.llm-confirmation-visible;
                 active-tab <=> root.model-tab;
                 available-models <=> root.available-models;
@@ -402,6 +415,9 @@ export component AppWindow inherits Window {
         system-ui-language: root.system-ui-language;
         ui-language-saving: root.ui-language-saving;
         ui-language-status: root.ui-language-status;
+        theme-id: root.theme-id;
+        color-scheme: root.color-scheme;
+        appearance-status: root.appearance-status;
         diagnostics-enabled <=> root.diagnostics-enabled;
         diagnostics-status: root.diagnostics-status;
         storage-usage: root.storage-usage;
@@ -433,6 +449,8 @@ export component AppWindow inherits Window {
         select-microphone(id, name) => { root.select-microphone(id, name); }
         refresh-microphones => { root.refresh-microphones(); }
         set-ui-language(language) => { root.set-ui-language(language); }
+        set-theme(theme) => { root.set-theme(theme); }
+        set-color-scheme(scheme) => { root.set-color-scheme(scheme); }
         set-diagnostics-enabled(enabled) => { root.set-diagnostics-enabled(enabled); }
         export-diagnostics-report => { root.export-diagnostics-report(); }
         open-data-directory => { root.open-data-directory(); }

@@ -1,7 +1,7 @@
 use rusqlite::{Connection, OptionalExtension, Row, params};
 use template_app::{
-    HistoryRetention, LocalSettings, OnboardingStatus, OnboardingStep, StorageError,
-    UiLanguagePreference,
+    ColorSchemePreference, HistoryRetention, LocalSettings, OnboardingStatus, OnboardingStep,
+    StorageError, ThemeId, UiLanguagePreference,
 };
 
 use super::unavailable;
@@ -12,6 +12,7 @@ pub(super) fn load(connection: &Connection) -> Result<LocalSettings, StorageErro
             "SELECT history_enabled, history_retention_days,
                     preferred_microphone_id, preferred_microphone_name,
                     diagnostics_logging_enabled, ui_language,
+                    theme_id, color_scheme,
                     automatic_update_checks, feedback_sounds_enabled,
                     copy_to_clipboard, show_in_dock, dictation_paused,
                     dictation_shortcuts, onboarding_status, onboarding_step
@@ -32,6 +33,8 @@ struct StoredSettingsRow {
     microphone_name: Option<String>,
     diagnostics_logging_enabled: bool,
     ui_language: String,
+    theme_id: String,
+    color_scheme: String,
     automatic_update_checks: bool,
     feedback_sounds_enabled: bool,
     copy_to_clipboard: bool,
@@ -51,14 +54,16 @@ impl StoredSettingsRow {
             microphone_name: row.get(3)?,
             diagnostics_logging_enabled: row.get(4)?,
             ui_language: row.get(5)?,
-            automatic_update_checks: row.get(6)?,
-            feedback_sounds_enabled: row.get(7)?,
-            copy_to_clipboard: row.get(8)?,
-            show_in_dock: row.get(9)?,
-            dictation_paused: row.get(10)?,
-            dictation_shortcuts: row.get(11)?,
-            onboarding_status: row.get(12)?,
-            onboarding_step: row.get(13)?,
+            theme_id: row.get(6)?,
+            color_scheme: row.get(7)?,
+            automatic_update_checks: row.get(8)?,
+            feedback_sounds_enabled: row.get(9)?,
+            copy_to_clipboard: row.get(10)?,
+            show_in_dock: row.get(11)?,
+            dictation_paused: row.get(12)?,
+            dictation_shortcuts: row.get(13)?,
+            onboarding_status: row.get(14)?,
+            onboarding_step: row.get(15)?,
         })
     }
 
@@ -77,6 +82,16 @@ impl StoredSettingsRow {
                     ))
                 },
             )?,
+            theme: ThemeId::from_storage_value(&self.theme_id).ok_or_else(|| {
+                StorageError::Invalid(format!("unsupported theme identifier: {}", self.theme_id))
+            })?,
+            color_scheme: ColorSchemePreference::from_storage_value(&self.color_scheme)
+                .ok_or_else(|| {
+                    StorageError::Invalid(format!(
+                        "unsupported color scheme preference: {}",
+                        self.color_scheme
+                    ))
+                })?,
             automatic_update_checks: self.automatic_update_checks,
             feedback_sounds_enabled: self.feedback_sounds_enabled,
             copy_to_clipboard: self.copy_to_clipboard,
@@ -113,14 +128,16 @@ pub(super) fn save(
                 preferred_microphone_name = ?4,
                 diagnostics_logging_enabled = ?5,
                 ui_language = ?6,
-                automatic_update_checks = ?7,
-                feedback_sounds_enabled = ?8,
-                copy_to_clipboard = ?9,
-                show_in_dock = ?10,
-                dictation_paused = ?11,
-                dictation_shortcuts = ?12,
-                onboarding_status = ?13,
-                onboarding_step = ?14
+                theme_id = ?7,
+                color_scheme = ?8,
+                automatic_update_checks = ?9,
+                feedback_sounds_enabled = ?10,
+                copy_to_clipboard = ?11,
+                show_in_dock = ?12,
+                dictation_paused = ?13,
+                dictation_shortcuts = ?14,
+                onboarding_status = ?15,
+                onboarding_step = ?16
              WHERE singleton = 1",
             params![
                 settings.history_enabled,
@@ -129,6 +146,8 @@ pub(super) fn save(
                 settings.preferred_microphone_name,
                 settings.diagnostics_logging_enabled,
                 settings.ui_language.storage_value(),
+                settings.theme.storage_value(),
+                settings.color_scheme.storage_value(),
                 settings.automatic_update_checks,
                 settings.feedback_sounds_enabled,
                 settings.copy_to_clipboard,

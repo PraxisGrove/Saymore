@@ -40,7 +40,7 @@ component ModelActionButton inherits Rectangle {
     height: 40px;
     border-radius: 8px;
     background: !root.enabled ? (root.completed ? AppColors.success-soft : AppColors.surface-muted)
-        : root.primary ? (action-touch.has-hover ? AppColors.brand-strong : AppColors.brand)
+        : root.primary ? (action-touch.has-hover ? AppColors.brand-hover : AppColors.brand)
         : action-touch.pressed ? AppColors.chart-neutral
         : action-touch.has-hover ? AppColors.selected : AppColors.surface-subtle;
     opacity: !root.enabled ? (root.completed ? 1 : 0.55) : action-touch.pressed ? 0.84 : 1;
@@ -52,7 +52,7 @@ component ModelActionButton inherits Rectangle {
     accessible-action-default => { if root.enabled { root.activated(); } }
     Text {
         text: root.label;
-        color: !root.enabled ? (root.completed ? AppColors.success : AppColors.text-muted) : root.primary ? #ffffff : AppColors.text;
+        color: !root.enabled ? (root.completed ? AppColors.success : AppColors.text-muted) : root.primary ? AppColors.on-brand : AppColors.text;
         font-size: 12px;
         font-weight: 650;
         horizontal-alignment: center;
@@ -84,7 +84,7 @@ component LlmEnableSwitch inherits Rectangle {
         width: 12px;
         height: 12px;
         border-radius: 6px;
-        background: #ffffff;
+        background: AppColors.surface;
         animate x { duration: 160ms; easing: ease-out; }
     }
     switch-touch := TouchArea { mouse-cursor: pointer; clicked => { root.activated(); } }
@@ -132,7 +132,6 @@ component ApiKeyField inherits Rectangle {
     in property <bool> reveal;
     in property <bool> error;
     in property <string> accessible-name;
-    callback accepted(string);
     callback toggle-reveal();
     forward-focus: field-input;
     height: 42px;
@@ -161,7 +160,6 @@ component ApiKeyField inherits Rectangle {
             color: AppColors.text;
             font-size: 12px;
             vertical-alignment: center;
-            accepted => { root.accepted(self.text); }
             key-pressed(event) => {
                 if event.modifiers.control && (event.text == "v" || event.text == "V") {
                     self.paste();
@@ -180,7 +178,7 @@ export component ModelConsentDialog inherits Rectangle {
     in-out property <bool> consent-checked;
     callback cancelled();
     callback confirmed();
-    background: #1f1f1c66;
+    background: AppColors.scrim;
     TouchArea { mouse-cursor: default; clicked => { } }
 
     Rectangle {
@@ -192,9 +190,9 @@ export component ModelConsentDialog inherits Rectangle {
         background: AppColors.surface;
         drop-shadow-blur: 32px;
         drop-shadow-offset-y: 12px;
-        drop-shadow-color: #1f1f1c33;
+        drop-shadow-color: AppColors.shadow;
 
-        Rectangle { x: 30px; y: 29px; width: 40px; height: 40px; border-radius: 10px; background: #f2ded6; Image { x: 10px; y: 10px; width: 20px; height: 20px; source: @image-url("../../icons/lucide/sparkles.svg"); colorize: AppColors.brand; } }
+        Rectangle { x: 30px; y: 29px; width: 40px; height: 40px; border-radius: 10px; background: AppColors.brand-soft; Image { x: 10px; y: 10px; width: 20px; height: 20px; source: @image-url("../../icons/lucide/sparkles.svg"); colorize: AppColors.brand; } }
         Text { x: 86px; y: 26px; text: @tr("models.polishing.consent.title" => "Enable text polishing?"); color: AppColors.ink; font-size: 20px; font-weight: 700; }
         Text { x: 86px; y: 56px; text: @tr("models.polishing.consent.intro" => "Before enabling it, review what text will be sent."); color: AppColors.text-muted; font-size: 11px; }
         Rectangle {
@@ -211,7 +209,7 @@ export component ModelConsentDialog inherits Rectangle {
         Text { x: 30px; y: 212px; width: parent.width - 60px; text: @tr("models.polishing.consent.dictionary-excluded" => "Confirmed dictionary entries and complete input fields are not sent."); color: AppColors.text-muted; font-size: 10px; }
         Rectangle {
             x: 30px; y: 244px; width: 18px; height: 18px; border-radius: 4px; border-width: 1px; border-color: AppColors.chart-neutral; background: root.consent-checked ? AppColors.brand : AppColors.surface;
-            if root.consent-checked: Image { x: 2px; y: 2px; width: 14px; height: 14px; source: @image-url("../../icons/lucide/check.svg"); colorize: #ffffff; }
+            if root.consent-checked: Image { x: 2px; y: 2px; width: 14px; height: 14px; source: @image-url("../../icons/lucide/check.svg"); colorize: AppColors.on-brand; }
             TouchArea { mouse-cursor: pointer; clicked => { root.consent-checked = !root.consent-checked; } }
         }
         Text { x: 60px; y: 244px; text: @tr("models.polishing.consent.accept" => "I understand and agree to send the content described above"); color: AppColors.ink; font-size: 11px; font-weight: 500; }
@@ -239,6 +237,7 @@ export component ModelsPage inherits Rectangle {
     in property <bool> custom-asr-configured;
     in property <bool> asr-configured;
     in property <bool> asr-config-error;
+    in-out property <bool> asr-draft-error: false;
     in property <string> asr-config-status;
     in-out property <bool> asr-testing: false;
     in-out property <bool> asr-pending-test: false;
@@ -259,6 +258,8 @@ export component ModelsPage inherits Rectangle {
     in property <bool> llm-provider-local;
     in property <string> llm-config-status;
     in-out property <bool> llm-config-dirty: false;
+    in-out property <bool> llm-testing: false;
+    in-out property <bool> llm-draft-error: false;
     in-out property <bool> llm-confirmation-visible: false;
     in-out property <int> active-tab: 0;
     in-out property <[string]> available-models;
@@ -295,29 +296,31 @@ export component ModelsPage inherits Rectangle {
     private property <string> second-service-model: root.active-tab == 0 ? root.custom-asr-configured ? root.custom-asr-model : "" : root.deepseek-configured ? root.deepseek-model : "";
     private property <string> third-service-model: root.custom-llm-configured ? root.custom-llm-model : "";
     private property <bool> active-config-dirty: root.active-tab == 0 ? root.asr-config-dirty : root.llm-config-dirty;
+    private property <bool> active-testing: root.active-tab == 0 ? root.asr-testing : root.llm-testing;
+    private property <bool> active-draft-error: root.active-tab == 0 ? root.asr-draft-error : root.llm-draft-error;
     private property <bool> active-config-saved: !root.configured-model-name.is-empty && !root.active-config-dirty;
     private property <bool> custom-llm-ready: root.llm-provider == LlmProvider.custom && !root.custom-llm-base-url.is-empty && !root.custom-llm-model.is-empty;
     private property <bool> configuration-ready: root.custom-llm-ready || !root.active-api-key.is-empty;
     private property <bool> model-fetch-enabled: (root.active-tab == 0 && root.asr-provider == AsrProvider.volcengine) || (root.active-tab == 1 && root.llm-provider == LlmProvider.custom ? !root.custom-llm-base-url.is-empty : !root.active-api-key.is-empty);
     private property <bool> service-healthy: root.active-tab == 0 ? root.asr-configured && !root.asr-config-error && !root.asr-pending-test && !root.asr-testing : root.llm-enabled;
-    private property <string> service-status: root.active-tab == 0 ? root.asr-testing ? @tr("models.status.testing" => "●  Testing") : root.asr-config-error ? @tr("models.status.connection-failed" => "●  Connection failed") : root.asr-pending-test ? @tr("models.status.awaiting-connection-test" => "●  Awaiting connection test") : root.service-healthy ? @tr("models.status.connected" => "●  Connected") : @tr("models.status.not-configured" => "●  Not configured") : root.service-healthy ? @tr("models.status.connected" => "●  Connected") : root.llm-config-status;
+    private property <string> service-status: root.active-testing ? @tr("models.status.testing" => "●  Testing") : root.active-config-dirty ? root.active-draft-error ? @tr("models.status.connection-failed" => "●  Connection issue") : @tr("models.status.unsaved" => "●  Unsaved changes") : root.active-tab == 0 ? root.asr-config-error ? @tr("models.status.connection-failed" => "●  Connection issue") : root.asr-pending-test ? @tr("models.status.awaiting-connection-test" => "●  Awaiting connection test") : root.service-healthy ? @tr("models.status.connected" => "●  Connected") : @tr("models.status.not-configured" => "●  Not configured") : root.service-healthy ? @tr("models.status.connected" => "●  Connected") : root.llm-config-status;
     private property <length> config-height: root.advanced-visible ? 270px : 228px;
     private property <length> action-y: root.advanced-visible ? 560px : 525px;
     forward-focus: asr-field;
     init => { if root.focus-asr-config { root.focus(); } }
     changed model-discovery-error => { if root.model-discovery-error { root.model-menu-open = true; } }
-    changed asr-api-key => { root.asr-config-dirty = true; }
-    changed asr-model => { root.asr-config-dirty = true; }
-    changed custom-asr-api-key => { root.asr-config-dirty = true; }
-    changed custom-asr-base-url => { root.asr-config-dirty = true; }
-    changed custom-asr-model => { root.asr-config-dirty = true; }
-    changed sensenova-api-key => { root.llm-config-dirty = true; }
-    changed sensenova-model => { root.llm-config-dirty = true; }
-    changed deepseek-api-key => { root.llm-config-dirty = true; }
-    changed deepseek-model => { root.llm-config-dirty = true; }
-    changed custom-llm-api-key => { root.llm-config-dirty = true; }
-    changed custom-llm-base-url => { root.llm-config-dirty = true; }
-    changed custom-llm-model => { root.llm-config-dirty = true; }
+    changed asr-api-key => { root.asr-config-dirty = true; root.asr-draft-error = false; }
+    changed asr-model => { root.asr-config-dirty = true; root.asr-draft-error = false; }
+    changed custom-asr-api-key => { root.asr-config-dirty = true; root.asr-draft-error = false; }
+    changed custom-asr-base-url => { root.asr-config-dirty = true; root.asr-draft-error = false; }
+    changed custom-asr-model => { root.asr-config-dirty = true; root.asr-draft-error = false; }
+    changed sensenova-api-key => { root.llm-config-dirty = true; root.llm-draft-error = false; }
+    changed sensenova-model => { root.llm-config-dirty = true; root.llm-draft-error = false; }
+    changed deepseek-api-key => { root.llm-config-dirty = true; root.llm-draft-error = false; }
+    changed deepseek-model => { root.llm-config-dirty = true; root.llm-draft-error = false; }
+    changed custom-llm-api-key => { root.llm-config-dirty = true; root.llm-draft-error = false; }
+    changed custom-llm-base-url => { root.llm-config-dirty = true; root.llm-draft-error = false; }
+    changed custom-llm-model => { root.llm-config-dirty = true; root.llm-draft-error = false; }
     Timer { interval: 5s; running: root.api-key-visible; triggered => { root.api-key-visible = false; } }
     background: transparent;
 
@@ -369,29 +372,24 @@ export component ModelsPage inherits Rectangle {
         asr-field := ApiKeyField {
             visible: root.active-tab == 0 && root.asr-provider == AsrProvider.volcengine;
             x: 18px; y: 39px; width: parent.width - 36px; height: 42px;
-            value <=> root.asr-api-key; reveal: root.api-key-visible; error: root.asr-config-error; accessible-name: @tr("models.volcengine-api-key" => "Volcengine API key");
-            accepted(value) => { root.save-asr-config(AsrProvider.volcengine, value, "", root.asr-model); }
+            value <=> root.asr-api-key; reveal: root.api-key-visible; error: root.asr-draft-error || root.asr-config-error; accessible-name: @tr("models.volcengine-api-key" => "Volcengine API key");
             toggle-reveal => { root.api-key-visible = !root.api-key-visible; }
         }
         if root.active-tab == 0 && root.asr-provider == AsrProvider.custom: ApiKeyField {
             x: 18px; y: 39px; width: parent.width - 36px; height: 42px;
-            value <=> root.custom-asr-api-key; reveal: root.api-key-visible; error: root.asr-config-error; accessible-name: @tr("models.custom-speech-api-key" => "Custom speech recognition API key");
-            accepted(value) => { root.save-asr-config(AsrProvider.custom, value, root.custom-asr-base-url, root.custom-asr-model); }
+            value <=> root.custom-asr-api-key; reveal: root.api-key-visible; error: root.asr-draft-error || root.asr-config-error; accessible-name: @tr("models.custom-speech-api-key" => "Custom speech recognition API key");
             toggle-reveal => { root.api-key-visible = !root.api-key-visible; }
         }
         if root.active-tab == 1 && root.llm-provider == LlmProvider.sensenova: ApiKeyField {
             x: 18px; y: 39px; width: parent.width - 36px; value <=> root.sensenova-api-key; reveal: root.api-key-visible; error: false; accessible-name: @tr("models.sensenova-api-key" => "SenseNova API key");
-            accepted(value) => { root.save-llm-config(LlmProvider.sensenova, value, root.active-base-url, root.sensenova-model); }
             toggle-reveal => { root.api-key-visible = !root.api-key-visible; }
         }
         if root.active-tab == 1 && root.llm-provider == LlmProvider.deepseek: ApiKeyField {
             x: 18px; y: 39px; width: parent.width - 36px; value <=> root.deepseek-api-key; reveal: root.api-key-visible; error: false; accessible-name: "DeepSeek API Key";
-            accepted(value) => { root.save-llm-config(LlmProvider.deepseek, value, root.active-base-url, root.deepseek-model); }
             toggle-reveal => { root.api-key-visible = !root.api-key-visible; }
         }
         if root.active-tab == 1 && root.llm-provider == LlmProvider.custom: ApiKeyField {
             x: 18px; y: 39px; width: parent.width - 36px; value <=> root.custom-llm-api-key; reveal: root.api-key-visible; error: false; accessible-name: @tr("models.custom-llm-api-key" => "Custom polishing API key (optional for local services)");
-            accepted(value) => { root.save-llm-config(LlmProvider.custom, value, root.custom-llm-base-url, root.custom-llm-model); }
             toggle-reveal => { root.api-key-visible = !root.api-key-visible; }
         }
 
@@ -439,20 +437,20 @@ export component ModelsPage inherits Rectangle {
     ModelActionButton {
         x: 0px;
         y: root.action-y;
-        label: root.active-config-saved ? @tr("common.saved" => "Saved") : @tr("models.save-configuration" => "Save configuration");
+        label: root.active-testing ? @tr("models.save.testing" => "Testing…") : root.active-config-saved ? @tr("common.saved" => "Saved") : @tr("models.save-configuration" => "Save configuration");
         primary: !root.active-config-saved;
         completed: root.active-config-saved;
-        enabled: root.configuration-ready && root.active-config-dirty && !(root.active-tab == 0 && root.asr-testing);
+        enabled: root.configuration-ready && root.active-config-dirty && !root.active-testing;
         activated => {
             if root.active-tab == 0 { root.save-asr-config(root.asr-provider, root.active-api-key, root.active-base-url, root.model-name); }
             else { root.save-llm-config(root.llm-provider, root.active-api-key, root.active-base-url, root.model-name); }
         }
     }
     ModelActionButton {
-        x: 120px; y: root.action-y; label: root.asr-testing ? @tr("models.test.testing" => "Testing…") : root.asr-config-error && root.active-tab == 0 ? @tr("models.test.retry" => "Test again") : @tr("models.test.action" => "Test connection"); primary: root.asr-config-error && root.active-tab == 0; enabled: root.configuration-ready && !root.asr-testing;
+        x: 120px; y: root.action-y; label: root.active-testing ? @tr("models.test.testing" => "Testing…") : root.active-draft-error ? @tr("models.test.retry" => "Test again") : @tr("models.test.action" => "Test connection"); primary: root.active-draft-error; enabled: root.configuration-ready && !root.active-testing;
         activated => { if root.active-tab == 0 { root.request-asr-test(); } else { root.request-llm-enable(); } }
     }
-    Text { x: parent.width - 270px; y: root.action-y + 13px; width: 269px; text: root.api-key-visible ? @tr("models.api-key.auto-hide" => "Hides automatically in 5 seconds") : root.asr-testing ? @tr("models.test.testing-connection" => "Testing connection") : root.asr-config-error && root.active-tab == 0 ? root.asr-config-status : root.asr-pending-test && root.active-tab == 0 ? @tr("models.saved-awaiting-test" => "Configuration saved, awaiting connection test") : root.service-status; color: root.asr-config-error && root.active-tab == 0 ? AppColors.danger : root.service-healthy ? AppColors.success : AppColors.text-muted; font-size: 10px; font-weight: 650; horizontal-alignment: right; overflow: elide; }
+    Text { x: parent.width - 270px; y: root.action-y + 13px; width: 269px; text: root.api-key-visible ? @tr("models.api-key.auto-hide" => "Hides automatically in 5 seconds") : root.active-testing ? @tr("models.test.testing-connection" => "Testing connection") : root.active-draft-error ? root.active-tab == 0 ? root.asr-config-status : root.llm-config-status : root.active-config-dirty ? @tr("models.status.unsaved.plain" => "Unsaved changes") : root.service-status; color: root.active-draft-error ? AppColors.danger : root.active-config-dirty ? AppColors.warning : root.service-healthy ? AppColors.success : AppColors.text-muted; font-size: 10px; font-weight: 650; horizontal-alignment: right; overflow: elide; }
 
     if root.service-menu-open || root.model-menu-open: Rectangle {
         x: 0px;
@@ -465,7 +463,7 @@ export component ModelsPage inherits Rectangle {
     }
 
     if root.service-menu-open: Rectangle {
-        x: 0px; y: 242px; width: parent.width - 1px; height: root.active-tab == 1 ? 176px : 124px; border-radius: 12px; background: AppColors.surface; z: 40; drop-shadow-blur: 18px; drop-shadow-offset-y: 6px; drop-shadow-color: #1f1f1c1a;
+        x: 0px; y: 242px; width: parent.width - 1px; height: root.active-tab == 1 ? 176px : 124px; border-radius: 12px; background: AppColors.surface; z: 40; drop-shadow-blur: 18px; drop-shadow-offset-y: 6px; drop-shadow-color: AppColors.shadow;
         Rectangle {
             x: 12px; y: 12px; width: parent.width - 24px; height: 48px; border-radius: 8px; background: root.first-service-selected ? AppColors.sidebar : AppColors.surface;
             Image { x: 16px; y: 14px; width: 18px; height: 18px; source: root.active-tab == 0 ? @image-url("../../icons/lucide/audio-lines.svg") : @image-url("../../icons/lucide/sparkles.svg"); colorize: root.first-service-selected ? AppColors.ink : AppColors.text-muted; }
@@ -493,7 +491,7 @@ export component ModelsPage inherits Rectangle {
     }
 
     if root.model-menu-open: Rectangle {
-        x: 18px; y: 443px; width: parent.width - 37px; height: 100px; border-radius: 10px; background: AppColors.surface; z: 40; drop-shadow-blur: 18px; drop-shadow-offset-y: 6px; drop-shadow-color: #1f1f1c1a;
+        x: 18px; y: 443px; width: parent.width - 37px; height: 100px; border-radius: 10px; background: AppColors.surface; z: 40; drop-shadow-blur: 18px; drop-shadow-offset-y: 6px; drop-shadow-color: AppColors.shadow;
         ScrollView {
             x: 10px; y: 10px; width: parent.width - 20px; height: parent.height - 20px;
             vertical-scrollbar-policy: ScrollBarPolicy.always-off;

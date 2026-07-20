@@ -9,9 +9,10 @@ use template_app::{
 };
 
 use crate::{
-    DesktopBootstrap, DesktopWindows, DictationRuntime, RecorderHandle, authorization_ui,
-    feedback_runtime, home_stats, i18n, local_data_ui, local_settings_runtime, microphone_access,
-    prewarm_audio_recorder, settings_actions, settings_ui, update_authorizations, update_check,
+    DesktopBootstrap, DesktopWindows, DictationRuntime, RecorderHandle, appearance_ui,
+    authorization_ui, feedback_runtime, home_stats, i18n, local_data_ui, local_settings_runtime,
+    microphone_access, prewarm_audio_recorder, settings_actions, settings_ui,
+    update_authorizations, update_check,
 };
 
 pub(crate) struct PlatformAdapters {
@@ -137,6 +138,7 @@ fn wire_local_features(
     feedback_sounds_enabled: Arc<AtomicBool>,
     shortcut_controller: settings_actions::PlatformShortcutController,
 ) {
+    appearance_ui::wire(&windows.ui, &bootstrap.local_settings, settings.clone());
     let data_directory = bootstrap.paths.data_directory().to_path_buf();
     home_stats::wire(
         &windows.ui,

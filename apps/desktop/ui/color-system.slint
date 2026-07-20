@@ -1,31 +1,136 @@
+import { Palette } from "std-widgets.slint";
+
+export enum ThemeId {
+    lime-pulse,
+    warm-clay,
+    berry-graphite,
+    iris-mist,
+    clear-sky,
+}
+
+export enum ColorSchemePreference {
+    system,
+    light,
+    dark,
+}
+
 export global AppColors {
-    out property <color> canvas: #f7f7f4;
-    out property <color> surface: #ffffff;
-    out property <color> sidebar: #f1f0ec;
-    out property <color> surface-warm: #f7f7f4;
-    out property <color> surface-subtle: #ecebe6;
-    out property <color> surface-muted: #ecebe6;
-    out property <color> selected: #e7e5df;
-    out property <color> border: #e1dfd9;
-    out property <color> progress-track: #dedcd6;
-    out property <color> chart-neutral: #d7d4cd;
+    in-out property <ThemeId> theme-id: ThemeId.lime-pulse;
+    in-out property <ColorSchemePreference> color-scheme: ColorSchemePreference.system;
 
-    out property <color> ink: #1f1f1c;
-    out property <color> text: #4d4b45;
-    out property <color> text-muted: #7d7a73;
+    private property <bool> dark: color-scheme == ColorSchemePreference.dark
+        || (color-scheme == ColorSchemePreference.system && Palette.color-scheme == ColorScheme.dark);
+    out property <bool> dark-mode: dark;
 
-    out property <color> brand: #d97757;
-    out property <color> brand-strong: #c6613f;
-    out property <color> brand-soft: #f6e6df;
+    out property <color> canvas: !dark ? #f8f7f4
+        : theme-id == ThemeId.lime-pulse ? #151714
+        : theme-id == ThemeId.berry-graphite ? #171216
+        : theme-id == ThemeId.iris-mist ? #15121a
+        : theme-id == ThemeId.clear-sky ? #10161c
+        : #181715;
+    out property <color> surface: !dark ? #ffffff
+        : theme-id == ThemeId.lime-pulse ? #1f221e
+        : theme-id == ThemeId.berry-graphite ? #221a1e
+        : theme-id == ThemeId.iris-mist ? #211b28
+        : theme-id == ThemeId.clear-sky ? #1a222b
+        : #23211e;
+    out property <color> sidebar: !dark ? #ffffff
+        : theme-id == ThemeId.lime-pulse ? #1a1d19
+        : theme-id == ThemeId.berry-graphite ? #1c1519
+        : theme-id == ThemeId.iris-mist ? #1a1620
+        : theme-id == ThemeId.clear-sky ? #141b22
+        : #1d1c19;
+    out property <color> surface-warm: dark ? sidebar : canvas;
+    out property <color> surface-subtle: !dark ? #f0eee9
+        : theme-id == ThemeId.lime-pulse ? #2a2f28
+        : theme-id == ThemeId.berry-graphite ? #2e2328
+        : theme-id == ThemeId.iris-mist ? #2c2535
+        : theme-id == ThemeId.clear-sky ? #252f39
+        : #2d2a26;
+    out property <color> surface-muted: surface-subtle;
+    out property <color> selected: !dark ? brand-soft
+        : theme-id == ThemeId.lime-pulse ? #32382f
+        : theme-id == ThemeId.berry-graphite ? #472735
+        : theme-id == ThemeId.iris-mist ? #3a2a50
+        : theme-id == ThemeId.clear-sky ? #1d3650
+        : #3b2b25;
+    out property <color> border: !dark ? #e2ded7
+        : theme-id == ThemeId.lime-pulse ? #384035
+        : theme-id == ThemeId.berry-graphite ? #43333b
+        : theme-id == ThemeId.iris-mist ? #3e3449
+        : theme-id == ThemeId.clear-sky ? #34424f
+        : #3b3731;
+    out property <color> progress-track: !dark ? #d8d4cc
+        : theme-id == ThemeId.lime-pulse ? #3d4639
+        : theme-id == ThemeId.berry-graphite ? #53424a
+        : theme-id == ThemeId.iris-mist ? #4c4158
+        : theme-id == ThemeId.clear-sky ? #425260
+        : #49443c;
+    out property <color> chart-neutral: !dark ? #d3d0c9
+        : theme-id == ThemeId.lime-pulse ? #465044
+        : theme-id == ThemeId.berry-graphite ? #6a5660
+        : theme-id == ThemeId.iris-mist ? #625674
+        : theme-id == ThemeId.clear-sky ? #566879
+        : #5c554b;
 
-    out property <color> info: #256bc1;
-    out property <color> info-soft: #cbe1fb;
-    out property <color> warning: #a86b00;
-    out property <color> warning-soft: #f9dda4;
-    out property <color> danger: #cf3a3a;
-    out property <color> danger-strong: #b52e2e;
-    out property <color> danger-soft: #fad6d6;
+    out property <color> ink: !dark ? #24211e
+        : theme-id == ThemeId.lime-pulse ? #f6f8f3
+        : theme-id == ThemeId.berry-graphite ? #f8f0f3
+        : theme-id == ThemeId.iris-mist ? #f5f0f8
+        : theme-id == ThemeId.clear-sky ? #f0f6fa
+        : #f5f1e8;
+    out property <color> text: !dark ? #4d4b45
+        : theme-id == ThemeId.lime-pulse ? #d9ded4
+        : theme-id == ThemeId.berry-graphite ? #ddcbd1
+        : theme-id == ThemeId.iris-mist ? #d6ccdd
+        : theme-id == ThemeId.clear-sky ? #cbd7e0
+        : #d3cdc1;
+    out property <color> text-muted: !dark ? #858078
+        : theme-id == ThemeId.lime-pulse ? #929b8d
+        : theme-id == ThemeId.berry-graphite ? #9c858e
+        : theme-id == ThemeId.iris-mist ? #988ba2
+        : theme-id == ThemeId.clear-sky ? #8798a6
+        : #968f83;
 
-    out property <color> success: #4f765d;
-    out property <color> success-soft: #e7f0ea;
+    out property <color> brand: theme-id == ThemeId.lime-pulse ? (dark ? #b8ef55 : #b3e90c)
+        : theme-id == ThemeId.berry-graphite ? (dark ? #e984a1 : #d94f78)
+        : theme-id == ThemeId.iris-mist ? (dark ? #ae89ea : #7a5cce)
+        : theme-id == ThemeId.clear-sky ? (dark ? #65a9e8 : #4778e8)
+        : dark ? #e58a68 : #d97757;
+    out property <color> brand-hover: theme-id == ThemeId.lime-pulse ? (dark ? #d0ff75 : #a4d50b)
+        : theme-id == ThemeId.berry-graphite ? (dark ? #f1a0b6 : #b8325d)
+        : theme-id == ThemeId.iris-mist ? (dark ? #c3a3f3 : #5e43ad)
+        : theme-id == ThemeId.clear-sky ? (dark ? #86c0f2 : #2f5cc4)
+        : dark ? #f1a080 : #c6613f;
+    out property <color> brand-strong: theme-id == ThemeId.lime-pulse ? (dark ? #d0ff75 : #506b00)
+        : theme-id == ThemeId.berry-graphite ? (dark ? #f1a0b6 : #b8325d)
+        : theme-id == ThemeId.iris-mist ? (dark ? #c3a3f3 : #5e43ad)
+        : theme-id == ThemeId.clear-sky ? (dark ? #86c0f2 : #2f5cc4)
+        : dark ? #f1a080 : #c6613f;
+    out property <color> brand-soft: theme-id == ThemeId.lime-pulse ? (dark ? #2c3a1d : #ddf59a)
+        : theme-id == ThemeId.berry-graphite ? (dark ? #4b2733 : #f9dce6)
+        : theme-id == ThemeId.iris-mist ? (dark ? #392a4e : #eee8fa)
+        : theme-id == ThemeId.clear-sky ? (dark ? #1d3a54 : #e5edff)
+        : dark ? #472d25 : #f6e6df;
+    out property <color> on-brand: theme-id == ThemeId.lime-pulse ? #172014 : #ffffff;
+    out property <color> on-selected: brand-strong;
+
+    out property <color> info: dark ? #6ba8e8 : #256bc1;
+    out property <color> info-soft: dark ? #1d344a : #cbe1fb;
+    out property <color> warning: dark ? #e9b451 : #a86b00;
+    out property <color> warning-soft: dark ? #463719 : #f9dda4;
+    out property <color> danger: dark ? #ef7474 : #cf3a3a;
+    out property <color> danger-strong: dark ? #ff8c8c : #b52e2e;
+    out property <color> danger-soft: dark ? #4a2222 : #fad6d6;
+    out property <color> success: dark ? #65c08a : #4f765d;
+    out property <color> success-soft: dark ? #1d392a : #e7f0ea;
+
+    // Inverse roles are for compact transient feedback placed above any surface.
+    out property <color> inverse-surface: dark ? #f5f1e8 : #24211e;
+    out property <color> inverse-text: dark ? #24211e : #ffffff;
+    out property <color> inverse-hover: dark ? #24211e22 : #ffffff22;
+    out property <color> inverse-divider: dark ? #24211e33 : #ffffff33;
+
+    out property <color> scrim: dark ? #00000080 : #1f1f1c66;
+    out property <color> shadow: dark ? #00000066 : #1f1f1c1f;
 }

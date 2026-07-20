@@ -13,14 +13,14 @@ use windows::{
     core::PCWSTR,
 };
 
-use crate::ui::{AppWindow, OnboardingWindow};
+use crate::ui::{AppColors, AppWindow, OnboardingWindow};
 
 const TASKBAR_ICON_RESOURCE_ID: usize = 2;
-const CAPTION_COLOR: COLORREF = COLORREF(0x00f4_f7f7);
-const CAPTION_TEXT_COLOR: COLORREF = COLORREF(0x001c_1f1f);
+const ONBOARDING_CAPTION_COLOR: COLORREF = COLORREF(0x00f4_f7f7);
+const ONBOARDING_CAPTION_TEXT_COLOR: COLORREF = COLORREF(0x001c_1f1f);
 
 pub(crate) fn integrate(ui: &AppWindow) {
-    ui.window().set_size(slint::LogicalSize::new(1120.0, 760.0));
+    ui.window().set_size(slint::LogicalSize::new(920.0, 700.0));
     refresh(ui);
 }
 
@@ -30,14 +30,14 @@ pub(crate) fn refresh(ui: &AppWindow) {
         let Some(ui) = initial_ui.upgrade() else {
             return;
         };
-        if apply(ui.window()).is_ok() {
+        if apply(&ui).is_ok() {
             return;
         }
 
         let retry_ui = ui.as_weak();
         Timer::single_shot(Duration::from_millis(400), move || {
             if let Some(ui) = retry_ui.upgrade()
-                && let Err(error) = apply(ui.window())
+                && let Err(error) = apply(&ui)
             {
                 tracing::warn!(event = "main_window.windows_integration_failed", reason = %error);
             }
@@ -51,13 +51,34 @@ pub(crate) fn integrate_onboarding(ui: &OnboardingWindow) {
         let Some(ui) = initial_ui.upgrade() else {
             return;
         };
-        if let Err(error) = apply(ui.window()) {
+        if let Err(error) = apply_onboarding(ui.window()) {
             tracing::warn!(event = "onboarding.windows_integration_failed", reason = %error);
         }
     });
 }
 
-fn apply(window: &slint::Window) -> Result<(), String> {
+fn apply(ui: &AppWindow) -> Result<(), String> {
+    let colors = ui.global::<AppColors>();
+    apply_window(
+        ui.window(),
+        colorref(colors.get_canvas()),
+        colorref(colors.get_ink()),
+    )
+}
+
+fn apply_onboarding(window: &slint::Window) -> Result<(), String> {
+    apply_window(
+        window,
+        ONBOARDING_CAPTION_COLOR,
+        ONBOARDING_CAPTION_TEXT_COLOR,
+    )
+}
+
+fn apply_window(
+    window: &slint::Window,
+    caption_color: COLORREF,
+    caption_text_color: COLORREF,
+) -> Result<(), String> {
     let window_handle = window.window_handle();
     let handle = window_handle
         .window_handle()
@@ -68,9 +89,18 @@ fn apply(window: &slint::Window) -> Result<(), String> {
     let hwnd = HWND(handle.hwnd.get() as *mut _);
 
     set_taskbar_icon(hwnd)?;
-    set_dwm_color(hwnd, DWMWA_CAPTION_COLOR, CAPTION_COLOR)?;
-    set_dwm_color(hwnd, DWMWA_TEXT_COLOR, CAPTION_TEXT_COLOR)?;
-    set_dwm_color(hwnd, DWMWA_BORDER_COLOR, CAPTION_COLOR)
+    set_dwm_color(hwnd, DWMWA_CAPTION_COLOR, caption_color)?;
+    set_dwm_color(hwnd, DWMWA_TEXT_COLOR, caption_text_color)?;
+    set_dwm_color(hwnd, DWMWA_BORDER_COLOR, caption_color)
+}
+
+fn colorref(color: slint::Color) -> COLORREF {
+    let channels = color.to_argb_u8();
+    COLORREF(
+        u32::from(channels.red)
+            | (u32::from(channels.green) << 8)
+            | (u32::from(channels.blue) << 16),
+    )
 }
 
 fn set_dwm_color(

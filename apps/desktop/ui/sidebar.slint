@@ -15,6 +15,7 @@ export component AppSidebar inherits Rectangle {
         width: 30px;
         height: 35px;
         source: @image-url("../icons/saymore-mark-3d-136.png");
+        colorize: AppColors.dark-mode ? AppColors.ink : transparent;
         image-fit: contain;
         image-rendering: smooth;
     }

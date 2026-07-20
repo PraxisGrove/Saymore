@@ -1,3 +1,5 @@
+import { OverlayColors } from "overlay-color-system.slint";
+
 export component DictionaryAddedOverlay inherits Window {
     title: "Saymore Dictionary";
     default-font-family: "PingFang SC";
@@ -24,12 +26,12 @@ export component DictionaryAddedOverlay inherits Window {
         width: 386px;
         height: 120px;
         border-radius: 16px;
-        background: #ffffff;
+        background: OverlayColors.surface;
         border-width: 1px;
-        border-color: #dddad2;
+        border-color: OverlayColors.border-strong;
         drop-shadow-blur: 16px;
         drop-shadow-offset-y: 4px;
-        drop-shadow-color: #1f1f1c24;
+        drop-shadow-color: OverlayColors.shadow;
 
         Rectangle {
             x: 14px;
@@ -37,7 +39,7 @@ export component DictionaryAddedOverlay inherits Window {
             width: 30px;
             height: 30px;
             border-radius: 15px;
-            background: #f2ded6;
+            background: OverlayColors.accent-soft;
 
             Image {
                 x: 7px;
@@ -45,7 +47,7 @@ export component DictionaryAddedOverlay inherits Window {
                 width: 16px;
                 height: 16px;
                 source: @image-url("../icons/lucide/sparkles.svg");
-                colorize: #d97757;
+                colorize: OverlayColors.accent;
             }
         }
 
@@ -55,7 +57,7 @@ export component DictionaryAddedOverlay inherits Window {
             width: 270px;
             height: 22px;
             text: @tr("dictionary.notification.added.title" => "Added to personal dictionary");
-            color: #1f1f1c;
+            color: OverlayColors.ink-soft;
             font-size: 15px;
             font-weight: 700;
             vertical-alignment: center;
@@ -66,7 +68,7 @@ export component DictionaryAddedOverlay inherits Window {
             width: 280px;
             height: 18px;
             text: root.entry;
-            color: #4d4b45;
+            color: OverlayColors.text-soft;
             font-size: 13px;
             font-weight: 600;
             overflow: elide;
@@ -78,7 +80,7 @@ export component DictionaryAddedOverlay inherits Window {
             width: 310px;
             height: 16px;
             text: @tr("dictionary.notification.added.detail" => "Automatically added based on your repeated corrections");
-            color: #77746c;
+            color: OverlayColors.text-muted-warm;
             font-size: 11px;
             vertical-alignment: center;
         }
@@ -89,7 +91,7 @@ export component DictionaryAddedOverlay inherits Window {
             width: 28px;
             height: 28px;
             border-radius: 8px;
-            background: close-area.has-hover ? #f3f1ed : transparent;
+            background: close-area.has-hover ? OverlayColors.surface-hover : transparent;
             accessible-role: button;
             accessible-label: @tr("common.close" => "Close");
             accessible-action-default => { root.close-notification(); }
@@ -100,7 +102,7 @@ export component DictionaryAddedOverlay inherits Window {
                 width: 18px;
                 height: 18px;
                 source: @image-url("../icons/lucide/x.svg");
-                colorize: #77746c;
+                colorize: OverlayColors.text-muted-warm;
             }
             close-area := TouchArea {
                 mouse-cursor: pointer;
@@ -114,14 +116,14 @@ export component DictionaryAddedOverlay inherits Window {
             width: 68px;
             height: 30px;
             border-radius: 8px;
-            background: undo-area.has-hover ? #e5e3dd : #efeee9;
+            background: undo-area.has-hover ? OverlayColors.surface-control-hover : OverlayColors.surface-control;
             accessible-role: button;
             accessible-label: @tr("dictionary.notification.undo" => "Undo");
             accessible-action-default => { root.undo-addition(); }
 
             Text {
                 text: @tr("dictionary.notification.undo" => "Undo");
-                color: #4d4b45;
+                color: OverlayColors.text-soft;
                 font-size: 11px;
                 font-weight: 600;
                 horizontal-alignment: center;
@@ -139,14 +141,14 @@ export component DictionaryAddedOverlay inherits Window {
             width: 70px;
             height: 30px;
             border-radius: 8px;
-            background: view-area.has-hover ? #c6613f : #d97757;
+            background: view-area.has-hover ? OverlayColors.accent-strong : OverlayColors.accent;
             accessible-role: button;
             accessible-label: @tr("dictionary.notification.view" => "View dictionary");
             accessible-action-default => { root.view-dictionary(); }
 
             Text {
                 text: @tr("dictionary.notification.view" => "View dictionary");
-                color: #ffffff;
+                color: OverlayColors.on-accent;
                 font-size: 11px;
                 font-weight: 600;
                 horizontal-alignment: center;

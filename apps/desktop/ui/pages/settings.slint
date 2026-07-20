@@ -1,5 +1,6 @@
 import { NavItem, SettingsSection, UiLanguage } from "../components.slint";
-import { AppColors } from "../color-system.slint";
+import { AppColors, ColorSchemePreference, ThemeId } from "../color-system.slint";
+import { ThemeSettings } from "../theme-settings.slint";
 import { ScrollView } from "std-widgets.slint";
 
 export struct AudioInputDevice {
@@ -23,7 +24,7 @@ component SettingsActionButton inherits Rectangle {
     background: !root.enabled ? AppColors.surface-muted
         : root.state == "success" ? AppColors.success-soft
         : root.state == "failure" ? AppColors.danger-soft
-        : root.primary ? (action-touch.has-hover ? AppColors.brand-strong : AppColors.brand)
+        : root.primary ? (action-touch.has-hover ? AppColors.brand-hover : AppColors.brand)
         : action-touch.has-hover ? AppColors.surface-subtle : AppColors.sidebar;
     opacity: root.enabled ? (action-touch.pressed ? 0.84 : 1) : 0.62;
     animate background { duration: 120ms; easing: ease-out; }
@@ -33,12 +34,12 @@ component SettingsActionButton inherits Rectangle {
     accessible-enabled: root.enabled;
     accessible-action-default => { if root.enabled { root.activated(); } }
 
-    if root.show-icon: Image { x: root.icon-only ? (parent.width - self.width) / 2 : 17px; y: (parent.height - self.height) / 2; width: 16px; height: 16px; source: root.icon; colorize: !root.enabled ? AppColors.text-muted : root.state == "success" ? AppColors.success : root.state == "failure" ? AppColors.danger : root.primary ? #ffffff : AppColors.text; }
+    if root.show-icon: Image { x: root.icon-only ? (parent.width - self.width) / 2 : 17px; y: (parent.height - self.height) / 2; width: 16px; height: 16px; source: root.icon; colorize: !root.enabled ? AppColors.text-muted : root.state == "success" ? AppColors.success : root.state == "failure" ? AppColors.danger : root.primary ? AppColors.on-brand : AppColors.text; }
     if !root.icon-only: Text {
         x: root.show-icon ? 42px : 12px;
         width: parent.width - (root.show-icon ? 54px : 24px);
         text: root.label;
-        color: !root.enabled ? AppColors.text-muted : root.state == "success" ? AppColors.success : root.state == "failure" ? AppColors.danger : root.primary ? #ffffff : AppColors.text;
+        color: !root.enabled ? AppColors.text-muted : root.state == "success" ? AppColors.success : root.state == "failure" ? AppColors.danger : root.primary ? AppColors.on-brand : AppColors.text;
         font-size: 12px;
         font-weight: 650;
         vertical-alignment: center;
@@ -81,7 +82,7 @@ component SettingSwitch inherits Rectangle {
         background: AppColors.surface;
         drop-shadow-blur: 4px;
         drop-shadow-offset-y: 1px;
-        drop-shadow-color: #17130e2b;
+        drop-shadow-color: AppColors.shadow;
         animate x { duration: 160ms; easing: ease-out; }
     }
     switch-touch := TouchArea {
@@ -212,7 +213,7 @@ component MicrophoneSelect inherits Rectangle {
             background: AppColors.surface;
             drop-shadow-blur: 14px;
             drop-shadow-offset-y: 4px;
-            drop-shadow-color: #1f1f1c1f;
+            drop-shadow-color: AppColors.shadow;
             ScrollView {
                 x: 4px;
                 y: 4px;
@@ -287,7 +288,7 @@ component LanguageSelect inherits Rectangle {
             background: AppColors.surface;
             drop-shadow-blur: 14px;
             drop-shadow-offset-y: 4px;
-            drop-shadow-color: #1f1f1c1f;
+            drop-shadow-color: AppColors.shadow;
             VerticalLayout {
                 padding: 4px;
                 spacing: 2px;
@@ -409,6 +410,9 @@ export component SettingsPage inherits Rectangle {
     in property <UiLanguage> system-ui-language: UiLanguage.english;
     in property <bool> ui-language-saving: false;
     in property <string> ui-language-status: "";
+    in property <ThemeId> theme-id: ThemeId.lime-pulse;
+    in property <ColorSchemePreference> color-scheme: ColorSchemePreference.system;
+    in property <string> appearance-status: "";
     in-out property <bool> diagnostics-enabled: false;
     in property <string> diagnostics-status: "";
     in property <string> storage-usage: @tr("storage.usage.calculating" => "Calculating…");
@@ -441,6 +445,8 @@ export component SettingsPage inherits Rectangle {
     callback select-microphone(string, string);
     callback refresh-microphones();
     callback set-ui-language(UiLanguage);
+    callback set-theme(ThemeId);
+    callback set-color-scheme(ColorSchemePreference);
     callback set-diagnostics-enabled(bool);
     callback export-diagnostics-report();
     callback open-data-directory();
@@ -461,7 +467,7 @@ export component SettingsPage inherits Rectangle {
     private property <length> shortcut-extra-height: max(0, root.shortcut-labels.length - 1) * 48px;
     private property <string> section-title: root.current-section == SettingsSection.general ? @tr("settings.section.general" => "General") : root.current-section == SettingsSection.shortcuts-audio ? @tr("settings.section.shortcuts-audio" => "Shortcuts & Audio") : root.current-section == SettingsSection.delivery-permissions ? @tr("settings.section.delivery-permissions" => "Delivery & Permissions") : root.current-section == SettingsSection.privacy-history ? @tr("settings.section.privacy-data" => "Privacy & Data") : @tr("settings.section.about-updates" => "About & Updates");
     private property <string> section-detail: root.current-section == SettingsSection.general ? @tr("settings.general.detail" => "Control how Saymore starts, appears, and looks on this device.") : root.current-section == SettingsSection.shortcuts-audio ? @tr("settings.shortcuts-audio.detail" => "Choose how voice input starts and how audio feedback works.") : root.current-section == SettingsSection.delivery-permissions ? @tr("settings.delivery-permissions.detail" => "Choose how recognized text is delivered and review system permissions.") : root.current-section == SettingsSection.privacy-history ? @tr("settings.privacy-data.detail" => "Review local data storage and manage diagnostics.") : @tr("settings.about-updates.detail" => "View version information, update status, and product links.");
-    private property <length> content-height: root.current-section == SettingsSection.general ? (root.compact ? (root.show-dock-setting ? 1015px : 867px) : 735px) : root.current-section == SettingsSection.shortcuts-audio ? (root.compact ? 840px : 570px) + root.shortcut-extra-height : root.current-section == SettingsSection.delivery-permissions ? (root.compact ? 790px : 570px) : root.current-section == SettingsSection.privacy-history ? (root.compact ? 900px : 630px) : (root.compact ? 790px : 600px);
+    private property <length> content-height: root.current-section == SettingsSection.general ? (root.compact ? (root.show-dock-setting ? 1169px : 1021px) : 889px) : root.current-section == SettingsSection.shortcuts-audio ? (root.compact ? 840px : 570px) + root.shortcut-extra-height : root.current-section == SettingsSection.delivery-permissions ? (root.compact ? 790px : 570px) : root.current-section == SettingsSection.privacy-history ? (root.compact ? 900px : 630px) : (root.compact ? 790px : 600px);
     private property <string> export-button-label: root.diagnostics-export-status == "exporting" ? @tr("settings.diagnostics.exporting" => "Exporting…") : root.diagnostics-export-status == "success" ? @tr("settings.diagnostics.exported" => "Exported") : root.diagnostics-export-status == "failed" ? @tr("settings.diagnostics.export-again" => "Export again") : @tr("settings.diagnostics.export-report" => "Export report");
     private property <string> update-button-label: root.update-status == "checking" ? @tr("settings.update.checking" => "Checking…") : root.update-status == "failed" ? @tr("settings.update.check-again" => "Check again") : @tr("settings.update.check" => "Check for updates");
     private property <string> update-message: root.update-status == "checking" ? @tr("settings.update.checking-detail" => "Checking for updates…") : root.update-status == "latest" ? @tr("settings.update.latest" => "You’re up to date") : root.update-status == "available" ? @tr("settings.update.available" => "Saymore {} is available", root.update-version) : root.update-status == "failed" ? root.update-detail : @tr("settings.update.not-checked" => "Updates have not been checked yet");
@@ -539,17 +545,25 @@ export component SettingsPage inherits Rectangle {
                                     SettingSwitch { x: parent.width - 62px; y: 20px; checked: root.show-in-dock; toggled(value) => { root.set-show-in-dock(value); } }
                                 }
                             }
+                            Text { height: 20px; text: @tr("settings.language.title" => "Interface language"); color: AppColors.text; font-size: 13px; font-weight: 650; vertical-alignment: center; }
+                            Rectangle {
+                                height: 72px; border-radius: 10px; background: AppColors.surface;
+                                Image { x: 24px; y: 24px; width: 16px; height: 16px; source: @image-url("../../icons/lucide/globe.svg"); colorize: AppColors.text-muted; }
+                                Text { x: 54px; y: 15px; text: @tr("settings.language.title" => "Interface language"); color: AppColors.ink; font-size: 13px; font-weight: 650; }
+                                Text { x: 54px; y: 39px; text: root.ui-language-status.is-empty ? @tr("settings.language.detail" => "Language used by the application interface") : root.ui-language-status; color: root.ui-language-status.is-empty ? AppColors.text-muted : AppColors.danger; font-size: 11px; }
+                                LanguageSelect { x: parent.width - self.width - 20px; y: 18px; current: root.ui-language; system-language: root.system-ui-language; saving: root.ui-language-saving; selected(language) => { root.set-ui-language(language); } }
+                            }
                             Text { height: 20px; text: @tr("settings.appearance.title" => "Appearance"); color: AppColors.text; font-size: 13px; font-weight: 650; vertical-alignment: center; }
                             Rectangle {
-                                height: 116px; border-radius: 10px; background: AppColors.surface;
-                                Image { x: 24px; y: 24px; width: 16px; height: 16px; source: @image-url("../../icons/lucide/globe.svg"); colorize: AppColors.text-muted; }
-                                Text { x: 54px; y: 18px; text: @tr("settings.language.title" => "Interface language"); color: AppColors.ink; font-size: 13px; font-weight: 650; }
-                                Text { x: 54px; y: 42px; text: root.ui-language-status.is-empty ? @tr("settings.language.detail" => "Language used by the application interface") : root.ui-language-status; color: root.ui-language-status.is-empty ? AppColors.text-muted : AppColors.danger; font-size: 11px; }
-                                LanguageSelect { x: parent.width - self.width - 20px; y: 16px; current: root.ui-language; system-language: root.system-ui-language; saving: root.ui-language-saving; selected(language) => { root.set-ui-language(language); } }
-                                Image { x: 24px; y: 72px; width: 16px; height: 16px; source: @image-url("../../icons/lucide/sun.svg"); colorize: AppColors.text-muted; }
-                                Text { x: 54px; y: 66px; text: @tr("settings.theme.title" => "Theme"); color: AppColors.ink; font-size: 13px; font-weight: 650; }
-                                Text { x: 54px; y: 90px; text: @tr("settings.theme.detail" => "Match this device’s appearance setting"); color: AppColors.text-muted; font-size: 11px; }
-                                Text { x: parent.width - 126px; y: 77px; width: 106px; text: @tr("common.follow-system" => "Follow System"); color: AppColors.text-muted; font-size: 11px; horizontal-alignment: right; }
+                                height: 194px; border-radius: 10px; background: AppColors.surface;
+                                ThemeSettings {
+                                    width: parent.width; height: parent.height;
+                                    theme-id: root.theme-id;
+                                    color-scheme: root.color-scheme;
+                                    status: root.appearance-status;
+                                    select-theme(theme) => { root.set-theme(theme); }
+                                    select-color-scheme(scheme) => { root.set-color-scheme(scheme); }
+                                }
                             }
                             Text { height: 20px; text: @tr("settings.software.title" => "Software"); color: AppColors.text; font-size: 13px; font-weight: 650; vertical-alignment: center; }
                             Rectangle {
@@ -710,7 +724,7 @@ export component SettingsPage inherits Rectangle {
                             Text { height: 20px; text: @tr("settings.product.title" => "Product"); color: AppColors.text; font-size: 13px; font-weight: 650; vertical-alignment: center; }
                             Rectangle {
                                 height: 170px; border-radius: 10px; background: AppColors.surface;
-                                Image { x: 32px; y: 38px; width: 58px; height: 58px; source: @image-url("../../icons/saymore-mark-3d-136.png"); image-fit: contain; }
+                                Image { x: 32px; y: 38px; width: 58px; height: 58px; source: @image-url("../../icons/saymore-mark-3d-136.png"); colorize: AppColors.dark-mode ? AppColors.ink : transparent; image-fit: contain; }
                                 Text { x: 114px; y: 28px; text: "Saymore"; color: AppColors.ink; font-size: 22px; font-weight: 700; }
                                 Text { x: 114px; y: 62px; text: @tr("settings.product.tagline" => "Speak your mind, hands-free."); color: AppColors.text-muted; font-size: 12px; }
                                 Rectangle { x: 114px; y: 96px; width: 74px; height: 30px; border-radius: 7px; background: AppColors.sidebar; Text { text: "v0.1.0"; color: AppColors.text; font-size: 11px; horizontal-alignment: center; vertical-alignment: center; } }

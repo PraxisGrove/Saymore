@@ -25,6 +25,13 @@ database, HTTP, environment, or process adapters. It may depend on `app`.
 models, callback wiring, and process lifecycle for the macOS and Windows app. It
 may depend on `app` and `infra`; those reusable crates must not depend on Slint.
 
+Desktop appearance has two application-owned persisted values: a five-option
+theme identifier and a follow-system/light/dark preference. The desktop maps
+those values to Slint's `AppColors` semantic roles; pages never select raw
+colors themselves. Independent recording, permission, and result overlays use
+the fixed `OverlayColors` palette and intentionally do not follow the
+main-window theme. `xtask ui-colors` enforces this ownership boundary.
+
 Desktop startup is shared across macOS and Windows. It resolves application
 paths, opens provider settings and local storage, loads local settings, and
 wires the shared Slint settings, history, dictionary, statistics, ASR, and

@@ -1,6 +1,8 @@
 use thiserror::Error;
 use unicode_normalization::UnicodeNormalization;
 
+use crate::{ColorSchemePreference, ThemeId};
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum HistoryRetention {
     OneDay,
@@ -121,6 +123,8 @@ pub struct LocalSettings {
     pub preferred_microphone_name: Option<String>,
     pub diagnostics_logging_enabled: bool,
     pub ui_language: UiLanguagePreference,
+    pub theme: ThemeId,
+    pub color_scheme: ColorSchemePreference,
     pub automatic_update_checks: bool,
     pub feedback_sounds_enabled: bool,
     pub copy_to_clipboard: bool,
@@ -140,6 +144,8 @@ impl Default for LocalSettings {
             preferred_microphone_name: None,
             diagnostics_logging_enabled: false,
             ui_language: UiLanguagePreference::System,
+            theme: ThemeId::LimePulse,
+            color_scheme: ColorSchemePreference::System,
             automatic_update_checks: false,
             feedback_sounds_enabled: true,
             copy_to_clipboard: false,

@@ -7,6 +7,22 @@ explicit and reproducible.
 ## Verification Cadence
 
 During implementation, run focused tests and checks for the code being changed.
+
+### UI color ownership
+
+All main-window Slint components must consume semantic roles from
+`apps/desktop/ui/color-system.slint`. Independent overlays consume the fixed
+roles in `apps/desktop/ui/overlay-color-system.slint`, so changing the app theme
+does not recolor permission prompts, recording controls, or result
+notifications. The theme picker may declare its five swatch samples directly; no
+other Slint component may contain a color literal.
+
+Run the color boundary check with:
+
+```sh
+cargo run -p xtask -- ui-colors
+```
+
 Run the complete gate below immediately before `git push`:
 
 ```bash

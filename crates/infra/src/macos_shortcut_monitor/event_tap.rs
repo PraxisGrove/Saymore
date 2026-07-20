@@ -255,7 +255,11 @@ pub(super) fn handle_modifier_event(
     }
     if controller.capturing() {
         controller.finish_capture(MacOsShortcut::modifier(code));
-        return CallbackResult::Drop;
+        return if suppressed {
+            CallbackResult::Drop
+        } else {
+            CallbackResult::Keep
+        };
     }
     if !shortcuts_enabled {
         return CallbackResult::Keep;
@@ -271,7 +275,11 @@ pub(super) fn handle_modifier_event(
             eprintln!("saymore_fn_trace phase=modifier-up toggle=true result=drop");
         }
         let _ = sender.send(DictationShortcutAction::Toggle);
-        return CallbackResult::Drop;
+        return if suppressed {
+            CallbackResult::Drop
+        } else {
+            CallbackResult::Keep
+        };
     }
     CallbackResult::Keep
 }

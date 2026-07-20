@@ -6,10 +6,10 @@ use std::sync::{
 };
 
 use template_app::{
-    DictionaryOrigin, DictionaryStore, HistoryDelivery, HistoryRecord, HistoryRefinement,
-    HistoryRetention, HistoryStore, InstalledModel, InstalledModelStore, LocalSettings,
-    LocalSettingsStore, NewDictionaryEntry, NewHistoryRecord, OnboardingStatus, OnboardingStep,
-    SecretStore, SecretStoreError, StorageError, UiLanguagePreference,
+    ColorSchemePreference, DictionaryOrigin, DictionaryStore, HistoryDelivery, HistoryRecord,
+    HistoryRefinement, HistoryRetention, HistoryStore, InstalledModel, InstalledModelStore,
+    LocalSettings, LocalSettingsStore, NewDictionaryEntry, NewHistoryRecord, OnboardingStatus,
+    OnboardingStep, SecretStore, SecretStoreError, StorageError, ThemeId, UiLanguagePreference,
 };
 use template_infra::SqliteStorage;
 #[cfg(target_os = "windows")]
@@ -117,6 +117,8 @@ fn settings_are_typed_and_persisted_across_restarts() -> Result<(), Box<dyn std:
         preferred_microphone_name: Some("MacBook 麦克风".to_owned()),
         diagnostics_logging_enabled: true,
         ui_language: UiLanguagePreference::English,
+        theme: ThemeId::ClearSky,
+        color_scheme: ColorSchemePreference::Dark,
         automatic_update_checks: true,
         feedback_sounds_enabled: false,
         copy_to_clipboard: true,
@@ -191,6 +193,11 @@ fn existing_installations_do_not_receive_first_run_onboarding()
     assert_eq!(
         OnboardingStatus::Completed,
         store.load_settings()?.onboarding_status
+    );
+    assert_eq!(ThemeId::LimePulse, store.load_settings()?.theme);
+    assert_eq!(
+        ColorSchemePreference::System,
+        store.load_settings()?.color_scheme
     );
     Ok(())
 }
@@ -616,7 +623,7 @@ fn dictionary_identity_preserves_token_boundaries_across_v3_migration()
 
     let connection = rusqlite::Connection::open(path)?;
     let version: u32 = connection.query_row("PRAGMA user_version", [], |row| row.get(0))?;
-    assert_eq!(14, version);
+    assert_eq!(15, version);
     let spaced_key: String = connection.query_row(
         "SELECT canonical_key FROM dictionary_entries WHERE canonical = 'Open AI'",
         [],

@@ -7,9 +7,10 @@ use std::{
 };
 
 use template_app::{
-    HistoryRetention, LocalSettings, LocalSettingsChange, LocalSettingsMutationError,
-    LocalSettingsMutator, LocalSettingsStore, LocalSettingsValidationError, MicrophoneSelection,
-    OnboardingStatus, OnboardingStep, StorageError, UiLanguagePreference,
+    ColorSchemePreference, HistoryRetention, LocalSettings, LocalSettingsChange,
+    LocalSettingsMutationError, LocalSettingsMutator, LocalSettingsStore,
+    LocalSettingsValidationError, MicrophoneSelection, OnboardingStatus, OnboardingStep,
+    StorageError, ThemeId, UiLanguagePreference,
 };
 
 struct FakeSettingsStore {
@@ -112,6 +113,16 @@ fn every_change_commits_the_expected_complete_snapshot() {
             LocalSettingsChange::SetUiLanguage(UiLanguagePreference::SimplifiedChinese),
             changed(&initial, |settings| {
                 settings.ui_language = UiLanguagePreference::SimplifiedChinese;
+            }),
+        ),
+        (
+            LocalSettingsChange::SetTheme(ThemeId::IrisMist),
+            changed(&initial, |settings| settings.theme = ThemeId::IrisMist),
+        ),
+        (
+            LocalSettingsChange::SetColorScheme(ColorSchemePreference::Dark),
+            changed(&initial, |settings| {
+                settings.color_scheme = ColorSchemePreference::Dark;
             }),
         ),
         (

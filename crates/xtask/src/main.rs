@@ -41,6 +41,7 @@ fn run(args: Vec<String>) -> Result<(), Box<dyn Error>> {
         "preview-macos" => macos_preview::run(&args[1..]),
         "release-plan" => release_plan::run(&args[1..]),
         "size" => run_size_gate(SizeConfig::from_args(&args[1..])?),
+        "ui-colors" => run_ui_color_gate(Path::new(".")),
         "windows-icons" => windows_icons::run(&args[1..]),
         "help" | "-h" | "--help" => {
             print_help();
@@ -57,6 +58,7 @@ fn print_help() {
     #[cfg(target_os = "macos")]
     println!("  preview-macos [--once]");
     println!("  release-plan --github-output <path>");
+    println!("  ui-colors");
     println!("  windows-icons [--master <path>] [--output <path>]");
     println!(
         "  size [--root <dir>] [--glob <glob>] [--warn-file-lines <n>] [--max-file-lines <n>] [--warn-fn-lines <n>] [--max-fn-lines <n>]"
@@ -132,6 +134,82 @@ fn required_value(args: &[String], index: usize) -> Result<&str, Box<dyn Error>>
     args.get(index + 1)
         .map(String::as_str)
         .ok_or_else(|| format!("missing value for {}", args[index]).into())
+}
+
+const UI_COLOR_LITERAL_ALLOWLIST: [&str; 3] = [
+    "apps/desktop/ui/color-system.slint",
+    "apps/desktop/ui/overlay-color-system.slint",
+    "apps/desktop/ui/theme-settings.slint",
+];
+
+fn run_ui_color_gate(root: &Path) -> Result<(), Box<dyn Error>> {
+    let root = root.canonicalize()?;
+    let ui_root = root.join("apps/desktop/ui");
+    let mut files = Vec::new();
+    collect_slint_files(&ui_root, &mut files)?;
+    files.sort();
+
+    let mut findings = Vec::new();
+    for path in &files {
+        let relpath = path
+            .strip_prefix(&root)?
+            .to_string_lossy()
+            .replace('\\', "/");
+        if UI_COLOR_LITERAL_ALLOWLIST.contains(&relpath.as_str()) {
+            continue;
+        }
+        let source = fs::read_to_string(path)?;
+        for (line_index, line) in source.lines().enumerate() {
+            if contains_color_literal(line) {
+                findings.push(format!("{relpath}:{}", line_index + 1));
+            }
+        }
+    }
+
+    println!("[INFO] scanned_slint_files={}", files.len());
+    if findings.is_empty() {
+        println!("[SUMMARY] direct_color_literals=0");
+        return Ok(());
+    }
+
+    for finding in &findings {
+        println!("[ERROR] direct color literal: {finding}");
+    }
+    Err("UI color gate failed; use AppColors or OverlayColors".into())
+}
+
+fn collect_slint_files(current: &Path, files: &mut Vec<PathBuf>) -> Result<(), Box<dyn Error>> {
+    for entry in fs::read_dir(current)? {
+        let entry = entry?;
+        let path = entry.path();
+        if path.is_dir() {
+            collect_slint_files(&path, files)?;
+        } else if path.extension().and_then(|extension| extension.to_str()) == Some("slint") {
+            files.push(path);
+        }
+    }
+    Ok(())
+}
+
+fn contains_color_literal(line: &str) -> bool {
+    let bytes = line.as_bytes();
+    for (index, byte) in bytes.iter().enumerate() {
+        if *byte != b'#' {
+            continue;
+        }
+        let hex_count = bytes[index + 1..]
+            .iter()
+            .take_while(|candidate| candidate.is_ascii_hexdigit())
+            .count();
+        if matches!(hex_count, 3 | 4 | 6 | 8)
+            && bytes
+                .get(index + 1 + hex_count)
+                .is_none_or(|candidate| !candidate.is_ascii_hexdigit())
+        {
+            return true;
+        }
+    }
+    false
 }
 
 #[derive(Debug)]
@@ -438,7 +516,16 @@ fn print_fn_findings(title: &str, findings: &[FunctionFinding]) {
 
 #[cfg(test)]
 mod tests {
-    use super::{inline_test_lines, is_test_path, iter_rust_functions};
+    use super::{contains_color_literal, inline_test_lines, is_test_path, iter_rust_functions};
+
+    #[test]
+    fn color_literal_detection_matches_slint_color_syntax() {
+        assert!(contains_color_literal("background: #fff;"));
+        assert!(contains_color_literal("color: #d97757;"));
+        assert!(contains_color_literal("shadow: #1f1f1c24;"));
+        assert!(!contains_color_literal("background: AppColors.surface;"));
+        assert!(!contains_color_literal("text: \"#not-a-color\";"));
+    }
 
     #[test]
     fn test_paths_are_excluded() {

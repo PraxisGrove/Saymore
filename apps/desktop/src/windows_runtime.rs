@@ -79,6 +79,7 @@ fn wire_recording(
 ) -> Result<(recording_runtime::PlatformShortcutMonitor, StatusTray), Box<dyn Error>> {
     delivery_runtime::wire_result_actions(&windows.result_overlay);
     dictionary_added_overlay::wire(&windows.ui, &windows.dictionary_added_overlay);
+    crate::asr_configuration_prompt::wire(&windows.ui, &windows.asr_configuration_overlay);
     let dismiss_limit = windows.recording_limit_overlay.as_weak();
     windows.recording_limit_overlay.on_acknowledged(move || {
         if let Some(overlay) = dismiss_limit.upgrade() {
@@ -106,12 +107,14 @@ fn wire_recording(
         windows.dictionary_added_overlay.window(),
         windows.microphone_intro_overlay.window(),
         windows.microphone_permission_overlay.window(),
+        windows.asr_configuration_overlay.window(),
     ]);
     let overlays = DictationOverlays::new(
         &windows.overlay,
         &windows.result_overlay,
         &windows.recording_limit_overlay,
-    );
+    )
+    .with_asr_configuration(&windows.asr_configuration_overlay);
     let shortcut_monitor = recording_runtime::start_recording_shortcut(
         &windows.ui,
         overlays,

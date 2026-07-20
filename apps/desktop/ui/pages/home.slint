@@ -7,30 +7,9 @@ component UsageMetric inherits Rectangle {
     in property <bool> show-unit: true;
     background: transparent;
 
-    metric-value := Text {
-        x: 0px;
-        y: 4px;
-        text: root.value;
-        color: AppColors.ink;
-        font-size: 24px;
-        font-weight: 700;
-    }
-
-    if root.show-unit: Text {
-        x: metric-value.preferred-width + 11px;
-        y: 20px;
-        text: root.unit;
-        color: AppColors.text-muted;
-        font-size: 10px;
-    }
-
-    Text {
-        x: 0px;
-        y: 42px;
-        text: root.label;
-        color: AppColors.text-muted;
-        font-size: 10px;
-    }
+    metric-value := Text { x: 0px; y: 4px; text: root.value; color: AppColors.ink; font-size: 25px; font-weight: 700; }
+    if root.show-unit: Text { x: metric-value.preferred-width + 8px; y: 20px; text: root.unit; color: AppColors.text-muted; font-size: 9px; }
+    Text { x: 0px; y: 42px; text: root.label; color: AppColors.text-muted; font-size: 9px; }
 }
 
 component DayBar inherits Rectangle {
@@ -47,17 +26,50 @@ component DayBar inherits Rectangle {
         border-radius: 6px;
         background: root.highlighted ? AppColors.brand : AppColors.chart-neutral;
     }
+    Text { y: parent.height - 12px; width: parent.width; height: 12px; text: root.label; color: AppColors.text-muted; font-size: 9px; horizontal-alignment: center; vertical-alignment: top; }
+}
 
-    Text {
-        y: parent.height - 12px;
-        width: parent.width;
-        height: 12px;
-        text: root.label;
-        color: AppColors.text-muted;
-        font-size: 9px;
-        horizontal-alignment: center;
-        vertical-alignment: top;
+component VoiceMark inherits Rectangle {
+    background: transparent;
+    Rectangle { x: 0px; y: 15px; width: 4px; height: 8px; border-radius: 2px; background: AppColors.brand; }
+    Rectangle { x: 7px; y: 10px; width: 4px; height: 18px; border-radius: 2px; background: AppColors.brand; }
+    Rectangle { x: 14px; y: 6px; width: 4px; height: 26px; border-radius: 2px; background: AppColors.brand; }
+    Rectangle { x: 21px; y: 11px; width: 4px; height: 16px; border-radius: 2px; background: AppColors.brand; }
+    Rectangle { x: 28px; y: 14px; width: 4px; height: 10px; border-radius: 2px; background: AppColors.brand; }
+}
+
+component ShortcutKeycap inherits Rectangle {
+    in property <string> label;
+    width: 158px;
+    height: 34px;
+    border-radius: 8px;
+    background: AppColors.surface-subtle;
+    drop-shadow-blur: 4px;
+    drop-shadow-offset-y: 2px;
+    drop-shadow-color: AppColors.shadow;
+    Text { text: root.label; color: AppColors.text; font-size: 10px; font-weight: 650; horizontal-alignment: center; vertical-alignment: center; overflow: elide; }
+}
+
+component StatusNode inherits Rectangle {
+    in property <image> icon;
+    in property <string> label;
+    in property <bool> ready;
+    callback activated();
+
+    background: transparent;
+    accessible-role: button;
+    accessible-label: root.label;
+    accessible-action-default => { root.activated(); }
+    Rectangle {
+        x: (parent.width - self.width) / 2;
+        width: 30px;
+        height: 30px;
+        border-radius: 15px;
+        background: AppColors.surface-subtle;
+        Image { x: 8px; y: 8px; width: 14px; height: 14px; source: root.icon; colorize: root.ready ? AppColors.brand : AppColors.text-muted; }
     }
+    Text { y: 52px; width: parent.width; text: root.label; color: AppColors.text; font-size: 10px; font-weight: 650; horizontal-alignment: center; overflow: elide; }
+    TouchArea { mouse-cursor: pointer; clicked => { root.activated(); } }
 }
 
 export component HomePage inherits Rectangle {
@@ -71,6 +83,7 @@ export component HomePage inherits Rectangle {
     in property <bool> asr-pending-test;
     in property <string> asr-config-status;
     in property <string> shortcut-label: "Right Command";
+    in property <[string]> shortcut-labels;
     in property <bool> shortcut-enabled: true;
     in property <string> usage-total-minutes: "0";
     in property <string> usage-total-characters: "0";
@@ -90,176 +103,67 @@ export component HomePage inherits Rectangle {
     private property <bool> model-issue: !root.asr-home-available;
     private property <bool> accessibility-issue: !root.authorized;
     private property <bool> healthy: !root.microphone-issue && !root.model-issue && !root.accessibility-issue;
-    private property <string> shortcut-title: @tr("home.shortcut.title" => "Voice input shortcut");
-    private property <string> issue-title: root.microphone-issue ? @tr("home.issue.microphone.title" => "Microphone access is off")
-        : root.model-issue ? (root.asr-config-error ? @tr("home.issue.asr-invalid.title" => "Voice recognition configuration needs attention") : @tr("home.issue.asr-missing.title" => "Voice recognition is not configured"))
-        : root.accessibility-issue ? @tr("home.issue.accessibility.title" => "Accessibility access is off") : "";
-    private property <string> issue-detail: root.microphone-issue ? @tr("home.issue.microphone.detail" => "Voice input cannot start yet")
-        : root.model-issue ? (root.asr-config-error ? root.asr-config-status : @tr("home.issue.asr-missing.detail" => "Finish setup before using voice input"))
-        : root.accessibility-issue ? @tr("home.issue.accessibility.detail" => "Recognized text cannot be entered at the current cursor") : "";
-    private property <string> issue-action: root.model-issue ? @tr("home.issue.models.action" => "Open model settings")
-        : @tr("common.open-system-settings" => "Open System Settings");
+    private property <length> card-gap: 16px;
+    private property <length> shortcut-card-width: root.width >= 650px ? 326px : (root.width - card-gap) / 2;
+    private property <length> configuration-x: shortcut-card-width + card-gap;
+    private property <string> primary-shortcut: root.shortcut-labels.length > 0 ? root.shortcut-labels[0] : root.shortcut-label;
 
     background: transparent;
-
-    Text {
-        x: 0px;
-        y: 43px;
-        text: @tr("home.headline" => "Speak your mind, hands-free");
-        color: AppColors.ink;
-        font-size: 27px;
-        font-weight: 700;
-    }
+    Text { x: 0px; y: 43px; text: @tr("home.headline" => "Speak your mind, hands-free"); color: AppColors.ink; font-size: 27px; font-weight: 700; }
 
     Rectangle {
-        x: 0px;
-        y: 99px;
-        width: parent.width - 1px;
-        height: 86px;
-        border-radius: 12px;
-        background: shortcut-area.has-hover ? AppColors.surface-subtle : AppColors.surface;
-        accessible-role: button;
-        accessible-label: root.shortcut-title;
-        accessible-action-default => { root.open-shortcut-settings(); }
-
-        Text { x: 18px; y: 16px; text: root.shortcut-title; color: AppColors.ink; font-size: 14px; font-weight: 700; }
-        Text { x: 18px; y: 42px; text: @tr("home.shortcut.current" => "Current setting"); color: AppColors.text-muted; font-size: 11px; }
-
+        x: 0px; y: 100px; width: root.shortcut-card-width; height: 196px; border-radius: 12px; background: AppColors.surface;
+        accessible-role: button; accessible-label: @tr("home.shortcut.title" => "Voice input shortcut"); accessible-action-default => { root.open-shortcut-settings(); }
+        VoiceMark { x: 20px; y: 18px; width: 40px; height: 40px; }
+        Text { x: 74px; y: 29px; text: @tr("home.shortcut.title" => "Voice input shortcut"); color: AppColors.ink; font-size: 14px; font-weight: 700; }
         Rectangle {
-            x: parent.width - 210px;
-            y: 24px;
-            width: 118px;
-            height: 38px;
-            border-radius: 8px;
-            border-width: 1px;
-            border-color: AppColors.border;
-            background: AppColors.canvas;
-            Text { text: root.shortcut-label; color: AppColors.text; font-size: 12px; font-weight: 600; horizontal-alignment: center; vertical-alignment: center; overflow: elide; }
+            x: parent.width - 87px; y: 25px; width: 66px; height: 26px; border-radius: 7px; background: root.shortcut-enabled ? AppColors.brand-soft : AppColors.surface-subtle;
+            Text { text: root.shortcut-enabled ? @tr("common.enabled" => "Enabled") : @tr("common.disabled" => "Disabled"); color: root.shortcut-enabled ? AppColors.brand-strong : AppColors.text-muted; font-size: 10px; font-weight: 650; horizontal-alignment: center; vertical-alignment: center; }
         }
+        ShortcutKeycap { x: 20px; y: 88px; label: root.primary-shortcut; }
+        if root.shortcut-labels.length > 1: Rectangle {
+            x: 186px; y: 93px; width: 34px; height: 24px; border-radius: 7px; background: AppColors.brand-soft;
+            Text { text: "+" + (root.shortcut-labels.length - 1); color: AppColors.brand-strong; font-size: 9px; font-weight: 700; horizontal-alignment: center; vertical-alignment: center; }
+        }
+        Text { x: 20px; y: 160px; text: @tr("home.shortcut.toggle-hint" => "Press once to start, then again to finish"); color: AppColors.text-muted; font-size: 10px; }
+        Text { x: parent.width - 60px; y: 160px; width: 36px; text: @tr("common.edit" => "Edit"); color: AppColors.text; font-size: 10px; font-weight: 600; horizontal-alignment: right; }
+        Image { x: parent.width - 17px; y: 163px; width: 11px; height: 11px; source: @image-url("../../icons/lucide/chevron-right.svg"); colorize: AppColors.text-muted; }
+        TouchArea { mouse-cursor: pointer; clicked => { root.open-shortcut-settings(); } }
+    }
 
+    configuration-card := Rectangle {
+        x: root.configuration-x; y: 100px; width: parent.width - root.configuration-x - 1px; height: 196px; border-radius: 12px; background: AppColors.surface;
+        Text { x: 20px; y: 16px; text: @tr("home.configuration-status.title" => "Configuration status"); color: AppColors.ink; font-size: 14px; font-weight: 700; }
+        Text { x: 20px; y: 44px; text: root.healthy ? @tr("home.health.summary-ready" => "Voice pipeline is ready") : @tr("home.health.summary-incomplete" => "Finish the remaining setup"); color: AppColors.text-muted; font-size: 10px; }
         Rectangle {
-            x: parent.width - 82px;
-            y: 24px;
-            width: 66px;
-            height: 38px;
-            border-radius: 8px;
-            background: root.shortcut-enabled ? AppColors.success-soft : AppColors.surface-subtle;
-            Text { text: root.shortcut-enabled ? @tr("common.enabled" => "Enabled") : @tr("common.disabled" => "Disabled"); color: root.shortcut-enabled ? AppColors.success : AppColors.text-muted; font-size: 11px; font-weight: 650; horizontal-alignment: center; vertical-alignment: center; }
+            x: parent.width - 94px; y: 18px; width: 74px; height: 26px; border-radius: 7px; background: root.healthy ? AppColors.brand-soft : AppColors.surface-subtle;
+            Rectangle { x: 11px; y: 9px; width: 8px; height: 8px; border-radius: 4px; background: root.healthy ? AppColors.brand : AppColors.text-muted; }
+            Text { x: 25px; y: 5px; text: root.healthy ? @tr("home.health.all-good" => "All good") : @tr("home.health.pending" => "Pending"); color: root.healthy ? AppColors.brand-strong : AppColors.text-muted; font-size: 9px; font-weight: 650; }
         }
-        shortcut-area := TouchArea {
-            mouse-cursor: pointer;
-            clicked => { root.open-shortcut-settings(); }
-        }
+        private property <length> node-width: 80px;
+        private property <length> node-gap: (configuration-card.width - 3 * node-width - 20px) / 2;
+        StatusNode { x: 10px; y: 90px; width: configuration-card.node-width; height: 64px; icon: @image-url("../../icons/lucide/sparkles.svg"); label: @tr("home.health.model" => "Model service"); ready: root.asr-home-available; activated => { root.open-model-settings(); } }
+        StatusNode { x: 10px + configuration-card.node-width + configuration-card.node-gap; y: 90px; width: configuration-card.node-width; height: 64px; icon: @image-url("../../icons/lucide/audio-lines.svg"); label: @tr("home.health.microphone" => "Microphone"); ready: root.microphone-authorized; activated => { root.open-microphone-settings(); } }
+        StatusNode { x: configuration-card.width - configuration-card.node-width - 10px; y: 90px; width: configuration-card.node-width; height: 64px; icon: @image-url("../../icons/lucide/check.svg"); label: @tr("home.health.delivery" => "Text delivery"); ready: root.authorized; activated => { root.open-accessibility-settings(); } }
     }
 
-    Text { x: 0px; y: 199px; text: @tr("home.configuration-status.title" => "Dictation availability"); color: AppColors.text; font-size: 14px; font-weight: 650; }
-
-    Rectangle {
-        x: 0px;
-        y: 223px;
-        width: parent.width - 1px;
-        height: 54px;
-        border-radius: 10px;
-        background: root.healthy ? AppColors.sidebar : AppColors.brand-soft;
-
-        if root.healthy: Text {
-            x: 20px;
-            y: 18px;
-            text: root.asr-pending-test ? @tr("home.health.configured" => "Voice recognition configured · Microphone allowed · Text delivery ready") : @tr("home.health.connected" => "Model connected · Microphone allowed · Text delivery ready");
-            color: AppColors.text;
-            font-size: 12px;
-            font-weight: 600;
-        }
-
-        if root.healthy: Rectangle {
-            x: parent.width - 100px;
-            y: 12px;
-            width: 84px;
-            height: 30px;
-            border-radius: 7px;
-            background: AppColors.success-soft;
-            Text { text: root.asr-pending-test ? @tr("home.health.ready" => "●  Ready") : @tr("home.health.all-good" => "●  All good"); color: AppColors.success; font-size: 10px; font-weight: 650; horizontal-alignment: center; vertical-alignment: center; }
-        }
-
-        if !root.healthy: Rectangle {
-            x: 16px; y: 15px; width: 24px; height: 24px; border-radius: 12px; border-width: 1px; border-color: AppColors.brand; background: transparent;
-            Text { text: "!"; color: AppColors.brand; font-size: 13px; font-weight: 700; horizontal-alignment: center; vertical-alignment: center; }
-        }
-
-        if !root.healthy: VerticalLayout {
-            x: 50px;
-            y: 8px;
-            width: parent.width - 218px;
-            height: 40px;
-            spacing: 1px;
-            Text { text: root.issue-title; color: AppColors.ink; font-size: 12px; font-weight: 650; overflow: elide; }
-            Text { text: root.issue-detail; color: AppColors.text-muted; font-size: 10px; overflow: elide; }
-        }
-
-        if !root.healthy: Rectangle {
-            x: parent.width - 152px;
-            y: 8px;
-            width: 136px;
-            height: 38px;
-            border-radius: 8px;
-            background: action-area.has-hover ? AppColors.brand-strong : AppColors.brand;
-            accessible-role: button;
-            accessible-label: root.issue-action;
-            accessible-action-default => {
-                if root.microphone-issue { root.open-microphone-settings(); }
-                else if root.model-issue { root.open-model-settings(); }
-                else if root.accessibility-issue { root.open-accessibility-settings(); }
-            }
-            Text { text: root.issue-action; color: #ffffff; font-size: 12px; font-weight: 650; horizontal-alignment: center; vertical-alignment: center; }
-            action-area := TouchArea {
-                mouse-cursor: pointer;
-                clicked => {
-                    if root.microphone-issue { root.open-microphone-settings(); }
-                    else if root.model-issue { root.open-model-settings(); }
-                    else if root.accessibility-issue { root.open-accessibility-settings(); }
-                }
-            }
-        }
-    }
-
-    Text { x: 0px; y: 301px; text: @tr("home.usage.title" => "Usage overview"); color: AppColors.text; font-size: 14px; font-weight: 650; }
-
-    Rectangle {
-        x: 0px;
-        y: 329px;
-        width: parent.width - 1px;
-        height: max(160px, parent.height - 332px);
-        border-radius: 12px;
-        background: AppColors.surface;
-
-        Text { x: 20px; y: 16px; text: root.usage-loading ? @tr("home.usage.loading" => "Usage overview · Loading") : root.usage-error ? @tr("home.usage.failed" => "Usage overview · Could not load") : @tr("home.usage.totals" => "All-time totals"); color: AppColors.text-muted; font-size: 11px; font-weight: 600; }
-
+    usage-card := Rectangle {
+        x: 0px; y: 313px; width: parent.width - 1px; height: max(300px, parent.height - 316px); border-radius: 12px; background: AppColors.surface;
+        Text { x: 20px; y: 18px; text: @tr("home.usage.title" => "Usage overview"); color: AppColors.ink; font-size: 14px; font-weight: 650; }
+        Text { x: 20px; y: 46px; text: root.usage-loading ? @tr("home.usage.loading" => "Loading") : root.usage-error ? @tr("home.usage.failed" => "Could not load") : @tr("home.usage.totals" => "All-time totals"); color: AppColors.text-muted; font-size: 10px; font-weight: 500; }
         private property <length> metric-step: (self.width - 62px) / 3;
-        UsageMetric { x: 20px; y: 32px; width: parent.metric-step - 30px; height: 78px; value: root.usage-loading ? "•••" : root.usage-error ? "—" : root.usage-total-minutes; unit: @tr("home.usage.minutes.unit" => "min"); show-unit: !root.usage-loading && !root.usage-error; label: root.usage-error ? @tr("home.usage.local-unavailable" => "Local stats are temporarily unavailable") : @tr("home.usage.dictation-total" => "Voice input time"); }
-        UsageMetric { x: 20px + parent.metric-step; y: 32px; width: parent.metric-step - 30px; height: 78px; value: root.usage-loading ? "•••" : root.usage-error ? "—" : root.usage-total-characters; unit: @tr("home.usage.characters.unit" => "characters"); show-unit: !root.usage-loading && !root.usage-error; label: root.usage-error ? @tr("home.usage.input-unaffected" => "Voice input is unaffected") : @tr("home.usage.characters-total" => "Characters entered"); }
-        UsageMetric { x: 20px + parent.metric-step * 2; y: 32px; width: parent.metric-step - 30px; height: 78px; value: root.usage-loading ? "•••" : root.usage-error ? "—" : root.usage-average-speed; unit: @tr("home.usage.speed.unit" => "chars/min"); show-unit: !root.usage-loading && !root.usage-error; label: root.usage-error ? "" : @tr("home.usage.average-speed" => "Average speed"); }
+        UsageMetric { x: 20px; y: 68px; width: parent.metric-step - 30px; height: 68px; value: root.usage-loading ? "•••" : root.usage-error ? "—" : root.usage-total-minutes; unit: @tr("home.usage.minutes.unit" => "min"); show-unit: !root.usage-loading && !root.usage-error; label: @tr("home.usage.dictation-total" => "Voice input time"); }
+        UsageMetric { x: 20px + parent.metric-step; y: 68px; width: parent.metric-step - 30px; height: 68px; value: root.usage-loading ? "•••" : root.usage-error ? "—" : root.usage-total-characters; unit: @tr("home.usage.characters.unit" => "characters"); show-unit: !root.usage-loading && !root.usage-error; label: @tr("home.usage.characters-total" => "Characters entered"); }
+        UsageMetric { x: 20px + parent.metric-step * 2; y: 68px; width: parent.metric-step - 30px; height: 68px; value: root.usage-loading ? "•••" : root.usage-error ? "—" : root.usage-average-speed; unit: @tr("home.usage.speed.unit" => "chars/min"); show-unit: !root.usage-loading && !root.usage-error; label: @tr("home.usage.average-speed" => "Average speed"); }
         if root.usage-error: Rectangle {
-            x: 20px + parent.metric-step * 2; y: 69px; width: parent.metric-step - 30px; height: 24px; background: transparent;
+            x: 20px + parent.metric-step * 2; y: 105px; width: parent.metric-step - 30px; height: 24px; background: transparent;
             Text { text: @tr("common.reload" => "Reload ↗"); color: AppColors.brand; font-size: 10px; font-weight: 600; vertical-alignment: center; }
             TouchArea { mouse-cursor: pointer; clicked => { root.refresh-usage(); } }
         }
-
-        Text { x: 20px; y: 116px; text: @tr("home.usage.seven-day-trend" => "Last 7 days"); color: AppColors.text-muted; font-size: 11px; font-weight: 600; }
-
+        Text { x: 20px; y: 160px; text: @tr("home.usage.seven-day-trend" => "Last 7 days"); color: AppColors.text-muted; font-size: 10px; font-weight: 600; }
         HorizontalLayout {
-            x: 40px;
-            y: 144px;
-            width: parent.width - 104px;
-            height: max(36px, parent.height - 154px);
-            spacing: 0px;
-            alignment: space-between;
-
-            for label[index] in root.usage-day-labels: DayBar {
-                width: 48px;
-                level: root.usage-trend[index];
-                label: label;
-                highlighted: index == root.usage-highlighted-day;
-            }
+            x: 40px; y: 192px; width: parent.width - 80px; height: max(80px, parent.height - 210px); spacing: 0px; alignment: space-between;
+            for label[index] in root.usage-day-labels: DayBar { width: 48px; level: root.usage-trend[index]; label: label; highlighted: index == root.usage-highlighted-day; }
         }
     }
 }

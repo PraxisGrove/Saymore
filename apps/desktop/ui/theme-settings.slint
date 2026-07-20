@@ -1,0 +1,138 @@
+import { AppColors, ColorSchemePreference, ThemeId } from "color-system.slint";
+
+component ThemeOption inherits Rectangle {
+    in property <string> label;
+    in property <color> swatch;
+    in property <bool> selected;
+    callback activated();
+
+    height: 62px;
+    border-radius: 8px;
+    background: root.selected ? AppColors.brand-soft : option-touch.has-hover ? AppColors.surface-subtle : transparent;
+    accessible-role: button;
+    accessible-label: root.label;
+    accessible-action-default => { root.activated(); }
+
+    Rectangle {
+        x: (parent.width - self.width) / 2;
+        y: 9px;
+        width: 22px;
+        height: 22px;
+        border-radius: 7px;
+        background: root.swatch;
+        if root.selected: Image {
+            x: 5px;
+            y: 5px;
+            width: 12px;
+            height: 12px;
+            source: @image-url("../icons/lucide/check.svg");
+            colorize: AppColors.on-brand;
+        }
+    }
+    Text {
+        y: 39px;
+        width: parent.width;
+        text: root.label;
+        color: root.selected ? AppColors.on-selected : AppColors.text-muted;
+        font-size: 10px;
+        font-weight: root.selected ? 650 : 500;
+        horizontal-alignment: center;
+        overflow: elide;
+    }
+    option-touch := TouchArea { mouse-cursor: pointer; clicked => { root.activated(); } }
+}
+
+component SchemeOption inherits Rectangle {
+    in property <string> label;
+    in property <image> icon;
+    in property <bool> selected;
+    callback activated();
+
+    height: 42px;
+    border-radius: 7px;
+    background: root.selected ? AppColors.brand-soft : option-touch.has-hover ? AppColors.surface-subtle : transparent;
+    accessible-role: button;
+    accessible-label: root.label;
+    accessible-action-default => { root.activated(); }
+    Image {
+        x: 12px;
+        y: 13px;
+        width: 16px;
+        height: 16px;
+        source: root.icon;
+        colorize: root.selected ? AppColors.on-selected : AppColors.text-muted;
+    }
+    Text {
+        x: 36px;
+        width: parent.width - 44px;
+        text: root.label;
+        color: root.selected ? AppColors.on-selected : AppColors.text-muted;
+        font-size: 10px;
+        font-weight: root.selected ? 650 : 500;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+    option-touch := TouchArea { mouse-cursor: pointer; clicked => { root.activated(); } }
+}
+
+export component ThemeSettings inherits Rectangle {
+    in property <ThemeId> theme-id: ThemeId.lime-pulse;
+    in property <ColorSchemePreference> color-scheme: ColorSchemePreference.system;
+    in property <string> status: "";
+    callback select-theme(ThemeId);
+    callback select-color-scheme(ColorSchemePreference);
+
+    background: transparent;
+
+    Image {
+        x: 24px;
+        y: 18px;
+        width: 20px;
+        height: 20px;
+        source: @image-url("../icons/lucide/palette.svg");
+        colorize: AppColors.text-muted;
+    }
+    Text {
+        x: 54px;
+        y: 17px;
+        text: @tr("settings.theme-color.title" => "Theme color");
+        color: AppColors.ink;
+        font-size: 13px;
+        font-weight: 650;
+    }
+    if !root.status.is-empty: Text {
+        x: parent.width - self.width - 24px;
+        y: 19px;
+        width: min(220px, parent.width - 180px);
+        text: root.status;
+        color: AppColors.danger;
+        font-size: 10px;
+        horizontal-alignment: right;
+        overflow: elide;
+    }
+
+    HorizontalLayout {
+        x: 20px;
+        y: 50px;
+        width: parent.width - 40px;
+        height: 62px;
+        spacing: 8px;
+        ThemeOption { horizontal-stretch: 1; label: @tr("settings.theme.lime-pulse" => "Lime Pulse"); swatch: #b3e90c; selected: root.theme-id == ThemeId.lime-pulse; activated => { root.select-theme(ThemeId.lime-pulse); } }
+        ThemeOption { horizontal-stretch: 1; label: @tr("settings.theme.warm-clay" => "Warm Clay"); swatch: #d97757; selected: root.theme-id == ThemeId.warm-clay; activated => { root.select-theme(ThemeId.warm-clay); } }
+        ThemeOption { horizontal-stretch: 1; label: @tr("settings.theme.berry-graphite" => "Berry"); swatch: #d94f78; selected: root.theme-id == ThemeId.berry-graphite; activated => { root.select-theme(ThemeId.berry-graphite); } }
+        ThemeOption { horizontal-stretch: 1; label: @tr("settings.theme.iris-mist" => "Iris Mist"); swatch: #7a5cce; selected: root.theme-id == ThemeId.iris-mist; activated => { root.select-theme(ThemeId.iris-mist); } }
+        ThemeOption { horizontal-stretch: 1; label: @tr("settings.theme.clear-sky" => "Clear Sky"); swatch: #4778e8; selected: root.theme-id == ThemeId.clear-sky; activated => { root.select-theme(ThemeId.clear-sky); } }
+    }
+
+    Text { x: 24px; y: 140px; text: @tr("settings.color-scheme.title" => "Light and dark mode"); color: AppColors.ink; font-size: 12px; font-weight: 650; }
+    HorizontalLayout {
+        x: parent.width - 360px;
+        y: 126px;
+        width: 336px;
+        height: 42px;
+        spacing: 4px;
+        SchemeOption { horizontal-stretch: 1; icon: @image-url("../icons/lucide/monitor.svg"); label: @tr("common.follow-system" => "Follow System"); selected: root.color-scheme == ColorSchemePreference.system; activated => { root.select-color-scheme(ColorSchemePreference.system); } }
+        SchemeOption { horizontal-stretch: 1; icon: @image-url("../icons/lucide/sun.svg"); label: @tr("settings.color-scheme.light" => "Light"); selected: root.color-scheme == ColorSchemePreference.light; activated => { root.select-color-scheme(ColorSchemePreference.light); } }
+        SchemeOption { horizontal-stretch: 1; icon: @image-url("../icons/lucide/moon.svg"); label: @tr("settings.color-scheme.dark" => "Dark"); selected: root.color-scheme == ColorSchemePreference.dark; activated => { root.select-color-scheme(ColorSchemePreference.dark); } }
+    }
+}

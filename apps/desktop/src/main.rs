@@ -47,13 +47,15 @@ use ui::AppWindow;
 #[cfg(target_os = "macos")]
 use ui::{AccessibilityPermissionOverlay, StatusTray};
 use ui::{
-    DictionaryAddedOverlay, MicrophoneIntroOverlay, MicrophonePermissionOverlay,
-    RecordingLimitOverlay, RecordingOverlay, ResultOverlay,
+    AsrConfigurationOverlay, DictionaryAddedOverlay, MicrophoneIntroOverlay,
+    MicrophonePermissionOverlay, RecordingLimitOverlay, RecordingOverlay, ResultOverlay,
 };
 
 #[cfg(target_os = "macos")]
 mod accessibility_permission_prompt;
 mod app_environment;
+mod appearance_ui;
+mod asr_configuration_prompt;
 #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 mod asr_runtime;
 mod authorization_ui;
@@ -126,6 +128,7 @@ pub(crate) struct DictationOverlays {
     pub(crate) status: slint::Weak<RecordingOverlay>,
     pub(crate) result: slint::Weak<ResultOverlay>,
     pub(crate) limit: slint::Weak<RecordingLimitOverlay>,
+    pub(crate) asr_configuration: slint::Weak<AsrConfigurationOverlay>,
 }
 
 impl DictationOverlays {
@@ -138,7 +141,13 @@ impl DictationOverlays {
             status: status.as_weak(),
             result: result.as_weak(),
             limit: limit.as_weak(),
+            asr_configuration: slint::Weak::default(),
         }
+    }
+
+    fn with_asr_configuration(mut self, overlay: &AsrConfigurationOverlay) -> Self {
+        self.asr_configuration = overlay.as_weak();
+        self
     }
 }
 
@@ -150,6 +159,8 @@ struct ShortcutRuntime {
     cancelled: Arc<Mutex<CancelledRecordingStore>>,
     paused: Arc<AtomicBool>,
     onboarding_toggle: Arc<dyn Fn() -> bool + Send + Sync>,
+    #[cfg(target_os = "macos")]
+    onboarding_active: Arc<dyn Fn() -> bool + Send + Sync>,
     #[cfg(target_os = "macos")]
     accessibility_permission_prompt: accessibility_permission_prompt::AccessibilityPermissionPrompt,
     dictation: DictationRuntime,
@@ -270,6 +281,7 @@ struct DesktopWindows {
     dictionary_added_overlay: DictionaryAddedOverlay,
     microphone_intro_overlay: MicrophoneIntroOverlay,
     microphone_permission_overlay: MicrophonePermissionOverlay,
+    asr_configuration_overlay: AsrConfigurationOverlay,
     #[cfg(target_os = "macos")]
     accessibility_permission_overlay: AccessibilityPermissionOverlay,
     language_context: i18n::LanguageContext,
@@ -292,6 +304,7 @@ impl DesktopWindows {
             dictionary_added_overlay: DictionaryAddedOverlay::new()?,
             microphone_intro_overlay: MicrophoneIntroOverlay::new()?,
             microphone_permission_overlay: MicrophonePermissionOverlay::new()?,
+            asr_configuration_overlay: AsrConfigurationOverlay::new()?,
             #[cfg(target_os = "macos")]
             accessibility_permission_overlay: AccessibilityPermissionOverlay::new()?,
             language_context,
@@ -311,6 +324,7 @@ fn run_wired_desktop(
     let paused = Arc::new(AtomicBool::new(bootstrap.local_settings.dictation_paused));
     delivery_runtime::wire_result_actions(&windows.result_overlay);
     dictionary_added_overlay::wire(&windows.ui, &windows.dictionary_added_overlay);
+    asr_configuration_prompt::wire(&windows.ui, &windows.asr_configuration_overlay);
     let dismiss_limit = windows.recording_limit_overlay.as_weak();
     windows.recording_limit_overlay.on_acknowledged(move || {
         if let Some(overlay) = dismiss_limit.upgrade() {
@@ -334,11 +348,15 @@ fn run_wired_desktop(
         &windows.overlay,
         &windows.result_overlay,
         &windows.recording_limit_overlay,
-    );
+    )
+    .with_asr_configuration(&windows.asr_configuration_overlay);
     let onboarding_shortcut = core.onboarding.shortcut_handler();
+    let permission_onboarding_shortcut = onboarding_shortcut.clone();
     let onboarding_toggle = Arc::new(move || onboarding_shortcut.handle_toggle());
+    let onboarding_active = Arc::new(move || permission_onboarding_shortcut.is_active());
     let accessibility_permission_prompt =
         accessibility_permission_prompt::wire(&windows.accessibility_permission_overlay);
+    let initial_prompt = accessibility_permission_prompt.clone();
     let _shortcut_monitor = recording_runtime::start_recording_shortcut(
         &windows.ui,
         overlays,
@@ -351,6 +369,7 @@ fn run_wired_desktop(
             cancelled: core.cancelled,
             paused: Arc::clone(&paused),
             onboarding_toggle,
+            onboarding_active,
             accessibility_permission_prompt,
             dictation: core.dictation,
             feedback_sounds_enabled: Arc::clone(&core.feedback_sounds_enabled),
@@ -372,9 +391,10 @@ fn run_wired_desktop(
         windows.dictionary_added_overlay.window(),
         windows.microphone_intro_overlay.window(),
         windows.microphone_permission_overlay.window(),
+        windows.asr_configuration_overlay.window(),
         windows.accessibility_permission_overlay.window(),
     ]);
-    run_desktop_event_loop(&windows.ui, &tray, &core.onboarding)?;
+    run_desktop_event_loop(&windows.ui, &tray, &core.onboarding, initial_prompt)?;
     drop(core.authorization_poll);
     drop(core.feedback_sounds_enabled);
     Ok(())
@@ -433,6 +453,7 @@ fn run_desktop_event_loop(
     ui: &AppWindow,
     tray: &StatusTray,
     onboarding: &onboarding::OnboardingRuntime,
+    accessibility_prompt: accessibility_permission_prompt::AccessibilityPermissionPrompt,
 ) -> Result<(), slint::PlatformError> {
     slint::invoke_from_event_loop(|| {
         if let Err(error) = template_infra::install_macos_application_menu() {
@@ -442,7 +463,21 @@ fn run_desktop_event_loop(
     .map_err(|error| slint::PlatformError::Other(error.to_string()))?;
     tray.show()?;
     onboarding.present_initial(ui)?;
+    let reminder_ui = ui.as_weak();
+    let onboarding_shortcut = onboarding.shortcut_handler();
+    let reminder_timer = Timer::default();
+    reminder_timer.start(
+        slint::TimerMode::Repeated,
+        Duration::from_millis(250),
+        move || {
+            if let Some(ui) = reminder_ui.upgrade() {
+                accessibility_prompt
+                    .show_initial_if_required(onboarding_shortcut.is_active(), ui.get_authorized());
+            }
+        },
+    );
     slint::run_event_loop_until_quit()?;
+    drop(reminder_timer);
     tray.hide()?;
     onboarding.hide();
     ui.hide()?;
