@@ -307,12 +307,12 @@ jobs:
             git push --atomic origin HEAD:main "$TAG"
           fi
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: release-macos
           path: dist
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: release-windows
           path: dist
