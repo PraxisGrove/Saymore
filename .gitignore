@@ -11,14 +11,20 @@
 /docs/product/local-voice-evaluation.md
 
 # Build and generated output
-/target/
-/dist/
-/apps/desktop/dist/
+**/target/
+**/dist/
 /.codegraph/
 /output/
 *.rs.bk
 **/mutants.out*/
 *.pdb
+
+# Packaged installers belong in GitHub Releases, not the source tree
+*.dmg
+*.msi
+*.AppImage
+*.deb
+*.rpm
 
 # Local configuration and credentials
 .env
