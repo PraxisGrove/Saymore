@@ -81,6 +81,7 @@ pub unsafe fn configure_overlay_window(
     install_nonactivating_presentation(&window)?;
     window.setStyleMask(overlay_style_mask(window.styleMask()));
     window.setHidesOnDeactivate(false);
+    window.setHasShadow(false);
     let mouse = NSEvent::mouseLocation();
     let screens = NSScreen::screens(mtm);
     let visible_frame = screens
@@ -223,9 +224,13 @@ unsafe extern "C-unwind" fn show_window_without_stealing_focus(
             // Winit uses orderFront: for visible windows that must not become key.
             let _: () = unsafe { msg_send![window, orderFront: sender] };
         });
-    } else if let Some(winit_class) = HOOKED_WINIT_CLASS.get().copied() {
+    } else if HOOKED_WINIT_CLASS.get().is_some() {
         // Preserve Winit's normal key-window behavior for every unmarked window.
-        let _: () = unsafe { msg_send![super(window, winit_class), makeKeyAndOrderFront: sender] };
+        // The explicit class passed to `super` is where Objective-C starts the
+        // lookup. Starting at the hooked Winit class would invoke this method
+        // again and eventually overflow the main thread's stack.
+        let _: () =
+            unsafe { msg_send![super(window, NSWindow::class()), makeKeyAndOrderFront: sender] };
     }
 }
 

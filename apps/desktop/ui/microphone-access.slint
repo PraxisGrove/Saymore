@@ -129,12 +129,12 @@ export component AccessibilityPermissionOverlay inherits Window {
 export component AsrConfigurationOverlay inherits Window {
     title: "Saymore Voice Recognition Setup";
     default-font-family: "PingFang SC";
-    preferred-width: 392px;
-    preferred-height: 150px;
-    min-width: 392px;
-    min-height: 150px;
-    max-width: 392px;
-    max-height: 150px;
+    preferred-width: 380px;
+    preferred-height: 126px;
+    min-width: 380px;
+    min-height: 126px;
+    max-width: 380px;
+    max-height: 126px;
     no-frame: true;
     always-on-top: true;
     background: transparent;
@@ -142,23 +142,19 @@ export component AsrConfigurationOverlay inherits Window {
     callback open-configuration();
 
     Rectangle {
-        x: 6px; y: 6px; width: 380px; height: 138px; border-radius: 14px;
-        background: OverlayColors.surface; border-width: 1px; border-color: OverlayColors.border;
-        drop-shadow-blur: 20px; drop-shadow-offset-y: 6px; drop-shadow-color: OverlayColors.shadow-strong;
+        width: parent.width; height: parent.height; border-radius: 14px;
+        background: OverlayColors.surface;
 
-        Rectangle {
-            x: 18px; y: 18px; width: 38px; height: 38px; border-radius: 9px; background: OverlayColors.surface-subtle;
-            Image { x: 6px; y: 6px; width: 26px; height: 26px; source: @image-url("../icons/saymore-mark-3d-136.png"); image-fit: contain; }
-        }
-        Text { x: 70px; y: 17px; width: 286px; height: 24px; text: @tr("asr.configuration-required.title" => "Set up voice recognition first"); color: OverlayColors.ink; font-size: 14px; font-weight: 700; vertical-alignment: center; }
+        Image { x: 20px; y: 18px; width: 32px; height: 32px; source: @image-url("../icons/saymore-mark-3d-136.png"); image-fit: contain; }
+        Text { x: 68px; y: 14px; width: 288px; height: 24px; text: @tr("asr.configuration-required.title" => "Set up voice recognition first"); color: OverlayColors.ink; font-size: 14px; font-weight: 700; vertical-alignment: center; }
         Text {
-            x: 70px; y: 44px; width: 286px; height: 38px;
+            x: 68px; y: 41px; width: 288px; height: 34px;
             text: @tr("asr.configuration-required.detail" => "Saymore needs a voice recognition service to turn your recording into text. Configure one, then press the shortcut again.");
             color: OverlayColors.text-muted; font-size: 10px; wrap: word-wrap; vertical-alignment: top;
         }
 
         Rectangle {
-            x: 198px; y: 94px; width: 74px; height: 30px; border-radius: 7px;
+            x: 68px; y: 86px; width: 74px; height: 30px; border-radius: 7px;
             background: dismiss-area.has-hover ? OverlayColors.surface-subtle-hover : transparent;
             accessible-role: button; accessible-label: @tr("asr.configuration-required.not-now-accessible" => "Do not configure voice recognition now");
             accessible-action-default => { root.dismiss(); }
@@ -166,7 +162,7 @@ export component AsrConfigurationOverlay inherits Window {
             dismiss-area := TouchArea { mouse-cursor: pointer; clicked => { root.dismiss(); } }
         }
         Rectangle {
-            x: 282px; y: 94px; width: 80px; height: 30px; border-radius: 7px;
+            x: 152px; y: 86px; width: 80px; height: 30px; border-radius: 7px;
             background: configure-area.pressed ? OverlayColors.accent-strong : configure-area.has-hover ? OverlayColors.accent-strong : OverlayColors.accent;
             accessible-role: button; accessible-label: @tr("asr.configuration-required.open-accessible" => "Open voice recognition settings");
             accessible-action-default => { root.open-configuration(); }
