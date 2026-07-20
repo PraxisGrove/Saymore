@@ -24,9 +24,9 @@ fs2 = "0.4"
 futures-util = "0.3.32"
 rusqlite = { version = "0.37.0", features = ["bundled"] }
 raw-window-handle = "0.6"
-rfd = "0.15"
+rfd = "0.17"
 reqwest = { version = "0.13.4", default-features = false, features = ["json", "multipart", "rustls-no-provider", "stream"] }
-rustls = { version = "0.23.41", default-features = false, features = ["ring", "std"] }
+rustls = { version = "0.23.42", default-features = false, features = ["ring", "std"] }
 httpmock = "0.8.3"
 ico = "0.4"
 image = { version = "0.25", default-features = false, features = ["png"] }
@@ -45,7 +45,7 @@ tempfile = "3"
 tracing = "0.1"
 tracing-subscriber = "0.3"
 unicode-normalization = "0.1"
-tokio = { version = "1.52.3", features = ["macros", "rt-multi-thread", "sync", "time"] }
+tokio = { version = "1.53.0", features = ["macros", "rt-multi-thread", "sync", "time"] }
 tokio-util = "0.7"
 tokio-tungstenite = { version = "0.30.0", features = ["rustls-tls-webpki-roots"] }
 uuid = { version = "1.23.5", features = ["v4"] }
