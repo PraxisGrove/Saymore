@@ -2468,6 +2468,18 @@ msgctxt "settings.audio.cue.detail"
 msgid "Play a short sound when voice input starts and finishes."
 msgstr ""
 
+#: apps/desktop/ui/pages/settings.slint:642
+#: apps/desktop/ui/pages/settings.slint:647
+msgctxt "settings.audio.mute-system.title"
+msgid "Mute system audio during voice input"
+msgstr ""
+
+#: apps/desktop/ui/pages/settings.slint:642
+#: apps/desktop/ui/pages/settings.slint:647
+msgctxt "settings.audio.mute-system.detail"
+msgid "Temporarily mute system audio only while listening."
+msgstr ""
+
 #: apps/desktop/ui/pages/settings.slint:650
 msgctxt "settings.delivery.title"
 msgid "Delivery"

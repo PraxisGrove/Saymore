@@ -2418,6 +2418,18 @@ msgctxt "settings.audio.cue.detail"
 msgid "Play a short sound when voice input starts and finishes."
 msgstr "开始与结束识别时播放简短提示音。"
 
+#: apps/desktop/ui/pages/settings.slint:642
+#: apps/desktop/ui/pages/settings.slint:647
+msgctxt "settings.audio.mute-system.title"
+msgid "Mute system audio during voice input"
+msgstr "识别时静音系统声音"
+
+#: apps/desktop/ui/pages/settings.slint:642
+#: apps/desktop/ui/pages/settings.slint:647
+msgctxt "settings.audio.mute-system.detail"
+msgid "Temporarily mute system audio only while listening."
+msgstr "仅在语音识别期间临时静音。"
+
 #: apps/desktop/ui/pages/settings.slint:650
 msgctxt "settings.delivery.title"
 msgid "Delivery"
@@ -2710,14 +2722,6 @@ msgstr "服务条款"
 #~ msgctxt "common.show"
 #~ msgid "Show"
 #~ msgstr "显示"
-
-#~ msgctxt "settings.audio.mute-system.title"
-#~ msgid "Mute system audio during voice input"
-#~ msgstr "识别时静音系统声音"
-
-#~ msgctxt "settings.audio.mute-system.detail"
-#~ msgid "Temporarily mute system audio only while listening."
-#~ msgstr "仅在语音识别期间临时静音。"
 
 #~ msgctxt "settings.shortcut.restore-default"
 #~ msgid "Restore default"
