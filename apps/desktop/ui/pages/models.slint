@@ -136,8 +136,8 @@ component ApiKeyField inherits Rectangle {
     forward-focus: field-input;
     height: 42px;
     border-radius: 8px;
-    border-width: field-input.has-focus || root.error ? 1px : 0px;
-    border-color: root.error ? AppColors.danger : AppColors.brand;
+    border-width: 1px;
+    border-color: root.error ? AppColors.danger : field-input.has-focus ? AppColors.brand : AppColors.border;
     background: AppColors.sidebar;
     clip: true;
 

@@ -592,7 +592,7 @@ export component SettingsPage inherits Rectangle {
                             spacing: 16px;
                             Text { height: 20px; text: @tr("settings.shortcuts.title" => "Shortcuts"); color: AppColors.text; font-size: 13px; font-weight: 650; vertical-alignment: center; }
                             Rectangle {
-                                height: max(132px, 62px + root.shortcut-labels.length * 48px); border-radius: 10px; background: AppColors.surface;
+                                height: max(132px, 84px + root.shortcut-labels.length * 48px); border-radius: 10px; background: AppColors.surface;
                                 SettingsIcon { x: 20px; y: 25px; source: @image-url("../../icons/lucide/settings.svg"); }
                                 Text { x: 70px; y: 20px; text: @tr("settings.shortcut.global.title" => "Global voice input shortcut"); color: AppColors.ink; font-size: 14px; font-weight: 650; }
                                 Text { x: 70px; y: 45px; text: @tr("settings.shortcut.global.detail" => "Press to start or finish voice input."); color: AppColors.text-muted; font-size: 11px; }
@@ -615,7 +615,8 @@ export component SettingsPage inherits Rectangle {
                                     error: root.shortcut-error-index == -1;
                                     begin-capture => { root.begin-shortcut-capture(); }
                                 }
-                                Text { x: root.shortcut-error-index >= -1 ? parent.width - 238px : 70px; y: root.shortcut-error-index == -1 ? 64px + root.shortcut-labels.length * 48px : root.shortcut-error-index >= 0 ? 58px + root.shortcut-error-index * 48px : 77px; width: root.shortcut-error-index >= -1 ? 218px : parent.width - 340px; text: root.shortcut-status.is-empty ? @tr("settings.shortcut.cancel" => "Esc to cancel") : root.shortcut-status; color: root.shortcut-status.is-empty ? AppColors.text-muted : AppColors.danger; font-size: 10px; wrap: word-wrap; }
+                                if root.shortcut-capturing: Text { x: root.shortcut-error-index == -1 ? parent.width - 146px : parent.width - 238px; y: root.shortcut-error-index == -1 ? 64px + root.shortcut-labels.length * 48px : 58px + root.shortcut-error-index * 48px; width: root.shortcut-error-index == -1 ? 126px : 218px; text: @tr("settings.shortcut.cancel" => "Esc to cancel"); color: AppColors.text-muted; font-size: 10px; horizontal-alignment: center; }
+                                if !root.shortcut-status.is-empty: Text { x: root.shortcut-error-index == -1 ? parent.width - 146px : root.shortcut-error-index >= 0 ? parent.width - 238px : 70px; y: root.shortcut-error-index == -1 ? 64px + root.shortcut-labels.length * 48px : root.shortcut-error-index >= 0 ? 58px + root.shortcut-error-index * 48px : 77px; width: root.shortcut-error-index == -1 ? 126px : root.shortcut-error-index >= 0 ? 218px : parent.width - 340px; text: root.shortcut-status; color: AppColors.danger; font-size: 10px; horizontal-alignment: root.shortcut-error-index >= -1 ? center : left; wrap: word-wrap; }
                             }
                             Text { height: 20px; text: @tr("settings.audio.title" => "Audio"); color: AppColors.text; font-size: 13px; font-weight: 650; vertical-alignment: center; }
                             Rectangle {
