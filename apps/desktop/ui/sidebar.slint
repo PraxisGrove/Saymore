@@ -37,21 +37,23 @@ export component AppSidebar inherits Rectangle {
 
     Rectangle {
         x: 9px;
-        y: parent.height - 157px;
+        y: parent.height - 143px;
         width: parent.width - 20px;
-        height: 118px;
+        height: 104px;
         border-radius: 14px;
-        background: AppColors.surface;
+        background: AppColors.surface-subtle;
 
         Text { x: 12px; y: 11px; text: @tr("storage.local.title" => "Local storage"); color: AppColors.text-muted; font-size: 11px; font-weight: 600; }
         Text { x: 12px; y: 35px; text: root.storage-usage; color: AppColors.ink; font-size: 15px; font-weight: 700; }
         Rectangle {
             x: 12px;
-            y: 72px;
+            y: 60px;
             width: parent.width - 24px;
-            height: 28px;
+            height: 30px;
             border-radius: 7px;
-            background: manage-touch.pressed ? AppColors.chart-neutral : manage-touch.has-hover ? AppColors.selected : AppColors.surface-subtle;
+            border-width: 1px;
+            border-color: AppColors.border;
+            background: manage-touch.pressed ? AppColors.surface-muted : manage-touch.has-hover ? AppColors.surface-warm : AppColors.surface;
             animate background { duration: 100ms; easing: ease-out; }
             accessible-role: button;
             accessible-label: @tr("storage.manage.accessible-label" => "Manage local storage");
