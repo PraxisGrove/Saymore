@@ -1,8 +1,8 @@
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum ThemeId {
     #[default]
-    WarmClay,
     LimePulse,
+    WarmClay,
     BerryGraphite,
     IrisMist,
     ClearSky,
@@ -65,8 +65,8 @@ mod tests {
     #[test]
     fn theme_storage_values_round_trip() {
         for theme in [
-            ThemeId::WarmClay,
             ThemeId::LimePulse,
+            ThemeId::WarmClay,
             ThemeId::BerryGraphite,
             ThemeId::IrisMist,
             ThemeId::ClearSky,

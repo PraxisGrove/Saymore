@@ -76,7 +76,7 @@ component SchemeOption inherits Rectangle {
 }
 
 export component ThemeSettings inherits Rectangle {
-    in property <ThemeId> theme-id: ThemeId.warm-clay;
+    in property <ThemeId> theme-id: ThemeId.lime-pulse;
     in property <ColorSchemePreference> color-scheme: ColorSchemePreference.system;
     in property <string> status: "";
     callback select-theme(ThemeId);
@@ -117,8 +117,8 @@ export component ThemeSettings inherits Rectangle {
         width: parent.width - 40px;
         height: 62px;
         spacing: 8px;
+        ThemeOption { horizontal-stretch: 1; label: @tr("settings.theme.lime-pulse" => "Lime Pulse"); swatch: #b3e90c; selected: root.theme-id == ThemeId.lime-pulse; activated => { root.select-theme(ThemeId.lime-pulse); } }
         ThemeOption { horizontal-stretch: 1; label: @tr("settings.theme.warm-clay" => "Warm Clay"); swatch: #d97757; selected: root.theme-id == ThemeId.warm-clay; activated => { root.select-theme(ThemeId.warm-clay); } }
-        ThemeOption { horizontal-stretch: 1; label: @tr("settings.theme.lime-pulse" => "Lime Pulse"); swatch: #82ad24; selected: root.theme-id == ThemeId.lime-pulse; activated => { root.select-theme(ThemeId.lime-pulse); } }
         ThemeOption { horizontal-stretch: 1; label: @tr("settings.theme.berry-graphite" => "Berry"); swatch: #d94f78; selected: root.theme-id == ThemeId.berry-graphite; activated => { root.select-theme(ThemeId.berry-graphite); } }
         ThemeOption { horizontal-stretch: 1; label: @tr("settings.theme.iris-mist" => "Iris Mist"); swatch: #7a5cce; selected: root.theme-id == ThemeId.iris-mist; activated => { root.select-theme(ThemeId.iris-mist); } }
         ThemeOption { horizontal-stretch: 1; label: @tr("settings.theme.clear-sky" => "Clear Sky"); swatch: #4778e8; selected: root.theme-id == ThemeId.clear-sky; activated => { root.select-theme(ThemeId.clear-sky); } }

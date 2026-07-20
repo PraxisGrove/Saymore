@@ -194,7 +194,7 @@ fn existing_installations_do_not_receive_first_run_onboarding()
         OnboardingStatus::Completed,
         store.load_settings()?.onboarding_status
     );
-    assert_eq!(ThemeId::WarmClay, store.load_settings()?.theme);
+    assert_eq!(ThemeId::LimePulse, store.load_settings()?.theme);
     assert_eq!(
         ColorSchemePreference::System,
         store.load_settings()?.color_scheme

@@ -67,7 +67,7 @@ fn add_appearance_settings(connection: &mut Connection) -> Result<(), StorageErr
         transaction
             .execute_batch(
                 "ALTER TABLE app_settings
-                 ADD COLUMN theme_id TEXT NOT NULL DEFAULT 'warm-clay'
+                 ADD COLUMN theme_id TEXT NOT NULL DEFAULT 'lime-pulse'
                  CHECK (theme_id IN (
                     'warm-clay', 'lime-pulse', 'berry-graphite', 'iris-mist', 'clear-sky'
                  ));

@@ -24,7 +24,7 @@ component SettingsActionButton inherits Rectangle {
     background: !root.enabled ? AppColors.surface-muted
         : root.state == "success" ? AppColors.success-soft
         : root.state == "failure" ? AppColors.danger-soft
-        : root.primary ? (action-touch.has-hover ? AppColors.brand-strong : AppColors.brand)
+        : root.primary ? (action-touch.has-hover ? AppColors.brand-hover : AppColors.brand)
         : action-touch.has-hover ? AppColors.surface-subtle : AppColors.sidebar;
     opacity: root.enabled ? (action-touch.pressed ? 0.84 : 1) : 0.62;
     animate background { duration: 120ms; easing: ease-out; }
@@ -410,7 +410,7 @@ export component SettingsPage inherits Rectangle {
     in property <UiLanguage> system-ui-language: UiLanguage.english;
     in property <bool> ui-language-saving: false;
     in property <string> ui-language-status: "";
-    in property <ThemeId> theme-id: ThemeId.warm-clay;
+    in property <ThemeId> theme-id: ThemeId.lime-pulse;
     in property <ColorSchemePreference> color-scheme: ColorSchemePreference.system;
     in property <string> appearance-status: "";
     in-out property <bool> diagnostics-enabled: false;

@@ -40,7 +40,7 @@ component ModelActionButton inherits Rectangle {
     height: 40px;
     border-radius: 8px;
     background: !root.enabled ? (root.completed ? AppColors.success-soft : AppColors.surface-muted)
-        : root.primary ? (action-touch.has-hover ? AppColors.brand-strong : AppColors.brand)
+        : root.primary ? (action-touch.has-hover ? AppColors.brand-hover : AppColors.brand)
         : action-touch.pressed ? AppColors.chart-neutral
         : action-touch.has-hover ? AppColors.selected : AppColors.surface-subtle;
     opacity: !root.enabled ? (root.completed ? 1 : 0.55) : action-touch.pressed ? 0.84 : 1;

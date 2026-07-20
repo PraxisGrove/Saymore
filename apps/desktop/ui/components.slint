@@ -129,7 +129,7 @@ export component AppButton inherits Rectangle {
     border-width: root.primary ? 0px : 1px;
     border-color: root.danger ? AppColors.danger : AppColors.border;
     background: !root.enabled ? AppColors.surface-muted
-        : root.primary ? (button-touch.has-hover ? AppColors.brand-strong : AppColors.brand)
+        : root.primary ? (button-touch.has-hover ? AppColors.brand-hover : AppColors.brand)
         : button-touch.has-hover ? AppColors.surface-muted : AppColors.surface;
     accessible-role: button;
     accessible-label: root.text;

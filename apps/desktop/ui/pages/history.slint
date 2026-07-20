@@ -87,7 +87,7 @@ component QuietButton inherits Rectangle {
     height: 36px;
     border-radius: 7px;
     background: root.success ? AppColors.success : root.primary
-        ? (root.danger ? (touch.has-hover ? AppColors.danger-strong : AppColors.danger) : (touch.has-hover ? AppColors.brand-strong : AppColors.brand))
+        ? (root.danger ? (touch.has-hover ? AppColors.danger-strong : AppColors.danger) : (touch.has-hover ? AppColors.brand-hover : AppColors.brand))
         : (touch.has-hover ? AppColors.selected : AppColors.surface-subtle);
     animate background { duration: 140ms; easing: ease-out; }
     if root.success: Image { x: 28px; y: 10px; width: 16px; height: 16px; source: @image-url("../../icons/lucide/check.svg"); colorize: AppColors.on-brand; }

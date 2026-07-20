@@ -235,7 +235,7 @@ export component DictionaryPage inherits Rectangle {
         width: 96px;
         height: 38px;
         border-radius: 8px;
-        background: add-touch.has-hover ? AppColors.brand-strong : AppColors.brand;
+        background: add-touch.has-hover ? AppColors.brand-hover : AppColors.brand;
         accessible-role: button;
         accessible-label: @tr("dictionary.add-entry" => "Add entry");
         accessible-action-default => { root.open-add(); }
@@ -513,7 +513,7 @@ export component DictionaryAddDialog inherits Rectangle {
             width: 126px;
             height: 38px;
             border-radius: 8px;
-            background: root.nonempty-count == 0 || root.saving ? AppColors.surface-subtle : (save-touch.has-hover ? AppColors.brand-strong : AppColors.brand);
+            background: root.nonempty-count == 0 || root.saving ? AppColors.surface-subtle : (save-touch.has-hover ? AppColors.brand-hover : AppColors.brand);
             Text { text: root.saving ? @tr("common.saving" => "Saving…") : @tr("dictionary.save-entry-count" => "Save {} entry" | "Save {} entries" % root.nonempty-count, root.nonempty-count); color: root.nonempty-count == 0 || root.saving ? AppColors.text-muted : AppColors.on-brand; font-size: 12px; font-weight: 650; horizontal-alignment: center; vertical-alignment: center; }
             save-touch := TouchArea { enabled: root.nonempty-count > 0 && !root.saving; mouse-cursor: root.nonempty-count > 0 && !root.saving ? pointer : default; clicked => { root.save(); } }
         }
