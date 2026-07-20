@@ -33,6 +33,8 @@ const PERMISSION_POLL_INTERVAL: Duration = Duration::from_millis(500);
 const WINDOW_HANDOFF_DELAY: Duration = Duration::from_millis(50);
 const SOUND_DETECTED_LEVEL: f32 = 0.02;
 
+#[cfg(target_os = "macos")]
+mod local_shortcut;
 mod navigation;
 
 pub struct OnboardingRuntime {
@@ -104,7 +106,12 @@ impl OnboardingRuntime {
             shortcut.clone(),
         );
         wire_permissions(&window, Arc::clone(&microphone), Arc::clone(&deliverer));
-        wire_permission_focus_refresh(&window, Arc::clone(&microphone), Arc::clone(&deliverer));
+        wire_permission_focus_refresh(
+            &window,
+            Arc::clone(&microphone),
+            Arc::clone(&deliverer),
+            shortcut.clone(),
+        );
         wire_launch_at_login(&window, environment);
         wire_manual_rerun(
             app,
@@ -179,6 +186,10 @@ impl OnboardingRuntime {
 }
 
 impl OnboardingShortcutHandler {
+    pub fn is_active(&self) -> bool {
+        self.active.load(Ordering::Acquire)
+    }
+
     pub fn handle_toggle(&self) -> bool {
         if !self.active.load(Ordering::Acquire)
             || self.step.load(Ordering::Acquire) != OnboardingStep::Microphone.index()
@@ -296,11 +307,40 @@ fn wire_permissions(
     });
 }
 
-#[cfg(any(target_os = "macos", target_os = "windows"))]
+#[cfg(target_os = "macos")]
 fn wire_permission_focus_refresh(
     window: &OnboardingWindow,
     microphone: Arc<dyn MicrophonePermissionProvider>,
     deliverer: Arc<dyn TextDeliverer>,
+    shortcut: OnboardingShortcutHandler,
+) {
+    let refresh_window = window.as_weak();
+    window
+        .window()
+        .on_winit_window_event(move |_window, event| {
+            if matches!(event, WindowEvent::Focused(true))
+                && let Some(window) = refresh_window.upgrade()
+            {
+                update_permissions(&window, &*microphone, &*deliverer);
+            }
+            if let Some(window) = refresh_window.upgrade()
+                && local_shortcut::event_requests_toggle(
+                    event,
+                    window.get_accessibility_authorized(),
+                )
+            {
+                shortcut.handle_toggle();
+            }
+            EventResult::Propagate
+        });
+}
+
+#[cfg(target_os = "windows")]
+fn wire_permission_focus_refresh(
+    window: &OnboardingWindow,
+    microphone: Arc<dyn MicrophonePermissionProvider>,
+    deliverer: Arc<dyn TextDeliverer>,
+    _shortcut: OnboardingShortcutHandler,
 ) {
     let refresh_window = window.as_weak();
     window
@@ -320,6 +360,7 @@ fn wire_permission_focus_refresh(
     _window: &OnboardingWindow,
     _microphone: Arc<dyn MicrophonePermissionProvider>,
     _deliverer: Arc<dyn TextDeliverer>,
+    _shortcut: OnboardingShortcutHandler,
 ) {
 }
 

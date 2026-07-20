@@ -35,10 +35,10 @@ impl AccessibilityPermissionPrompt {
 }
 
 pub(crate) fn handle_required_shortcut(
-    onboarding_toggle: &(dyn Fn() -> bool + Send + Sync),
+    onboarding_active: &(dyn Fn() -> bool + Send + Sync),
     show_prompt: impl FnOnce(),
 ) {
-    if !onboarding_toggle() {
+    if !onboarding_active() {
         show_prompt();
     }
 }
@@ -62,7 +62,7 @@ mod tests {
     use super::handle_required_shortcut;
 
     #[test]
-    fn required_shortcut_is_handled_by_onboarding_or_shows_the_permission_prompt() {
+    fn required_shortcut_prompt_is_suppressed_while_onboarding_owns_local_input() {
         let prompts = AtomicUsize::new(0);
 
         handle_required_shortcut(&|| true, || {

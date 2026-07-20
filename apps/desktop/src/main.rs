@@ -151,6 +151,8 @@ struct ShortcutRuntime {
     paused: Arc<AtomicBool>,
     onboarding_toggle: Arc<dyn Fn() -> bool + Send + Sync>,
     #[cfg(target_os = "macos")]
+    onboarding_active: Arc<dyn Fn() -> bool + Send + Sync>,
+    #[cfg(target_os = "macos")]
     accessibility_permission_prompt: accessibility_permission_prompt::AccessibilityPermissionPrompt,
     dictation: DictationRuntime,
     feedback_sounds_enabled: Arc<AtomicBool>,
@@ -336,7 +338,9 @@ fn run_wired_desktop(
         &windows.recording_limit_overlay,
     );
     let onboarding_shortcut = core.onboarding.shortcut_handler();
+    let permission_onboarding_shortcut = onboarding_shortcut.clone();
     let onboarding_toggle = Arc::new(move || onboarding_shortcut.handle_toggle());
+    let onboarding_active = Arc::new(move || permission_onboarding_shortcut.is_active());
     let accessibility_permission_prompt =
         accessibility_permission_prompt::wire(&windows.accessibility_permission_overlay);
     let _shortcut_monitor = recording_runtime::start_recording_shortcut(
@@ -351,6 +355,7 @@ fn run_wired_desktop(
             cancelled: core.cancelled,
             paused: Arc::clone(&paused),
             onboarding_toggle,
+            onboarding_active,
             accessibility_permission_prompt,
             dictation: core.dictation,
             feedback_sounds_enabled: Arc::clone(&core.feedback_sounds_enabled),

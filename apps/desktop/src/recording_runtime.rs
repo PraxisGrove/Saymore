@@ -100,11 +100,11 @@ type PermissionRequiredCallback = Box<dyn Fn() + Send>;
 
 #[cfg(target_os = "macos")]
 fn permission_required_callback(runtime: &ShortcutRuntime) -> PermissionRequiredCallback {
-    let onboarding_toggle = Arc::clone(&runtime.onboarding_toggle);
+    let onboarding_active = Arc::clone(&runtime.onboarding_active);
     let prompt = runtime.accessibility_permission_prompt.clone();
     Box::new(move || {
         accessibility_permission_prompt::handle_required_shortcut(
-            onboarding_toggle.as_ref(),
+            onboarding_active.as_ref(),
             || {
                 prompt.show_required();
             },
