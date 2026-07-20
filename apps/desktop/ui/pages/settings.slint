@@ -425,6 +425,8 @@ export component SettingsPage inherits Rectangle {
     in property <string> automatic-update-status: "";
     in-out property <bool> feedback-sounds-enabled: true;
     in property <string> feedback-sounds-status: "";
+    in-out property <bool> mute-system-audio-enabled: true;
+    in property <string> mute-system-audio-status: "";
     in-out property <bool> copy-to-clipboard: false;
     in property <string> copy-to-clipboard-status: "";
     in-out property <bool> launch-at-login: false;
@@ -454,6 +456,7 @@ export component SettingsPage inherits Rectangle {
     callback download-update();
     callback set-automatic-update-checks(bool);
     callback set-feedback-sounds-enabled(bool);
+    callback set-mute-system-audio-enabled(bool);
     callback set-copy-to-clipboard(bool);
     callback set-launch-at-login(bool);
     callback set-show-in-dock(bool);
@@ -638,12 +641,12 @@ export component SettingsPage inherits Rectangle {
                             if !root.compact: HorizontalLayout {
                                 height: 128px; spacing: 16px;
                                 Rectangle { horizontal-stretch: 1; border-radius: 10px; background: AppColors.surface; SettingsIcon { x: 20px; y: 20px; source: @image-url("../../icons/lucide/audio-lines.svg"); } Text { x: 20px; y: 72px; text: @tr("settings.audio.cue.title" => "Voice input sounds"); color: AppColors.ink; font-size: 13px; font-weight: 650; } Text { x: 20px; y: 96px; text: root.feedback-sounds-status.is-empty ? @tr("settings.audio.cue.detail" => "Play a short sound when voice input starts and finishes.") : root.feedback-sounds-status; color: root.feedback-sounds-status.is-empty ? AppColors.text-muted : AppColors.danger; font-size: 10px; } SettingSwitch { x: parent.width - 62px; y: 20px; checked: root.feedback-sounds-enabled; toggled(value) => { root.set-feedback-sounds-enabled(value); } } }
-                                Rectangle { horizontal-stretch: 1; border-radius: 10px; background: AppColors.surface; SettingsIcon { x: 20px; y: 20px; source: @image-url("../../icons/lucide/audio-lines.svg"); } Text { x: 20px; y: 72px; text: @tr("settings.audio.mute-system.title" => "Mute system audio during voice input"); color: AppColors.ink; font-size: 13px; font-weight: 650; } Text { x: 20px; y: 96px; text: @tr("settings.audio.mute-system.detail" => "Temporarily mute system audio only while listening."); color: AppColors.text-muted; font-size: 10px; } SettingSwitch { x: parent.width - 62px; y: 20px; checked: true; } }
+                                Rectangle { horizontal-stretch: 1; border-radius: 10px; background: AppColors.surface; SettingsIcon { x: 20px; y: 20px; source: @image-url("../../icons/lucide/audio-lines.svg"); } Text { x: 20px; y: 72px; text: @tr("settings.audio.mute-system.title" => "Mute system audio during voice input"); color: AppColors.ink; font-size: 13px; font-weight: 650; } Text { x: 20px; y: 96px; text: root.mute-system-audio-status.is-empty ? @tr("settings.audio.mute-system.detail" => "Temporarily mute system audio only while listening.") : root.mute-system-audio-status; color: root.mute-system-audio-status.is-empty ? AppColors.text-muted : AppColors.danger; font-size: 10px; } SettingSwitch { x: parent.width - 62px; y: 20px; checked: root.mute-system-audio-enabled; toggled(value) => { root.set-mute-system-audio-enabled(value); } } }
                             }
                             if root.compact: VerticalLayout {
                                 height: 272px; spacing: 16px;
                                 Rectangle { height: 128px; border-radius: 10px; background: AppColors.surface; SettingsIcon { x: 20px; y: 20px; source: @image-url("../../icons/lucide/audio-lines.svg"); } Text { x: 20px; y: 72px; text: @tr("settings.audio.cue.title" => "Voice input sounds"); color: AppColors.ink; font-size: 13px; font-weight: 650; } Text { x: 20px; y: 96px; text: root.feedback-sounds-status.is-empty ? @tr("settings.audio.cue.detail" => "Play a short sound when voice input starts and finishes.") : root.feedback-sounds-status; color: root.feedback-sounds-status.is-empty ? AppColors.text-muted : AppColors.danger; font-size: 10px; } SettingSwitch { x: parent.width - 62px; y: 20px; checked: root.feedback-sounds-enabled; toggled(value) => { root.set-feedback-sounds-enabled(value); } } }
-                                Rectangle { height: 128px; border-radius: 10px; background: AppColors.surface; SettingsIcon { x: 20px; y: 20px; source: @image-url("../../icons/lucide/audio-lines.svg"); } Text { x: 20px; y: 72px; text: @tr("settings.audio.mute-system.title" => "Mute system audio during voice input"); color: AppColors.ink; font-size: 13px; font-weight: 650; } Text { x: 20px; y: 96px; text: @tr("settings.audio.mute-system.detail" => "Temporarily mute system audio only while listening."); color: AppColors.text-muted; font-size: 10px; } SettingSwitch { x: parent.width - 62px; y: 20px; checked: true; } }
+                                Rectangle { height: 128px; border-radius: 10px; background: AppColors.surface; SettingsIcon { x: 20px; y: 20px; source: @image-url("../../icons/lucide/audio-lines.svg"); } Text { x: 20px; y: 72px; text: @tr("settings.audio.mute-system.title" => "Mute system audio during voice input"); color: AppColors.ink; font-size: 13px; font-weight: 650; } Text { x: 20px; y: 96px; text: root.mute-system-audio-status.is-empty ? @tr("settings.audio.mute-system.detail" => "Temporarily mute system audio only while listening.") : root.mute-system-audio-status; color: root.mute-system-audio-status.is-empty ? AppColors.text-muted : AppColors.danger; font-size: 10px; } SettingSwitch { x: parent.width - 62px; y: 20px; checked: root.mute-system-audio-enabled; toggled(value) => { root.set-mute-system-audio-enabled(value); } } }
                             }
                         }
 

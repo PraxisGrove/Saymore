@@ -42,6 +42,12 @@ aggregate platform service. A platform that does not yet implement one of those
 adapters must return an explicit unavailable error; it must not replace the
 shared UI or bootstrap with a platform-specific application flow.
 
+System-output muting is also a narrow platform adapter. The desktop owns the
+recording-scoped mute session so restoration occurs on stop, cancellation,
+startup cleanup, or shutdown. Platform implementations restore only state still
+owned by that session and preserve output changes made by the user while
+recording.
+
 On macOS, Winit owns the standard application menu and Command-Q termination.
 The macOS application-menu adapter adds the standard Window menu so Command-W
 routes through AppKit to the desktop's existing close-request handler, which

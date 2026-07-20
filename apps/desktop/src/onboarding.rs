@@ -8,9 +8,9 @@ use std::time::Duration;
 use slint::winit_030::{EventResult, WinitWindowAccessor, winit::event::WindowEvent};
 use slint::{ComponentHandle, SharedString, Timer, TimerMode};
 use template_app::{
-    AccessibilityAuthorization, LocalSettings, LocalSettingsChange, MicrophoneAuthorization,
-    MicrophonePermissionProvider, OnboardingStatus, OnboardingStep, PcmChunk, RecordingMetrics,
-    TextDeliverer,
+    AccessibilityAuthorization, AudioRecorder, LocalSettings, LocalSettingsChange,
+    MicrophoneAuthorization, MicrophonePermissionProvider, OnboardingStatus, OnboardingStep,
+    PcmChunk, RecordingMetrics, TextDeliverer,
 };
 use template_infra::AppEnvironment;
 #[cfg(target_os = "windows")]

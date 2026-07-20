@@ -29,6 +29,7 @@ pub fn initialize(
     ui.window().set_size(slint::LogicalSize::new(920.0, 700.0));
     ui.set_automatic_update_checks(settings.automatic_update_checks);
     ui.set_feedback_sounds_enabled(settings.feedback_sounds_enabled);
+    ui.set_mute_system_audio_enabled(settings.mute_system_audio_enabled);
     ui.set_development_environment(environment == AppEnvironment::Development);
     ui.set_show_dock_setting(cfg!(target_os = "macos"));
     ui.set_show_accessibility_setting(cfg!(target_os = "macos"));

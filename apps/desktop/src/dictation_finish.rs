@@ -5,8 +5,8 @@ use std::sync::{
 
 use slint::ComponentHandle;
 use template_app::{
-    DictationCompletionError, DictationCompletionResult, DictationHandoff, DictationSession,
-    DictationSessionId, FailedDictation, RecordingError,
+    AudioRecorder, DictationCompletionError, DictationCompletionResult, DictationHandoff,
+    DictationSession, DictationSessionId, FailedDictation, RecordingError,
 };
 
 use crate::{

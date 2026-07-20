@@ -31,6 +31,7 @@ httpmock = "0.8.3"
 ico = "0.4"
 image = { version = "0.25", default-features = false, features = ["png"] }
 num-format = "0.4.4"
+objc2-core-audio = { version = "0.3.2", default-features = false, features = ["AudioHardware", "objc2-core-audio-types"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sherpa-onnx = "1.13.4"

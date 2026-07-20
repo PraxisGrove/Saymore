@@ -26,6 +26,7 @@ pub enum LocalSettingsChange {
     SetColorScheme(ColorSchemePreference),
     SetAutomaticUpdateChecks(bool),
     SetFeedbackSounds(bool),
+    SetMuteSystemAudio(bool),
     SetCopyToClipboard(bool),
     SetDockVisibility(bool),
     SetDictationPaused(bool),
@@ -155,6 +156,9 @@ fn apply_change(settings: &mut LocalSettings, change: LocalSettingsChange) {
         }
         LocalSettingsChange::SetFeedbackSounds(enabled) => {
             settings.feedback_sounds_enabled = enabled;
+        }
+        LocalSettingsChange::SetMuteSystemAudio(enabled) => {
+            settings.mute_system_audio_enabled = enabled;
         }
         LocalSettingsChange::SetCopyToClipboard(enabled) => settings.copy_to_clipboard = enabled,
         LocalSettingsChange::SetDockVisibility(visible) => settings.show_in_dock = visible,

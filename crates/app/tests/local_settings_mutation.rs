@@ -136,6 +136,12 @@ fn every_change_commits_the_expected_complete_snapshot() {
             }),
         ),
         (
+            LocalSettingsChange::SetMuteSystemAudio(false),
+            changed(&initial, |settings| {
+                settings.mute_system_audio_enabled = false
+            }),
+        ),
+        (
             LocalSettingsChange::SetCopyToClipboard(true),
             changed(&initial, |settings| settings.copy_to_clipboard = true),
         ),

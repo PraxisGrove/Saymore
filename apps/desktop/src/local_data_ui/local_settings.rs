@@ -1,4 +1,5 @@
 use super::*;
+use template_app::AudioRecorder;
 
 pub(super) fn wire_local_settings(
     ui: &AppWindow,

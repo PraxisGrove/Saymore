@@ -15,6 +15,7 @@ mod refinement_terms;
 mod settings;
 mod speech_recognition;
 mod storage;
+mod system_audio;
 mod text_delivery;
 mod usage_summary;
 
@@ -72,6 +73,7 @@ pub use storage::{
     OnboardingStatus, OnboardingStep, SecretStore, SecretStoreError, StorageError,
     UiLanguagePreference, dictionary_comparison_key, normalize_language_tag,
 };
+pub use system_audio::{OutputAudioMuteSession, OutputAudioMuter, SystemAudioMuteError};
 pub use text_delivery::{
     AccessibilityAuthorization, CorrectionObservingTextDeliverer, DeliveryTargetPrivacy,
     ObservedTextEdit, TextDeliverer, TextDeliveryError, TextDeliveryOutcome, TextEditObserver,

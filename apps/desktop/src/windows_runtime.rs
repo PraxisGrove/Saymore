@@ -6,8 +6,8 @@ use std::{
 use slint::ComponentHandle;
 use template_app::{CorrectionObservingTextDeliverer, MicrophonePermissionProvider};
 use template_infra::{
-    CpalAudioRecorder, WindowsMicrophonePermission, WindowsShortcut, WindowsShortcutController,
-    WindowsTextDeliverer,
+    CpalAudioRecorder, WindowsMicrophonePermission, WindowsOutputAudioMuter, WindowsShortcut,
+    WindowsShortcutController, WindowsTextDeliverer,
 };
 
 use crate::{
@@ -52,10 +52,14 @@ fn windows_platform_adapters(
     let microphone: Arc<dyn MicrophonePermissionProvider> = Arc::new(WindowsMicrophonePermission);
     let deliverer: Arc<dyn CorrectionObservingTextDeliverer> =
         Arc::new(WindowsTextDeliverer::new()?);
-    let recorder: RecorderHandle = Arc::new(Mutex::new(Box::new(CpalAudioRecorder::new(
-        Arc::clone(&microphone),
-        bootstrap.local_settings.preferred_microphone_id.clone(),
-    ))));
+    let recorder: RecorderHandle =
+        Arc::new(Mutex::new(crate::recording_audio::RecordingAudio::new(
+            Box::new(CpalAudioRecorder::new(
+                Arc::clone(&microphone),
+                bootstrap.local_settings.preferred_microphone_id.clone(),
+            )),
+            Arc::new(WindowsOutputAudioMuter),
+        )));
     let shortcut_controller = WindowsShortcutController::new(
         bootstrap
             .local_settings
@@ -98,6 +102,7 @@ fn wire_recording(
             cancelled: Arc::clone(&core.cancelled),
             dictation: core.dictation.clone(),
             feedback_sounds_enabled: Arc::clone(&core.feedback_sounds_enabled),
+            mute_system_audio_enabled: Arc::clone(&core.mute_system_audio_enabled),
         },
     );
     prepare_overlay_windows([

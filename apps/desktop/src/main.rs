@@ -27,8 +27,9 @@ use template_infra::{
 };
 #[cfg(target_os = "macos")]
 use template_infra::{
-    MacOsApplicationReopenHandler, MacOsAudioRecorder, MacOsMicrophonePermission, MacOsShortcut,
-    MacOsShortcutController, MacOsShortcutMonitor, MacOsTextDeliverer,
+    MacOsApplicationReopenHandler, MacOsAudioRecorder, MacOsMicrophonePermission,
+    MacOsOutputAudioMuter, MacOsShortcut, MacOsShortcutController, MacOsShortcutMonitor,
+    MacOsTextDeliverer,
 };
 
 // Slint-generated code contains framework-internal unwraps and panics. Keep the
@@ -84,6 +85,7 @@ mod overlay_window;
 mod permission_actions;
 mod platform_open;
 mod recording_actions;
+mod recording_audio;
 #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 mod recording_limit;
 #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
@@ -106,7 +108,7 @@ mod windows_runtime;
 #[cfg(target_os = "windows")]
 mod windows_window;
 
-pub(crate) type RecorderHandle = Arc<Mutex<Box<dyn AudioRecorder>>>;
+pub(crate) type RecorderHandle = Arc<Mutex<recording_audio::RecordingAudio>>;
 
 #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 pub(crate) fn overlay_generation_matches(scheduled: i32, current: i32) -> bool {
@@ -165,6 +167,7 @@ struct ShortcutRuntime {
     accessibility_permission_prompt: accessibility_permission_prompt::AccessibilityPermissionPrompt,
     dictation: DictationRuntime,
     feedback_sounds_enabled: Arc<AtomicBool>,
+    mute_system_audio_enabled: Arc<AtomicBool>,
 }
 
 fn main() -> ExitCode {
@@ -207,10 +210,11 @@ fn macos_platform_adapters(bootstrap: &DesktopBootstrap) -> PlatformAdapters {
     let deliverer: Arc<dyn CorrectionObservingTextDeliverer> = Arc::new(
         MacOsMainThreadTextDeliverer::new(Arc::new(MacOsTextDeliverer)),
     );
-    let recorder: RecorderHandle = Arc::new(Mutex::new(Box::new(
-        MacOsAudioRecorder::with_preferred_input_device_id(
+    let recorder: RecorderHandle = Arc::new(Mutex::new(recording_audio::RecordingAudio::new(
+        Box::new(MacOsAudioRecorder::with_preferred_input_device_id(
             bootstrap.local_settings.preferred_microphone_id.clone(),
-        ),
+        )),
+        Arc::new(MacOsOutputAudioMuter),
     )));
     let shortcuts = bootstrap
         .local_settings
@@ -373,6 +377,7 @@ fn run_wired_desktop(
             accessibility_permission_prompt,
             dictation: core.dictation,
             feedback_sounds_enabled: Arc::clone(&core.feedback_sounds_enabled),
+            mute_system_audio_enabled: Arc::clone(&core.mute_system_audio_enabled),
         },
     )
     .map_err(std::io::Error::other)?;
@@ -397,6 +402,7 @@ fn run_wired_desktop(
     run_desktop_event_loop(&windows.ui, &tray, &core.onboarding, initial_prompt)?;
     drop(core.authorization_poll);
     drop(core.feedback_sounds_enabled);
+    drop(core.mute_system_audio_enabled);
     Ok(())
 }
 

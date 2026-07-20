@@ -40,6 +40,9 @@ mod macos_main_window;
 #[cfg(target_os = "macos")]
 mod macos_overlay_window;
 
+#[cfg(target_os = "macos")]
+mod macos_system_audio;
+
 mod json_settings_store;
 
 #[cfg(target_os = "windows")]
@@ -68,6 +71,9 @@ mod windows_text_delivery;
 
 #[cfg(target_os = "windows")]
 mod windows_overlay_window;
+
+#[cfg(target_os = "windows")]
+mod windows_system_audio;
 
 #[cfg(target_os = "macos")]
 mod macos_microphone_permission;
@@ -106,6 +112,9 @@ pub use macos_main_window::{MacOsMainWindowError, configure_main_window};
 #[cfg(target_os = "macos")]
 pub use macos_overlay_window::{MacOsOverlayWindowError, configure_overlay_window};
 
+#[cfg(target_os = "macos")]
+pub use macos_system_audio::MacOsOutputAudioMuter;
+
 pub use json_settings_store::JsonSettingsStore;
 
 #[cfg(target_os = "windows")]
@@ -131,6 +140,9 @@ pub use windows_text_delivery::{WindowsTextDeliverer, copy_text_to_clipboard};
 
 #[cfg(target_os = "windows")]
 pub use windows_overlay_window::{WindowsOverlayWindowError, configure_windows_overlay_window};
+
+#[cfg(target_os = "windows")]
+pub use windows_system_audio::WindowsOutputAudioMuter;
 
 #[cfg(target_os = "macos")]
 pub use macos_microphone_permission::{

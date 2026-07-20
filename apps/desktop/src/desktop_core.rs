@@ -43,6 +43,7 @@ pub(crate) struct WiredCore {
     pub(crate) session: Arc<DictationSession>,
     pub(crate) cancelled: Arc<Mutex<CancelledRecordingStore>>,
     pub(crate) feedback_sounds_enabled: Arc<AtomicBool>,
+    pub(crate) mute_system_audio_enabled: Arc<AtomicBool>,
     pub(crate) dictation: DictationRuntime,
     pub(crate) microphone_access: microphone_access::MicrophoneAccess,
     pub(crate) shortcut_controller: settings_actions::PlatformShortcutController,
@@ -67,6 +68,9 @@ pub(crate) fn wire_core_services(
     let (session, cancelled) = crate::recording_state::initialize(crate::CANCEL_UNDO_WINDOW);
     let feedback_sounds_enabled =
         feedback_runtime::initialize(bootstrap.local_settings.feedback_sounds_enabled);
+    let mute_system_audio_enabled = Arc::new(AtomicBool::new(
+        bootstrap.local_settings.mute_system_audio_enabled,
+    ));
     let dictation = DictationRuntime::new(
         Arc::clone(&bootstrap.settings_store),
         Arc::clone(&bootstrap.local_storage),
@@ -100,6 +104,7 @@ pub(crate) fn wire_core_services(
         Arc::clone(&recorder),
         local_settings.clone(),
         Arc::clone(&feedback_sounds_enabled),
+        Arc::clone(&mute_system_audio_enabled),
         shortcut_controller.clone(),
     );
     let onboarding_deliverer: Arc<dyn TextDeliverer> = deliverer.clone();
@@ -120,6 +125,7 @@ pub(crate) fn wire_core_services(
         session,
         cancelled,
         feedback_sounds_enabled,
+        mute_system_audio_enabled,
         dictation,
         microphone_access,
         shortcut_controller,
@@ -136,6 +142,7 @@ fn wire_local_features(
     recorder: RecorderHandle,
     settings: local_settings_runtime::LocalSettingsHandle,
     feedback_sounds_enabled: Arc<AtomicBool>,
+    mute_system_audio_enabled: Arc<AtomicBool>,
     shortcut_controller: settings_actions::PlatformShortcutController,
 ) {
     appearance_ui::wire(&windows.ui, &bootstrap.local_settings, settings.clone());
@@ -157,6 +164,7 @@ fn wire_local_features(
         Arc::clone(&bootstrap.local_storage),
         settings,
         feedback_sounds_enabled,
+        mute_system_audio_enabled,
         bootstrap.diagnostics.clone(),
         settings_actions::PlatformOptions {
             data_directory,

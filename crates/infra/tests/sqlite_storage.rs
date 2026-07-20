@@ -121,6 +121,7 @@ fn settings_are_typed_and_persisted_across_restarts() -> Result<(), Box<dyn std:
         color_scheme: ColorSchemePreference::Dark,
         automatic_update_checks: true,
         feedback_sounds_enabled: false,
+        mute_system_audio_enabled: false,
         copy_to_clipboard: true,
         show_in_dock: false,
         dictation_paused: true,
@@ -199,6 +200,7 @@ fn existing_installations_do_not_receive_first_run_onboarding()
         ColorSchemePreference::System,
         store.load_settings()?.color_scheme
     );
+    assert!(store.load_settings()?.mute_system_audio_enabled);
     Ok(())
 }
 
@@ -623,7 +625,7 @@ fn dictionary_identity_preserves_token_boundaries_across_v3_migration()
 
     let connection = rusqlite::Connection::open(path)?;
     let version: u32 = connection.query_row("PRAGMA user_version", [], |row| row.get(0))?;
-    assert_eq!(15, version);
+    assert_eq!(16, version);
     let spaced_key: String = connection.query_row(
         "SELECT canonical_key FROM dictionary_entries WHERE canonical = 'Open AI'",
         [],

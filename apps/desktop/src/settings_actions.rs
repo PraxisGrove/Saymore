@@ -44,6 +44,9 @@ use crate::{
 #[cfg(target_os = "macos")]
 mod shortcut;
 
+mod audio;
+use audio::{set_feedback_sounds_enabled, set_mute_system_audio_enabled};
+
 #[cfg(target_os = "windows")]
 #[path = "settings_actions/windows_shortcut.rs"]
 mod shortcut;
@@ -88,6 +91,7 @@ pub fn wire(
     storage: Arc<SqliteStorage>,
     settings: LocalSettingsHandle,
     feedback_sounds_enabled: Arc<AtomicBool>,
+    mute_system_audio_enabled: Arc<AtomicBool>,
     diagnostics: DiagnosticsController,
     options: PlatformOptions,
 ) {
@@ -121,6 +125,18 @@ pub fn wire(
         );
     });
 
+    let mute_ui = ui.as_weak();
+    let mute_settings = settings.clone();
+    let mute_state = Arc::clone(&mute_system_audio_enabled);
+    ui.on_set_mute_system_audio_enabled(move |enabled| {
+        set_mute_system_audio_enabled(
+            mute_ui.clone(),
+            mute_settings.clone(),
+            Arc::clone(&mute_state),
+            enabled,
+        );
+    });
+
     let clipboard_ui = ui.as_weak();
     let clipboard_settings = settings.clone();
     ui.on_set_copy_to_clipboard(move |enabled| {
@@ -150,8 +166,10 @@ pub fn wire(
         ui.set_diagnostics_enabled(settings.diagnostics_logging_enabled);
         ui.set_automatic_update_checks(settings.automatic_update_checks);
         ui.set_feedback_sounds_enabled(settings.feedback_sounds_enabled);
+        ui.set_mute_system_audio_enabled(settings.mute_system_audio_enabled);
         ui.set_copy_to_clipboard(settings.copy_to_clipboard);
         feedback_sounds_enabled.store(settings.feedback_sounds_enabled, Ordering::Release);
+        mute_system_audio_enabled.store(settings.mute_system_audio_enabled, Ordering::Release);
     }
 }
 
@@ -402,52 +420,6 @@ fn set_automatic_update_checks(
         window.set_automatic_update_status(
             window.global::<Translations>().get_settings_save_failed(),
         );
-    }
-}
-
-fn set_feedback_sounds_enabled(
-    ui: slint::Weak<AppWindow>,
-    settings: LocalSettingsHandle,
-    feedback_sounds_enabled: Arc<AtomicBool>,
-    enabled: bool,
-) {
-    let Some(window) = ui.upgrade() else {
-        return;
-    };
-    let previous = feedback_sounds_enabled.load(Ordering::Acquire);
-    window.set_feedback_sounds_status(SharedString::new());
-    let failure_ui = ui.clone();
-    let committed_feedback_sounds = Arc::clone(&feedback_sounds_enabled);
-    let result = settings.submit(
-        LocalSettingsChange::SetFeedbackSounds(enabled),
-        move |result| {
-            if let Some(window) = ui.upgrade() {
-                match result {
-                    Ok(_) => {
-                        committed_feedback_sounds.store(enabled, Ordering::Release);
-                        window.set_feedback_sounds_enabled(enabled);
-                        window.set_feedback_sounds_status(SharedString::new());
-                    }
-                    Err(error) => {
-                        tracing::warn!(event = "settings.feedback_save_failed", reason = %error);
-                        committed_feedback_sounds.store(previous, Ordering::Release);
-                        window.set_feedback_sounds_enabled(previous);
-                        window.set_feedback_sounds_status(
-                            window.global::<Translations>().get_settings_save_failed(),
-                        );
-                    }
-                }
-            }
-        },
-    );
-    if let Err(error) = result
-        && let Some(window) = failure_ui.upgrade()
-    {
-        tracing::warn!(event = "settings.feedback_submit_failed", reason = %error);
-        feedback_sounds_enabled.store(previous, Ordering::Release);
-        window.set_feedback_sounds_enabled(previous);
-        window
-            .set_feedback_sounds_status(window.global::<Translations>().get_settings_save_failed());
     }
 }
 

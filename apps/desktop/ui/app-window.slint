@@ -63,6 +63,8 @@ export component AppWindow inherits Window {
     in property <string> automatic-update-status: "";
     in-out property <bool> feedback-sounds-enabled: true;
     in property <string> feedback-sounds-status: "";
+    in-out property <bool> mute-system-audio-enabled: true;
+    in property <string> mute-system-audio-status: "";
     in-out property <bool> copy-to-clipboard: false;
     in property <string> copy-to-clipboard-status: "";
     in-out property <bool> launch-at-login: false;
@@ -184,6 +186,7 @@ export component AppWindow inherits Window {
     callback download-update();
     callback set-automatic-update-checks(bool);
     callback set-feedback-sounds-enabled(bool);
+    callback set-mute-system-audio-enabled(bool);
     callback set-copy-to-clipboard(bool);
     callback set-launch-at-login(bool);
     callback set-show-in-dock(bool);
@@ -430,6 +433,8 @@ export component AppWindow inherits Window {
         automatic-update-status: root.automatic-update-status;
         feedback-sounds-enabled <=> root.feedback-sounds-enabled;
         feedback-sounds-status: root.feedback-sounds-status;
+        mute-system-audio-enabled <=> root.mute-system-audio-enabled;
+        mute-system-audio-status: root.mute-system-audio-status;
         copy-to-clipboard <=> root.copy-to-clipboard;
         copy-to-clipboard-status: root.copy-to-clipboard-status;
         launch-at-login <=> root.launch-at-login;
@@ -458,6 +463,7 @@ export component AppWindow inherits Window {
         download-update => { root.download-update(); }
         set-automatic-update-checks(enabled) => { root.set-automatic-update-checks(enabled); }
         set-feedback-sounds-enabled(enabled) => { root.set-feedback-sounds-enabled(enabled); }
+        set-mute-system-audio-enabled(enabled) => { root.set-mute-system-audio-enabled(enabled); }
         set-copy-to-clipboard(enabled) => { root.set-copy-to-clipboard(enabled); }
         set-launch-at-login(enabled) => { root.set-launch-at-login(enabled); }
         set-show-in-dock(enabled) => { root.set-show-in-dock(enabled); }

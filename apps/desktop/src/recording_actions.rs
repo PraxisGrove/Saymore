@@ -113,7 +113,7 @@ pub fn cancel(
     ui: &slint::Weak<AppWindow>,
     overlay: &slint::Weak<RecordingOverlay>,
     limit_overlay: &slint::Weak<RecordingLimitOverlay>,
-    recorder: &Mutex<Box<dyn AudioRecorder>>,
+    recorder: &RecorderHandle,
     session: &DictationSession,
     cancelled: &Arc<Mutex<CancelledRecordingStore>>,
     asr: &crate::asr_runtime::AsrSessionController,

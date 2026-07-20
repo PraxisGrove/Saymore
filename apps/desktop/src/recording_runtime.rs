@@ -4,6 +4,7 @@ use crate::ui::Translations;
 use template_app::SpeechRecognitionError;
 
 const OVERLAY_REVEAL_DELAY: Duration = Duration::from_millis(17);
+const START_SOUND_DURATION: Duration = Duration::from_millis(280);
 pub(crate) const OVERLAY_EXIT_DURATION: Duration = Duration::from_millis(110);
 
 pub(super) fn start_recording_shortcut(
@@ -228,6 +229,7 @@ fn queue_recording_start_ui(
         asr: Arc::clone(&runtime.dictation.asr),
         recorder: Arc::clone(&runtime.recorder),
         feedback_sounds_enabled: Arc::clone(&runtime.feedback_sounds_enabled),
+        mute_system_audio_enabled: Arc::clone(&runtime.mute_system_audio_enabled),
         show_device: runtime.first_recording.load(Ordering::Relaxed),
         startup_started,
     };
@@ -275,6 +277,7 @@ struct RecordingStartUiContext {
     asr: Arc<AsrSessionController>,
     recorder: RecorderHandle,
     feedback_sounds_enabled: Arc<AtomicBool>,
+    mute_system_audio_enabled: Arc<AtomicBool>,
     show_device: bool,
     startup_started: Instant,
 }
@@ -303,6 +306,15 @@ fn apply_recording_start_result(
     let feedback_started = Instant::now();
     if context.feedback_sounds_enabled.load(Ordering::Acquire) {
         play_feedback_sound(FeedbackSound::Start);
+        schedule_output_audio_mute(
+            Arc::clone(&context.recorder),
+            Arc::clone(&context.session),
+            Arc::clone(&context.mute_system_audio_enabled),
+            context.id,
+            START_SOUND_DURATION,
+        );
+    } else if let Ok(mut recorder) = context.recorder.lock() {
+        recorder.begin_output_mute(context.mute_system_audio_enabled.load(Ordering::Acquire));
     }
     tracing::info!(
         target: "saymore::diagnostics",
@@ -326,6 +338,23 @@ fn apply_recording_start_result(
             context.startup_started,
         );
     }
+}
+
+fn schedule_output_audio_mute(
+    recorder: RecorderHandle,
+    session: Arc<DictationSession>,
+    enabled: Arc<AtomicBool>,
+    id: DictationSessionId,
+    delay: Duration,
+) {
+    Timer::single_shot(delay, move || {
+        if session.current_id() == Some(id)
+            && session.is_recording()
+            && let Ok(mut recorder) = recorder.lock()
+        {
+            recorder.begin_output_mute(enabled.load(Ordering::Acquire));
+        }
+    });
 }
 
 fn create_recording_metrics_callback(

@@ -3,7 +3,7 @@ use template_app::{StorageError, dictionary_comparison_key};
 
 use super::unavailable;
 
-const CURRENT_SCHEMA_VERSION: u32 = 15;
+const CURRENT_SCHEMA_VERSION: u32 = 16;
 
 pub(super) fn apply(connection: &mut Connection) -> Result<(), StorageError> {
     let version: u32 = connection
@@ -58,7 +58,27 @@ pub(super) fn apply(connection: &mut Connection) -> Result<(), StorageError> {
     if version < 15 {
         add_appearance_settings(connection)?;
     }
+    if version < 16 {
+        add_system_audio_mute_setting(connection)?;
+    }
     Ok(())
+}
+
+fn add_system_audio_mute_setting(connection: &mut Connection) -> Result<(), StorageError> {
+    let transaction = connection.transaction().map_err(unavailable)?;
+    if !app_settings_has_column(&transaction, "mute_system_audio_enabled")? {
+        transaction
+            .execute_batch(
+                "ALTER TABLE app_settings
+                 ADD COLUMN mute_system_audio_enabled INTEGER NOT NULL DEFAULT 1
+                 CHECK (mute_system_audio_enabled IN (0, 1));",
+            )
+            .map_err(unavailable)?;
+    }
+    transaction
+        .execute_batch("PRAGMA user_version = 16;")
+        .map_err(unavailable)?;
+    transaction.commit().map_err(unavailable)
 }
 
 fn add_appearance_settings(connection: &mut Connection) -> Result<(), StorageError> {
