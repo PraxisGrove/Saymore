@@ -87,7 +87,7 @@ export component NavItem inherits Rectangle {
         width: 17px;
         height: 17px;
         source: root.icon;
-        colorize: root.selected ? AppColors.ink : AppColors.text-muted;
+        colorize: root.selected ? AppColors.on-selected : AppColors.text-muted;
         image-fit: contain;
         image-rendering: smooth;
     }
@@ -96,7 +96,7 @@ export component NavItem inherits Rectangle {
         x: 40px;
         width: parent.width - 40px;
         text: root.label;
-        color: root.selected ? AppColors.ink : AppColors.text-muted;
+        color: root.selected ? AppColors.on-selected : AppColors.text-muted;
         font-size: 14px;
         font-weight: root.selected ? 650 : 500;
         vertical-alignment: center;

@@ -68,7 +68,7 @@ component StatusNode inherits Rectangle {
         background: AppColors.surface-subtle;
         Image { x: 8px; y: 8px; width: 14px; height: 14px; source: root.icon; colorize: root.ready ? AppColors.brand : AppColors.text-muted; }
     }
-    Text { y: 46px; width: parent.width; text: root.label; color: AppColors.text; font-size: 10px; font-weight: 650; horizontal-alignment: center; overflow: elide; }
+    Text { y: 52px; width: parent.width; text: root.label; color: AppColors.text; font-size: 10px; font-weight: 650; horizontal-alignment: center; overflow: elide; }
     TouchArea { mouse-cursor: pointer; clicked => { root.activated(); } }
 }
 

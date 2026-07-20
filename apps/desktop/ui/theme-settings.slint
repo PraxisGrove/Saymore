@@ -6,27 +6,35 @@ component ThemeOption inherits Rectangle {
     in property <bool> selected;
     callback activated();
 
-    height: 46px;
+    height: 62px;
     border-radius: 8px;
-    background: root.selected ? AppColors.selected : option-touch.has-hover ? AppColors.surface-subtle : transparent;
+    background: root.selected ? AppColors.brand-soft : option-touch.has-hover ? AppColors.surface-subtle : transparent;
     accessible-role: button;
     accessible-label: root.label;
     accessible-action-default => { root.activated(); }
 
     Rectangle {
         x: (parent.width - self.width) / 2;
-        y: 6px;
-        width: 18px;
-        height: 18px;
-        border-radius: 5px;
+        y: 9px;
+        width: 22px;
+        height: 22px;
+        border-radius: 7px;
         background: root.swatch;
+        if root.selected: Image {
+            x: 5px;
+            y: 5px;
+            width: 12px;
+            height: 12px;
+            source: @image-url("../icons/lucide/check.svg");
+            colorize: AppColors.on-brand;
+        }
     }
     Text {
-        y: 28px;
+        y: 39px;
         width: parent.width;
         text: root.label;
-        color: root.selected ? AppColors.ink : AppColors.text-muted;
-        font-size: 9px;
+        color: root.selected ? AppColors.on-selected : AppColors.text-muted;
+        font-size: 10px;
         font-weight: root.selected ? 650 : 500;
         horizontal-alignment: center;
         overflow: elide;
@@ -39,7 +47,7 @@ component SchemeOption inherits Rectangle {
     in property <bool> selected;
     callback activated();
 
-    height: 30px;
+    height: 34px;
     border-radius: 7px;
     background: root.selected ? AppColors.brand-soft : option-touch.has-hover ? AppColors.surface-subtle : transparent;
     accessible-role: button;
@@ -47,7 +55,7 @@ component SchemeOption inherits Rectangle {
     accessible-action-default => { root.activated(); }
     Text {
         text: root.label;
-        color: root.selected ? AppColors.brand-strong : AppColors.text-muted;
+        color: root.selected ? AppColors.on-selected : AppColors.text-muted;
         font-size: 10px;
         font-weight: root.selected ? 650 : 500;
         horizontal-alignment: center;
@@ -65,17 +73,26 @@ export component ThemeSettings inherits Rectangle {
 
     background: transparent;
 
+    Image {
+        x: 24px;
+        y: 24px;
+        width: 18px;
+        height: 18px;
+        source: @image-url("../icons/lucide/sun.svg");
+        colorize: AppColors.text-muted;
+    }
     Text {
-        x: 34px;
-        y: 0px;
+        x: 54px;
+        y: 18px;
         text: @tr("settings.theme-color.title" => "Theme color");
         color: AppColors.ink;
         font-size: 13px;
         font-weight: 650;
     }
     Text {
-        x: 34px;
-        y: 22px;
+        x: 54px;
+        y: 41px;
+        width: parent.width - 78px;
         text: root.status.is-empty
             ? @tr("settings.theme-color.detail" => "Choose the accent color used by the application")
             : root.status;
@@ -85,11 +102,11 @@ export component ThemeSettings inherits Rectangle {
     }
 
     HorizontalLayout {
-        x: 28px;
-        y: 44px;
-        width: parent.width - 28px;
-        height: 46px;
-        spacing: 6px;
+        x: 20px;
+        y: 68px;
+        width: parent.width - 40px;
+        height: 62px;
+        spacing: 8px;
         ThemeOption { horizontal-stretch: 1; label: @tr("settings.theme.warm-clay" => "Warm Clay"); swatch: #d97757; selected: root.theme-id == ThemeId.warm-clay; activated => { root.select-theme(ThemeId.warm-clay); } }
         ThemeOption { horizontal-stretch: 1; label: @tr("settings.theme.lime-pulse" => "Lime Pulse"); swatch: #b9f500; selected: root.theme-id == ThemeId.lime-pulse; activated => { root.select-theme(ThemeId.lime-pulse); } }
         ThemeOption { horizontal-stretch: 1; label: @tr("settings.theme.berry-graphite" => "Berry"); swatch: #d94f78; selected: root.theme-id == ThemeId.berry-graphite; activated => { root.select-theme(ThemeId.berry-graphite); } }
@@ -97,12 +114,12 @@ export component ThemeSettings inherits Rectangle {
         ThemeOption { horizontal-stretch: 1; label: @tr("settings.theme.clear-sky" => "Clear Sky"); swatch: #4778e8; selected: root.theme-id == ThemeId.clear-sky; activated => { root.select-theme(ThemeId.clear-sky); } }
     }
 
-    Text { x: 34px; y: 106px; text: @tr("settings.color-scheme.title" => "Light and dark mode"); color: AppColors.ink; font-size: 12px; font-weight: 650; }
+    Text { x: 24px; y: 153px; text: @tr("settings.color-scheme.title" => "Light and dark mode"); color: AppColors.ink; font-size: 12px; font-weight: 650; }
     HorizontalLayout {
-        x: parent.width - 270px;
-        y: 98px;
-        width: 270px;
-        height: 30px;
+        x: parent.width - 296px;
+        y: 142px;
+        width: 272px;
+        height: 34px;
         spacing: 4px;
         SchemeOption { horizontal-stretch: 1; label: @tr("common.follow-system" => "Follow System"); selected: root.color-scheme == ColorSchemePreference.system; activated => { root.select-color-scheme(ColorSchemePreference.system); } }
         SchemeOption { horizontal-stretch: 1; label: @tr("settings.color-scheme.light" => "Light"); selected: root.color-scheme == ColorSchemePreference.light; activated => { root.select-color-scheme(ColorSchemePreference.light); } }

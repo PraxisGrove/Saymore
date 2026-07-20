@@ -108,6 +108,7 @@ export global AppColors {
         : theme-id == ThemeId.clear-sky ? (dark ? #1d3a54 : #e5edff)
         : dark ? #472d25 : #f6e6df;
     out property <color> on-brand: theme-id == ThemeId.lime-pulse ? #172014 : #ffffff;
+    out property <color> on-selected: theme-id == ThemeId.lime-pulse && !dark ? #172014 : brand-strong;
 
     out property <color> info: dark ? #6ba8e8 : #256bc1;
     out property <color> info-soft: dark ? #1d344a : #cbe1fb;
