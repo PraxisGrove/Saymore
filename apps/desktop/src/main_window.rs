@@ -24,6 +24,7 @@ pub fn initialize(
     environment: AppEnvironment,
 ) -> Result<LanguageContext, slint::SelectBundledTranslationError> {
     let context = i18n::initialize(ui, settings.ui_language)?;
+    ui.set_app_version(format!("v{}", env!("CARGO_PKG_VERSION")).into());
     ui.set_macos_platform(cfg!(target_os = "macos"));
     #[cfg(target_os = "macos")]
     ui.window().set_size(slint::LogicalSize::new(920.0, 700.0));

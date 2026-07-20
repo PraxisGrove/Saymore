@@ -352,6 +352,7 @@ component PermissionCard inherits Rectangle {
 
 component SettingsSidebar inherits Rectangle {
     in-out property <SettingsSection> current-section;
+    in property <string> app-version: "";
     in property <bool> compact;
     in property <bool> wide;
     callback back-to-app();
@@ -389,11 +390,12 @@ component SettingsSidebar inherits Rectangle {
         NavItem { icon: @image-url("../../icons/lucide/lock-keyhole.svg"); label: @tr("settings.nav.privacy" => "Privacy"); selected: root.current-section == SettingsSection.privacy-history; activated => { root.current-section = SettingsSection.privacy-history; } }
         NavItem { icon: @image-url("../../icons/lucide/folder-open.svg"); label: @tr("settings.nav.about" => "About"); selected: root.current-section == SettingsSection.about-updates; activated => { root.current-section = SettingsSection.about-updates; } }
         Rectangle { vertical-stretch: 1; background: transparent; }
-        Text { height: 20px; text: "Saymore  v0.1.0"; color: AppColors.text-muted; font-size: 9px; horizontal-alignment: center; }
+        Text { height: 20px; text: "Saymore  " + root.app-version; color: AppColors.text-muted; font-size: 9px; horizontal-alignment: center; }
     }
 }
 
 export component SettingsPage inherits Rectangle {
+    in property <string> app-version: "";
     in property <bool> authorized;
     in property <string> authorization-status;
     in property <bool> microphone-authorized;
@@ -478,7 +480,7 @@ export component SettingsPage inherits Rectangle {
     HorizontalLayout {
         padding: 10px;
         spacing: root.compact ? 12px : 20px;
-        SettingsSidebar { current-section <=> root.current-section; compact: root.compact; wide: root.wide; back-to-app => { root.back-to-app(); } }
+        SettingsSidebar { current-section <=> root.current-section; app-version: root.app-version; compact: root.compact; wide: root.wide; back-to-app => { root.back-to-app(); } }
         Rectangle {
             horizontal-stretch: 1;
             border-radius: 12px;
@@ -729,7 +731,7 @@ export component SettingsPage inherits Rectangle {
                                 Image { x: 32px; y: 38px; width: 58px; height: 58px; source: @image-url("../../icons/saymore-mark-3d-136.png"); colorize: AppColors.dark-mode ? AppColors.ink : transparent; image-fit: contain; }
                                 Text { x: 114px; y: 28px; text: "Saymore"; color: AppColors.ink; font-size: 22px; font-weight: 700; }
                                 Text { x: 114px; y: 62px; text: @tr("settings.product.tagline" => "Speak your mind, hands-free."); color: AppColors.text-muted; font-size: 12px; }
-                                Rectangle { x: 114px; y: 96px; width: 74px; height: 30px; border-radius: 7px; background: AppColors.sidebar; Text { text: "v0.1.0"; color: AppColors.text; font-size: 11px; horizontal-alignment: center; vertical-alignment: center; } }
+                                Rectangle { x: 114px; y: 96px; width: 74px; height: 30px; border-radius: 7px; background: AppColors.sidebar; Text { text: root.app-version; color: AppColors.text; font-size: 11px; horizontal-alignment: center; vertical-alignment: center; } }
                                 StatusLabel { x: 204px; y: 99px; width: parent.width - 390px; label: root.update-message; granted: root.update-status == "latest"; tone: root.update-status == "latest" ? "success" : root.update-status == "available" ? "warning" : root.update-status == "failed" ? "danger" : "neutral"; }
                                 if root.update-status == "available": SettingsActionButton { x: parent.width - 174px; y: 94px; width: 154px; label: @tr("settings.update.download-install" => "Download and install"); icon: @image-url("../../icons/lucide/download.svg"); primary: true; activated => { root.download-update(); } }
                                 if root.update-status != "available": SettingsActionButton { x: parent.width - 174px; y: 94px; width: 154px; label: root.update-button-label; icon: @image-url("../../icons/lucide/refresh-cw.svg"); enabled: root.update-status != "checking"; activated => { root.check-for-updates(); } }

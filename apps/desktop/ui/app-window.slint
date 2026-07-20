@@ -33,6 +33,7 @@ export component AppWindow inherits Window {
     in-out property <AppPage> current-page: AppPage.home;
     in property <bool> macos-platform: false;
     in property <bool> development-environment: false;
+    in property <string> app-version: "";
     in-out property <SettingsSection> settings-section: SettingsSection.general;
     in-out property <bool> focus-asr-config: false;
     in property <bool> authorized: false;
@@ -403,6 +404,7 @@ export component AppWindow inherits Window {
     if root.current-page == AppPage.settings: SettingsPage {
         width: parent.width;
         height: parent.height;
+        app-version: root.app-version;
         current-section <=> root.settings-section;
         authorized: root.authorized;
         authorization-status: root.authorization-status;
