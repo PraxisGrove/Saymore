@@ -1,9 +1,10 @@
 # Releasing
 
-Saymore releases are built by `.github/workflows/release.yaml`. The workflow
-runs daily at 08:30 UTC (16:30 China Standard Time) and proceeds only when
-`main` has commits newer than the latest GitHub Release tag. A manual run uses
-the same new-commit requirement.
+Saymore releases are built by `.github/workflows/release.yaml`. The workflow is
+started manually from the GitHub Actions page and proceeds only when `main` has
+commits newer than the latest GitHub Release tag. This keeps ordinary pushes and
+small changes covered by CI without automatically publishing a new stable
+version.
 
 GitHub supplies the latest release tag and commit comparison; the tested
 `cargo run -p xtask -- release-plan` command owns the deterministic eligibility
