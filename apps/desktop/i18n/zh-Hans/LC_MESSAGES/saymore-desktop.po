@@ -132,6 +132,31 @@ msgctxt "accessibility.permission.detail"
 msgid "Allow Saymore to detect the shortcut and insert text."
 msgstr "允许 Saymore 检测快捷键并自动输入文字。"
 
+#: apps/desktop/ui/microphone-access.slint
+msgctxt "asr.configuration-required.title"
+msgid "Set up voice recognition first"
+msgstr "先配置语音识别"
+
+#: apps/desktop/ui/microphone-access.slint
+msgctxt "asr.configuration-required.detail"
+msgid "Saymore needs a voice recognition service to turn your recording into text. Configure one, then press the shortcut again."
+msgstr "Saymore 需要语音识别服务才能将录音转换为文字。配置完成后，再按一次快捷键即可开始。"
+
+#: apps/desktop/ui/microphone-access.slint
+msgctxt "asr.configuration-required.not-now-accessible"
+msgid "Do not configure voice recognition now"
+msgstr "暂不配置语音识别"
+
+#: apps/desktop/ui/microphone-access.slint
+msgctxt "asr.configuration-required.open-accessible"
+msgid "Open voice recognition settings"
+msgstr "打开语音识别设置"
+
+#: apps/desktop/ui/microphone-access.slint
+msgctxt "asr.configuration-required.open"
+msgid "Set up now"
+msgstr "去配置"
+
 #: apps/desktop/ui/microphone-access.slint:75
 msgctxt "common.open-system-settings"
 msgid "Open System Settings"

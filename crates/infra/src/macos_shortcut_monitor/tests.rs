@@ -170,6 +170,26 @@ fn bound_fn_press_and_release_trigger_dictation_without_reaching_macos() {
 }
 
 #[test]
+fn bound_right_command_triggers_dictation_without_unbalancing_macos_events() {
+    let controller = MacOsShortcutController::new(vec![MacOsShortcut::modifier(54)]);
+    let modifier_state = Mutex::new(ModifierState::default());
+    let (sender, receiver) = channel();
+
+    let pressed = modifier_event(54, CGEventFlags::CGEventFlagCommand);
+    assert!(matches!(
+        handle_modifier_event(&pressed, &modifier_state, &controller, &sender, true),
+        CallbackResult::Keep
+    ));
+
+    let released = modifier_event(54, CGEventFlags::empty());
+    assert!(matches!(
+        handle_modifier_event(&released, &modifier_state, &controller, &sender, true),
+        CallbackResult::Keep
+    ));
+    assert_eq!(Ok(DictationShortcutAction::Toggle), receiver.recv());
+}
+
+#[test]
 fn captured_fn_press_and_release_are_saved_without_reaching_macos() {
     let controller = MacOsShortcutController::new(Vec::new());
     let Ok(capture) = controller.begin_capture() else {
@@ -190,6 +210,29 @@ fn captured_fn_press_and_release_are_saved_without_reaching_macos() {
         CallbackResult::Drop
     ));
     assert_eq!(Ok(Ok(MacOsShortcut::modifier(63))), capture.recv());
+}
+
+#[test]
+fn captured_right_command_is_saved_without_unbalancing_macos_events() {
+    let controller = MacOsShortcutController::new(Vec::new());
+    let Ok(capture) = controller.begin_capture() else {
+        panic!("shortcut capture should start");
+    };
+    let modifier_state = Mutex::new(ModifierState::default());
+    let (sender, _receiver) = channel();
+
+    let pressed = modifier_event(54, CGEventFlags::CGEventFlagCommand);
+    assert!(matches!(
+        handle_modifier_event(&pressed, &modifier_state, &controller, &sender, true),
+        CallbackResult::Keep
+    ));
+
+    let released = modifier_event(54, CGEventFlags::empty());
+    assert!(matches!(
+        handle_modifier_event(&released, &modifier_state, &controller, &sender, true),
+        CallbackResult::Keep
+    ));
+    assert_eq!(Ok(Ok(MacOsShortcut::modifier(54))), capture.recv());
 }
 
 #[test]

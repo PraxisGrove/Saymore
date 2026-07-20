@@ -1,6 +1,6 @@
 use super::*;
 use crate::asr_runtime::AsrSessionController;
-use crate::ui::{AppPage, Translations};
+use crate::ui::Translations;
 use template_app::SpeechRecognitionError;
 
 const OVERLAY_REVEAL_DELAY: Duration = Duration::from_millis(17);
@@ -134,7 +134,13 @@ fn begin_recording(
     if let Ok(mut cancelled) = runtime.cancelled.lock() {
         cancelled.clear();
     }
-    let Some(asr_ms) = start_streaming_asr(ui, runtime, id, startup_started) else {
+    let Some(asr_ms) = start_streaming_asr(
+        ui,
+        &overlays.asr_configuration,
+        runtime,
+        id,
+        startup_started,
+    ) else {
         return;
     };
     let on_metrics = create_recording_metrics_callback(ui, overlays, runtime, id);
@@ -165,6 +171,7 @@ fn begin_recording(
 
 fn start_streaming_asr(
     ui: &slint::Weak<AppWindow>,
+    configuration_prompt: &slint::Weak<crate::ui::AsrConfigurationOverlay>,
     runtime: &ShortcutRuntime,
     id: DictationSessionId,
     startup_started: Instant,
@@ -187,11 +194,11 @@ fn start_streaming_asr(
         );
         let reveal_configuration = should_reveal_asr_configuration(&error);
         let event_ui = ui.clone();
+        let configuration_prompt = configuration_prompt.clone();
         let _ = event_ui.upgrade_in_event_loop(move |ui| {
             apply_asr_error(&ui, &error);
             if reveal_configuration {
-                ui.set_current_page(AppPage::Models);
-                status_tray::show_window(&ui.as_weak(), None);
+                asr_configuration_prompt::show(&configuration_prompt);
             }
         });
         return None;

@@ -47,13 +47,14 @@ use ui::AppWindow;
 #[cfg(target_os = "macos")]
 use ui::{AccessibilityPermissionOverlay, StatusTray};
 use ui::{
-    DictionaryAddedOverlay, MicrophoneIntroOverlay, MicrophonePermissionOverlay,
-    RecordingLimitOverlay, RecordingOverlay, ResultOverlay,
+    AsrConfigurationOverlay, DictionaryAddedOverlay, MicrophoneIntroOverlay,
+    MicrophonePermissionOverlay, RecordingLimitOverlay, RecordingOverlay, ResultOverlay,
 };
 
 #[cfg(target_os = "macos")]
 mod accessibility_permission_prompt;
 mod app_environment;
+mod asr_configuration_prompt;
 #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 mod asr_runtime;
 mod authorization_ui;
@@ -126,6 +127,7 @@ pub(crate) struct DictationOverlays {
     pub(crate) status: slint::Weak<RecordingOverlay>,
     pub(crate) result: slint::Weak<ResultOverlay>,
     pub(crate) limit: slint::Weak<RecordingLimitOverlay>,
+    pub(crate) asr_configuration: slint::Weak<AsrConfigurationOverlay>,
 }
 
 impl DictationOverlays {
@@ -138,7 +140,13 @@ impl DictationOverlays {
             status: status.as_weak(),
             result: result.as_weak(),
             limit: limit.as_weak(),
+            asr_configuration: slint::Weak::default(),
         }
+    }
+
+    fn with_asr_configuration(mut self, overlay: &AsrConfigurationOverlay) -> Self {
+        self.asr_configuration = overlay.as_weak();
+        self
     }
 }
 
@@ -272,6 +280,7 @@ struct DesktopWindows {
     dictionary_added_overlay: DictionaryAddedOverlay,
     microphone_intro_overlay: MicrophoneIntroOverlay,
     microphone_permission_overlay: MicrophonePermissionOverlay,
+    asr_configuration_overlay: AsrConfigurationOverlay,
     #[cfg(target_os = "macos")]
     accessibility_permission_overlay: AccessibilityPermissionOverlay,
     language_context: i18n::LanguageContext,
@@ -294,6 +303,7 @@ impl DesktopWindows {
             dictionary_added_overlay: DictionaryAddedOverlay::new()?,
             microphone_intro_overlay: MicrophoneIntroOverlay::new()?,
             microphone_permission_overlay: MicrophonePermissionOverlay::new()?,
+            asr_configuration_overlay: AsrConfigurationOverlay::new()?,
             #[cfg(target_os = "macos")]
             accessibility_permission_overlay: AccessibilityPermissionOverlay::new()?,
             language_context,
@@ -313,6 +323,7 @@ fn run_wired_desktop(
     let paused = Arc::new(AtomicBool::new(bootstrap.local_settings.dictation_paused));
     delivery_runtime::wire_result_actions(&windows.result_overlay);
     dictionary_added_overlay::wire(&windows.ui, &windows.dictionary_added_overlay);
+    asr_configuration_prompt::wire(&windows.ui, &windows.asr_configuration_overlay);
     let dismiss_limit = windows.recording_limit_overlay.as_weak();
     windows.recording_limit_overlay.on_acknowledged(move || {
         if let Some(overlay) = dismiss_limit.upgrade() {
@@ -336,7 +347,8 @@ fn run_wired_desktop(
         &windows.overlay,
         &windows.result_overlay,
         &windows.recording_limit_overlay,
-    );
+    )
+    .with_asr_configuration(&windows.asr_configuration_overlay);
     let onboarding_shortcut = core.onboarding.shortcut_handler();
     let permission_onboarding_shortcut = onboarding_shortcut.clone();
     let onboarding_toggle = Arc::new(move || onboarding_shortcut.handle_toggle());
@@ -377,6 +389,7 @@ fn run_wired_desktop(
         windows.dictionary_added_overlay.window(),
         windows.microphone_intro_overlay.window(),
         windows.microphone_permission_overlay.window(),
+        windows.asr_configuration_overlay.window(),
         windows.accessibility_permission_overlay.window(),
     ]);
     run_desktop_event_loop(&windows.ui, &tray, &core.onboarding)?;

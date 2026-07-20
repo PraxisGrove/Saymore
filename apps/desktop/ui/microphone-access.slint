@@ -124,3 +124,52 @@ export component AccessibilityPermissionOverlay inherits Window {
         }
     }
 }
+
+export component AsrConfigurationOverlay inherits Window {
+    title: "Saymore Voice Recognition Setup";
+    default-font-family: "Inter";
+    preferred-width: 430px;
+    preferred-height: 184px;
+    min-width: 430px;
+    min-height: 184px;
+    max-width: 430px;
+    max-height: 184px;
+    no-frame: true;
+    always-on-top: true;
+    background: transparent;
+    callback dismiss();
+    callback open-configuration();
+
+    Rectangle {
+        x: 7px; y: 7px; width: 416px; height: 170px; border-radius: 16px;
+        background: #ffffff; border-width: 1px; border-color: #e6e5e0;
+
+        Rectangle {
+            x: 16px; y: 18px; width: 34px; height: 34px; border-radius: 9px; background: #f4f4f1;
+            Image { x: 9px; y: 9px; width: 16px; height: 16px; source: @image-url("../icons/lucide/sparkles.svg"); colorize: #373734; }
+        }
+        Text { x: 62px; y: 17px; width: 330px; height: 24px; text: @tr("asr.configuration-required.title" => "Set up voice recognition first"); color: #141413; font-size: 14px; font-weight: 700; vertical-alignment: center; }
+        Text {
+            x: 62px; y: 48px; width: 322px; height: 48px;
+            text: @tr("asr.configuration-required.detail" => "Saymore needs a voice recognition service to turn your recording into text. Configure one, then press the shortcut again.");
+            color: #7b7974; font-size: 10px; wrap: word-wrap;
+        }
+
+        Rectangle {
+            x: 206px; y: 118px; width: 88px; height: 34px; border-radius: 8px;
+            background: dismiss-area.has-hover ? #efeeeb : #f4f4f1;
+            accessible-role: button; accessible-label: @tr("asr.configuration-required.not-now-accessible" => "Do not configure voice recognition now");
+            accessible-action-default => { root.dismiss(); }
+            Text { text: @tr("common.not-now" => "Not now"); color: #373734; font-size: 11px; font-weight: 600; horizontal-alignment: center; vertical-alignment: center; }
+            dismiss-area := TouchArea { mouse-cursor: pointer; clicked => { root.dismiss(); } }
+        }
+        Rectangle {
+            x: 304px; y: 118px; width: 96px; height: 34px; border-radius: 8px;
+            background: configure-area.pressed ? #c6613f : configure-area.has-hover ? #c6613f : #d97757;
+            accessible-role: button; accessible-label: @tr("asr.configuration-required.open-accessible" => "Open voice recognition settings");
+            accessible-action-default => { root.open-configuration(); }
+            Text { text: @tr("asr.configuration-required.open" => "Set up now"); color: #ffffff; font-size: 11px; font-weight: 700; horizontal-alignment: center; vertical-alignment: center; }
+            configure-area := TouchArea { mouse-cursor: pointer; clicked => { root.open-configuration(); } }
+        }
+    }
+}

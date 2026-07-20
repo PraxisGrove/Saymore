@@ -82,14 +82,14 @@ component OnboardingToggle inherits Rectangle {
 component PermissionStatus inherits Rectangle {
     in property <bool> granted;
     in property <string> label;
-    width: 94px;
-    height: 26px;
-    border-radius: 7px;
-    background: root.granted ? AppColors.success-soft : AppColors.surface-muted;
+    width: 68px;
+    height: 20px;
+    border-radius: 4px;
+    background: root.granted ? AppColors.success-soft : AppColors.warning-soft;
     Text {
         text: root.label;
-        color: root.granted ? AppColors.success : AppColors.text-muted;
-        font-size: 10px;
+        color: root.granted ? AppColors.success : AppColors.warning;
+        font-size: 9px;
         font-weight: 650;
         horizontal-alignment: center;
         vertical-alignment: center;
@@ -208,20 +208,22 @@ export component OnboardingWindow inherits Window {
             Text { x: 0; y: 34px; text: @tr("onboarding.microphone.title" => "Test your microphone"); color: AppColors.ink; font-size: 28px; font-weight: 700; }
             Text { x: 0; y: 78px; width: 540px; text: @tr("onboarding.microphone.detail" => "Allow microphone access, press {}, and say a few words. The waveform responds to your voice without sending audio anywhere.", root.default-shortcut-label); color: AppColors.text-muted; font-size: 12px; wrap: word-wrap; }
             Rectangle {
-                x: 0; y: 126px; width: 562px; height: 176px; border-radius: 10px; background: AppColors.surface-muted;
-                Rectangle { x: 20px; y: 20px; width: 40px; height: 40px; border-radius: 10px; background: #FFFFFF; Image { x: 11px; y: 11px; width: 18px; height: 18px; source: @image-url("../icons/lucide/audio-lines.svg"); colorize: AppColors.text; } }
-                Text { x: 76px; y: 18px; text: @tr("onboarding.microphone.device" => "System microphone"); color: AppColors.ink; font-size: 13px; font-weight: 650; }
-                Text { x: 76px; y: 43px; text: root.microphone-status == "granted" ? @tr("onboarding.microphone.granted" => "Permission enabled · ready to test") : root.microphone-status == "not_determined" ? @tr("onboarding.microphone.required" => "Microphone permission is required") : @tr("onboarding.microphone.denied" => "Permission denied · open System Settings"); color: root.microphone-authorized ? AppColors.success : AppColors.text-muted; font-size: 10px; }
-                if !root.microphone-authorized: OnboardingButton { x: 382px; y: 20px; width: 160px; label: @tr("onboarding.microphone.allow" => "Allow microphone"); primary: true; activated => { root.request-microphone(); } }
-                MicrophoneWave { x: 20px; y: 88px; width: 522px; level: root.microphone-level; }
+                x: 0; y: 126px; width: 562px; height: 154px; border-radius: 8px; background: AppColors.surface; border-width: 1px; border-color: AppColors.border;
+                Rectangle { x: 18px; y: 18px; width: 40px; height: 40px; border-radius: 8px; background: AppColors.surface-muted; Image { x: 11px; y: 11px; width: 18px; height: 18px; source: @image-url("../icons/lucide/audio-lines.svg"); colorize: AppColors.text; } }
+                Text { x: 74px; y: 16px; text: @tr("onboarding.microphone.device" => "System microphone"); color: AppColors.ink; font-size: 13px; font-weight: 650; }
+                Text { x: 74px; y: 40px; width: 344px; text: root.microphone-status == "granted" ? @tr("onboarding.microphone.granted" => "Permission enabled · ready to test") : root.microphone-status == "not_determined" ? @tr("onboarding.microphone.required" => "Microphone permission is required") : @tr("onboarding.microphone.denied" => "Permission denied · open System Settings"); color: root.microphone-authorized ? AppColors.success : AppColors.text-muted; font-size: 10px; }
+                if root.microphone-authorized: PermissionStatus { x: 474px; y: 20px; granted: true; label: @tr("onboarding.permission.granted-short" => "Enabled"); }
+                if !root.microphone-authorized: OnboardingButton { x: 382px; y: 18px; width: 160px; label: @tr("onboarding.microphone.allow" => "Allow microphone"); primary: true; activated => { root.request-microphone(); } }
+                Rectangle { x: 18px; y: 70px; width: 526px; height: 1px; background: AppColors.border; }
+                MicrophoneWave { x: 18px; y: 76px; width: 526px; height: 62px; level: root.microphone-level; }
             }
             Rectangle {
-                x: 0; y: 318px; width: 562px; height: 128px; border-radius: 10px; background: AppColors.surface-muted;
-                Rectangle { x: 20px; y: 20px; width: 40px; height: 40px; border-radius: 10px; background: #FFFFFF; Image { x: 10px; y: 10px; width: 20px; height: 20px; source: @image-url("../icons/lucide/keyboard.svg"); colorize: AppColors.text; } }
-                Text { x: 76px; y: 17px; text: @tr("onboarding.shortcut.try" => "Try the default shortcut"); color: AppColors.ink; font-size: 12px; font-weight: 650; }
-                Text { x: 76px; y: 43px; width: 280px; text: root.microphone-test-complete ? @tr("onboarding.shortcut.success" => "Microphone and shortcut are working.") : root.microphone-test-active ? @tr("onboarding.shortcut.speak" => "Speak now, then press the shortcut again to finish.") : @tr("onboarding.shortcut.waiting" => "Press the shortcut to start the local microphone test."); color: root.microphone-test-complete ? AppColors.success : AppColors.text-muted; font-size: 10px; wrap: word-wrap; }
-                Rectangle { x: 390px; y: 20px; width: 152px; height: 42px; border-radius: 8px; background: #FFFFFF; border-color: AppColors.border; border-width: 1px; Text { text: root.default-shortcut-label; color: AppColors.ink; font-size: 12px; font-weight: 650; horizontal-alignment: center; vertical-alignment: center; } }
-                if root.microphone-authorized: Text { x: 390px; y: 76px; width: 152px; height: 34px; text: root.microphone-test-active ? @tr("onboarding.shortcut.press-again" => "Press again to finish") : @tr("onboarding.shortcut.press-to-start" => "Press shortcut to start"); color: root.microphone-test-active ? AppColors.brand-strong : AppColors.text-muted; font-size: 10px; font-weight: 650; horizontal-alignment: center; vertical-alignment: center; }
+                x: 0; y: 294px; width: 562px; height: 104px; border-radius: 8px; background: AppColors.surface; border-width: 1px; border-color: AppColors.border;
+                Rectangle { x: 18px; y: 20px; width: 40px; height: 40px; border-radius: 8px; background: AppColors.surface-muted; Image { x: 10px; y: 10px; width: 20px; height: 20px; source: @image-url("../icons/lucide/keyboard.svg"); colorize: AppColors.text; } }
+                Text { x: 74px; y: 18px; text: @tr("onboarding.shortcut.try" => "Try the default shortcut"); color: AppColors.ink; font-size: 12px; font-weight: 650; }
+                Text { x: 74px; y: 45px; width: 286px; height: 50px; text: root.microphone-test-complete ? @tr("onboarding.shortcut.success" => "Microphone and shortcut are working.") : root.microphone-test-active ? @tr("onboarding.shortcut.speak" => "Speak now, then press the shortcut again to finish.") : @tr("onboarding.shortcut.waiting" => "Press the shortcut to start the local microphone test."); color: root.microphone-test-complete ? AppColors.success : AppColors.text-muted; font-size: 10px; wrap: word-wrap; }
+                Rectangle { x: 386px; y: 20px; width: 158px; height: 40px; border-radius: 6px; background: AppColors.surface-warm; border-color: AppColors.border; border-width: 1px; Text { text: root.default-shortcut-label; color: AppColors.ink; font-size: 12px; font-weight: 650; horizontal-alignment: center; vertical-alignment: center; } }
+                if root.microphone-authorized: Text { x: 386px; y: 72px; width: 158px; height: 30px; text: root.microphone-test-active ? @tr("onboarding.shortcut.press-again" => "Press again to finish") : @tr("onboarding.shortcut.press-to-start" => "Press shortcut to start"); color: root.microphone-test-active ? AppColors.brand-strong : AppColors.text-muted; font-size: 10px; font-weight: 650; horizontal-alignment: center; vertical-alignment: center; }
             }
         }
 
@@ -231,13 +233,14 @@ export component OnboardingWindow inherits Window {
             Text { x: 0; y: 34px; text: @tr("onboarding.accessibility.title" => "Enable Accessibility"); color: AppColors.ink; font-size: 28px; font-weight: 700; }
             Text { x: 0; y: 78px; width: 540px; text: @tr("onboarding.accessibility.detail" => "Accessibility lets Saymore listen for the global shortcut and insert recognized text into the text field you are using."); color: AppColors.text-muted; font-size: 12px; wrap: word-wrap; }
             Rectangle {
-                x: 0; y: 140px; width: 562px; height: 210px; border-radius: 10px; background: AppColors.surface;
-                Rectangle { x: 24px; y: 24px; width: 48px; height: 48px; border-radius: 12px; background: AppColors.surface-muted; Image { x: 14px; y: 14px; width: 20px; height: 20px; source: @image-url("../icons/lucide/shield.svg"); colorize: AppColors.text; } }
-                Text { x: 92px; y: 25px; text: @tr("onboarding.accessibility.card-title" => "Allow Saymore in System Settings"); color: AppColors.ink; font-size: 14px; font-weight: 650; }
-                Text { x: 92px; y: 52px; width: 420px; text: @tr("onboarding.accessibility.card-detail" => "Saymore does not use this permission to read password fields."); color: AppColors.text-muted; font-size: 10px; wrap: word-wrap; }
-                PermissionStatus { x: 24px; y: 104px; granted: root.accessibility-authorized; label: root.accessibility-status == "granted" ? @tr("onboarding.permission.granted-short" => "Enabled") : @tr("onboarding.permission.required-short" => "Required"); }
-                OnboardingButton { x: 24px; y: 150px; width: 182px; label: root.accessibility-authorized ? @tr("onboarding.permission.granted" => "Permission enabled") : @tr("onboarding.accessibility.open" => "Open System Settings"); primary: !root.accessibility-authorized; enabled: !root.accessibility-authorized; activated => { root.request-accessibility(); } }
-                OnboardingButton { x: 222px; y: 150px; width: 130px; label: @tr("common.recheck" => "Recheck"); activated => { root.refresh-permissions(); } }
+                x: 0; y: 140px; width: 562px; height: 178px; background: transparent;
+                Rectangle { x: 0; y: 0; width: 48px; height: 48px; border-radius: 8px; background: AppColors.surface-muted; Image { x: 14px; y: 14px; width: 20px; height: 20px; source: @image-url("../icons/lucide/shield.svg"); colorize: AppColors.text; } }
+                Text { x: 66px; y: 1px; width: 388px; text: @tr("onboarding.accessibility.card-title" => "Allow Saymore in System Settings"); color: AppColors.ink; font-size: 14px; font-weight: 650; }
+                PermissionStatus { x: 474px; y: 0; granted: root.accessibility-authorized; label: root.accessibility-status == "granted" ? @tr("onboarding.permission.granted-short" => "Enabled") : @tr("onboarding.permission.required-short" => "Required"); }
+                Text { x: 66px; y: 30px; width: 450px; height: 42px; text: @tr("onboarding.accessibility.card-detail" => "Saymore does not use this permission to read password fields."); color: AppColors.text-muted; font-size: 10px; wrap: word-wrap; }
+                Rectangle { x: 0; y: 94px; width: 562px; height: 1px; background: AppColors.border; }
+                OnboardingButton { x: 0; y: 116px; width: 182px; label: root.accessibility-authorized ? @tr("onboarding.permission.granted" => "Permission enabled") : @tr("onboarding.accessibility.open" => "Open System Settings"); primary: !root.accessibility-authorized; enabled: !root.accessibility-authorized; activated => { root.request-accessibility(); } }
+                OnboardingButton { x: 198px; y: 116px; width: 130px; label: @tr("common.recheck" => "Recheck"); activated => { root.refresh-permissions(); } }
             }
         }
 
