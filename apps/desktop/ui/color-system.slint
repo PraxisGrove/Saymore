@@ -97,7 +97,7 @@ export global AppColors {
         : theme-id == ThemeId.iris-mist ? (dark ? #ae89ea : #7a5cce)
         : theme-id == ThemeId.clear-sky ? (dark ? #65a9e8 : #4778e8)
         : dark ? #e58a68 : #d97757;
-    out property <color> brand-strong: theme-id == ThemeId.lime-pulse ? (dark ? #d0ff75 : #8fc400)
+    out property <color> brand-strong: theme-id == ThemeId.lime-pulse ? (dark ? #d0ff75 : #506b00)
         : theme-id == ThemeId.berry-graphite ? (dark ? #f1a0b6 : #b8325d)
         : theme-id == ThemeId.iris-mist ? (dark ? #c3a3f3 : #5e43ad)
         : theme-id == ThemeId.clear-sky ? (dark ? #86c0f2 : #2f5cc4)
@@ -108,7 +108,7 @@ export global AppColors {
         : theme-id == ThemeId.clear-sky ? (dark ? #1d3a54 : #e5edff)
         : dark ? #472d25 : #f6e6df;
     out property <color> on-brand: theme-id == ThemeId.lime-pulse ? #172014 : #ffffff;
-    out property <color> on-selected: theme-id == ThemeId.lime-pulse && !dark ? #172014 : brand-strong;
+    out property <color> on-selected: brand-strong;
 
     out property <color> info: dark ? #6ba8e8 : #256bc1;
     out property <color> info-soft: dark ? #1d344a : #cbe1fb;
