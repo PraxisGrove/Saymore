@@ -54,6 +54,7 @@ use ui::{
 #[cfg(target_os = "macos")]
 mod accessibility_permission_prompt;
 mod app_environment;
+mod appearance_ui;
 mod asr_configuration_prompt;
 #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 mod asr_runtime;

@@ -11,7 +11,7 @@ component OnboardingButton inherits Rectangle {
     background: !root.enabled ? AppColors.surface-muted : root.primary ? AppColors.brand : AppColors.surface-muted;
     Text {
         text: root.label;
-        color: !root.enabled ? AppColors.text-muted : root.primary ? #FFFFFF : AppColors.text;
+        color: !root.enabled ? AppColors.text-muted : root.primary ? AppColors.on-brand : AppColors.text;
         font-size: 12px;
         font-weight: 650;
         horizontal-alignment: center;
@@ -38,7 +38,7 @@ component OnboardingStepItem inherits Rectangle {
         background: root.active ? AppColors.brand : root.complete ? AppColors.success-soft : AppColors.surface-muted;
         Text {
             text: root.complete ? "✓" : root.number;
-            color: root.active ? #FFFFFF : root.complete ? AppColors.success : AppColors.text-muted;
+            color: root.active ? AppColors.on-brand : root.complete ? AppColors.success : AppColors.text-muted;
             font-size: 10px;
             font-weight: 700;
             horizontal-alignment: center;
@@ -69,7 +69,7 @@ component OnboardingToggle inherits Rectangle {
         width: 18px;
         height: 18px;
         border-radius: 9px;
-        background: #FFFFFF;
+        background: AppColors.surface;
     }
     TouchArea {
         clicked => {
@@ -160,6 +160,7 @@ export component OnboardingWindow inherits Window {
             width: 42px;
             height: 42px;
             source: @image-url("../icons/saymore-mark-3d-136.png");
+            colorize: AppColors.dark-mode ? AppColors.ink : transparent;
             image-fit: contain;
         }
         Text { x: 80px; y: 69px; text: "Saymore"; color: AppColors.ink; font-size: 24px; font-weight: 700; }
@@ -195,7 +196,7 @@ export component OnboardingWindow inherits Window {
             x: 54px; y: 54px; width: 562px; height: 470px; background: transparent;
             Rectangle {
                 x: 0; y: 36px; width: 72px; height: 72px; border-radius: 16px; background: AppColors.surface-muted;
-                Image { x: 14px; y: 14px; width: 44px; height: 44px; source: @image-url("../icons/saymore-mark-3d-136.png"); image-fit: contain; }
+                Image { x: 14px; y: 14px; width: 44px; height: 44px; source: @image-url("../icons/saymore-mark-3d-136.png"); colorize: AppColors.dark-mode ? AppColors.ink : transparent; image-fit: contain; }
             }
             Text { x: 0; y: 142px; width: 520px; text: @tr("onboarding.welcome.title" => "Type less. Say more."); color: AppColors.ink; font-size: 32px; font-weight: 700; wrap: word-wrap; }
             Text { x: 0; y: 200px; width: 500px; text: root.show-accessibility-step ? @tr("onboarding.welcome.detail" => "Saymore lets you use your voice in any text field. Set up your microphone, default shortcut, and Accessibility permission in about a minute.") : @tr("onboarding.welcome.detail-windows" => "Saymore lets you use your voice in any text field. Set up your microphone and default shortcut in about a minute."); color: AppColors.text-muted; font-size: 13px; wrap: word-wrap; }
@@ -214,8 +215,7 @@ export component OnboardingWindow inherits Window {
                 Text { x: 74px; y: 40px; width: 344px; text: root.microphone-status == "granted" ? @tr("onboarding.microphone.granted" => "Permission enabled · ready to test") : root.microphone-status == "not_determined" ? @tr("onboarding.microphone.required" => "Microphone permission is required") : @tr("onboarding.microphone.denied" => "Permission denied · open System Settings"); color: root.microphone-authorized ? AppColors.success : AppColors.text-muted; font-size: 10px; }
                 if root.microphone-authorized: PermissionStatus { x: 474px; y: 20px; granted: true; label: @tr("onboarding.permission.granted-short" => "Enabled"); }
                 if !root.microphone-authorized: OnboardingButton { x: 382px; y: 18px; width: 160px; label: @tr("onboarding.microphone.allow" => "Allow microphone"); primary: true; activated => { root.request-microphone(); } }
-                Rectangle { x: 18px; y: 70px; width: 526px; height: 1px; background: AppColors.border; }
-                MicrophoneWave { x: 18px; y: 76px; width: 526px; height: 62px; level: root.microphone-level; }
+                MicrophoneWave { x: 18px; y: 72px; width: 526px; height: 66px; level: root.microphone-level; }
             }
             Rectangle {
                 x: 0; y: 294px; width: 562px; height: 104px; border-radius: 8px; background: AppColors.surface; border-width: 1px; border-color: AppColors.border;
@@ -238,9 +238,8 @@ export component OnboardingWindow inherits Window {
                 Text { x: 66px; y: 1px; width: 388px; text: @tr("onboarding.accessibility.card-title" => "Allow Saymore in System Settings"); color: AppColors.ink; font-size: 14px; font-weight: 650; }
                 PermissionStatus { x: 474px; y: 0; granted: root.accessibility-authorized; label: root.accessibility-status == "granted" ? @tr("onboarding.permission.granted-short" => "Enabled") : @tr("onboarding.permission.required-short" => "Required"); }
                 Text { x: 66px; y: 30px; width: 450px; height: 42px; text: @tr("onboarding.accessibility.card-detail" => "Saymore does not use this permission to read password fields."); color: AppColors.text-muted; font-size: 10px; wrap: word-wrap; }
-                Rectangle { x: 0; y: 94px; width: 562px; height: 1px; background: AppColors.border; }
-                OnboardingButton { x: 0; y: 116px; width: 182px; label: root.accessibility-authorized ? @tr("onboarding.permission.granted" => "Permission enabled") : @tr("onboarding.accessibility.open" => "Open System Settings"); primary: !root.accessibility-authorized; enabled: !root.accessibility-authorized; activated => { root.request-accessibility(); } }
-                OnboardingButton { x: 198px; y: 116px; width: 130px; label: @tr("common.recheck" => "Recheck"); activated => { root.refresh-permissions(); } }
+                OnboardingButton { x: 0; y: 104px; width: 182px; label: root.accessibility-authorized ? @tr("onboarding.permission.granted" => "Permission enabled") : @tr("onboarding.accessibility.open" => "Open System Settings"); primary: !root.accessibility-authorized; enabled: !root.accessibility-authorized; activated => { root.request-accessibility(); } }
+                OnboardingButton { x: 198px; y: 104px; width: 130px; label: @tr("common.recheck" => "Recheck"); activated => { root.refresh-permissions(); } }
             }
         }
 

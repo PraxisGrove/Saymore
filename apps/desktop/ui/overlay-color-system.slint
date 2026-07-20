@@ -1,0 +1,56 @@
+// Independent overlays deliberately keep a fixed palette across application themes.
+export global OverlayColors {
+    out property <color> surface: #ffffff;
+    out property <color> surface-subtle: #f4f4f1;
+    out property <color> surface-subtle-hover: #efeeeb;
+    out property <color> surface-hover: #f3f1ed;
+    out property <color> surface-control: #efeee9;
+    out property <color> surface-control-hover: #e5e3dd;
+    out property <color> border: #e6e5e0;
+    out property <color> border-strong: #dddad2;
+    out property <color> shadow: #1f1f1c24;
+    out property <color> shadow-strong: #1f1f1c2e;
+
+    out property <color> ink: #141413;
+    out property <color> ink-soft: #1f1f1c;
+    out property <color> text: #373734;
+    out property <color> text-soft: #4d4b45;
+    out property <color> text-muted: #7b7974;
+    out property <color> text-muted-warm: #77746c;
+    out property <color> text-muted-strong: #5f5d58;
+    out property <color> on-accent: #ffffff;
+
+    out property <color> accent: #d97757;
+    out property <color> accent-strong: #c6613f;
+    out property <color> accent-soft: #f2ded6;
+    out property <color> accent-soft-alert: #f5e7df;
+    out property <color> info: #256bc1;
+    out property <color> info-soft: #cbe1fb;
+
+    out property <color> recording-surface: #11110f;
+    out property <color> recording-border: #454543;
+    out property <color> recording-control: #353537;
+    out property <color> recording-control-hover: #4a4946;
+    out property <color> recording-control-pressed: #5a5956;
+    out property <color> recording-divider: #3d3d3f;
+    out property <color> recording-spinner-track: #606064;
+    out property <color> recording-text: #faf9f5;
+    out property <color> recording-text-warm: #faf9f8;
+    out property <color> recording-icon: #d1cfc5;
+    out property <color> recording-muted: #a7a7a2;
+    out property <color> recording-accent: #ff7958;
+    out property <color> recording-wave-accent: #e97858;
+    out property <color> recording-control-light: #faf9f5;
+    out property <color> recording-control-light-hover: #ffffff;
+    out property <color> recording-control-light-pressed: #deddd8;
+    out property <color> recording-warning: #c98200;
+    out property <color> recording-hover: #ffffff1a;
+    out property <color> recording-pressed: #ffffff33;
+    out property <brush> recording-spinner-arc: @conic-gradient(
+        from 0deg,
+        #ff7958 0deg,
+        #ff7958 105deg,
+        #ff795800 105deg,
+        #ff795800 360deg
+    );
+}

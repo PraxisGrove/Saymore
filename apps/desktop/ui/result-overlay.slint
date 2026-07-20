@@ -1,6 +1,8 @@
 import "../fonts/InterVariable.ttf";
 import { ScrollView } from "std-widgets.slint";
 
+import { OverlayColors } from "overlay-color-system.slint";
+
 export component ResultOverlay inherits Window {
     title: "Saymore Result";
     default-font-family: "Inter";
@@ -24,27 +26,27 @@ export component ResultOverlay inherits Window {
         width: 386px;
         height: 216px;
         border-radius: 18px;
-        background: #ffffff;
+        background: OverlayColors.surface;
         border-width: 1px;
-        border-color: #e6e5e0;
+        border-color: OverlayColors.border;
 
         Rectangle {
-            x: 13px; y: 15px; width: 24px; height: 24px; border-radius: 12px; background: #cbe1fb;
-            Text { text: "i"; color: #256bc1; font-size: 14px; font-weight: 700; horizontal-alignment: center; vertical-alignment: center; }
+            x: 13px; y: 15px; width: 24px; height: 24px; border-radius: 12px; background: OverlayColors.info-soft;
+            Text { text: "i"; color: OverlayColors.info; font-size: 14px; font-weight: 700; horizontal-alignment: center; vertical-alignment: center; }
         }
-        Text { x: 45px; y: 15px; width: 270px; height: 24px; text: @tr("result.copy-last-transcript.title" => "Copy the latest transcript"); color: #141413; font-size: 15px; font-weight: 700; vertical-alignment: center; }
+        Text { x: 45px; y: 15px; width: 270px; height: 24px; text: @tr("result.copy-last-transcript.title" => "Copy the latest transcript"); color: OverlayColors.ink; font-size: 15px; font-weight: 700; vertical-alignment: center; }
 
         Rectangle {
             x: 350px; y: 13px; width: 24px; height: 24px; border-radius: 8px;
-            background: close-area.has-hover ? #f4f4f1 : transparent;
+            background: close-area.has-hover ? OverlayColors.surface-subtle : transparent;
             accessible-role: button; accessible-label: @tr("result.close-panel.accessible-label" => "Close transcript panel");
             accessible-action-default => { root.close-result(); }
-            Text { text: "×"; color: #7b7974; font-size: 17px; horizontal-alignment: center; vertical-alignment: center; }
+            Text { text: "×"; color: OverlayColors.text-muted; font-size: 17px; horizontal-alignment: center; vertical-alignment: center; }
             close-area := TouchArea { mouse-cursor: pointer; clicked => { root.close-result(); } }
         }
 
         Rectangle {
-            x: 13px; y: 51px; width: 360px; height: 98px; border-radius: 10px; background: #f4f4f1;
+            x: 13px; y: 51px; width: 360px; height: 98px; border-radius: 10px; background: OverlayColors.surface-subtle;
             transcript-scroll := ScrollView {
                 x: 14px;
                 y: 8px;
@@ -59,29 +61,29 @@ export component ResultOverlay inherits Window {
                     width: transcript-scroll.viewport-width - 8px;
                     height: self.preferred-height;
                     text: @tr("result.transcript.quoted" => "“{}”", root.transcript);
-                    color: #373734;
+                    color: OverlayColors.text;
                     font-size: 12px;
                     wrap: word-wrap;
                 }
             }
         }
 
-        Text { x: 15px; y: 172px; text: @tr("result.content-preserved" => "Your text has been preserved"); color: #7b7974; font-size: 10px; vertical-alignment: center; }
+        Text { x: 15px; y: 172px; text: @tr("result.content-preserved" => "Your text has been preserved"); color: OverlayColors.text-muted; font-size: 10px; vertical-alignment: center; }
 
         Rectangle {
             x: 217px; y: 169px; width: 64px; height: 34px; border-radius: 10px;
-            background: dismiss-area.has-hover ? #efeeeb : #f4f4f1;
+            background: dismiss-area.has-hover ? OverlayColors.surface-subtle-hover : OverlayColors.surface-subtle;
             accessible-role: button; accessible-label: @tr("common.close" => "Close");
             accessible-action-default => { root.close-result(); }
-            Text { text: @tr("common.close" => "Close"); color: #373734; font-size: 11px; font-weight: 600; horizontal-alignment: center; vertical-alignment: center; }
+            Text { text: @tr("common.close" => "Close"); color: OverlayColors.text; font-size: 11px; font-weight: 600; horizontal-alignment: center; vertical-alignment: center; }
             dismiss-area := TouchArea { mouse-cursor: pointer; clicked => { root.close-result(); } }
         }
         Rectangle {
             x: 291px; y: 169px; width: 82px; height: 34px; border-radius: 10px;
-            background: copy-area.pressed ? #c6613f : copy-area.has-hover ? #c6613f : #d97757;
+            background: copy-area.pressed ? OverlayColors.accent-strong : copy-area.has-hover ? OverlayColors.accent-strong : OverlayColors.accent;
             accessible-role: button; accessible-label: @tr("result.copy-text" => "Copy text");
             accessible-action-default => { root.copy-result(); }
-            Text { text: @tr("result.copy-text" => "Copy text"); color: #ffffff; font-size: 11px; font-weight: 700; horizontal-alignment: center; vertical-alignment: center; }
+            Text { text: @tr("result.copy-text" => "Copy text"); color: OverlayColors.on-accent; font-size: 11px; font-weight: 700; horizontal-alignment: center; vertical-alignment: center; }
             copy-area := TouchArea { mouse-cursor: pointer; clicked => { root.copy-result(); } }
         }
     }

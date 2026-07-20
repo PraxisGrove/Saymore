@@ -19,7 +19,10 @@ pub(super) fn apply_loaded_settings(ui: &AppWindow, store: &JsonSettingsStore) {
             ui.set_asr_testing(false);
             apply_pending_test(ui, configured);
             ui.set_asr_config_dirty(false);
+            ui.set_asr_draft_error(false);
             ui.set_llm_config_dirty(false);
+            ui.set_llm_draft_error(false);
+            ui.set_llm_testing(false);
         }
         _ => apply_status(
             ui,

@@ -1,0 +1,111 @@
+import { AppColors, ColorSchemePreference, ThemeId } from "color-system.slint";
+
+component ThemeOption inherits Rectangle {
+    in property <string> label;
+    in property <color> swatch;
+    in property <bool> selected;
+    callback activated();
+
+    height: 46px;
+    border-radius: 8px;
+    background: root.selected ? AppColors.selected : option-touch.has-hover ? AppColors.surface-subtle : transparent;
+    accessible-role: button;
+    accessible-label: root.label;
+    accessible-action-default => { root.activated(); }
+
+    Rectangle {
+        x: (parent.width - self.width) / 2;
+        y: 6px;
+        width: 18px;
+        height: 18px;
+        border-radius: 5px;
+        background: root.swatch;
+    }
+    Text {
+        y: 28px;
+        width: parent.width;
+        text: root.label;
+        color: root.selected ? AppColors.ink : AppColors.text-muted;
+        font-size: 9px;
+        font-weight: root.selected ? 650 : 500;
+        horizontal-alignment: center;
+        overflow: elide;
+    }
+    option-touch := TouchArea { mouse-cursor: pointer; clicked => { root.activated(); } }
+}
+
+component SchemeOption inherits Rectangle {
+    in property <string> label;
+    in property <bool> selected;
+    callback activated();
+
+    height: 30px;
+    border-radius: 7px;
+    background: root.selected ? AppColors.brand-soft : option-touch.has-hover ? AppColors.surface-subtle : transparent;
+    accessible-role: button;
+    accessible-label: root.label;
+    accessible-action-default => { root.activated(); }
+    Text {
+        text: root.label;
+        color: root.selected ? AppColors.brand-strong : AppColors.text-muted;
+        font-size: 10px;
+        font-weight: root.selected ? 650 : 500;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+    option-touch := TouchArea { mouse-cursor: pointer; clicked => { root.activated(); } }
+}
+
+export component ThemeSettings inherits Rectangle {
+    in property <ThemeId> theme-id: ThemeId.warm-clay;
+    in property <ColorSchemePreference> color-scheme: ColorSchemePreference.system;
+    in property <string> status: "";
+    callback select-theme(ThemeId);
+    callback select-color-scheme(ColorSchemePreference);
+
+    background: transparent;
+
+    Text {
+        x: 34px;
+        y: 0px;
+        text: @tr("settings.theme-color.title" => "Theme color");
+        color: AppColors.ink;
+        font-size: 13px;
+        font-weight: 650;
+    }
+    Text {
+        x: 34px;
+        y: 22px;
+        text: root.status.is-empty
+            ? @tr("settings.theme-color.detail" => "Choose the accent color used by the application")
+            : root.status;
+        color: root.status.is-empty ? AppColors.text-muted : AppColors.danger;
+        font-size: 10px;
+        overflow: elide;
+    }
+
+    HorizontalLayout {
+        x: 28px;
+        y: 44px;
+        width: parent.width - 28px;
+        height: 46px;
+        spacing: 6px;
+        ThemeOption { horizontal-stretch: 1; label: @tr("settings.theme.warm-clay" => "Warm Clay"); swatch: #d97757; selected: root.theme-id == ThemeId.warm-clay; activated => { root.select-theme(ThemeId.warm-clay); } }
+        ThemeOption { horizontal-stretch: 1; label: @tr("settings.theme.lime-pulse" => "Lime Pulse"); swatch: #b9f500; selected: root.theme-id == ThemeId.lime-pulse; activated => { root.select-theme(ThemeId.lime-pulse); } }
+        ThemeOption { horizontal-stretch: 1; label: @tr("settings.theme.berry-graphite" => "Berry"); swatch: #d94f78; selected: root.theme-id == ThemeId.berry-graphite; activated => { root.select-theme(ThemeId.berry-graphite); } }
+        ThemeOption { horizontal-stretch: 1; label: @tr("settings.theme.iris-mist" => "Iris Mist"); swatch: #7a5cce; selected: root.theme-id == ThemeId.iris-mist; activated => { root.select-theme(ThemeId.iris-mist); } }
+        ThemeOption { horizontal-stretch: 1; label: @tr("settings.theme.clear-sky" => "Clear Sky"); swatch: #4778e8; selected: root.theme-id == ThemeId.clear-sky; activated => { root.select-theme(ThemeId.clear-sky); } }
+    }
+
+    Text { x: 34px; y: 106px; text: @tr("settings.color-scheme.title" => "Light and dark mode"); color: AppColors.ink; font-size: 12px; font-weight: 650; }
+    HorizontalLayout {
+        x: parent.width - 270px;
+        y: 98px;
+        width: 270px;
+        height: 30px;
+        spacing: 4px;
+        SchemeOption { horizontal-stretch: 1; label: @tr("common.follow-system" => "Follow System"); selected: root.color-scheme == ColorSchemePreference.system; activated => { root.select-color-scheme(ColorSchemePreference.system); } }
+        SchemeOption { horizontal-stretch: 1; label: @tr("settings.color-scheme.light" => "Light"); selected: root.color-scheme == ColorSchemePreference.light; activated => { root.select-color-scheme(ColorSchemePreference.light); } }
+        SchemeOption { horizontal-stretch: 1; label: @tr("settings.color-scheme.dark" => "Dark"); selected: root.color-scheme == ColorSchemePreference.dark; activated => { root.select-color-scheme(ColorSchemePreference.dark); } }
+    }
+}

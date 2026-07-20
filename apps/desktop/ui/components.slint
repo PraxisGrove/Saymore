@@ -139,7 +139,7 @@ export component AppButton inherits Rectangle {
     button-label := Text {
         text: root.text;
         color: !root.enabled ? AppColors.text-muted
-            : root.primary ? #ffffff
+            : root.primary ? AppColors.on-brand
             : root.danger ? AppColors.danger : AppColors.text;
         font-size: 12px;
         font-weight: 650;
@@ -183,10 +183,10 @@ export component AppCheckBox inherits Rectangle {
         border-radius: 4px;
         border-width: 1px;
         border-color: root.checked ? AppColors.info : AppColors.border;
-        background: root.checked ? #20aeea : AppColors.surface;
+        background: root.checked ? AppColors.brand : AppColors.surface;
         if root.checked: Text {
             text: "✓";
-            color: #ffffff;
+            color: AppColors.on-brand;
             font-size: 13px;
             font-weight: 700;
             horizontal-alignment: center;
@@ -325,7 +325,7 @@ export component EmptyState inherits Rectangle {
     background: AppColors.surface;
     drop-shadow-blur: 12px;
     drop-shadow-offset-y: 2px;
-    drop-shadow-color: #1f29370d;
+    drop-shadow-color: AppColors.shadow;
 
     VerticalLayout {
         padding: 28px;

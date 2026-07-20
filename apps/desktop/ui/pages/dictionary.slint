@@ -47,7 +47,7 @@ component DictionaryFilterButton inherits Rectangle {
         width: 14px;
         height: 14px;
         source: root.icon;
-        colorize: root.kind == DictionaryFilterKind.automatic ? AppColors.brand : #a5a199;
+        colorize: root.kind == DictionaryFilterKind.automatic ? AppColors.brand : AppColors.text-muted;
     }
     filter-label := Text {
         x: root.has-icon ? 33px : 0px;
@@ -79,7 +79,7 @@ component DictionaryPill inherits Rectangle {
         width: 14px;
         height: 14px;
         source: root.automatic ? @image-url("../../icons/lucide/sparkles.svg") : @image-url("../../icons/lucide/pen-line.svg");
-        colorize: root.automatic ? AppColors.brand : #a5a199;
+        colorize: root.automatic ? AppColors.brand : AppColors.text-muted;
     }
     term := Text {
         x: 36px;
@@ -119,7 +119,7 @@ component DictionaryPill inherits Rectangle {
             background: AppColors.surface;
             drop-shadow-blur: 12px;
             drop-shadow-offset-y: 3px;
-            drop-shadow-color: #1f1f1c1f;
+            drop-shadow-color: AppColors.shadow;
             Text { x: 28px; width: 46px; text: @tr("common.delete" => "Delete"); color: AppColors.danger; font-size: 11px; font-weight: 650; vertical-alignment: center; }
             Image { x: 10px; y: 11px; width: 15px; height: 15px; source: @image-url("../../icons/lucide/trash-2.svg"); }
             delete-touch := TouchArea {
@@ -239,8 +239,8 @@ export component DictionaryPage inherits Rectangle {
         accessible-role: button;
         accessible-label: @tr("dictionary.add-entry" => "Add entry");
         accessible-action-default => { root.open-add(); }
-        Image { x: 10px; y: 10px; width: 16px; height: 16px; source: @image-url("../../icons/lucide/plus.svg"); colorize: #ffffff; }
-        Text { x: 31px; width: 56px; text: @tr("dictionary.add-entry" => "Add entry"); color: #ffffff; font-size: 12px; font-weight: 650; vertical-alignment: center; }
+        Image { x: 10px; y: 10px; width: 16px; height: 16px; source: @image-url("../../icons/lucide/plus.svg"); colorize: AppColors.on-brand; }
+        Text { x: 31px; width: 56px; text: @tr("dictionary.add-entry" => "Add entry"); color: AppColors.on-brand; font-size: 12px; font-weight: 650; vertical-alignment: center; }
         add-touch := TouchArea { mouse-cursor: pointer; clicked => { root.open-add(); } }
     }
 
@@ -317,8 +317,8 @@ export component DictionaryPage inherits Rectangle {
                 height: 18px;
                 spacing: 5px;
                 cross-axis-alignment: center;
-                Image { width: 13px; height: 13px; source: @image-url("../../icons/lucide/lock-keyhole.svg"); colorize: #a09c94; }
-                Text { text: @tr("dictionary.local-only" => "Dictionary entries are stored only on this device"); color: #a09c94; font-size: 10px; vertical-alignment: center; }
+                Image { width: 13px; height: 13px; source: @image-url("../../icons/lucide/lock-keyhole.svg"); colorize: AppColors.text-muted; }
+                Text { text: @tr("dictionary.local-only" => "Dictionary entries are stored only on this device"); color: AppColors.text-muted; font-size: 10px; vertical-alignment: center; }
             }
             if root.development-environment && root.evidence-items.length > 0: VerticalLayout {
                 spacing: 6px;
@@ -390,7 +390,7 @@ export component DictionaryAddDialog inherits Rectangle {
     callback remove-row(int);
     callback save();
 
-    background: #11110f55;
+    background: AppColors.scrim;
     opacity: 1;
     animate opacity { duration: 160ms; easing: ease-out; }
     TouchArea { mouse-cursor: default; clicked => { } }
@@ -403,7 +403,7 @@ export component DictionaryAddDialog inherits Rectangle {
         background: AppColors.surface;
         drop-shadow-blur: 22px;
         drop-shadow-offset-y: 8px;
-        drop-shadow-color: #1f1f1c2b;
+        drop-shadow-color: AppColors.shadow;
 
         Text { x: 32px; y: 32px; text: @tr("dictionary.add-entry" => "Add entry"); color: AppColors.ink; font-size: 20px; font-weight: 700; }
         Rectangle {
@@ -445,7 +445,7 @@ export component DictionaryAddDialog inherits Rectangle {
                         border-width: draft-input.has-focus ? 1px : 0px;
                         border-color: AppColors.brand;
                         background: AppColors.sidebar;
-                        if draft.value.is-empty && !draft-input.has-focus: Text { x: 18px; width: parent.width - 62px; text: @tr("dictionary.entry.placeholder" => "For example: Volcano Engine"); color: #a09c94; font-size: 13px; vertical-alignment: center; }
+                        if draft.value.is-empty && !draft-input.has-focus: Text { x: 18px; width: parent.width - 62px; text: @tr("dictionary.entry.placeholder" => "For example: Volcano Engine"); color: AppColors.text-muted; font-size: 13px; vertical-alignment: center; }
                         draft-input := TextInput {
                             x: 18px;
                             width: parent.width - 62px;
@@ -514,7 +514,7 @@ export component DictionaryAddDialog inherits Rectangle {
             height: 38px;
             border-radius: 8px;
             background: root.nonempty-count == 0 || root.saving ? AppColors.surface-subtle : (save-touch.has-hover ? AppColors.brand-strong : AppColors.brand);
-            Text { text: root.saving ? @tr("common.saving" => "Saving…") : @tr("dictionary.save-entry-count" => "Save {} entry" | "Save {} entries" % root.nonempty-count, root.nonempty-count); color: root.nonempty-count == 0 || root.saving ? AppColors.text-muted : #ffffff; font-size: 12px; font-weight: 650; horizontal-alignment: center; vertical-alignment: center; }
+            Text { text: root.saving ? @tr("common.saving" => "Saving…") : @tr("dictionary.save-entry-count" => "Save {} entry" | "Save {} entries" % root.nonempty-count, root.nonempty-count); color: root.nonempty-count == 0 || root.saving ? AppColors.text-muted : AppColors.on-brand; font-size: 12px; font-weight: 650; horizontal-alignment: center; vertical-alignment: center; }
             save-touch := TouchArea { enabled: root.nonempty-count > 0 && !root.saving; mouse-cursor: root.nonempty-count > 0 && !root.saving ? pointer : default; clicked => { root.save(); } }
         }
         TouchArea { x: 0px; y: 0px; width: parent.width; height: 0px; }

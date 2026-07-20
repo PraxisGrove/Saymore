@@ -1,5 +1,6 @@
 #![cfg_attr(test, allow(clippy::panic))]
 
+mod appearance;
 mod audio_recording;
 mod cancelled_recording;
 mod dictation_completion;
@@ -17,6 +18,7 @@ mod storage;
 mod text_delivery;
 mod usage_summary;
 
+pub use appearance::{ColorSchemePreference, ThemeId};
 pub use audio_recording::{
     AudioInputDevice, AudioRecorder, MicrophoneAuthorization, MicrophonePermissionProvider,
     PcmChunk, PcmRecording, RecordingError, RecordingMetrics, RecordingStarted, TARGET_SAMPLE_RATE,

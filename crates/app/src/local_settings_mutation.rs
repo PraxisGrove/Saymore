@@ -3,8 +3,8 @@ use std::sync::{Arc, Mutex};
 use thiserror::Error;
 
 use crate::{
-    HistoryRetention, LocalSettings, LocalSettingsStore, OnboardingStatus, OnboardingStep,
-    StorageError, UiLanguagePreference,
+    ColorSchemePreference, HistoryRetention, LocalSettings, LocalSettingsStore, OnboardingStatus,
+    OnboardingStep, StorageError, ThemeId, UiLanguagePreference,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -22,6 +22,8 @@ pub enum LocalSettingsChange {
     },
     SelectMicrophone(MicrophoneSelection),
     SetUiLanguage(UiLanguagePreference),
+    SetTheme(ThemeId),
+    SetColorScheme(ColorSchemePreference),
     SetAutomaticUpdateChecks(bool),
     SetFeedbackSounds(bool),
     SetCopyToClipboard(bool),
@@ -144,6 +146,10 @@ fn apply_change(settings: &mut LocalSettings, change: LocalSettingsChange) {
             settings.preferred_microphone_name = Some(name);
         }
         LocalSettingsChange::SetUiLanguage(language) => settings.ui_language = language,
+        LocalSettingsChange::SetTheme(theme) => settings.theme = theme,
+        LocalSettingsChange::SetColorScheme(color_scheme) => {
+            settings.color_scheme = color_scheme;
+        }
         LocalSettingsChange::SetAutomaticUpdateChecks(enabled) => {
             settings.automatic_update_checks = enabled;
         }

@@ -1,4 +1,5 @@
 import "../fonts/InterVariable.ttf";
+import { OverlayColors } from "overlay-color-system.slint";
 
 export component RecordingOverlay inherits Window {
     title: "Saymore Recording";
@@ -31,9 +32,9 @@ export component RecordingOverlay inherits Window {
         height: 35px;
         opacity: root.revealed ? 1 : 0;
         border-radius: 17.5px;
-        background: #11110f;
+        background: OverlayColors.recording-surface;
         border-width: 1px;
-        border-color: root.mode == 3 ? #c98200 : #454543;
+        border-color: root.mode == 3 ? OverlayColors.recording-warning : OverlayColors.recording-border;
         animate opacity { duration: 110ms; easing: ease-out; }
         animate border-color { duration: 100ms; easing: ease-out; }
 
@@ -48,7 +49,7 @@ export component RecordingOverlay inherits Window {
                 width: 28px;
                 height: 28px;
                 border-radius: 14px;
-                background: cancel-area.pressed ? #5a5956 : cancel-area.has-hover ? #4a4946 : #353537;
+                background: cancel-area.pressed ? OverlayColors.recording-control-pressed : cancel-area.has-hover ? OverlayColors.recording-control-hover : OverlayColors.recording-control;
                 accessible-role: button;
                 accessible-label: @tr("recording.cancel.accessible-label" => "Cancel recording");
                 accessible-action-default => { root.cancel(); }
@@ -59,7 +60,7 @@ export component RecordingOverlay inherits Window {
                     width: 14px;
                     height: 14px;
                     source: @image-url("../icons/lucide/x.svg");
-                    colorize: #d1cfc5;
+                    colorize: OverlayColors.recording-icon;
                 }
                 cancel-area := TouchArea { enabled: root.mode == 0 && root.revealed; mouse-cursor: pointer; clicked => { root.cancel(); } }
             }
@@ -71,7 +72,7 @@ export component RecordingOverlay inherits Window {
                 height: max(3px, 3px + 17px * amplitude * recording-state.wave-energy * wave-bar.pulse);
                 y: (parent.height - self.height) / 2;
                 border-radius: 2px;
-                background: index == 4 ? #e97858 : #faf9f5;
+                background: index == 4 ? OverlayColors.recording-wave-accent : OverlayColors.recording-control-light;
             }
 
             Rectangle {
@@ -80,7 +81,7 @@ export component RecordingOverlay inherits Window {
                 width: 28px;
                 height: 28px;
                 border-radius: 14px;
-                background: finish-area.pressed ? #deddd8 : finish-area.has-hover ? #ffffff : #faf9f5;
+                background: finish-area.pressed ? OverlayColors.recording-control-light-pressed : finish-area.has-hover ? OverlayColors.recording-control-light-hover : OverlayColors.recording-control-light;
                 accessible-role: button;
                 accessible-label: @tr("recording.finish.accessible-label" => "Finish recording");
                 accessible-action-default => { root.finish(); }
@@ -91,7 +92,7 @@ export component RecordingOverlay inherits Window {
                     width: 10px;
                     height: 10px;
                     source: @image-url("../icons/lucide/check.svg");
-                    colorize: #141413;
+                    colorize: OverlayColors.ink;
                 }
                 finish-area := TouchArea { enabled: root.mode == 0 && root.revealed; mouse-cursor: pointer; clicked => { root.finish(); } }
             }
@@ -110,23 +111,23 @@ export component RecordingOverlay inherits Window {
                 border-radius: 12px;
                 background: transparent;
 
-                Rectangle { x: 2px; y: 2px; width: 20px; height: 20px; border-radius: 10px; background: #606064; Rectangle { x: 3px; y: 3px; width: 14px; height: 14px; border-radius: 7px; background: #11110f; } }
+                Rectangle { x: 2px; y: 2px; width: 20px; height: 20px; border-radius: 10px; background: OverlayColors.recording-spinner-track; Rectangle { x: 3px; y: 3px; width: 14px; height: 14px; border-radius: 7px; background: OverlayColors.recording-surface; } }
                 arc-layer := Rectangle {
                     x: 2px;
                     y: 2px;
                     width: 20px;
                     height: 20px;
                     border-radius: 10px;
-                    background: @conic-gradient(from 0deg, #ff7958 0deg, #ff7958 105deg, #ff795800 105deg, #ff795800 360deg);
+                    background: OverlayColors.recording-spinner-arc;
                     transform-origin: { x: 10px, y: 10px };
                     transform-rotation: spinner.angle;
 
-                    Rectangle { x: 3px; y: 3px; width: 14px; height: 14px; border-radius: 7px; background: #11110f; }
-                    Rectangle { x: 8.5px; y: 0px; width: 3px; height: 3px; border-radius: 1.5px; background: #ff7958; }
-                    Rectangle { x: 16.7px; y: 11.7px; width: 3px; height: 3px; border-radius: 1.5px; background: #ff7958; }
+                    Rectangle { x: 3px; y: 3px; width: 14px; height: 14px; border-radius: 7px; background: OverlayColors.recording-surface; }
+                    Rectangle { x: 8.5px; y: 0px; width: 3px; height: 3px; border-radius: 1.5px; background: OverlayColors.recording-accent; }
+                    Rectangle { x: 16.7px; y: 11.7px; width: 3px; height: 3px; border-radius: 1.5px; background: OverlayColors.recording-accent; }
                 }
             }
-            Text { x: 32px; width: 88px; text: root.processing-label; color: #faf9f5; font-size: 12px; font-weight: 650; horizontal-alignment: center; vertical-alignment: center; }
+            Text { x: 32px; width: 88px; text: root.processing-label; color: OverlayColors.recording-text; font-size: 12px; font-weight: 650; horizontal-alignment: center; vertical-alignment: center; }
         }
 
         cancelled-state := Rectangle {
@@ -136,18 +137,18 @@ export component RecordingOverlay inherits Window {
                 x: 9px;
                 width: 50px;
                 text: @tr("recording.cancelled" => "Cancelled");
-                color: #a7a7a2;
+                color: OverlayColors.recording-muted;
                 font-size: 12px;
                 font-weight: 650;
                 horizontal-alignment: center;
                 vertical-alignment: center;
             }
-            Rectangle { x: 63.5px; y: 10.5px; width: 1px; height: 14px; background: #3d3d3f; }
+            Rectangle { x: 63.5px; y: 10.5px; width: 1px; height: 14px; background: OverlayColors.recording-divider; }
             Rectangle {
-                x: 69px; width: 41px; height: parent.height; border-radius: 13px; background: undo-area.pressed ? #ffffff33 : undo-area.has-hover ? #ffffff1a : transparent;
+                x: 69px; width: 41px; height: parent.height; border-radius: 13px; background: undo-area.pressed ? OverlayColors.recording-pressed : undo-area.has-hover ? OverlayColors.recording-hover : transparent;
                 accessible-role: button; accessible-label: @tr("recording.undo-cancel.accessible-label" => "Undo cancellation");
                 accessible-action-default => { root.undo-cancel(); }
-                Text { text: @tr("common.undo" => "Undo"); color: #faf9f8; font-size: 11px; font-weight: 650; horizontal-alignment: center; vertical-alignment: center; }
+                Text { text: @tr("common.undo" => "Undo"); color: OverlayColors.recording-text-warm; font-size: 11px; font-weight: 650; horizontal-alignment: center; vertical-alignment: center; }
                 undo-area := TouchArea { enabled: root.mode == 2 && root.revealed; mouse-cursor: pointer; clicked => { root.undo-cancel(); } }
             }
         }
@@ -156,10 +157,10 @@ export component RecordingOverlay inherits Window {
             opacity: root.mode == 3 ? 1 : 0;
             animate opacity { duration: 90ms; easing: ease-out; }
             Rectangle {
-                x: 3px; y: 3px; width: 29px; height: 29px; border-radius: 14.5px; background: #c98200;
-                Text { text: "!"; color: #ffffff; font-size: 16px; font-weight: 700; horizontal-alignment: center; vertical-alignment: center; }
+                x: 3px; y: 3px; width: 29px; height: 29px; border-radius: 14.5px; background: OverlayColors.recording-warning;
+                Text { text: "!"; color: OverlayColors.on-accent; font-size: 16px; font-weight: 700; horizontal-alignment: center; vertical-alignment: center; }
             }
-            Text { x: 32px; width: 88px; text: @tr("recording.refinement-failed" => "Polishing failed"); color: #faf9f5; font-size: 12px; font-weight: 650; horizontal-alignment: center; vertical-alignment: center; }
+            Text { x: 32px; width: 88px; text: @tr("recording.refinement-failed" => "Polishing failed"); color: OverlayColors.recording-text; font-size: 12px; font-weight: 650; horizontal-alignment: center; vertical-alignment: center; }
         }
     }
 }

@@ -3,7 +3,7 @@ use template_app::{StorageError, dictionary_comparison_key};
 
 use super::unavailable;
 
-const CURRENT_SCHEMA_VERSION: u32 = 14;
+const CURRENT_SCHEMA_VERSION: u32 = 15;
 
 pub(super) fn apply(connection: &mut Connection) -> Result<(), StorageError> {
     let version: u32 = connection
@@ -55,7 +55,32 @@ pub(super) fn apply(connection: &mut Connection) -> Result<(), StorageError> {
     if version < 14 {
         add_dictionary_candidate_evidence(connection)?;
     }
+    if version < 15 {
+        add_appearance_settings(connection)?;
+    }
     Ok(())
+}
+
+fn add_appearance_settings(connection: &mut Connection) -> Result<(), StorageError> {
+    let transaction = connection.transaction().map_err(unavailable)?;
+    if !app_settings_has_column(&transaction, "theme_id")? {
+        transaction
+            .execute_batch(
+                "ALTER TABLE app_settings
+                 ADD COLUMN theme_id TEXT NOT NULL DEFAULT 'warm-clay'
+                 CHECK (theme_id IN (
+                    'warm-clay', 'lime-pulse', 'berry-graphite', 'iris-mist', 'clear-sky'
+                 ));
+                 ALTER TABLE app_settings
+                 ADD COLUMN color_scheme TEXT NOT NULL DEFAULT 'system'
+                 CHECK (color_scheme IN ('system', 'light', 'dark'));",
+            )
+            .map_err(unavailable)?;
+    }
+    transaction
+        .execute_batch("PRAGMA user_version = 15;")
+        .map_err(unavailable)?;
+    transaction.commit().map_err(unavailable)
 }
 
 fn add_dictionary_candidate_evidence(connection: &mut Connection) -> Result<(), StorageError> {
