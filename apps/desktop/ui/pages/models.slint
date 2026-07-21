@@ -446,7 +446,7 @@ export component ModelsPage inherits Rectangle {
             else { root.save-llm-config(root.llm-provider, root.active-api-key, root.active-base-url, root.model-name); }
         }
     }
-    ModelActionButton {
+    if root.active-config-saved: ModelActionButton {
         x: 120px; y: root.action-y; label: root.active-testing ? @tr("models.test.testing" => "Testing…") : root.active-draft-error ? @tr("models.test.retry" => "Test again") : @tr("models.test.action" => "Test connection"); primary: root.active-draft-error; enabled: root.configuration-ready && !root.active-testing;
         activated => { if root.active-tab == 0 { root.request-asr-test(); } else { root.request-llm-enable(); } }
     }

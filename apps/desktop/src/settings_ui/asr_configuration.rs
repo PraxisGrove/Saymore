@@ -232,20 +232,17 @@ fn finish_connection_test(
     match result {
         Ok(()) => {
             ui.set_asr_draft_error(false);
-            if matches!(purpose, TestPurpose::Save) {
-                apply_loaded_settings(ui, store);
-                apply_pending_test(ui, false);
-                apply_status(
-                    ui,
-                    true,
-                    false,
-                    ui.global::<Translations>().get_models_connected(),
-                );
-            } else {
-                ui.set_asr_config_status(
-                    ui.global::<Translations>().get_models_connected_not_saved(),
-                );
+            match purpose {
+                TestPurpose::Save => apply_loaded_settings(ui, store),
+                TestPurpose::TestOnly => {}
             }
+            apply_pending_test(ui, false);
+            apply_status(
+                ui,
+                true,
+                false,
+                ui.global::<Translations>().get_models_connected(),
+            );
         }
         Err(AsrSaveError::Configuration(error)) => {
             ui.set_asr_draft_error(true);
