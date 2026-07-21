@@ -103,7 +103,6 @@ fn wire_recording(
             cancelled: Arc::clone(&core.cancelled),
             dictation: core.dictation.clone(),
             feedback_sounds_enabled: Arc::clone(&core.feedback_sounds_enabled),
-            mute_system_audio_enabled: Arc::clone(&core.mute_system_audio_enabled),
         },
     );
     prepare_overlay_windows([
@@ -138,6 +137,7 @@ fn wire_recording(
             },
             dictation: core.dictation.clone(),
             feedback_sounds_enabled: Arc::clone(&core.feedback_sounds_enabled),
+            mute_system_audio_enabled: Arc::clone(&core.mute_system_audio_enabled),
         },
     )
     .map_err(std::io::Error::other)?;
