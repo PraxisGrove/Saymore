@@ -19,6 +19,9 @@ Project guidance for humans and coding agents.
 - `research/typeless-input-behavior.md`: first-party research on Typeless
   desktop dictation timing, insertion, processing, permissions, and known
   unknowns.
+- `research/open-source-readme-benchmark.md`: first-party comparison of polished
+  desktop and Rust project READMEs, with recommendations for Saymore's project
+  homepage.
 - `research/multilingual-support-typeless-shandianshuo.md`: first-party
   comparison of Typeless and Shandianshuo multilingual behavior and model
   architecture.

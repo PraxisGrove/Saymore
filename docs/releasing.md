@@ -6,6 +6,10 @@ commits newer than the latest GitHub Release tag. This keeps ordinary pushes and
 small changes covered by CI without automatically publishing a new stable
 version.
 
+This document currently covers direct distribution through GitHub Releases. The
+planned Mac App Store submission and release workflow will be documented
+separately when its packaging and review requirements are implemented.
+
 GitHub supplies the latest release tag and commit comparison; the tested
 `cargo run -p xtask -- release-plan` command owns the deterministic eligibility
 and version decision.
