@@ -178,6 +178,28 @@ jobs:
           cargo packager --release --packages saymore-desktop --formats dmg
           --target universal-apple-darwin --out-dir dist
 
+      - name: Notarize final DMG
+        if: steps.apple-auth.outputs.signed == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          dmgs=(apps/desktop/dist/*.dmg)
+          if [[ ${#dmgs[@]} -ne 1 ]]; then
+            echo "expected exactly one DMG, found ${#dmgs[@]}" >&2
+            exit 1
+          fi
+
+          xcrun notarytool submit "${dmgs[0]}" \
+            --apple-id "$APPLE_ID" \
+            --password "$APPLE_PASSWORD" \
+            --team-id "$APPLE_TEAM_ID" \
+            --wait
+          xcrun stapler staple "${dmgs[0]}"
+          xcrun stapler validate "${dmgs[0]}"
+          spctl --assess --type open --context context:primary-signature \
+            --verbose=4 "${dmgs[0]}"
+
       - name: Verify DMG presentation
         shell: bash
         run: |

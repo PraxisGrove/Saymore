@@ -38,13 +38,14 @@ mode. Dependency policy runs separately on Ubuntu.
   SHA-256 checksums to GitHub Releases. The repository-owned DMG background,
   window size, and icon positions are declared in the desktop package metadata.
   The DMG opens directly to its Finder window without an install-time license
-  agreement. Packaging mounts the generated image without accepting an EULA and
+  agreement. With complete Apple credentials, packaging signs and notarizes the
+  application, signs the final DMG, submits that DMG to Apple, staples the
+  accepted ticket, and requires Gatekeeper to accept it before upload. The
+  workflow then mounts the generated image without accepting an EULA and
   verifies its background, Finder layout metadata, application bundle, and
-  Applications link before upload. Regenerate the committed background after
-  design changes with
-  `swift apps/desktop/packaging/macos/generate-dmg-background.swift`. With
-  complete Apple credentials the DMG is signed and notarized; otherwise its
-  filename ends in `-unsigned.dmg`.
+  Applications link. Regenerate the committed background after design changes
+  with `swift apps/desktop/packaging/macos/generate-dmg-background.swift`.
+  Without complete Apple credentials, the DMG filename ends in `-unsigned.dmg`.
 - Windows builds an NSIS installer named `Saymore-Setup.exe` and publishes it,
   together with its SHA-256 checksum, to the same GitHub Release.
 
