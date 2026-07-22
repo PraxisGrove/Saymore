@@ -1,7 +1,6 @@
 use std::{
     io,
-    sync::{Arc, Mutex, mpsc},
-    time::Duration,
+    sync::{Arc, Mutex},
 };
 
 use slint::ComponentHandle;
@@ -19,8 +18,6 @@ use template_infra::{JsonSettingsStore, SqliteStorage, SystemClock, copy_text_to
 
 use crate::{
     asr_runtime::AsrSessionController,
-    overlay_generation_matches,
-    recording_runtime::{OVERLAY_EXIT_DURATION, animate_overlay_hide},
     refinement_runtime::{ProcessingActivity, RefinementPlan, RefinementRuntime},
     ui::{AppWindow, RecordingOverlay, Translations},
 };
@@ -37,7 +34,6 @@ pub(crate) struct DictationRuntime {
 pub(crate) struct CompletionContext {
     pub(crate) ui: slint::Weak<AppWindow>,
     pub(crate) status_overlay: slint::Weak<RecordingOverlay>,
-    pub(crate) overlay_generation: i32,
     pub(crate) copy_to_clipboard: bool,
 }
 
@@ -71,8 +67,6 @@ impl DictationRuntime {
             ui: context.ui.clone(),
             status_overlay: context.status_overlay.clone(),
         });
-        let before_delivery =
-            hide_status_before_delivery(context.status_overlay, context.overlay_generation);
         let observer = dictionary_edit_observer(
             id,
             Arc::clone(&self.storage),
@@ -83,7 +77,6 @@ impl DictationRuntime {
             id,
             Arc::clone(&self.deliverer),
             observer,
-            before_delivery,
             context.copy_to_clipboard,
         ));
         DictationCompletion::new(DictationCompletionAdapters {
@@ -190,33 +183,10 @@ fn show_refining_activity(ui: &slint::Weak<AppWindow>, overlay: &slint::Weak<Rec
     });
 }
 
-fn hide_status_before_delivery(
-    overlay: slint::Weak<RecordingOverlay>,
-    overlay_generation: i32,
-) -> Arc<dyn Fn() + Send + Sync> {
-    Arc::new(move || {
-        let (hidden_tx, hidden_rx) = mpsc::sync_channel(1);
-        let queued = overlay.upgrade_in_event_loop(move |overlay| {
-            if overlay_generation_matches(overlay_generation, overlay.get_session_generation()) {
-                animate_overlay_hide(&overlay, move || {
-                    let _ = hidden_tx.send(());
-                });
-            } else {
-                let _ = hidden_tx.send(());
-            }
-        });
-        if queued.is_ok() {
-            let wait = OVERLAY_EXIT_DURATION + Duration::from_millis(200);
-            let _ = hidden_rx.recv_timeout(wait);
-        }
-    })
-}
-
 struct CompletionDeliverer {
     id: DictationSessionId,
     platform: Arc<dyn CorrectionObservingTextDeliverer>,
     observer: Mutex<Option<TextEditObserver>>,
-    before_delivery: Arc<dyn Fn() + Send + Sync>,
     copy_to_clipboard: bool,
 }
 
@@ -225,14 +195,12 @@ impl CompletionDeliverer {
         id: DictationSessionId,
         platform: Arc<dyn CorrectionObservingTextDeliverer>,
         observer: TextEditObserver,
-        before_delivery: Arc<dyn Fn() + Send + Sync>,
         copy_to_clipboard: bool,
     ) -> Self {
         Self {
             id,
             platform,
             observer: Mutex::new(Some(observer)),
-            before_delivery,
             copy_to_clipboard,
         }
     }
@@ -252,7 +220,6 @@ impl TextDeliverer for CompletionDeliverer {
     }
 
     fn deliver(&self, text: &str) -> Result<TextDeliveryOutcome, TextDeliveryError> {
-        (self.before_delivery)();
         let observer = self
             .observer
             .lock()
@@ -405,8 +372,7 @@ mod tests {
     }
 
     #[test]
-    fn completion_delivery_hides_status_and_wires_one_correction_observer() {
-        let before_calls = Arc::new(AtomicUsize::new(0));
+    fn completion_delivery_wires_one_correction_observer() {
         let observer_calls = Arc::new(AtomicUsize::new(0));
         let platform = Arc::new(FakePlatformDeliverer {
             deliveries: Mutex::new(Vec::new()),
@@ -416,14 +382,10 @@ mod tests {
         let observer: TextEditObserver = Box::new(move |_| {
             observed.fetch_add(1, Ordering::Relaxed);
         });
-        let before = Arc::clone(&before_calls);
         let deliverer = CompletionDeliverer::new(
             DictationSessionId::generate(),
             platform.clone(),
             observer,
-            Arc::new(move || {
-                before.fetch_add(1, Ordering::Relaxed);
-            }),
             false,
         );
 
@@ -431,7 +393,6 @@ mod tests {
             Ok(TextDeliveryOutcome::AccessibilityVerified),
             deliverer.deliver("hello")
         );
-        assert_eq!(1, before_calls.load(Ordering::Relaxed));
         assert_eq!(1, observer_calls.load(Ordering::Relaxed));
         assert_eq!(
             vec!["hello"],

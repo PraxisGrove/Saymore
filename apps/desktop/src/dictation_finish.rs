@@ -182,7 +182,6 @@ fn complete_handoff(
         CompletionContext {
             ui: context.ui.clone(),
             status_overlay: context.status_overlay.clone(),
-            overlay_generation: context.overlay_generation,
             copy_to_clipboard: context.copy_to_clipboard,
         },
     )

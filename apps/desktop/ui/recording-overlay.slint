@@ -87,10 +87,10 @@ export component RecordingOverlay inherits Window {
                 accessible-action-default => { root.finish(); }
 
                 Image {
-                    x: 9px;
-                    y: 9px;
-                    width: 10px;
-                    height: 10px;
+                    x: 7px;
+                    y: 7px;
+                    width: 14px;
+                    height: 14px;
                     source: @image-url("../icons/lucide/check.svg");
                     colorize: OverlayColors.ink;
                 }
@@ -102,14 +102,22 @@ export component RecordingOverlay inherits Window {
             opacity: root.mode == 1 ? 1 : 0;
             animate opacity { duration: 90ms; easing: ease-out; }
             spinner := Rectangle {
-                private property <float> turn: root.revealed && root.mode == 1 ? mod(animation-tick(), 900ms) / 900ms : 0;
-                private property <angle> angle: spinner.turn * 360deg;
+                private property <angle> angle: 0deg;
                 x: 4px;
                 y: 5.5px;
                 width: 24px;
                 height: 24px;
                 border-radius: 12px;
                 background: transparent;
+
+                states [
+                    spinning when root.mode == 1: {
+                        angle: 360deg;
+                        in {
+                            animate angle { duration: 900ms; iteration-count: -1; easing: linear; }
+                        }
+                    }
+                ]
 
                 Rectangle { x: 2px; y: 2px; width: 20px; height: 20px; border-radius: 10px; background: OverlayColors.recording-spinner-track; Rectangle { x: 3px; y: 3px; width: 14px; height: 14px; border-radius: 7px; background: OverlayColors.recording-surface; } }
                 arc-layer := Rectangle {

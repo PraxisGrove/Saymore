@@ -157,7 +157,8 @@ pub use macos_shortcut_monitor::{
 #[cfg(target_os = "macos")]
 pub use macos_text_delivery::{
     MacOsCorrectionObservationSupport, MacOsFocusedTextControlCapabilities, MacOsTextDeliverer,
-    copy_text_to_clipboard, focused_text_control_capabilities, open_accessibility_privacy_settings,
+    MacOsTextDeliveryProgress, MacOsTextDeliverySession, copy_text_to_clipboard,
+    focused_text_control_capabilities, open_accessibility_privacy_settings,
     text_control_capabilities_for_process,
 };
 

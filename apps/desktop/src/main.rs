@@ -207,9 +207,8 @@ fn run_macos(bootstrap: DesktopBootstrap) -> Result<(), Box<dyn Error>> {
 #[cfg(target_os = "macos")]
 fn macos_platform_adapters(bootstrap: &DesktopBootstrap) -> PlatformAdapters {
     let microphone: Arc<dyn MicrophonePermissionProvider> = Arc::new(MacOsMicrophonePermission);
-    let deliverer: Arc<dyn CorrectionObservingTextDeliverer> = Arc::new(
-        MacOsMainThreadTextDeliverer::new(Arc::new(MacOsTextDeliverer)),
-    );
+    let deliverer: Arc<dyn CorrectionObservingTextDeliverer> =
+        Arc::new(MacOsMainThreadTextDeliverer::new(MacOsTextDeliverer));
     let recorder: RecorderHandle = Arc::new(Mutex::new(recording_audio::RecordingAudio::new(
         Box::new(MacOsAudioRecorder::with_preferred_input_device_id(
             bootstrap.local_settings.preferred_microphone_id.clone(),

@@ -42,6 +42,12 @@ aggregate platform service. A platform that does not yet implement one of those
 adapters must return an explicit unavailable error; it must not replace the
 shared UI or bootstrap with a platform-specific application flow.
 
+macOS text delivery is an incremental main-thread state machine. Focus settling,
+accessibility verification, and clipboard restoration waits are represented as
+delayed steps driven by the Slint event loop; each native step returns promptly
+so processing animations continue to render. AppKit and Accessibility work must
+remain on the main thread, and must not introduce sleeps or polling loops there.
+
 System-output muting is also a narrow platform adapter. The desktop owns the
 recording-scoped mute session so restoration occurs on stop, cancellation,
 startup cleanup, or shutdown. Platform implementations restore only state still

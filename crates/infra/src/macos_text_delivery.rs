@@ -1,10 +1,4 @@
-use std::{
-    ffi::c_void,
-    io,
-    process::Command,
-    ptr, thread,
-    time::{Duration, Instant},
-};
+use std::{ffi::c_void, io, process::Command, ptr, time::Duration};
 
 use accessibility_sys::{
     AXIsProcessTrusted, AXIsProcessTrustedWithOptions, AXUIElementCopyAttributeValue,
@@ -37,6 +31,7 @@ use template_app::{
 mod ax;
 mod capabilities;
 mod clipboard;
+mod incremental;
 mod keyboard;
 mod observation;
 
@@ -46,7 +41,7 @@ pub use capabilities::{
     focused_text_control_capabilities, text_control_capabilities_for_process,
 };
 use clipboard::TemporaryPasteboard;
-use observation::CorrectionObservationTarget;
+pub use incremental::{MacOsTextDeliveryProgress, MacOsTextDeliverySession};
 #[cfg(test)]
 use observation::text_between_anchors;
 
@@ -65,6 +60,19 @@ unsafe extern "C" {
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct MacOsTextDeliverer;
+
+impl MacOsTextDeliverer {
+    pub fn begin_delivery(text: String) -> MacOsTextDeliverySession {
+        MacOsTextDeliverySession::new(text, None)
+    }
+
+    pub fn begin_delivery_and_observe(
+        text: String,
+        observer: TextEditObserver,
+    ) -> MacOsTextDeliverySession {
+        MacOsTextDeliverySession::new(text, Some(observer))
+    }
+}
 
 /// Replaces the macOS clipboard with a transcript the user explicitly chose
 /// to copy from the recovery overlay.
@@ -119,7 +127,7 @@ impl TextDeliverer for MacOsTextDeliverer {
     }
 
     fn deliver(&self, text: &str) -> Result<TextDeliveryOutcome, TextDeliveryError> {
-        deliver_attempt(text).map(|attempt| attempt.outcome)
+        incremental::run_synchronously(text.to_owned(), None)
     }
 }
 
@@ -129,140 +137,8 @@ impl CorrectionObservingTextDeliverer for MacOsTextDeliverer {
         text: &str,
         observer: TextEditObserver,
     ) -> Result<TextDeliveryOutcome, TextDeliveryError> {
-        let attempt = deliver_attempt(text)?;
-        if let Some(target) = attempt.observation {
-            let _ = thread::Builder::new()
-                .name("saymore-correction-observer".to_owned())
-                .spawn(move || target.observe(observer));
-        }
-        Ok(attempt.outcome)
+        incremental::run_synchronously(text.to_owned(), Some(observer))
     }
-}
-
-struct DeliveryAttempt {
-    outcome: TextDeliveryOutcome,
-    observation: Option<CorrectionObservationTarget>,
-}
-
-fn deliver_attempt(text: &str) -> Result<DeliveryAttempt, TextDeliveryError> {
-    thread::sleep(FOCUS_SETTLE_DELAY);
-    let secure_input = secure_event_input_enabled();
-    if authorization_from(unsafe { AXIsProcessTrusted() }) == AccessibilityAuthorization::Denied
-        && !secure_input
-    {
-        return Err(TextDeliveryError::PermissionDenied);
-    }
-
-    let target = current_delivery_target();
-    let focused = target.focused;
-    let action = delivery_target_action(DeliveryTargetState {
-        external_target: target.external_target,
-        secure_input,
-        focused_control: focused.is_some(),
-    });
-    if let Some(attempt) = immediate_delivery_attempt(action, secure_input, text)? {
-        return Ok(attempt);
-    }
-
-    let focused = focused.ok_or(TextDeliveryError::NoFocusedControl)?;
-    deliver_to_focused_control(focused, text)
-}
-
-fn immediate_delivery_attempt(
-    action: DeliveryTargetAction,
-    secure_input: bool,
-    text: &str,
-) -> Result<Option<DeliveryAttempt>, TextDeliveryError> {
-    match action {
-        DeliveryTargetAction::PasteWithoutVerification => {
-            paste_with_clipboard(PasteVerification::Unobservable, text).map(|outcome| {
-                Some(DeliveryAttempt {
-                    outcome,
-                    observation: None,
-                })
-            })
-        }
-        DeliveryTargetAction::PasteSecurely => paste_securely(text).map(|outcome| {
-            Some(DeliveryAttempt {
-                outcome,
-                observation: None,
-            })
-        }),
-        DeliveryTargetAction::RejectNoTarget if secure_input => {
-            Err(TextDeliveryError::SecureDeliveryFailed(
-                "no external delivery target was found".to_owned(),
-            ))
-        }
-        DeliveryTargetAction::RejectNoTarget => Err(TextDeliveryError::NoFocusedControl),
-        DeliveryTargetAction::UseFocusedControl => Ok(None),
-    }
-}
-
-fn deliver_to_focused_control(
-    focused: OwnedAxElement,
-    text: &str,
-) -> Result<DeliveryAttempt, TextDeliveryError> {
-    if matches!(
-        focused.attribute_string(kAXSubroleAttribute),
-        Ok(Some(subrole)) if subrole == kAXSecureTextFieldSubrole
-    ) {
-        return paste_securely(text).map(|outcome| DeliveryAttempt {
-            outcome,
-            observation: None,
-        });
-    }
-
-    let Some(initial_range) = focused.selected_text_range().ok().flatten() else {
-        return paste_with_clipboard(PasteVerification::Unobservable, text).map(|outcome| {
-            DeliveryAttempt {
-                outcome,
-                observation: None,
-            }
-        });
-    };
-
-    match focused.replace_selection(text) {
-        Ok(()) => match verify_insertion(
-            &focused,
-            initial_range,
-            text,
-            ACCESSIBILITY_VERIFICATION_TIMEOUT,
-        ) {
-            InsertionVerification::Verified => Ok(DeliveryAttempt {
-                outcome: TextDeliveryOutcome::AccessibilityVerified,
-                observation: CorrectionObservationTarget::capture(focused, initial_range, text),
-            }),
-            InsertionVerification::Unchanged => {
-                observable_clipboard_attempt(focused, initial_range, text)
-            }
-            InsertionVerification::Unverified => Err(TextDeliveryError::AccessibilityUnverified),
-        },
-        Err(TextDeliveryError::UnsupportedControl | TextDeliveryError::System(_)) => {
-            observable_clipboard_attempt(focused, initial_range, text)
-        }
-        Err(error) => Err(error),
-    }
-}
-
-fn observable_clipboard_attempt(
-    focused: OwnedAxElement,
-    initial_range: TextRange,
-    text: &str,
-) -> Result<DeliveryAttempt, TextDeliveryError> {
-    let outcome = paste_with_clipboard(
-        PasteVerification::Observable {
-            focused: &focused,
-            initial_range,
-        },
-        text,
-    )?;
-    let observation = (outcome == TextDeliveryOutcome::ClipboardVerified)
-        .then(|| CorrectionObservationTarget::capture(focused, initial_range, text))
-        .flatten();
-    Ok(DeliveryAttempt {
-        outcome,
-        observation,
-    })
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -448,44 +324,6 @@ fn read_cf_range(value: CFTypeRef) -> Option<TextRange> {
     read.then(|| TextRange::from_cf_range(range)).flatten()
 }
 
-fn verify_insertion(
-    focused: &OwnedAxElement,
-    initial: TextRange,
-    text: &str,
-    timeout: Duration,
-) -> InsertionVerification {
-    let deadline = Instant::now() + timeout;
-    let mut range_changed = false;
-
-    loop {
-        match focused.selected_text_range() {
-            Ok(Some(current)) if insertion_range_matches(initial, current, text) => {
-                let inserted_range = TextRange {
-                    location: initial.location,
-                    length: text.encode_utf16().count(),
-                };
-                return match focused.string_for_range(inserted_range) {
-                    Ok(observed_text) => {
-                        verify_observed_insertion(initial, current, text, observed_text.as_deref())
-                    }
-                    Err(_) => InsertionVerification::Unverified,
-                };
-            }
-            Ok(Some(current)) => range_changed |= current != initial,
-            Ok(None) | Err(_) => return InsertionVerification::Unverified,
-        }
-
-        if Instant::now() >= deadline {
-            return if range_changed {
-                InsertionVerification::Unverified
-            } else {
-                InsertionVerification::Unchanged
-            };
-        }
-        thread::sleep(VERIFICATION_POLL_INTERVAL);
-    }
-}
-
 fn verify_observed_insertion(
     initial: TextRange,
     current: TextRange,
@@ -509,54 +347,6 @@ fn insertion_range_matches(initial: TextRange, current: TextRange, text: &str) -
     let inserted_text_selected =
         current.location == initial.location && current.length == inserted_length;
     collapsed_after_text || inserted_text_selected
-}
-
-enum PasteVerification<'a> {
-    Observable {
-        focused: &'a OwnedAxElement,
-        initial_range: TextRange,
-    },
-    Unobservable,
-    Secure,
-}
-
-fn paste_with_clipboard(
-    verification: PasteVerification<'_>,
-    text: &str,
-) -> Result<TextDeliveryOutcome, TextDeliveryError> {
-    let temporary = TemporaryPasteboard::general(text)?;
-    if let Err(error) = keyboard::post_paste_shortcut() {
-        temporary.restore_if_unchanged()?;
-        return Err(error);
-    }
-
-    let outcome = match verification {
-        PasteVerification::Observable {
-            focused,
-            initial_range,
-        } => match verify_insertion(focused, initial_range, text, PASTE_VERIFICATION_TIMEOUT) {
-            InsertionVerification::Verified => Ok(TextDeliveryOutcome::ClipboardVerified),
-            InsertionVerification::Unchanged | InsertionVerification::Unverified => {
-                Ok(TextDeliveryOutcome::ClipboardAttempted)
-            }
-        },
-        PasteVerification::Unobservable => {
-            thread::sleep(UNOBSERVABLE_PASTE_DELAY);
-            Ok(TextDeliveryOutcome::ClipboardAttempted)
-        }
-        PasteVerification::Secure => {
-            thread::sleep(UNOBSERVABLE_PASTE_DELAY);
-            Ok(TextDeliveryOutcome::SecureClipboardAttempted)
-        }
-    };
-
-    temporary.restore_if_unchanged()?;
-    outcome
-}
-
-fn paste_securely(text: &str) -> Result<TextDeliveryOutcome, TextDeliveryError> {
-    paste_with_clipboard(PasteVerification::Secure, text)
-        .map_err(|error| TextDeliveryError::SecureDeliveryFailed(error.to_string()))
 }
 
 impl Drop for OwnedAxElement {
