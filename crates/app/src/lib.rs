@@ -67,11 +67,11 @@ pub use speech_recognition::{
     StreamingSpeechRecognizer,
 };
 pub use storage::{
-    DictionaryEntry, DictionaryOrigin, DictionaryStore, HistoryCursor, HistoryDelivery,
-    HistoryPage, HistoryRecord, HistoryRefinement, HistoryRetention, HistoryStore, InstalledModel,
-    InstalledModelStore, LocalSettings, LocalSettingsStore, NewDictionaryEntry, NewHistoryRecord,
-    OnboardingStatus, OnboardingStep, SecretStore, SecretStoreError, StorageError,
-    UiLanguagePreference, dictionary_comparison_key, normalize_language_tag,
+    DiagnosticEventStore, DictionaryEntry, DictionaryOrigin, DictionaryStore, HistoryCursor,
+    HistoryDelivery, HistoryPage, HistoryRecord, HistoryRefinement, HistoryRetention, HistoryStore,
+    InstalledModel, InstalledModelStore, LocalSettings, LocalSettingsStore, NewDictionaryEntry,
+    NewHistoryRecord, OnboardingStatus, OnboardingStep, SecretStore, SecretStoreError,
+    StorageError, UiLanguagePreference, dictionary_comparison_key, normalize_language_tag,
 };
 pub use system_audio::{OutputAudioMuteSession, OutputAudioMuter, SystemAudioMuteError};
 pub use text_delivery::{

@@ -10,13 +10,14 @@ use std::{
 
 use rusqlite::{Connection, OpenFlags};
 use template_app::{
-    DictationHistoryWriter, DictionaryCandidateEvidence, DictionaryEntry,
+    DiagnosticEventStore, DictationHistoryWriter, DictionaryCandidateEvidence, DictionaryEntry,
     DictionaryLearningOutcome, DictionaryLearningStore, DictionaryStore, HistoryCursor,
     HistoryPage, HistoryStore, InstalledModel, InstalledModelStore, LocalSettings,
     LocalSettingsStore, NewDictionaryEntry, NewDictionaryObservation, NewHistoryRecord,
     SecretStore, StorageError,
 };
 
+mod diagnostics;
 mod dictionary;
 mod dictionary_learning;
 mod history;
@@ -86,6 +87,19 @@ impl LocalSettingsStore for SqliteStorage {
 
     fn save_settings(&self, settings: LocalSettings) -> Result<(), StorageError> {
         self.request(|response| Command::SaveSettings { settings, response })
+    }
+}
+
+impl DiagnosticEventStore for SqliteStorage {
+    fn record_diagnostic_event(&self, event: &str) -> Result<(), StorageError> {
+        self.request(|response| Command::RecordDiagnosticEvent {
+            event: event.to_owned(),
+            response,
+        })
+    }
+
+    fn diagnostic_events(&self, limit: u32) -> Result<Vec<String>, StorageError> {
+        self.request(|response| Command::DiagnosticEvents { limit, response })
     }
 }
 
@@ -228,6 +242,14 @@ enum Command {
         settings: LocalSettings,
         response: SyncSender<Result<(), StorageError>>,
     },
+    RecordDiagnosticEvent {
+        event: String,
+        response: SyncSender<Result<(), StorageError>>,
+    },
+    DiagnosticEvents {
+        limit: u32,
+        response: SyncSender<Result<Vec<String>, StorageError>>,
+    },
     InsertHistory {
         record: NewHistoryRecord,
         response: SyncSender<Result<(), StorageError>>,
@@ -319,11 +341,12 @@ fn process_command(database: &mut Database, command: Command) -> bool {
             send_result(response, settings::load(&database.connection))
         }
         Command::SaveSettings { settings, response } => {
-            let result = settings::save(&mut database.connection, &settings).and_then(|()| {
-                history::cleanup(&mut database.connection, history::now_ms()).map(|_| ())
-            });
-            send_result(response, result)
+            send_result(response, save_settings(database, &settings))
         }
+        Command::RecordDiagnosticEvent { event, response } => {
+            record_event(database, &event, response)
+        }
+        Command::DiagnosticEvents { limit, response } => list_events(database, limit, response),
         Command::InsertHistory { record, response } => {
             send_result(response, history::insert(database, record))
         }
@@ -390,6 +413,30 @@ fn process_command(database: &mut Database, command: Command) -> bool {
         Command::Shutdown => return false,
     }
     true
+}
+
+fn record_event(
+    database: &mut Database,
+    event: &str,
+    response: SyncSender<Result<(), StorageError>>,
+) {
+    send_result(
+        response,
+        diagnostics::record(&mut database.connection, event),
+    );
+}
+
+fn list_events(
+    database: &Database,
+    limit: u32,
+    response: SyncSender<Result<Vec<String>, StorageError>>,
+) {
+    send_result(response, diagnostics::list(&database.connection, limit));
+}
+
+fn save_settings(database: &mut Database, settings: &LocalSettings) -> Result<(), StorageError> {
+    settings::save(&mut database.connection, settings)
+        .and_then(|()| history::cleanup(&mut database.connection, history::now_ms()).map(|_| ()))
 }
 
 fn send_result<T>(response: SyncSender<Result<T, StorageError>>, result: Result<T, StorageError>) {

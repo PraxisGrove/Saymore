@@ -216,6 +216,10 @@ fn begin_connection_test(
             });
         });
     if spawn_result.is_err() {
+        tracing::warn!(
+            target: "saymore::diagnostics",
+            event = "asr.connection_test_worker_start_failed"
+        );
         ui.set_asr_testing(false);
         ui.set_asr_draft_error(true);
         ui.set_asr_config_status(ui.global::<Translations>().get_models_connection_failed());
@@ -231,6 +235,11 @@ fn finish_connection_test(
     ui.set_asr_testing(false);
     match result {
         Ok(()) => {
+            let event = match purpose {
+                TestPurpose::Save => "asr.configuration_saved",
+                TestPurpose::TestOnly => "asr.connection_test_succeeded",
+            };
+            tracing::info!(target: "saymore::diagnostics", event = %event);
             ui.set_asr_draft_error(false);
             match purpose {
                 TestPurpose::Save => apply_loaded_settings(ui, store),

@@ -4,8 +4,10 @@ use std::{
         Arc,
         atomic::{AtomicBool, Ordering},
     },
-    thread,
 };
+
+#[cfg(target_os = "macos")]
+use std::thread;
 
 use slint::{ComponentHandle, SharedString};
 use template_app::{LocalSettingsChange, LocalSettingsStore};
@@ -36,7 +38,7 @@ pub(crate) struct PlatformOptions {
 }
 
 use crate::{
-    diagnostics::{DiagnosticsController, DiagnosticsReportText},
+    diagnostics::DiagnosticsController,
     local_settings_runtime::LocalSettingsHandle,
     ui::{AppWindow, Translations},
 };
@@ -46,6 +48,7 @@ mod shortcut;
 
 mod audio;
 use audio::{set_feedback_sounds_enabled, set_mute_system_audio_enabled};
+mod diagnostics;
 
 #[cfg(target_os = "windows")]
 #[path = "settings_actions/windows_shortcut.rs"]
@@ -99,7 +102,7 @@ pub fn wire(
     let logging_settings = settings.clone();
     let logging_diagnostics = diagnostics.clone();
     ui.on_set_diagnostics_enabled(move |enabled| {
-        set_diagnostics_logging(
+        diagnostics::set_logging(
             logging_ui.clone(),
             logging_settings.clone(),
             logging_diagnostics.clone(),
@@ -154,7 +157,7 @@ pub fn wire(
     let export_ui = ui.as_weak();
     let export_diagnostics = diagnostics;
     ui.on_export_diagnostics_report(move || {
-        export_report(export_ui.clone(), export_diagnostics.clone());
+        diagnostics::export_report(export_ui.clone(), export_diagnostics.clone());
     });
 
     let data_ui = ui.as_weak();
@@ -420,151 +423,6 @@ fn set_automatic_update_checks(
         window.set_automatic_update_status(
             window.global::<Translations>().get_settings_save_failed(),
         );
-    }
-}
-
-fn set_diagnostics_logging(
-    ui: slint::Weak<AppWindow>,
-    settings: LocalSettingsHandle,
-    diagnostics: DiagnosticsController,
-    enabled: bool,
-) {
-    let previous = diagnostics.is_enabled();
-    if let Some(window) = ui.upgrade() {
-        window.set_diagnostics_status(SharedString::new());
-    }
-
-    let failure_ui = ui.clone();
-    let result = settings.submit(
-        LocalSettingsChange::SetDiagnosticsLogging(enabled),
-        move |result| {
-            if let Some(window) = ui.upgrade() {
-                match result {
-                    Ok(_) => {
-                        diagnostics.set_enabled(enabled);
-                        window.set_diagnostics_enabled(enabled);
-                        window.set_diagnostics_status(SharedString::new());
-                    }
-                    Err(error) => {
-                        tracing::warn!(event = "settings.diagnostics_save_failed", reason = %error);
-                        window.set_diagnostics_enabled(previous);
-                        window.set_diagnostics_status(
-                            window.global::<Translations>().get_settings_save_failed(),
-                        );
-                    }
-                }
-            }
-        },
-    );
-    if let Err(error) = result
-        && let Some(window) = failure_ui.upgrade()
-    {
-        tracing::warn!(event = "settings.diagnostics_submit_failed", reason = %error);
-        window.set_diagnostics_enabled(previous);
-        window.set_diagnostics_status(window.global::<Translations>().get_settings_save_failed());
-    }
-}
-
-fn export_report(ui: slint::Weak<AppWindow>, diagnostics: DiagnosticsController) {
-    let Some(window) = ui.upgrade() else {
-        return;
-    };
-    let destination = rfd::FileDialog::new()
-        .set_file_name(
-            window
-                .global::<Translations>()
-                .get_diagnostics_report_file_name()
-                .as_str(),
-        )
-        .save_file();
-    let Some(destination) = destination else {
-        return;
-    };
-    if !diagnostics.begin_export() {
-        return;
-    }
-    if let Some(window) = ui.upgrade() {
-        window.set_diagnostics_export_status(SharedString::from("exporting"));
-        window.set_diagnostics_export_detail(
-            window.global::<Translations>().get_diagnostics_generating(),
-        );
-    }
-
-    start_report_export(&window, ui, diagnostics, destination);
-}
-
-fn start_report_export(
-    window: &AppWindow,
-    ui: slint::Weak<AppWindow>,
-    diagnostics: DiagnosticsController,
-    destination: PathBuf,
-) {
-    let translations = window.global::<Translations>();
-    let report_text = DiagnosticsReportText {
-        title: translations.get_diagnostics_report_title().to_string(),
-        version: translations
-            .invoke_diagnostics_report_version(env!("CARGO_PKG_VERSION").into())
-            .to_string(),
-        generated: translations
-            .invoke_diagnostics_report_generated(
-                std::time::SystemTime::now()
-                    .duration_since(std::time::UNIX_EPOCH)
-                    .map_or(0, |duration| duration.as_secs())
-                    .to_string()
-                    .into(),
-            )
-            .to_string(),
-        privacy: translations.get_diagnostics_report_privacy().to_string(),
-        events: translations.get_diagnostics_report_events().to_string(),
-        no_events: translations.get_diagnostics_report_no_events().to_string(),
-    };
-    let failure_ui = ui.clone();
-    let worker_diagnostics = diagnostics.clone();
-    if thread::Builder::new()
-        .name("saymore-export-diagnostics".to_owned())
-        .spawn(move || {
-            let result = worker_diagnostics.export_report(&destination, &report_text);
-            worker_diagnostics.finish_export();
-            let _ = ui.upgrade_in_event_loop(move |window| match result {
-                Ok(()) => {
-                    let file_name = destination
-                        .file_name()
-                        .and_then(|name| name.to_str())
-                        .map(ToOwned::to_owned)
-                        .unwrap_or_else(|| {
-                            window
-                                .global::<Translations>()
-                                .get_diagnostics_report_name()
-                                .to_string()
-                        });
-                    window.set_diagnostics_export_status(SharedString::from("success"));
-                    window.set_diagnostics_export_detail(
-                        window
-                            .global::<Translations>()
-                            .invoke_diagnostics_exported(file_name.into()),
-                    );
-                }
-                Err(_) => {
-                    window.set_diagnostics_export_status(SharedString::from("failed"));
-                    window.set_diagnostics_export_detail(
-                        window
-                            .global::<Translations>()
-                            .get_diagnostics_export_failed(),
-                    );
-                }
-            });
-        })
-        .is_err()
-    {
-        diagnostics.finish_export();
-        if let Some(window) = failure_ui.upgrade() {
-            window.set_diagnostics_export_status(SharedString::from("failed"));
-            window.set_diagnostics_export_detail(
-                window
-                    .global::<Translations>()
-                    .get_diagnostics_export_start_failed(),
-            );
-        }
     }
 }
 

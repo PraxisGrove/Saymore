@@ -115,6 +115,10 @@ fn begin_save(
                 ui.set_llm_testing(false);
                 match result {
                     Ok(()) => {
+                        tracing::info!(
+                            target: "saymore::diagnostics",
+                            event = "llm.configuration_saved"
+                        );
                         apply_loaded_settings(&ui, &store);
                         ui.set_llm_config_status(
                             ui.global::<Translations>().get_models_connected(),
@@ -130,6 +134,10 @@ fn begin_save(
             });
         });
     if spawn_result.is_err() {
+        tracing::warn!(
+            target: "saymore::diagnostics",
+            event = "llm.configuration_test_worker_start_failed"
+        );
         ui.set_llm_testing(false);
         ui.set_llm_draft_error(true);
         ui.set_llm_config_status(ui.global::<Translations>().get_models_connection_failed());

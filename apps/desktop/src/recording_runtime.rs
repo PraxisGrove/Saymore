@@ -14,13 +14,12 @@ pub(super) fn start_recording_shortcut(
     runtime: ShortcutRuntime,
 ) -> Result<PlatformShortcutMonitor, String> {
     let shortcut_ui = ui.as_weak();
-    let shortcut_overlays = overlays;
     let monitor_session = Arc::clone(&runtime.session);
     let is_recording: Arc<dyn Fn() -> bool + Send + Sync> =
         Arc::new(move || monitor_session.is_recording());
     let shortcuts_enabled = shortcuts_enabled_callback(&runtime.paused);
     let on_permission_required = permission_required_callback(&runtime);
-    start_platform_shortcut_monitor(
+    let result = start_platform_shortcut_monitor(
         is_recording,
         shortcuts_enabled,
         controller,
@@ -48,7 +47,7 @@ pub(super) fn start_recording_shortcut(
                 }
                 DictationToggleAction::Finish(id) => dictation_finish::finish_recording(
                     shortcut_ui.clone(),
-                    shortcut_overlays.clone(),
+                    overlays.clone(),
                     Arc::clone(&runtime.recorder),
                     Arc::clone(&runtime.session),
                     id,
@@ -66,13 +65,7 @@ pub(super) fn start_recording_shortcut(
                         duration_ms = permission_started.elapsed().as_millis()
                     );
                     if allows_recording {
-                        begin_recording(
-                            &shortcut_ui,
-                            &shortcut_overlays,
-                            &runtime,
-                            id,
-                            shortcut_started,
-                        );
+                        begin_recording(&shortcut_ui, &overlays, &runtime, id, shortcut_started);
                     } else {
                         runtime.session.startup_failed();
                     }
@@ -80,8 +73,8 @@ pub(super) fn start_recording_shortcut(
             },
             DictationShortcutAction::Cancel => recording_actions::cancel(
                 &shortcut_ui,
-                &shortcut_overlays.status,
-                &shortcut_overlays.limit,
+                &overlays.status,
+                &overlays.limit,
                 &runtime.recorder,
                 &runtime.session,
                 &runtime.cancelled,
@@ -89,7 +82,23 @@ pub(super) fn start_recording_shortcut(
             ),
         },
         on_permission_required,
-    )
+    );
+    log_shortcut_monitor_start(&result);
+    result
+}
+
+fn log_shortcut_monitor_start(result: &Result<PlatformShortcutMonitor, String>) {
+    match result {
+        Ok(_) => tracing::info!(
+            target: "saymore::diagnostics",
+            event = "shortcut.monitor_started"
+        ),
+        Err(error) => tracing::error!(
+            target: "saymore::diagnostics",
+            event = "shortcut.monitor_start_failed",
+            reason = %error
+        ),
+    }
 }
 
 fn shortcuts_enabled_callback(paused: &Arc<AtomicBool>) -> Arc<dyn Fn() -> bool + Send + Sync> {

@@ -143,7 +143,7 @@ impl Default for LocalSettings {
             history_retention: HistoryRetention::SevenDays,
             preferred_microphone_id: None,
             preferred_microphone_name: None,
-            diagnostics_logging_enabled: false,
+            diagnostics_logging_enabled: true,
             ui_language: UiLanguagePreference::System,
             theme: ThemeId::LimePulse,
             color_scheme: ColorSchemePreference::System,
@@ -327,6 +327,15 @@ pub enum StorageError {
 pub trait LocalSettingsStore: Send + Sync {
     fn load_settings(&self) -> Result<LocalSettings, StorageError>;
     fn save_settings(&self, settings: LocalSettings) -> Result<(), StorageError>;
+}
+
+/// Persists privacy-safe diagnostic event identifiers for support reports.
+///
+/// Implementations must store only the supplied event identifier, keep the
+/// collection bounded, and return events in chronological order.
+pub trait DiagnosticEventStore: Send + Sync {
+    fn record_diagnostic_event(&self, event: &str) -> Result<(), StorageError>;
+    fn diagnostic_events(&self, limit: u32) -> Result<Vec<String>, StorageError>;
 }
 
 /// Persists encrypted final-output history and applies its retention policy.

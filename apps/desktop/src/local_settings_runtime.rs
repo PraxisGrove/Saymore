@@ -96,7 +96,19 @@ impl LocalSettingsRuntime {
             .name("saymore-local-settings".to_owned())
             .spawn(move || {
                 while let Ok(item) = receiver.recv() {
+                    let success_event = settings_change_event(&item.change);
                     let result = mutator.apply(item.change);
+                    match &result {
+                        Ok(_) => tracing::info!(
+                            target: "saymore::diagnostics",
+                            event = %success_event
+                        ),
+                        Err(error) => tracing::warn!(
+                            target: "saymore::diagnostics",
+                            event = "settings.change_failed",
+                            reason = %error
+                        ),
+                    }
                     if let Err(error) = dispatcher(item.completion, result) {
                         tracing::warn!(
                             event = "settings.completion_dispatch_failed",
@@ -115,6 +127,26 @@ impl LocalSettingsRuntime {
         LocalSettingsHandle {
             sender: Arc::clone(&self.sender),
         }
+    }
+}
+
+fn settings_change_event(change: &LocalSettingsChange) -> &'static str {
+    match change {
+        LocalSettingsChange::SetHistoryEnabled(_) => "settings.history_enabled_changed",
+        LocalSettingsChange::SetHistoryPolicy { .. } => "settings.history_policy_changed",
+        LocalSettingsChange::SelectMicrophone(_) => "settings.microphone_changed",
+        LocalSettingsChange::SetUiLanguage(_) => "settings.language_changed",
+        LocalSettingsChange::SetTheme(_) => "settings.theme_changed",
+        LocalSettingsChange::SetColorScheme(_) => "settings.color_scheme_changed",
+        LocalSettingsChange::SetAutomaticUpdateChecks(_) => "settings.update_checks_changed",
+        LocalSettingsChange::SetFeedbackSounds(_) => "settings.feedback_sounds_changed",
+        LocalSettingsChange::SetMuteSystemAudio(_) => "settings.system_audio_mute_changed",
+        LocalSettingsChange::SetCopyToClipboard(_) => "settings.clipboard_changed",
+        LocalSettingsChange::SetDockVisibility(_) => "settings.dock_visibility_changed",
+        LocalSettingsChange::SetDictationPaused(_) => "settings.dictation_pause_changed",
+        LocalSettingsChange::SetDiagnosticsLogging(_) => "settings.diagnostics_logging_changed",
+        LocalSettingsChange::ReplaceDictationShortcuts(_) => "settings.shortcuts_changed",
+        LocalSettingsChange::SetOnboardingProgress { .. } => "settings.onboarding_changed",
     }
 }
 

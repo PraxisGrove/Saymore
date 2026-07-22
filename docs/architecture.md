@@ -91,6 +91,22 @@ per-environment named activation event lets a second process ask the existing
 instance to show its window. Recording and result windows remain nonactivating
 Win32 tool windows and therefore do not appear in the taskbar or Alt+Tab.
 
+### Local diagnostics
+
+Diagnostic logging is enabled by default for new installations and remains a
+user-controlled local setting. The desktop tracing boundary accepts only events
+with an explicit `event` field, then strips every other field before
+persistence. Recognized text, provider credentials, device names, paths, and
+error details therefore never enter diagnostic storage even when they are
+present in transient runtime tracing fields.
+
+Each safe event identifier is written to a private bounded rolling log and to a
+bounded SQLite `diagnostic_events` table. The SQLite copy is the primary source
+for an exported diagnostic report; the rolling files are the fallback when the
+database is unavailable or contains no events. Reports expose only validated
+event identifiers and can be exported whether diagnostic collection is currently
+enabled or disabled.
+
 ### Windows global shortcuts
 
 The application layer stores each configured dictation shortcut as an opaque,

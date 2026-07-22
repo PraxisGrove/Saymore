@@ -9,11 +9,13 @@ use std::{
     },
 };
 
+use template_app::DiagnosticEventStore;
 use tracing_subscriber::{
     Layer, filter::filter_fn, fmt, layer::SubscriberExt, util::SubscriberInitExt,
 };
 
 const MAX_LOG_BYTES: u64 = 2 * 1024 * 1024;
+const MAX_REPORT_EVENTS: u32 = 20_000;
 
 pub struct DiagnosticsReportText {
     pub title: String,
@@ -29,14 +31,20 @@ pub struct DiagnosticsController {
     directory: Arc<PathBuf>,
     enabled: Arc<AtomicBool>,
     export_in_flight: Arc<AtomicBool>,
+    store: Arc<dyn DiagnosticEventStore>,
 }
 
 impl DiagnosticsController {
-    pub fn without_logger(directory: PathBuf, enabled: bool) -> Self {
+    pub fn without_logger(
+        directory: PathBuf,
+        enabled: bool,
+        store: Arc<dyn DiagnosticEventStore>,
+    ) -> Self {
         Self {
             directory: Arc::new(directory),
             enabled: Arc::new(AtomicBool::new(enabled)),
             export_in_flight: Arc::new(AtomicBool::new(false)),
+            store,
         }
     }
 
@@ -69,16 +77,16 @@ impl DiagnosticsController {
         );
         let empty_report = report.clone();
 
-        for path in [
-            self.directory.join("diagnostics.log.previous"),
-            self.directory.join("diagnostics.log"),
-        ] {
-            match fs::read_to_string(path) {
-                Ok(log) => append_safe_events(&mut report, &log),
-                Err(error) if error.kind() == io::ErrorKind::NotFound => {}
-                Err(error) => return Err(error),
-            }
-        }
+        let database_events = self
+            .store
+            .diagnostic_events(MAX_REPORT_EVENTS)
+            .unwrap_or_default();
+        let events = match read_disk_events(&self.directory) {
+            Ok(disk_events) => merge_event_sequences(disk_events, database_events),
+            Err(_) if !database_events.is_empty() => database_events,
+            Err(error) => return Err(error),
+        };
+        append_stored_events(&mut report, events);
 
         if report == empty_report {
             report.push_str(&text.no_events);
@@ -88,10 +96,17 @@ impl DiagnosticsController {
     }
 }
 
-pub fn init(directory: PathBuf, enabled: bool) -> Result<DiagnosticsController, io::Error> {
-    let controller = DiagnosticsController::without_logger(directory.clone(), enabled);
+pub fn init(
+    directory: PathBuf,
+    enabled: bool,
+    store: Arc<dyn DiagnosticEventStore>,
+) -> Result<DiagnosticsController, io::Error> {
+    let controller = DiagnosticsController::without_logger(directory.clone(), enabled, store);
     prepare_directory(&directory)?;
-    let writer = SanitizedLogWriter::new(BoundedLogWriter::open(directory)?);
+    let writer = SanitizedLogWriter::new(
+        BoundedLogWriter::open(directory)?,
+        Arc::clone(&controller.store),
+    );
     let filter_enabled = Arc::clone(&controller.enabled);
     let log_layer = fmt::layer()
         .with_ansi(false)
@@ -99,7 +114,7 @@ pub fn init(directory: PathBuf, enabled: bool) -> Result<DiagnosticsController, 
         .compact()
         .with_writer(Mutex::new(writer))
         .with_filter(filter_fn(move |metadata| {
-            filter_enabled.load(Ordering::Relaxed) && metadata.target() == "saymore::diagnostics"
+            filter_enabled.load(Ordering::Relaxed) && metadata.fields().field("event").is_some()
         }));
     tracing_subscriber::registry()
         .with(log_layer)
@@ -108,45 +123,77 @@ pub fn init(directory: PathBuf, enabled: bool) -> Result<DiagnosticsController, 
     Ok(controller)
 }
 
+#[cfg(test)]
 fn append_safe_events(report: &mut String, log: &str) {
     report.push_str(&safe_report_lines(log));
 }
 
+fn read_disk_events(directory: &Path) -> Result<Vec<String>, io::Error> {
+    let mut events = Vec::new();
+    for path in [
+        directory.join("diagnostics.log.previous"),
+        directory.join("diagnostics.log"),
+    ] {
+        match fs::read_to_string(path) {
+            Ok(log) => events.extend(safe_events(&log).map(str::to_owned)),
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+            Err(error) => return Err(error),
+        }
+    }
+    Ok(events)
+}
+
+fn merge_event_sequences(mut disk: Vec<String>, database: Vec<String>) -> Vec<String> {
+    if database.ends_with(&disk) {
+        return database;
+    }
+    if disk.ends_with(&database) {
+        return disk;
+    }
+    let overlap = (1..=disk.len().min(database.len()))
+        .rev()
+        .find(|&count| disk[disk.len() - count..] == database[..count])
+        .unwrap_or_default();
+    disk.extend(database.into_iter().skip(overlap));
+    disk
+}
+
+fn append_stored_events(report: &mut String, events: Vec<String>) {
+    for event in events {
+        if is_safe_event(&event) {
+            report.push_str("- ");
+            report.push_str(&event);
+            report.push('\n');
+        }
+    }
+}
+
+#[cfg(test)]
 fn safe_report_lines(log: &str) -> String {
     let mut events = String::new();
-    for line in log.lines() {
-        let Some(event) = field_value(line, "event") else {
-            continue;
-        };
-        if is_safe_event(event) {
-            events.push_str("- ");
-            events.push_str(event);
-            events.push('\n');
-        }
+    for event in safe_events(log) {
+        events.push_str("- ");
+        events.push_str(event);
+        events.push('\n');
     }
     events
 }
 
-fn safe_log_lines(log: &str) -> String {
-    let mut events = String::new();
-    for line in log.lines() {
-        let Some(event) = field_value(line, "event") else {
-            continue;
-        };
-        if is_safe_event(event) {
-            events.push_str("event=");
-            events.push_str(event);
-            events.push('\n');
-        }
-    }
-    events
+fn safe_events(log: &str) -> impl Iterator<Item = &str> {
+    log.lines()
+        .filter_map(|line| field_value(line, "event"))
+        .filter(|event| is_safe_event(event))
 }
 
 fn field_value<'a>(line: &'a str, name: &str) -> Option<&'a str> {
     let marker = format!("{name}=");
-    let value = line
+    let raw = line
         .split_whitespace()
         .find_map(|part| part.strip_prefix(&marker))?;
+    let value = raw
+        .strip_prefix('"')
+        .and_then(|value| value.strip_suffix('"'))
+        .unwrap_or(raw);
     (!value.is_empty()).then_some(value)
 }
 
@@ -178,20 +225,25 @@ struct BoundedLogWriter {
 
 struct SanitizedLogWriter {
     inner: BoundedLogWriter,
+    store: Arc<dyn DiagnosticEventStore>,
 }
 
 impl SanitizedLogWriter {
-    fn new(inner: BoundedLogWriter) -> Self {
-        Self { inner }
+    fn new(inner: BoundedLogWriter, store: Arc<dyn DiagnosticEventStore>) -> Self {
+        Self { inner, store }
     }
 }
 
 impl Write for SanitizedLogWriter {
     fn write(&mut self, buffer: &[u8]) -> Result<usize, io::Error> {
         if let Ok(log) = std::str::from_utf8(buffer) {
-            let events = safe_log_lines(log);
-            if !events.is_empty() {
-                self.inner.write_all(events.as_bytes())?;
+            for line in log.lines() {
+                let Some(event) = field_value(line, "event").filter(|event| is_safe_event(event))
+                else {
+                    continue;
+                };
+                writeln!(self.inner, "event={event}")?;
+                let _ = self.store.record_diagnostic_event(event);
             }
         }
         Ok(buffer.len())
@@ -327,6 +379,36 @@ mod tests {
 
     static TEST_ID: AtomicUsize = AtomicUsize::new(0);
 
+    #[derive(Default)]
+    struct MemoryDiagnosticStore {
+        events: Mutex<Vec<String>>,
+        fail_reads: AtomicBool,
+    }
+
+    impl DiagnosticEventStore for MemoryDiagnosticStore {
+        fn record_diagnostic_event(&self, event: &str) -> Result<(), template_app::StorageError> {
+            self.events
+                .lock()
+                .map(|mut events| events.push(event.to_owned()))
+                .map_err(|_| template_app::StorageError::Unavailable("test lock poisoned".into()))
+        }
+
+        fn diagnostic_events(&self, limit: u32) -> Result<Vec<String>, template_app::StorageError> {
+            if self.fail_reads.load(Ordering::Relaxed) {
+                return Err(template_app::StorageError::Unavailable(
+                    "injected read failure".into(),
+                ));
+            }
+            self.events
+                .lock()
+                .map(|events| {
+                    let start = events.len().saturating_sub(limit as usize);
+                    events[start..].to_vec()
+                })
+                .map_err(|_| template_app::StorageError::Unavailable("test lock poisoned".into()))
+        }
+    }
+
     #[test]
     fn rotates_one_bounded_previous_log() {
         let id = TEST_ID.fetch_add(1, Ordering::Relaxed);
@@ -373,12 +455,23 @@ mod tests {
         let mut report = String::new();
         append_safe_events(
             &mut report,
-            "INFO event=recording.started api_key=secret transcript=private\nWARN event=asr.provider_rejected text=private\nINFO event=bad/value token=secret",
+            "INFO event=recording.started api_key=secret transcript=private\nWARN event=\"asr.provider_rejected\" text=private\nINFO event=bad/value token=secret",
         );
 
         assert_eq!("- recording.started\n- asr.provider_rejected\n", report);
         assert!(!report.contains("secret"));
         assert!(!report.contains("private"));
+    }
+
+    #[test]
+    fn report_merge_keeps_order_without_repeating_shared_events() {
+        assert_eq!(
+            vec!["old".to_owned(), "shared".to_owned(), "new".to_owned()],
+            merge_event_sequences(
+                vec!["old".to_owned(), "shared".to_owned()],
+                vec!["shared".to_owned(), "new".to_owned()]
+            )
+        );
     }
 
     #[test]
@@ -392,7 +485,8 @@ mod tests {
         let Ok(writer) = BoundedLogWriter::open(directory.clone()) else {
             panic!("test log should open");
         };
-        let mut writer = SanitizedLogWriter::new(writer);
+        let store = Arc::new(MemoryDiagnosticStore::default());
+        let mut writer = SanitizedLogWriter::new(writer, store.clone());
 
         assert!(
             writer
@@ -404,6 +498,86 @@ mod tests {
             panic!("test log should be readable");
         };
         assert_eq!("event=asr.failed\n", log);
+        assert_eq!(
+            vec!["asr.failed".to_owned()],
+            store.diagnostic_events(10).unwrap_or_default()
+        );
         assert!(fs::remove_dir_all(directory).is_ok());
+    }
+
+    #[test]
+    fn subscriber_captures_targetless_event_and_strips_other_fields() {
+        let id = TEST_ID.fetch_add(1, Ordering::Relaxed);
+        let directory = env::temp_dir().join(format!(
+            "saymore-diagnostics-subscriber-{}-{id}",
+            std::process::id()
+        ));
+        assert!(prepare_directory(&directory).is_ok());
+        let Ok(writer) = BoundedLogWriter::open(directory.clone()) else {
+            panic!("test log should open");
+        };
+        let store = Arc::new(MemoryDiagnosticStore::default());
+        let writer = SanitizedLogWriter::new(writer, store.clone());
+        let layer = fmt::layer()
+            .with_ansi(false)
+            .with_target(false)
+            .compact()
+            .with_writer(Mutex::new(writer))
+            .with_filter(filter_fn(|metadata| {
+                metadata.fields().field("event").is_some()
+            }));
+        let subscriber = tracing_subscriber::registry().with(layer);
+
+        tracing::subscriber::with_default(subscriber, || {
+            tracing::warn!(event = "settings.save_failed", reason = "private detail");
+            tracing::warn!(reason = "missing event");
+        });
+
+        let log = fs::read_to_string(directory.join("diagnostics.log")).unwrap_or_default();
+        assert_eq!("event=settings.save_failed\n", log);
+        assert_eq!(
+            vec!["settings.save_failed".to_owned()],
+            store.diagnostic_events(10).unwrap_or_default()
+        );
+        assert!(fs::remove_dir_all(directory).is_ok());
+    }
+
+    #[test]
+    fn report_uses_database_events_and_falls_back_to_disk() {
+        let id = TEST_ID.fetch_add(1, Ordering::Relaxed);
+        let directory = env::temp_dir().join(format!(
+            "saymore-diagnostics-report-{}-{id}",
+            std::process::id()
+        ));
+        assert!(prepare_directory(&directory).is_ok());
+        assert!(fs::write(directory.join("diagnostics.log"), "event=disk.fallback\n").is_ok());
+        let store = Arc::new(MemoryDiagnosticStore::default());
+        assert!(store.record_diagnostic_event("database.primary").is_ok());
+        let controller =
+            DiagnosticsController::without_logger(directory.clone(), true, store.clone());
+        let text = report_text();
+        let database_report = directory.join("database-report.txt");
+        assert!(controller.export_report(&database_report, &text).is_ok());
+        let database_contents = fs::read_to_string(database_report).unwrap_or_default();
+        assert!(database_contents.contains("- database.primary"));
+        assert!(database_contents.contains("- disk.fallback"));
+
+        store.fail_reads.store(true, Ordering::Relaxed);
+        let fallback_report = directory.join("fallback-report.txt");
+        assert!(controller.export_report(&fallback_report, &text).is_ok());
+        let fallback_contents = fs::read_to_string(fallback_report).unwrap_or_default();
+        assert!(fallback_contents.contains("- disk.fallback"));
+        assert!(fs::remove_dir_all(directory).is_ok());
+    }
+
+    fn report_text() -> DiagnosticsReportText {
+        DiagnosticsReportText {
+            title: "Report".into(),
+            version: "Version".into(),
+            generated: "Generated".into(),
+            privacy: "Privacy".into(),
+            events: "Events".into(),
+            no_events: "None".into(),
+        }
     }
 }
