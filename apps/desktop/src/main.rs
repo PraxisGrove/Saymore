@@ -12,8 +12,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use slint::ComponentHandle;
-use slint::{SharedString, Timer};
+use slint::{ComponentHandle, SharedString, Timer};
 use template_app::{AudioRecorder, LocalSettingsStore};
 use template_app::{
     CancelledRecordingStore, DictationSession, DictationSessionId, DictationToggleAction,
@@ -359,7 +358,6 @@ fn run_wired_desktop(
     let onboarding_active = Arc::new(move || permission_onboarding_shortcut.is_active());
     let accessibility_permission_prompt =
         accessibility_permission_prompt::wire(&windows.accessibility_permission_overlay);
-    let initial_prompt = accessibility_permission_prompt.clone();
     let _shortcut_monitor = recording_runtime::start_recording_shortcut(
         &windows.ui,
         overlays,
@@ -398,7 +396,7 @@ fn run_wired_desktop(
         windows.asr_configuration_overlay.window(),
         windows.accessibility_permission_overlay.window(),
     ]);
-    run_desktop_event_loop(&windows.ui, &tray, &core.onboarding, initial_prompt)?;
+    run_desktop_event_loop(&windows.ui, &tray, &core.onboarding)?;
     drop(core.authorization_poll);
     drop(core.feedback_sounds_enabled);
     drop(core.mute_system_audio_enabled);
@@ -458,7 +456,6 @@ fn run_desktop_event_loop(
     ui: &AppWindow,
     tray: &StatusTray,
     onboarding: &onboarding::OnboardingRuntime,
-    accessibility_prompt: accessibility_permission_prompt::AccessibilityPermissionPrompt,
 ) -> Result<(), slint::PlatformError> {
     slint::invoke_from_event_loop(|| {
         if let Err(error) = template_infra::install_macos_application_menu() {
@@ -468,21 +465,7 @@ fn run_desktop_event_loop(
     .map_err(|error| slint::PlatformError::Other(error.to_string()))?;
     tray.show()?;
     onboarding.present_initial(ui)?;
-    let reminder_ui = ui.as_weak();
-    let onboarding_shortcut = onboarding.shortcut_handler();
-    let reminder_timer = Timer::default();
-    reminder_timer.start(
-        slint::TimerMode::Repeated,
-        Duration::from_millis(250),
-        move || {
-            if let Some(ui) = reminder_ui.upgrade() {
-                accessibility_prompt
-                    .show_initial_if_required(onboarding_shortcut.is_active(), ui.get_authorized());
-            }
-        },
-    );
     slint::run_event_loop_until_quit()?;
-    drop(reminder_timer);
     tray.hide()?;
     onboarding.hide();
     ui.hide()?;

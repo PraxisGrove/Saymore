@@ -43,8 +43,11 @@ mode. Dependency policy runs separately on Ubuntu.
   accepted ticket, and requires Gatekeeper to accept it before upload. The
   workflow then mounts the generated image without accepting an EULA and
   verifies its background, Finder layout metadata, application bundle, and
-  Applications link. Regenerate the committed background after design changes
-  with `swift apps/desktop/packaging/macos/generate-dmg-background.swift`.
+  Applications link. Signed releases also require the mounted application to
+  pass strict code-signing validation for every architecture and Gatekeeper
+  execution assessment. Regenerate the committed background after design
+  changes with
+  `swift apps/desktop/packaging/macos/generate-dmg-background.swift`.
   Without complete Apple credentials, the DMG filename ends in `-unsigned.dmg`.
 - Windows builds an NSIS installer named `Saymore-Setup.exe` and publishes it,
   together with its SHA-256 checksum, to the same GitHub Release.
@@ -72,6 +75,38 @@ GitHub Actions secrets:
 
 All five secrets must be present to enable signing. A partial configuration
 falls back to the explicitly labelled unsigned DMG.
+
+## macOS User Permissions
+
+Saymore requires microphone permission to record speech. It also requires
+Accessibility permission to monitor the configured global dictation shortcut,
+identify the focused input control, deliver transcribed text to another
+application, and observe a bounded correction to that delivered text. macOS
+owns these privacy decisions; the application must not bypass or silently grant
+them.
+
+The initial onboarding explains and requests these permissions. After
+onboarding, application startup and login launch do not proactively present the
+Accessibility reminder. A missing permission is surfaced when the user opens
+the permission settings or attempts a shortcut that requires it.
+
+For a correctly signed release, a user grants each permission once for the
+installed application identity. Repeated password or Touch ID requests after an
+application restart indicate that macOS no longer recognizes the same valid
+code-signing identity. Treat that as an application-identity or system-trust
+defect rather than removing the permission UI. Check the release package, the
+installed copy, and the host macOS version. Verify the installed bundle with:
+
+```bash
+codesign --verify --all-architectures --deep --strict --verbose=4 \
+  /Applications/Saymore.app
+spctl --assess --type execute --verbose=4 /Applications/Saymore.app
+```
+
+Development builds must use the persistent `Saymore Preview.app` workflow
+documented in `development.md`. Launching `target/debug/saymore-desktop`
+directly gives rebuilt binaries changing ad-hoc identities, so macOS cannot
+reliably retain their Accessibility authorization.
 
 ## Recovery
 

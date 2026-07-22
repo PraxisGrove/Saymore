@@ -226,6 +226,12 @@ jobs:
           test -s "$mount_dir/.DS_Store"
           strings "$mount_dir/.DS_Store" | grep -Fq "dmg-background.png"
 
+          if [[ "${{ steps.apple-auth.outputs.signed }}" == true ]]; then
+            codesign --verify --all-architectures --deep --strict --verbose=4 \
+              "$mount_dir/Saymore.app"
+            spctl --assess --type execute --verbose=4 "$mount_dir/Saymore.app"
+          fi
+
       - name: Mark unsigned DMG
         if: steps.apple-auth.outputs.signed != 'true'
         shell: bash
