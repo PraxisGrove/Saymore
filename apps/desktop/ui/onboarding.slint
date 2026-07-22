@@ -238,7 +238,7 @@ export component OnboardingWindow inherits Window {
                 Text { x: 66px; y: 1px; width: 388px; text: @tr("onboarding.accessibility.card-title" => "Allow Saymore in System Settings"); color: AppColors.ink; font-size: 14px; font-weight: 650; }
                 PermissionStatus { x: 474px; y: 0; granted: root.accessibility-authorized; label: root.accessibility-status == "granted" ? @tr("onboarding.permission.granted-short" => "Enabled") : @tr("onboarding.permission.required-short" => "Required"); }
                 Text { x: 66px; y: 30px; width: 450px; height: 42px; text: @tr("onboarding.accessibility.card-detail" => "Saymore does not use this permission to read password fields."); color: AppColors.text-muted; font-size: 10px; wrap: word-wrap; }
-                OnboardingButton { x: 0; y: 104px; width: 182px; label: root.accessibility-authorized ? @tr("onboarding.permission.granted" => "Permission enabled") : @tr("onboarding.accessibility.open" => "Open System Settings"); primary: !root.accessibility-authorized; enabled: !root.accessibility-authorized; activated => { root.request-accessibility(); } }
+                OnboardingButton { x: 0; y: 104px; width: 182px; label: root.accessibility-authorized ? @tr("onboarding.permission.granted" => "Permission enabled") : @tr("onboarding.accessibility.request" => "Request access"); primary: !root.accessibility-authorized; enabled: !root.accessibility-authorized; activated => { root.request-accessibility(); } }
                 OnboardingButton { x: 198px; y: 104px; width: 130px; label: @tr("common.recheck" => "Recheck"); activated => { root.refresh-permissions(); } }
             }
         }

@@ -335,9 +335,9 @@ msgid "Permission enabled"
 msgstr "权限已开启"
 
 #: apps/desktop/ui/onboarding.slint:240
-msgctxt "onboarding.accessibility.open"
-msgid "Open System Settings"
-msgstr "打开系统设置"
+msgctxt "onboarding.accessibility.request"
+msgid "Request access"
+msgstr "请求授权"
 
 #: apps/desktop/ui/onboarding.slint:241
 msgctxt "common.recheck"

@@ -17,8 +17,8 @@ use template_infra::AppEnvironment;
 use template_infra::{WindowsLaunchAtLogin, open_windows_microphone_privacy_settings};
 #[cfg(target_os = "macos")]
 use template_infra::{
-    activate_application, launch_at_login_status, open_accessibility_privacy_settings,
-    open_microphone_privacy_settings, set_launch_at_login,
+    activate_application, launch_at_login_status, open_microphone_privacy_settings,
+    set_launch_at_login,
 };
 
 use crate::{
@@ -290,7 +290,12 @@ fn wire_permissions(
     let accessibility_microphone = Arc::clone(&microphone);
     let accessibility_deliverer = Arc::clone(&deliverer);
     window.on_request_accessibility(move || {
-        let _ = open_platform_accessibility_privacy_settings();
+        let authorization = accessibility_deliverer.request_authorization();
+        tracing::info!(
+            target: "saymore::diagnostics",
+            event = "accessibility.authorization_requested",
+            granted = authorization == AccessibilityAuthorization::Granted
+        );
         if let Some(window) = accessibility_window.upgrade() {
             update_permissions(
                 &window,
@@ -511,16 +516,6 @@ fn launch_at_login_enabled(environment: AppEnvironment) -> bool {
 #[cfg(target_os = "macos")]
 fn open_platform_microphone_privacy_settings() -> Result<(), String> {
     open_microphone_privacy_settings().map_err(|error| error.to_string())
-}
-
-#[cfg(target_os = "macos")]
-fn open_platform_accessibility_privacy_settings() -> Result<(), String> {
-    open_accessibility_privacy_settings().map_err(|error| error.to_string())
-}
-
-#[cfg(not(target_os = "macos"))]
-fn open_platform_accessibility_privacy_settings() -> Result<(), String> {
-    Err("accessibility settings integration is unavailable on this platform".to_owned())
 }
 
 #[cfg(target_os = "windows")]

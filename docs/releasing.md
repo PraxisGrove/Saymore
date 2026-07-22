@@ -44,11 +44,10 @@ mode. Dependency policy runs separately on Ubuntu.
   workflow then mounts the generated image without accepting an EULA and
   verifies its background, Finder layout metadata, application bundle, and
   Applications link. Signed releases also require the mounted application to
-  pass strict code-signing validation for every architecture, contain the
-  Audio Input entitlement required for microphone capture, and pass Gatekeeper
-  execution assessment. Regenerate the committed background after design
-  changes with
-  `swift apps/desktop/packaging/macos/generate-dmg-background.swift`.
+  pass strict code-signing validation for every architecture, contain the Audio
+  Input entitlement required for microphone capture, and pass Gatekeeper
+  execution assessment. Regenerate the committed background after design changes
+  with `swift apps/desktop/packaging/macos/generate-dmg-background.swift`.
   Without complete Apple credentials, the DMG filename ends in `-unsigned.dmg`.
 - Windows builds an NSIS installer named `Saymore-Setup.exe` and publishes it,
   together with its SHA-256 checksum, to the same GitHub Release.
@@ -82,19 +81,20 @@ falls back to the explicitly labelled unsigned DMG.
 Saymore requires microphone permission to record speech. It also requires
 Accessibility permission to monitor the configured global dictation shortcut,
 identify the focused input control, deliver transcribed text to another
-application, and observe a bounded correction to that delivered text. macOS
-owns these privacy decisions; the application must not bypass or silently grant
-them.
+application, and observe a bounded correction to that delivered text. macOS owns
+these privacy decisions; the application must not bypass or silently grant them.
 
 The macOS bundle declares `NSMicrophoneUsageDescription` and its code signature
 contains `com.apple.security.device.audio-input`. Both are required before
 AVFoundation can register Saymore with TCC and present the native microphone
 authorization prompt.
 
-The initial onboarding explains and requests these permissions. After
-onboarding, application startup and login launch do not proactively present the
-Accessibility reminder. A missing permission is surfaced when the user opens
-the permission settings or attempts a shortcut that requires it.
+The initial onboarding explains and requests these permissions. Its
+Accessibility action calls the native macOS trust request so a first-time user
+receives the system authorization prompt and can continue into System Settings.
+After onboarding, application startup and login launch do not proactively
+present the Accessibility reminder. A missing permission is surfaced when the
+user opens the permission settings or attempts a shortcut that requires it.
 
 For a correctly signed release, a user grants each permission once for the
 installed application identity. Repeated password or Touch ID requests after an

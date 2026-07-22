@@ -342,8 +342,8 @@ msgid "Permission enabled"
 msgstr ""
 
 #: apps/desktop/ui/onboarding.slint:240
-msgctxt "onboarding.accessibility.open"
-msgid "Open System Settings"
+msgctxt "onboarding.accessibility.request"
+msgid "Request access"
 msgstr ""
 
 #: apps/desktop/ui/onboarding.slint:241
