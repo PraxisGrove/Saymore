@@ -10,6 +10,7 @@ const DEVELOPMENT_MARKER: &str = "saymore-development-environment";
 const MICROPHONE_USAGE_DESCRIPTION_EN: &str =
     "Saymore uses the microphone to transcribe your speech.";
 const MICROPHONE_USAGE_DESCRIPTION_ZH_HANS: &str = "Saymore 使用麦克风将你的语音转写为文字。";
+const ENTITLEMENTS_PATH: &str = "apps/desktop/packaging/macos/entitlements.plist";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum BundleSigning {
@@ -73,7 +74,12 @@ pub(crate) fn create_bundle(
     }
     write_localized_info_plist_strings(&resources)?;
     fs::write(contents.join("Info.plist"), info_plist(&spec))?;
-    sign(app, spec.bundle_identifier, &spec.signing)?;
+    sign(
+        app,
+        spec.bundle_identifier,
+        &root.join(ENTITLEMENTS_PATH),
+        &spec.signing,
+    )?;
     Ok(())
 }
 
@@ -128,10 +134,14 @@ fn build(root: &Path, profile: BuildProfile) -> Result<(), Box<dyn Error>> {
 fn sign(
     app: &Path,
     bundle_identifier: &str,
+    entitlements: &Path,
     signing: &BundleSigning,
 ) -> Result<(), Box<dyn Error>> {
     let mut command = Command::new("codesign");
-    command.args(["--force", "--deep", "--identifier", bundle_identifier]);
+    command
+        .args(["--force", "--deep", "--identifier", bundle_identifier])
+        .arg("--entitlements")
+        .arg(entitlements);
     match signing {
         BundleSigning::AdHoc => {
             let requirement = format!("=designated => identifier \"{bundle_identifier}\"");

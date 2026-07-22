@@ -18,6 +18,7 @@ resources = [{ src = "packaging/resources", target = "" }]
 [package.metadata.packager.macos]
 minimum-system-version = "12.0"
 signing-identity = "Developer ID Application"
+entitlements = "packaging/macos/entitlements.plist"
 info-plist-path = "packaging/macos/Info.plist"
 
 [package.metadata.packager.dmg]

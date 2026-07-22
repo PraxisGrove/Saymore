@@ -44,7 +44,8 @@ mode. Dependency policy runs separately on Ubuntu.
   workflow then mounts the generated image without accepting an EULA and
   verifies its background, Finder layout metadata, application bundle, and
   Applications link. Signed releases also require the mounted application to
-  pass strict code-signing validation for every architecture and Gatekeeper
+  pass strict code-signing validation for every architecture, contain the
+  Audio Input entitlement required for microphone capture, and pass Gatekeeper
   execution assessment. Regenerate the committed background after design
   changes with
   `swift apps/desktop/packaging/macos/generate-dmg-background.swift`.
@@ -84,6 +85,11 @@ identify the focused input control, deliver transcribed text to another
 application, and observe a bounded correction to that delivered text. macOS
 owns these privacy decisions; the application must not bypass or silently grant
 them.
+
+The macOS bundle declares `NSMicrophoneUsageDescription` and its code signature
+contains `com.apple.security.device.audio-input`. Both are required before
+AVFoundation can register Saymore with TCC and present the native microphone
+authorization prompt.
 
 The initial onboarding explains and requests these permissions. After
 onboarding, application startup and login launch do not proactively present the

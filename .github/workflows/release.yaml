@@ -229,6 +229,11 @@ jobs:
           if [[ "${{ steps.apple-auth.outputs.signed }}" == true ]]; then
             codesign --verify --all-architectures --deep --strict --verbose=4 \
               "$mount_dir/Saymore.app"
+            codesign -d --entitlements - --xml "$mount_dir/Saymore.app" \
+              >entitlements.plist
+            plutil -lint entitlements.plist
+            test "$(/usr/libexec/PlistBuddy -c \
+              'Print :com.apple.security.device.audio-input' entitlements.plist)" = true
             spctl --assess --type execute --verbose=4 "$mount_dir/Saymore.app"
           fi
 
