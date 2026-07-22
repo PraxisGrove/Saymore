@@ -230,6 +230,7 @@ fn persist_shortcuts(
         return;
     }
     let Ok(previous) = controller.current() else {
+        tracing::warn!(event = "shortcut.current_read_failed");
         pending.store(false, Ordering::Release);
         window.set_shortcut_status(window.global::<Translations>().get_shortcut_save_failed());
         return;
@@ -237,6 +238,7 @@ fn persist_shortcuts(
     let update = match controller.stage_replace(shortcuts.clone()) {
         Ok(update) => update,
         Err(error) => {
+            tracing::warn!(event = "shortcut.registration_update_failed", reason = %error);
             pending.store(false, Ordering::Release);
             window.set_shortcut_status(shortcut_error_label(window, &error));
             return;

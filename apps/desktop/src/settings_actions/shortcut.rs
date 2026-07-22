@@ -223,11 +223,13 @@ fn persist_shortcuts(
     }
     let ui = window.as_weak();
     let Ok(previous) = controller.current() else {
+        tracing::warn!(event = "shortcut.current_read_failed");
         pending.store(false, Ordering::Release);
         window.set_shortcut_status(window.global::<Translations>().get_shortcut_save_failed());
         return;
     };
     if controller.replace(shortcuts.clone()).is_err() {
+        tracing::warn!(event = "shortcut.registration_update_failed");
         pending.store(false, Ordering::Release);
         window.set_shortcut_status(window.global::<Translations>().get_shortcut_save_failed());
         return;

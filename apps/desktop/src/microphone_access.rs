@@ -48,6 +48,10 @@ pub fn wire(
     intro.on_continue_requested(move || {
         hide(&continue_intro);
         if let Some(ui) = continue_ui.upgrade() {
+            tracing::info!(
+                target: "saymore::diagnostics",
+                event = "microphone.authorization_requested"
+            );
             update_microphone_authorization(&ui, continue_provider.request_authorization());
         }
     });
@@ -58,8 +62,14 @@ pub fn wire(
     let settings_permission = permission.as_weak();
     permission.on_open_settings(move || {
         hide(&settings_permission);
-        if let Err(error) = open_platform_microphone_privacy_settings() {
-            tracing::warn!(event = "microphone.settings_open_failed", reason = %error);
+        match open_platform_microphone_privacy_settings() {
+            Ok(()) => tracing::info!(
+                target: "saymore::diagnostics",
+                event = "microphone.settings_opened"
+            ),
+            Err(error) => {
+                tracing::warn!(event = "microphone.settings_open_failed", reason = %error)
+            }
         }
     });
 
@@ -67,6 +77,10 @@ pub fn wire(
     let settings_provider = provider;
     ui.on_request_microphone_authorization(move || {
         if let Some(ui) = settings_ui.upgrade() {
+            tracing::info!(
+                target: "saymore::diagnostics",
+                event = "microphone.authorization_requested"
+            );
             update_microphone_authorization(&ui, settings_provider.request_authorization());
         }
     });
@@ -87,12 +101,26 @@ fn open_platform_microphone_privacy_settings() -> Result<(), String> {
 impl MicrophoneAccess {
     pub fn allows_recording(&self) -> bool {
         match shortcut_permission_action(self.provider.authorization()) {
-            ShortcutPermissionAction::Record => true,
+            ShortcutPermissionAction::Record => {
+                tracing::info!(
+                    target: "saymore::diagnostics",
+                    event = "microphone.authorization_granted"
+                );
+                true
+            }
             ShortcutPermissionAction::ExplainFirstUse => {
+                tracing::info!(
+                    target: "saymore::diagnostics",
+                    event = "microphone.first_use_explained"
+                );
                 show_intro(self.intro.clone());
                 false
             }
             ShortcutPermissionAction::OpenSettings => {
+                tracing::warn!(
+                    target: "saymore::diagnostics",
+                    event = "microphone.authorization_blocked"
+                );
                 show_permission(self.permission.clone());
                 false
             }

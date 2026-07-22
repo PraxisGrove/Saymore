@@ -188,9 +188,21 @@ fn run() -> Result<(), Box<dyn Error>> {
         return Ok(());
     };
     #[cfg(target_os = "macos")]
-    return run_macos(bootstrap);
+    return run_macos(bootstrap).inspect_err(|error| {
+        tracing::error!(
+            target: "saymore::diagnostics",
+            event = "application.runtime_failed",
+            reason = %error
+        );
+    });
     #[cfg(target_os = "windows")]
-    return windows_runtime::run(bootstrap);
+    return windows_runtime::run(bootstrap).inspect_err(|error| {
+        tracing::error!(
+            target: "saymore::diagnostics",
+            event = "application.runtime_failed",
+            reason = %error
+        );
+    });
     #[cfg(not(any(target_os = "macos", target_os = "windows")))]
     Err("Saymore desktop supports macOS and Windows".into())
 }
@@ -259,8 +271,15 @@ impl DesktopBootstrap {
         settings_store.ensure_exists()?;
         let local_storage = open_local_storage(&paths, environment)?;
         let local_settings = load_local_settings(&local_storage);
-        let diagnostics =
-            initialize_diagnostics(&paths, local_settings.diagnostics_logging_enabled);
+        let diagnostics = initialize_diagnostics(
+            &paths,
+            local_settings.diagnostics_logging_enabled,
+            local_storage.clone(),
+        );
+        tracing::info!(
+            target: "saymore::diagnostics",
+            event = "application.bootstrap_completed"
+        );
         Ok(Some(Self {
             environment,
             paths,
@@ -397,6 +416,10 @@ fn run_wired_desktop(
         windows.accessibility_permission_overlay.window(),
     ]);
     run_desktop_event_loop(&windows.ui, &tray, &core.onboarding)?;
+    tracing::info!(
+        target: "saymore::diagnostics",
+        event = "application.event_loop_stopped"
+    );
     drop(core.authorization_poll);
     drop(core.feedback_sounds_enabled);
     drop(core.mute_system_audio_enabled);
@@ -436,11 +459,15 @@ fn install_application_reopen_handler(
     }
 }
 
-fn initialize_diagnostics(paths: &AppPaths, enabled: bool) -> diagnostics::DiagnosticsController {
+fn initialize_diagnostics(
+    paths: &AppPaths,
+    enabled: bool,
+    store: Arc<dyn template_app::DiagnosticEventStore>,
+) -> diagnostics::DiagnosticsController {
     let directory = paths.data_directory().join("logs");
-    diagnostics::init(directory.clone(), enabled).unwrap_or_else(|error| {
+    diagnostics::init(directory.clone(), enabled, Arc::clone(&store)).unwrap_or_else(|error| {
         eprintln!("failed to initialize local diagnostics: {error}");
-        diagnostics::DiagnosticsController::without_logger(directory, enabled)
+        diagnostics::DiagnosticsController::without_logger(directory, enabled, store)
     })
 }
 

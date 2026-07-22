@@ -6,10 +6,11 @@ use std::sync::{
 };
 
 use template_app::{
-    ColorSchemePreference, DictionaryOrigin, DictionaryStore, HistoryDelivery, HistoryRecord,
-    HistoryRefinement, HistoryRetention, HistoryStore, InstalledModel, InstalledModelStore,
-    LocalSettings, LocalSettingsStore, NewDictionaryEntry, NewHistoryRecord, OnboardingStatus,
-    OnboardingStep, SecretStore, SecretStoreError, StorageError, ThemeId, UiLanguagePreference,
+    ColorSchemePreference, DiagnosticEventStore, DictionaryOrigin, DictionaryStore,
+    HistoryDelivery, HistoryRecord, HistoryRefinement, HistoryRetention, HistoryStore,
+    InstalledModel, InstalledModelStore, LocalSettings, LocalSettingsStore, NewDictionaryEntry,
+    NewHistoryRecord, OnboardingStatus, OnboardingStep, SecretStore, SecretStoreError,
+    StorageError, ThemeId, UiLanguagePreference,
 };
 use template_infra::SqliteStorage;
 #[cfg(target_os = "windows")]
@@ -67,6 +68,36 @@ fn secret_store_is_not_accessed_until_history_needs_encryption()
 
     store.insert_history(history_record("first", 1_000, "首次历史"))?;
     assert!(secrets.access_count.load(Ordering::Relaxed) > 0);
+    Ok(())
+}
+
+#[test]
+fn diagnostic_events_round_trip_in_chronological_order() -> Result<(), Box<dyn std::error::Error>> {
+    let directory = tempfile::tempdir()?;
+    let store = SqliteStorage::start(
+        directory.path().join("saymore.sqlite3"),
+        Arc::new(MemorySecretStore::default()),
+    )?;
+
+    store.record_diagnostic_event("application.started")?;
+    store.record_diagnostic_event("microphone.devices_listed")?;
+    assert!(
+        store
+            .record_diagnostic_event("transcript=private value")
+            .is_err()
+    );
+
+    assert_eq!(
+        vec![
+            "application.started".to_owned(),
+            "microphone.devices_listed".to_owned()
+        ],
+        store.diagnostic_events(10)?
+    );
+    assert_eq!(
+        vec!["microphone.devices_listed".to_owned()],
+        store.diagnostic_events(1)?
+    );
     Ok(())
 }
 
@@ -625,7 +656,7 @@ fn dictionary_identity_preserves_token_boundaries_across_v3_migration()
 
     let connection = rusqlite::Connection::open(path)?;
     let version: u32 = connection.query_row("PRAGMA user_version", [], |row| row.get(0))?;
-    assert_eq!(16, version);
+    assert_eq!(17, version);
     let spaced_key: String = connection.query_row(
         "SELECT canonical_key FROM dictionary_entries WHERE canonical = 'Open AI'",
         [],

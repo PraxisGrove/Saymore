@@ -127,6 +127,17 @@ fn start_llm_test(ui: &AppWindow, store: Arc<JsonSettingsStore>, provider: LlmPr
         .name("saymore-test-llm".to_owned())
         .spawn(move || {
             let result = test_and_enable_llm(&store, provider);
+            match &result {
+                Ok(()) => tracing::info!(
+                    target: "saymore::diagnostics",
+                    event = "llm.enabled"
+                ),
+                Err(error) => tracing::warn!(
+                    target: "saymore::diagnostics",
+                    event = "llm.enable_failed",
+                    reason = %error
+                ),
+            }
             let event_store = Arc::clone(&store);
             let _ = test_ui.upgrade_in_event_loop(move |ui| {
                 apply_loaded_settings(&ui, &event_store);
@@ -136,6 +147,10 @@ fn start_llm_test(ui: &AppWindow, store: Arc<JsonSettingsStore>, provider: LlmPr
             });
         });
     if spawn_result.is_err() {
+        tracing::warn!(
+            target: "saymore::diagnostics",
+            event = "llm.enable_worker_start_failed"
+        );
         ui.set_llm_config_status(ui.global::<Translations>().get_models_test_failed());
     }
 }

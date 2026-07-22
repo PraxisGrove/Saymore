@@ -66,6 +66,11 @@ impl AsrSessionController {
             VolcengineSpeechRecognizer::new(settings.asr.volcengine)?.start(hints, on_partial)?
         };
         *active = Some(OwnedRecognition::new(session));
+        tracing::info!(
+            target: "saymore::diagnostics",
+            event = "asr.session_started",
+            dictation_id = %id
+        );
         Ok(())
     }
 
@@ -81,11 +86,19 @@ impl AsrSessionController {
     }
 
     pub fn take(&self) -> Result<OwnedRecognition, SpeechRecognitionError> {
-        self.active
+        let result = self
+            .active
             .lock()
             .map_err(|_| SpeechRecognitionError::Transport("ASR lock was poisoned".to_owned()))?
             .take()
-            .ok_or_else(|| SpeechRecognitionError::Transport("ASR session is inactive".to_owned()))
+            .ok_or_else(|| SpeechRecognitionError::Transport("ASR session is inactive".to_owned()));
+        if result.is_ok() {
+            tracing::info!(
+                target: "saymore::diagnostics",
+                event = "asr.session_finishing"
+            );
+        }
+        result
     }
 
     pub fn cancel(&self) {
@@ -93,6 +106,10 @@ impl AsrSessionController {
             && let Some(recognition) = active.take()
         {
             recognition.cancel();
+            tracing::info!(
+                target: "saymore::diagnostics",
+                event = "asr.session_cancelled"
+            );
         }
     }
 }

@@ -28,33 +28,76 @@ impl RecordingAudio {
             return;
         }
         match self.output_audio_muter.begin_mute() {
-            Ok(session) => self.mute_session = Some(session),
+            Ok(session) => {
+                self.mute_session = Some(session);
+                tracing::info!(
+                    target: "saymore::diagnostics",
+                    event = "recording.system_audio_muted"
+                );
+            }
             Err(error) => {
-                tracing::warn!(event = "recording.system_audio_mute_failed", reason = %error);
+                tracing::warn!(
+                    target: "saymore::diagnostics",
+                    event = "recording.system_audio_mute_failed",
+                    reason = %error
+                );
             }
         }
     }
 
     fn restore_output_audio(&mut self) {
-        if let Some(mut session) = self.mute_session.take()
-            && let Err(error) = session.restore()
-        {
-            tracing::warn!(event = "recording.system_audio_restore_failed", reason = %error);
+        if let Some(mut session) = self.mute_session.take() {
+            match session.restore() {
+                Ok(()) => tracing::info!(
+                    target: "saymore::diagnostics",
+                    event = "recording.system_audio_restored"
+                ),
+                Err(error) => tracing::warn!(
+                    target: "saymore::diagnostics",
+                    event = "recording.system_audio_restore_failed",
+                    reason = %error
+                ),
+            }
         }
     }
 }
 
 impl AudioRecorder for RecordingAudio {
     fn input_devices(&self) -> Result<Vec<AudioInputDevice>, RecordingError> {
-        self.recorder.input_devices()
+        let result = self.recorder.input_devices();
+        match &result {
+            Ok(devices) => tracing::info!(
+                target: "saymore::diagnostics",
+                event = "microphone.devices_listed",
+                device_count = devices.len()
+            ),
+            Err(error) => tracing::warn!(
+                target: "saymore::diagnostics",
+                event = "microphone.device_list_failed",
+                reason = %error
+            ),
+        }
+        result
     }
 
     fn set_preferred_input_device_id(&mut self, id: Option<String>) {
         self.recorder.set_preferred_input_device_id(id);
+        tracing::info!(
+            target: "saymore::diagnostics",
+            event = "microphone.preferred_device_applied"
+        );
     }
 
     fn prepare(&mut self) -> Result<(), RecordingError> {
-        self.recorder.prepare()
+        let result = self.recorder.prepare();
+        if let Err(error) = &result {
+            tracing::warn!(
+                target: "saymore::diagnostics",
+                event = "recording.audio_prepare_failed",
+                reason = %error
+            );
+        }
+        result
     }
 
     fn is_recording(&self) -> bool {
@@ -67,18 +110,48 @@ impl AudioRecorder for RecordingAudio {
         on_audio_chunk: Arc<dyn Fn(PcmChunk) + Send + Sync>,
     ) -> Result<RecordingStarted, RecordingError> {
         self.restore_output_audio();
-        self.recorder.start(on_metrics, on_audio_chunk)
+        let result = self.recorder.start(on_metrics, on_audio_chunk);
+        if let Err(error) = &result {
+            tracing::warn!(
+                target: "saymore::diagnostics",
+                event = "recording.audio_start_failed",
+                reason = %error
+            );
+        }
+        result
     }
 
     fn stop(&mut self) -> Result<PcmRecording, RecordingError> {
         let result = self.recorder.stop();
         self.restore_output_audio();
+        match &result {
+            Ok(_) => tracing::info!(
+                target: "saymore::diagnostics",
+                event = "recording.audio_stopped"
+            ),
+            Err(error) => tracing::warn!(
+                target: "saymore::diagnostics",
+                event = "recording.audio_stop_failed",
+                reason = %error
+            ),
+        }
         result
     }
 
     fn cancel(&mut self) -> Result<(), RecordingError> {
         let result = self.recorder.cancel();
         self.restore_output_audio();
+        match &result {
+            Ok(()) => tracing::info!(
+                target: "saymore::diagnostics",
+                event = "recording.audio_cancelled"
+            ),
+            Err(error) => tracing::warn!(
+                target: "saymore::diagnostics",
+                event = "recording.audio_cancel_failed",
+                reason = %error
+            ),
+        }
         result
     }
 }
