@@ -4,8 +4,10 @@ use std::{
         Arc,
         atomic::{AtomicBool, Ordering},
     },
-    thread,
 };
+
+#[cfg(target_os = "macos")]
+use std::thread;
 
 use slint::{ComponentHandle, SharedString};
 use template_app::{LocalSettingsChange, LocalSettingsStore};
