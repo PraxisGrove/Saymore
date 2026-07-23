@@ -137,13 +137,16 @@ combination instead.
 The Windows monitor owns `RegisterHotKey` registrations and a message loop on a
 dedicated thread. Standard combinations use `RegisterHotKey`; the Right Alt-only
 binding uses a narrowly scoped `WH_KEYBOARD_LL` hook because `RegisterHotKey`
-cannot represent a single modifier key. A settings change first registers
-additions while retaining the old OS registrations. The new set becomes active
-immediately, but removed bindings stay reserved until SQLite confirms the FIFO
-settings mutation. Success releases the old bindings; failure releases additions
-and reactivates the old set. Capture is limited to a short-lived key-state
-sampler, suppresses shortcut actions while active, and ends after completion,
-Escape, or runtime shutdown.
+cannot represent a single modifier key. While that binding is active and Saymore
+is enabled, the hook consumes both halves of each Right Alt press so foreground
+applications do not also act on the dictation gesture. It restores pass-through
+while Saymore is paused or shortcut capture is active. A settings change first
+registers additions while retaining the old OS registrations. The new set
+becomes active immediately, but removed bindings stay reserved until SQLite
+confirms the FIFO settings mutation. Success releases the old bindings; failure
+releases additions and reactivates the old set. Capture is limited to a
+short-lived key-state sampler, suppresses shortcut actions while active, and
+ends after completion, Escape, or runtime shutdown.
 
 Shortcut storage values are stable platform identifiers, not display text. The
 current UI uses the platform adapters' English labels consistently. A future

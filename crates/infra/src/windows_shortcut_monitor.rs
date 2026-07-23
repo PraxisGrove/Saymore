@@ -461,14 +461,16 @@ struct Win32HotKeyRegistry {
     right_alt_ids: HashSet<i32>,
     right_alt_hook: Option<WindowsRightAltHook>,
     right_alt_events: mpsc::SyncSender<()>,
+    right_alt_enabled: Arc<AtomicBool>,
 }
 
 impl Win32HotKeyRegistry {
-    fn new(right_alt_events: mpsc::SyncSender<()>) -> Self {
+    fn new(right_alt_events: mpsc::SyncSender<()>, right_alt_enabled: Arc<AtomicBool>) -> Self {
         Self {
             right_alt_ids: HashSet::new(),
             right_alt_hook: None,
             right_alt_events,
+            right_alt_enabled,
         }
     }
 }
@@ -477,8 +479,10 @@ impl HotKeyRegistry for Win32HotKeyRegistry {
     fn register(&mut self, id: i32, shortcut: WindowsShortcut) -> Result<(), WindowsShortcutError> {
         if shortcut.is_right_alt() {
             if self.right_alt_hook.is_none() {
-                self.right_alt_hook =
-                    Some(WindowsRightAltHook::install(self.right_alt_events.clone())?);
+                self.right_alt_hook = Some(WindowsRightAltHook::install(
+                    self.right_alt_events.clone(),
+                    Arc::clone(&self.right_alt_enabled),
+                )?);
             }
             self.right_alt_ids.insert(id);
             return Ok(());
@@ -517,6 +521,7 @@ pub struct WindowsShortcutMonitor {
 impl WindowsShortcutMonitor {
     pub fn start(
         is_recording: Arc<dyn Fn() -> bool + Send + Sync>,
+        shortcuts_enabled: Arc<dyn Fn() -> bool + Send + Sync>,
         controller: WindowsShortcutController,
         on_action: impl Fn(DictationShortcutAction) + Send + 'static,
     ) -> Result<Self, WindowsShortcutError> {
@@ -533,6 +538,7 @@ impl WindowsShortcutMonitor {
                     shortcuts,
                     receiver,
                     is_recording,
+                    shortcuts_enabled,
                     on_action,
                     ready,
                 )
@@ -576,13 +582,15 @@ fn monitor_loop(
     shortcuts: Vec<WindowsShortcut>,
     receiver: mpsc::Receiver<MonitorCommand>,
     is_recording: Arc<dyn Fn() -> bool + Send + Sync>,
+    shortcuts_enabled: Arc<dyn Fn() -> bool + Send + Sync>,
     on_action: impl Fn(DictationShortcutAction),
     ready: mpsc::SyncSender<Result<(), WindowsShortcutError>>,
 ) {
     let mut queue_message = MSG::default();
     let _ = unsafe { PeekMessageW(&mut queue_message, None, 0, 0, PM_NOREMOVE) };
     let (right_alt_events, received_right_alt_events) = mpsc::sync_channel(8);
-    let registry = Win32HotKeyRegistry::new(right_alt_events);
+    let right_alt_enabled = Arc::new(AtomicBool::new(false));
+    let registry = Win32HotKeyRegistry::new(right_alt_events, Arc::clone(&right_alt_enabled));
     let mut registrations = match RegisteredShortcuts::new(registry, &shortcuts) {
         Ok(registrations) => registrations,
         Err(error) => {
@@ -590,6 +598,12 @@ fn monitor_loop(
             return;
         }
     };
+    update_right_alt_enabled(
+        &right_alt_enabled,
+        &registrations,
+        state.capture_active.load(Ordering::Acquire),
+        shortcuts_enabled.as_ref(),
+    );
     let _ = ready.send(Ok(()));
     let mut cancel_registered = false;
     loop {
@@ -599,6 +613,12 @@ fn monitor_loop(
             Err(mpsc::RecvTimeoutError::Timeout) => {}
         }
         let capture_active = state.capture_active.load(Ordering::Acquire);
+        update_right_alt_enabled(
+            &right_alt_enabled,
+            &registrations,
+            capture_active,
+            shortcuts_enabled.as_ref(),
+        );
         let should_register_cancel = is_recording() && !capture_active;
         if should_register_cancel != cancel_registered {
             cancel_registered = update_cancel_registration(should_register_cancel);
@@ -615,10 +635,25 @@ fn monitor_loop(
             }
         }
     }
+    right_alt_enabled.store(false, Ordering::Release);
     registrations.shutdown();
     if cancel_registered {
         let _ = unsafe { UnregisterHotKey(None, CANCEL_ID) };
     }
+}
+
+fn update_right_alt_enabled(
+    enabled: &AtomicBool,
+    registrations: &RegisteredShortcuts<Win32HotKeyRegistry>,
+    capture_active: bool,
+    shortcuts_enabled: &(dyn Fn() -> bool + Send + Sync),
+) {
+    enabled.store(
+        !capture_active
+            && shortcuts_enabled()
+            && registrations.active_contains(WindowsShortcut::default()),
+        Ordering::Release,
+    );
 }
 
 fn handle_monitor_command(

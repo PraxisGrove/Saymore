@@ -531,14 +531,19 @@ fn start_platform_shortcut_monitor(
 #[cfg(target_os = "windows")]
 fn start_platform_shortcut_monitor(
     is_recording: Arc<dyn Fn() -> bool + Send + Sync>,
-    _shortcuts_enabled: Arc<dyn Fn() -> bool + Send + Sync>,
+    shortcuts_enabled: Arc<dyn Fn() -> bool + Send + Sync>,
     controller: settings_actions::PlatformShortcutController,
     on_action: impl Fn(DictationShortcutAction) + Send + 'static,
     _on_permission_required: impl Fn() + Send + 'static,
 ) -> Result<PlatformShortcutMonitor, String> {
-    template_infra::WindowsShortcutMonitor::start(is_recording, controller, on_action)
-        .map(|monitor| PlatformShortcutMonitor { _monitor: monitor })
-        .map_err(|error| error.to_string())
+    template_infra::WindowsShortcutMonitor::start(
+        is_recording,
+        shortcuts_enabled,
+        controller,
+        on_action,
+    )
+    .map(|monitor| PlatformShortcutMonitor { _monitor: monitor })
+    .map_err(|error| error.to_string())
 }
 
 #[cfg(test)]
