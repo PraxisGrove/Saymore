@@ -65,8 +65,8 @@ component StatusNode inherits Rectangle {
         width: 30px;
         height: 30px;
         border-radius: 15px;
-        background: AppColors.surface-subtle;
-        Image { x: 8px; y: 8px; width: 14px; height: 14px; source: root.icon; colorize: root.ready ? AppColors.brand : AppColors.text-muted; }
+        background: root.ready ? AppColors.success-soft : AppColors.surface-subtle;
+        Image { x: 8px; y: 8px; width: 14px; height: 14px; source: root.icon; colorize: root.ready ? AppColors.success : AppColors.text-muted; }
     }
     Text { y: 52px; width: parent.width; text: root.label; color: AppColors.text; font-size: 10px; font-weight: 650; horizontal-alignment: center; overflow: elide; }
     TouchArea { mouse-cursor: pointer; clicked => { root.activated(); } }
@@ -136,9 +136,9 @@ export component HomePage inherits Rectangle {
         Text { x: 20px; y: 16px; text: @tr("home.configuration-status.title" => "Configuration status"); color: AppColors.ink; font-size: 14px; font-weight: 700; }
         Text { x: 20px; y: 44px; text: root.healthy ? @tr("home.health.summary-ready" => "Voice pipeline is ready") : @tr("home.health.summary-incomplete" => "Finish the remaining setup"); color: AppColors.text-muted; font-size: 10px; }
         Rectangle {
-            x: parent.width - 94px; y: 18px; width: 74px; height: 26px; border-radius: 7px; background: root.healthy ? AppColors.brand-soft : AppColors.surface-subtle;
-            Rectangle { x: 11px; y: 9px; width: 8px; height: 8px; border-radius: 4px; background: root.healthy ? AppColors.brand : AppColors.text-muted; }
-            Text { x: 25px; y: 5px; text: root.healthy ? @tr("home.health.all-good" => "All good") : @tr("home.health.pending" => "Pending"); color: root.healthy ? AppColors.brand-strong : AppColors.text-muted; font-size: 9px; font-weight: 650; }
+            x: parent.width - 94px; y: 18px; width: 74px; height: 26px; border-radius: 7px; background: root.healthy ? AppColors.success-soft : AppColors.surface-subtle;
+            Rectangle { x: 11px; y: 9px; width: 8px; height: 8px; border-radius: 4px; background: root.healthy ? AppColors.success : AppColors.text-muted; }
+            Text { x: 25px; y: 5px; text: root.healthy ? @tr("home.health.all-good" => "All good") : @tr("home.health.pending" => "Pending"); color: root.healthy ? AppColors.success : AppColors.text-muted; font-size: 9px; font-weight: 650; }
         }
         private property <length> node-width: 80px;
         private property <length> node-gap: (configuration-card.width - 3 * node-width - 20px) / 2;

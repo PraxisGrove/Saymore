@@ -1,6 +1,7 @@
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum ThemeId {
     #[default]
+    Saymore,
     LimePulse,
     WarmClay,
     BerryGraphite,
@@ -11,6 +12,7 @@ pub enum ThemeId {
 impl ThemeId {
     pub const fn storage_value(self) -> &'static str {
         match self {
+            Self::Saymore => "saymore",
             Self::WarmClay => "warm-clay",
             Self::LimePulse => "lime-pulse",
             Self::BerryGraphite => "berry-graphite",
@@ -21,6 +23,7 @@ impl ThemeId {
 
     pub fn from_storage_value(value: &str) -> Option<Self> {
         match value {
+            "saymore" => Some(Self::Saymore),
             "warm-clay" => Some(Self::WarmClay),
             "lime-pulse" => Some(Self::LimePulse),
             "berry-graphite" => Some(Self::BerryGraphite),
@@ -65,6 +68,7 @@ mod tests {
     #[test]
     fn theme_storage_values_round_trip() {
         for theme in [
+            ThemeId::Saymore,
             ThemeId::LimePulse,
             ThemeId::WarmClay,
             ThemeId::BerryGraphite,

@@ -5,7 +5,7 @@ use super::unavailable;
 
 mod recent;
 
-const CURRENT_SCHEMA_VERSION: u32 = 17;
+const CURRENT_SCHEMA_VERSION: u32 = 18;
 
 pub(super) fn apply(connection: &mut Connection) -> Result<(), StorageError> {
     let version: u32 = connection
@@ -65,6 +65,9 @@ pub(super) fn apply(connection: &mut Connection) -> Result<(), StorageError> {
     }
     if version < 17 {
         recent::add_diagnostic_events(connection)?;
+    }
+    if version < 18 {
+        recent::add_saymore_theme(connection, fresh_install)?;
     }
     Ok(())
 }

@@ -14,8 +14,9 @@ All main-window Slint components must consume semantic roles from
 `apps/desktop/ui/color-system.slint`. Independent overlays consume the fixed
 roles in `apps/desktop/ui/overlay-color-system.slint`, so changing the app theme
 does not recolor permission prompts, recording controls, or result
-notifications. The theme picker may declare its five swatch samples directly; no
-other Slint component may contain a color literal.
+notifications. The theme picker may declare its five color swatches and the
+Saymore default-theme mark directly; no other Slint component may contain a
+color literal.
 
 Run the color boundary check with:
 
@@ -80,11 +81,10 @@ Grant the Preview app microphone and Accessibility permission once. Saving a
 Rust, Slint, Cargo, font, icon, or audio change performs an incremental debug
 build and restarts the preview app without changing that authorization identity.
 A shared macOS entitlements file grants Audio Input to both Preview and release
-bundles; do not sign either bundle without it.
-A failed build leaves the current preview open. `target/debug/saymore-desktop`
-is only an intermediate Cargo artifact; do not launch it as a separate preview
-app because it does not have the Preview bundle's stable macOS permission
-identity.
+bundles; do not sign either bundle without it. A failed build leaves the current
+preview open. `target/debug/saymore-desktop` is only an intermediate Cargo
+artifact; do not launch it as a separate preview app because it does not have
+the Preview bundle's stable macOS permission identity.
 
 The signing identity is self-signed, local to the development machine, and used
 only for `Saymore Preview.app`; it does not replace release signing. On its

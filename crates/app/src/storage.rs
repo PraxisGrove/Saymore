@@ -145,7 +145,7 @@ impl Default for LocalSettings {
             preferred_microphone_name: None,
             diagnostics_logging_enabled: true,
             ui_language: UiLanguagePreference::System,
-            theme: ThemeId::LimePulse,
+            theme: ThemeId::Saymore,
             color_scheme: ColorSchemePreference::System,
             automatic_update_checks: false,
             feedback_sounds_enabled: true,

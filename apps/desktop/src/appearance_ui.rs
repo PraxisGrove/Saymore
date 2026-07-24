@@ -81,6 +81,7 @@ fn apply_error(
 
 fn theme_to_ui(theme: ThemeId) -> UiThemeId {
     match theme {
+        ThemeId::Saymore => UiThemeId::Saymore,
         ThemeId::WarmClay => UiThemeId::WarmClay,
         ThemeId::LimePulse => UiThemeId::LimePulse,
         ThemeId::BerryGraphite => UiThemeId::BerryGraphite,
@@ -91,6 +92,7 @@ fn theme_to_ui(theme: ThemeId) -> UiThemeId {
 
 fn theme_from_ui(theme: UiThemeId) -> ThemeId {
     match theme {
+        UiThemeId::Saymore => ThemeId::Saymore,
         UiThemeId::WarmClay => ThemeId::WarmClay,
         UiThemeId::LimePulse => ThemeId::LimePulse,
         UiThemeId::BerryGraphite => ThemeId::BerryGraphite,

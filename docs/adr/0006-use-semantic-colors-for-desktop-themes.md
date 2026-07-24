@@ -5,10 +5,11 @@
 
 ## Context
 
-Saymore needs five user-selectable color themes and both light and dark
-interfaces. Direct color values in individual Slint components made it unclear
-which surfaces should change together, produced inconsistent dark-mode results,
-and made future theme previews expensive to implement safely.
+Saymore needs a neutral default theme, five user-selectable color themes, and
+both light and dark interfaces. Direct color values in individual Slint
+components made it unclear which surfaces should change together, produced
+inconsistent dark-mode results, and made future theme previews expensive to
+implement safely.
 
 The main application window should react to theme choices. Recording controls,
 permission prompts, and compact result notifications are independent overlays
@@ -19,8 +20,10 @@ theme changes.
 
 Represent appearance as two independent persisted settings:
 
-- `ThemeId`: Lime Pulse (`lime-pulse`), Warm Clay, Berry Graphite, Iris Mist, or
-  Clear Sky. Lime Pulse is the default for new installations.
+- `ThemeId`: Saymore (`saymore`), Lime Pulse (`lime-pulse`), Warm Clay, Berry
+  Graphite, Iris Mist, or Clear Sky. Saymore is the default for new
+  installations and uses neutral surfaces with blue interaction accents and
+  green success states.
 - `ColorSchemePreference`: follow the operating system, light, or dark.
 
 `crates/app` owns these closed types and storage identifiers. SQLite stores both
@@ -31,15 +34,21 @@ The main window consumes semantic roles from
 `apps/desktop/ui/color-system.slint`. A theme changes accent roles and the
 coordinated dark palette, while layout and component behavior remain unchanged.
 Accent fills use `brand` and `brand-hover`; `brand-strong` is reserved for
-foreground emphasis on light accent surfaces. Light themes keep the sidebar and
-primary cards white. Windows title-bar colors use the resolved canvas and ink
-roles.
+foreground emphasis on light accent surfaces. The Saymore theme keeps large
+areas neutral, uses blue for primary actions, enabled controls, links, focus,
+and active data, and reserves green for ready, healthy, and successful states,
+including automatically learned dictionary entries. Its text hierarchy reserves
+`ink` for selected content, page and dialog titles, key values, and other
+high-priority information; ordinary content uses `text`, while subtitles,
+descriptions, and helper information use `text-muted`. Windows title-bar colors
+use the resolved canvas and ink roles.
 
 Independent overlays consume the fixed roles in
 `apps/desktop/ui/overlay-color-system.slint`. They do not read the selected
-theme or color scheme. The theme picker may declare five literal swatch samples;
-all other Slint components must use one of the two color systems. The
-`xtask ui-colors` gate enforces that boundary.
+theme or color scheme. The theme picker may declare five literal swatch samples
+and use the monochrome Saymore mark for the default theme; all other Slint
+components must use one of the two color systems. The `xtask ui-colors` gate
+enforces that boundary.
 
 ## Consequences
 
@@ -50,7 +59,7 @@ all other Slint components must use one of the two color systems. The
 - Overlay appearance remains stable across theme switches.
 - SQLite migration and translation coverage are required when theme identifiers
   or user-facing names change.
-- Visual verification must cover all five light themes and representative dark
+- Visual verification must cover all six light themes and representative dark
   themes at the 920×700 default window size.
 
 ## Alternatives Considered

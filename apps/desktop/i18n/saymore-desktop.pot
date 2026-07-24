@@ -576,6 +576,11 @@ msgctxt "settings.theme-color.detail"
 msgid "Choose the accent color used by the application"
 msgstr ""
 
+#: apps/desktop/ui/theme-settings.slint
+msgctxt "settings.theme.saymore"
+msgid "Default"
+msgstr ""
+
 #: apps/desktop/ui/theme-settings.slint:93
 msgctxt "settings.theme.warm-clay"
 msgid "Warm Clay"

@@ -3,6 +3,8 @@ import { AppColors, ColorSchemePreference, ThemeId } from "color-system.slint";
 component ThemeOption inherits Rectangle {
     in property <string> label;
     in property <color> swatch;
+    in property <image> mark;
+    in property <bool> branded: false;
     in property <bool> selected;
     callback activated();
 
@@ -13,21 +15,31 @@ component ThemeOption inherits Rectangle {
     accessible-label: root.label;
     accessible-action-default => { root.activated(); }
 
-    Rectangle {
+    if !root.branded: Rectangle {
         x: (parent.width - self.width) / 2;
         y: 9px;
         width: 22px;
         height: 22px;
         border-radius: 7px;
         background: root.swatch;
-        if root.selected: Image {
-            x: 5px;
-            y: 5px;
-            width: 12px;
-            height: 12px;
-            source: @image-url("../icons/lucide/check.svg");
-            colorize: AppColors.on-brand;
-        }
+    }
+    if root.branded: Image {
+        x: (parent.width - self.width) / 2;
+        y: 9px;
+        width: 22px;
+        height: 22px;
+        source: root.mark;
+        colorize: AppColors.ink;
+        image-fit: contain;
+        image-rendering: smooth;
+    }
+    if root.selected: Image {
+        x: parent.width - 17px;
+        y: 7px;
+        width: 10px;
+        height: 10px;
+        source: @image-url("../icons/lucide/check.svg");
+        colorize: AppColors.on-selected;
     }
     Text {
         y: 39px;
@@ -76,7 +88,7 @@ component SchemeOption inherits Rectangle {
 }
 
 export component ThemeSettings inherits Rectangle {
-    in property <ThemeId> theme-id: ThemeId.lime-pulse;
+    in property <ThemeId> theme-id: ThemeId.saymore;
     in property <ColorSchemePreference> color-scheme: ColorSchemePreference.system;
     in property <string> status: "";
     callback select-theme(ThemeId);
@@ -117,6 +129,7 @@ export component ThemeSettings inherits Rectangle {
         width: parent.width - 40px;
         height: 62px;
         spacing: 8px;
+        ThemeOption { horizontal-stretch: 1; label: @tr("settings.theme.saymore" => "Default"); mark: @image-url("../icons/status/saymore-status-black.png"); branded: true; selected: root.theme-id == ThemeId.saymore; activated => { root.select-theme(ThemeId.saymore); } }
         ThemeOption { horizontal-stretch: 1; label: @tr("settings.theme.lime-pulse" => "Lime Pulse"); swatch: #b3e90c; selected: root.theme-id == ThemeId.lime-pulse; activated => { root.select-theme(ThemeId.lime-pulse); } }
         ThemeOption { horizontal-stretch: 1; label: @tr("settings.theme.warm-clay" => "Warm Clay"); swatch: #d97757; selected: root.theme-id == ThemeId.warm-clay; activated => { root.select-theme(ThemeId.warm-clay); } }
         ThemeOption { horizontal-stretch: 1; label: @tr("settings.theme.berry-graphite" => "Berry"); swatch: #d94f78; selected: root.theme-id == ThemeId.berry-graphite; activated => { root.select-theme(ThemeId.berry-graphite); } }
@@ -124,7 +137,15 @@ export component ThemeSettings inherits Rectangle {
         ThemeOption { horizontal-stretch: 1; label: @tr("settings.theme.clear-sky" => "Clear Sky"); swatch: #4778e8; selected: root.theme-id == ThemeId.clear-sky; activated => { root.select-theme(ThemeId.clear-sky); } }
     }
 
-    Text { x: 24px; y: 140px; text: @tr("settings.color-scheme.title" => "Light and dark mode"); color: AppColors.ink; font-size: 12px; font-weight: 650; }
+    Image {
+        x: 24px;
+        y: 137px;
+        width: 20px;
+        height: 20px;
+        source: @image-url("../icons/lucide/sun-moon.svg");
+        colorize: AppColors.text-muted;
+    }
+    Text { x: 54px; y: 140px; text: @tr("settings.color-scheme.title" => "Light and dark mode"); color: AppColors.ink; font-size: 12px; font-weight: 650; }
     HorizontalLayout {
         x: parent.width - 360px;
         y: 126px;

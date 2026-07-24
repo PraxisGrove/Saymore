@@ -47,7 +47,7 @@ component DictionaryFilterButton inherits Rectangle {
         width: 14px;
         height: 14px;
         source: root.icon;
-        colorize: root.kind == DictionaryFilterKind.automatic ? AppColors.brand : AppColors.text-muted;
+        colorize: root.kind == DictionaryFilterKind.automatic ? AppColors.success : AppColors.text-muted;
     }
     filter-label := Text {
         x: root.has-icon ? 33px : 0px;
@@ -79,13 +79,13 @@ component DictionaryPill inherits Rectangle {
         width: 14px;
         height: 14px;
         source: root.automatic ? @image-url("../../icons/lucide/sparkles.svg") : @image-url("../../icons/lucide/pen-line.svg");
-        colorize: root.automatic ? AppColors.brand : AppColors.text-muted;
+        colorize: root.automatic ? AppColors.success : AppColors.text-muted;
     }
     term := Text {
         x: 36px;
         width: max(0px, parent.width - 48px - (pill-touch.has-hover ? 30px : 0px));
         text: root.item.canonical;
-        color: AppColors.ink;
+        color: AppColors.text;
         font-size: 13px;
         font-weight: 650;
         vertical-alignment: center;
@@ -327,7 +327,7 @@ export component DictionaryPage inherits Rectangle {
                     height: 38px;
                     border-radius: 6px;
                     background: AppColors.surface-subtle;
-                    Text { x: 10px; y: 5px; width: parent.width - 20px; text: evidence.canonical; color: AppColors.ink; font-size: 11px; font-weight: 650; overflow: elide; }
+                    Text { x: 10px; y: 5px; width: parent.width - 20px; text: evidence.canonical; color: AppColors.text; font-size: 11px; font-weight: 650; overflow: elide; }
                     Text { x: 10px; y: 21px; width: parent.width - 20px; text: evidence.detail; color: AppColors.text-muted; font-size: 9px; overflow: elide; }
                 }
             }
@@ -450,7 +450,7 @@ export component DictionaryAddDialog inherits Rectangle {
                             x: 18px;
                             width: parent.width - 62px;
                             text: draft.value;
-                            color: AppColors.ink;
+                            color: AppColors.text;
                             font-size: 13px;
                             vertical-alignment: center;
                             changed text => { root.update-row(index, draft-input.text); }

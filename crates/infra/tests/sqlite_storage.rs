@@ -141,7 +141,7 @@ fn settings_are_typed_and_persisted_across_restarts() -> Result<(), Box<dyn std:
     let store = SqliteStorage::start(path.clone(), secrets.clone())?;
 
     assert_eq!(expected_fresh_settings(), store.load_settings()?);
-    let changed = LocalSettings {
+    let mut changed = LocalSettings {
         history_enabled: false,
         history_retention: HistoryRetention::ThirtyDays,
         preferred_microphone_id: Some("coreaudio:BuiltInMicrophoneDevice".to_owned()),
@@ -163,8 +163,14 @@ fn settings_are_typed_and_persisted_across_restarts() -> Result<(), Box<dyn std:
     store.save_settings(changed.clone())?;
     drop(store);
 
-    let reopened = SqliteStorage::start(path, secrets)?;
+    let reopened = SqliteStorage::start(path.clone(), secrets.clone())?;
     assert_eq!(changed, reopened.load_settings()?);
+    changed.theme = ThemeId::Saymore;
+    reopened.save_settings(changed.clone())?;
+    drop(reopened);
+
+    let reopened_with_default_theme = SqliteStorage::start(path, secrets)?;
+    assert_eq!(changed, reopened_with_default_theme.load_settings()?);
     Ok(())
 }
 
@@ -656,7 +662,7 @@ fn dictionary_identity_preserves_token_boundaries_across_v3_migration()
 
     let connection = rusqlite::Connection::open(path)?;
     let version: u32 = connection.query_row("PRAGMA user_version", [], |row| row.get(0))?;
-    assert_eq!(17, version);
+    assert_eq!(18, version);
     let spaced_key: String = connection.query_row(
         "SELECT canonical_key FROM dictionary_entries WHERE canonical = 'Open AI'",
         [],
