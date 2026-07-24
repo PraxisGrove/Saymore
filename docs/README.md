@@ -13,9 +13,8 @@ Project guidance for humans and coding agents.
 - `product/open-source-voice-input-wayfinder.md`: voice recognition product
   direction, MVP scope, architecture, validation slices, and unresolved
   decisions.
-- `product/asr-model-hub.md`: post-MVP direction for a Chinese-first local and
-  cloud ASR model catalog, reproducible rankings, community governance, and
-  model supply-chain boundaries.
+- `product/local-asr-launch-decision-map.md`: critical path, acceptance gates,
+  and deferred work for the first local ASR beta.
 - `research/typeless-input-behavior.md`: first-party research on Typeless
   desktop dictation timing, insertion, processing, permissions, and known
   unknowns.
