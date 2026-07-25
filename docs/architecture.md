@@ -107,6 +107,24 @@ database is unavailable or contains no events. Reports expose only validated
 event identifiers and can be exported whether diagnostic collection is currently
 enabled or disabled.
 
+### macOS global shortcuts
+
+Shortcut capture and persistence do not require Accessibility permission. A
+local AppKit event monitor captures keys delivered to the focused settings
+window and preserves the physical side of standalone modifiers. When Saymore is
+not trusted, a read-only key-state sampler remains as a capture fallback,
+including when no shortcut is currently configured; it retains the first
+observed modifier side when the system later reports an alias. Both paths accept
+physical-key chords and standalone modifier releases, and Escape cancels
+capture. The sampler also detects attempts to use an already configured shortcut
+only to surface the permission prompt; it must not start dictation without
+authorization.
+
+Once Accessibility permission is available, the HID event tap owns global
+shortcut activation and suppression. Preview and release bundles use the same
+capture behavior; their distinct identities affect only whether macOS has
+granted each bundle permission to activate shortcuts globally.
+
 ### Windows global shortcuts
 
 The application layer stores each configured dictation shortcut as an opaque,

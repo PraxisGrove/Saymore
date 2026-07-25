@@ -56,6 +56,14 @@ fn poll_untrusted_shortcuts(
     const POLL_INTERVAL: Duration = Duration::from_millis(20);
     let attempts = PERMISSION_RETRY_INTERVAL.as_millis() / POLL_INTERVAL.as_millis();
     for _ in 0..attempts {
+        if controller.capturing() {
+            if let Some(observation) = detector.observe_capture_system() {
+                observation.finish(controller);
+            }
+            thread::sleep(POLL_INTERVAL);
+            continue;
+        }
+        detector.reset_capture();
         if let Ok(shortcuts) = controller.current()
             && detector.observe_system(&shortcuts)
         {
@@ -297,17 +305,4 @@ fn is_repeat(event: &CGEvent) -> bool {
 
 fn is_modifier_key(code: i64) -> bool {
     matches!(code, 54..=63)
-}
-
-fn modifier_is_down(code: i64, flags: CGEventFlags) -> bool {
-    let flag = match code {
-        54 | 55 => CGEventFlags::CGEventFlagCommand,
-        56 | 60 => CGEventFlags::CGEventFlagShift,
-        58 | 61 => CGEventFlags::CGEventFlagAlternate,
-        59 | 62 => CGEventFlags::CGEventFlagControl,
-        63 => CGEventFlags::CGEventFlagSecondaryFn,
-        57 => CGEventFlags::CGEventFlagAlphaShift,
-        _ => return false,
-    };
-    flags.contains(flag)
 }

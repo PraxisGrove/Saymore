@@ -19,6 +19,7 @@ use crate::DictationShortcutAction;
 
 mod event_tap;
 mod key_mapping;
+mod local_capture;
 mod untrusted_poll;
 
 #[cfg(test)]
@@ -32,6 +33,21 @@ const RIGHT_COMMAND_KEY_CODE: i64 = 54;
 const ESCAPE_KEY_CODE: i64 = 53;
 type ShortcutCaptureResult = Result<MacOsShortcut, MacOsShortcutError>;
 type ShortcutCaptureSender = Sender<ShortcutCaptureResult>;
+
+#[derive(Debug, PartialEq, Eq)]
+enum CaptureObservation {
+    Shortcut(MacOsShortcut),
+    Cancel,
+}
+
+impl CaptureObservation {
+    fn finish(self, controller: &MacOsShortcutController) {
+        match self {
+            Self::Shortcut(shortcut) => controller.finish_capture(shortcut),
+            Self::Cancel => controller.cancel_capture(),
+        }
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
 pub enum MacOsShortcutError {
@@ -359,7 +375,9 @@ impl MacOsShortcutController {
 }
 
 /// Observes all configured global shortcuts and Escape while recording.
-pub struct MacOsShortcutMonitor;
+pub struct MacOsShortcutMonitor {
+    _local_capture: local_capture::LocalShortcutCaptureMonitor,
+}
 
 impl MacOsShortcutMonitor {
     pub fn start(
@@ -368,7 +386,8 @@ impl MacOsShortcutMonitor {
         controller: MacOsShortcutController,
         on_action: impl Fn(DictationShortcutAction) + Send + 'static,
         on_permission_required: impl Fn() + Send + 'static,
-    ) {
+    ) -> Self {
+        let local_capture = local_capture::LocalShortcutCaptureMonitor::install(controller.clone());
         event_tap::start(
             is_recording,
             shortcuts_enabled,
@@ -376,6 +395,9 @@ impl MacOsShortcutMonitor {
             on_action,
             on_permission_required,
         );
+        Self {
+            _local_capture: local_capture,
+        }
     }
 }
 
@@ -392,6 +414,19 @@ fn cancel_shortcut(key_code: i64, recording_active: bool) -> bool {
 
 fn key_code(event: &CGEvent) -> i64 {
     event.get_integer_value_field(EventField::KEYBOARD_EVENT_KEYCODE)
+}
+
+fn modifier_is_down(code: i64, flags: CGEventFlags) -> bool {
+    let flag = match code {
+        54 | 55 => CGEventFlags::CGEventFlagCommand,
+        56 | 60 => CGEventFlags::CGEventFlagShift,
+        58 | 61 => CGEventFlags::CGEventFlagAlternate,
+        59 | 62 => CGEventFlags::CGEventFlagControl,
+        63 => CGEventFlags::CGEventFlagSecondaryFn,
+        57 => CGEventFlags::CGEventFlagAlphaShift,
+        _ => return false,
+    };
+    flags.contains(flag)
 }
 
 #[cfg(test)]

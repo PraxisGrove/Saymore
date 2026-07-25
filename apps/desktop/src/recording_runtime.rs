@@ -499,7 +499,9 @@ pub(crate) fn hide_overlay_after_delay(overlay: slint::Weak<RecordingOverlay>) {
 }
 
 #[cfg(target_os = "macos")]
-pub(super) struct PlatformShortcutMonitor;
+pub(super) struct PlatformShortcutMonitor {
+    _monitor: MacOsShortcutMonitor,
+}
 
 #[cfg(target_os = "windows")]
 pub(super) struct PlatformShortcutMonitor {
@@ -518,14 +520,14 @@ fn start_platform_shortcut_monitor(
     on_action: impl Fn(DictationShortcutAction) + Send + 'static,
     on_permission_required: impl Fn() + Send + 'static,
 ) -> Result<PlatformShortcutMonitor, String> {
-    MacOsShortcutMonitor::start(
+    let monitor = MacOsShortcutMonitor::start(
         is_recording,
         shortcuts_enabled,
         controller,
         on_action,
         on_permission_required,
     );
-    Ok(PlatformShortcutMonitor)
+    Ok(PlatformShortcutMonitor { _monitor: monitor })
 }
 
 #[cfg(target_os = "windows")]

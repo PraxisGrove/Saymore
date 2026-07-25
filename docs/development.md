@@ -80,7 +80,9 @@ does not preserve Accessibility authorization across rebuilt ad-hoc binaries.
 Grant the Preview app microphone and Accessibility permission once. Saving a
 Rust, Slint, Cargo, font, icon, or audio change performs an incremental debug
 build and restarts the preview app without changing that authorization identity.
-A shared macOS entitlements file grants Audio Input to both Preview and release
+A shortcut can still be configured and saved before Accessibility is granted;
+the permission is required only for using it as a global dictation trigger. A
+shared macOS entitlements file grants Audio Input to both Preview and release
 bundles; do not sign either bundle without it. A failed build leaves the current
 preview open. `target/debug/saymore-desktop` is only an intermediate Cargo
 artifact; do not launch it as a separate preview app because it does not have
