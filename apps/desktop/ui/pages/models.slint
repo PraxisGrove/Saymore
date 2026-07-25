@@ -336,7 +336,6 @@ export component ModelsPage inherits Rectangle {
     Text { x: 0px; y: 44px; text: @tr("models.title" => "Models"); color: AppColors.ink; font-size: 27px; font-weight: 700; }
     transcription-tab := ModelTab { x: 0px; y: 89px; label: @tr("models.tab.speech-recognition" => "Transcription"); selected: root.active-tab == 0; activated => { root.active-tab = 0; root.service-menu-open = false; root.model-menu-open = false; root.api-key-visible = false; root.manual-model = false; } }
     ModelTab { x: transcription-tab.x + transcription-tab.width + 24px; y: 89px; label: @tr("models.tab.text-polishing" => "Polishing"); selected: root.active-tab == 1; activated => { root.active-tab = 1; root.service-menu-open = false; root.model-menu-open = false; root.api-key-visible = false; root.manual-model = false; } }
-    Rectangle { x: 0px; y: 120px; width: parent.width - 1px; height: 1px; background: AppColors.border; }
 
     if root.active-tab == 0: SpeechRecognitionPage {
         x: 0px;

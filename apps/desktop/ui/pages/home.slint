@@ -5,11 +5,32 @@ component UsageMetric inherits Rectangle {
     in property <string> unit;
     in property <string> label;
     in property <bool> show-unit: true;
+    in property <int> placement: 1;
+    private property <length> value-row-width: metric-value.preferred-width + (root.show-unit ? 8px + metric-unit.preferred-width : 0px);
     background: transparent;
 
-    metric-value := Text { x: 0px; y: 4px; text: root.value; color: AppColors.ink; font-size: 25px; font-weight: 700; }
-    if root.show-unit: Text { x: metric-value.preferred-width + 8px; y: 20px; text: root.unit; color: AppColors.text-muted; font-size: 9px; }
-    Text { x: 0px; y: 42px; text: root.label; color: AppColors.text-muted; font-size: 9px; }
+    metric-value := Text {
+        x: root.placement == 0 ? 0px : root.placement == 2 ? root.width - root.value-row-width : (root.width - root.value-row-width) / 2;
+        y: 4px;
+        text: root.value;
+        color: AppColors.ink;
+        font-size: 25px;
+        font-weight: 700;
+    }
+    metric-unit := Text {
+        x: metric-value.x + metric-value.preferred-width + 8px;
+        y: 20px;
+        text: root.show-unit ? root.unit : "";
+        color: AppColors.text-muted;
+        font-size: 9px;
+    }
+    metric-label := Text {
+        x: root.placement == 0 ? 0px : root.placement == 2 ? root.width - self.preferred-width : (root.width - self.preferred-width) / 2;
+        y: 42px;
+        text: root.label;
+        color: AppColors.text-muted;
+        font-size: 9px;
+    }
 }
 
 component DayBar inherits Rectangle {
@@ -151,13 +172,13 @@ export component HomePage inherits Rectangle {
         x: 0px; y: 313px; width: parent.width - 1px; height: max(300px, parent.height - 316px); border-radius: 12px; background: AppColors.surface;
         Text { x: 20px; y: 18px; text: @tr("home.usage.title" => "Usage overview"); color: AppColors.ink; font-size: 14px; font-weight: 650; }
         Text { x: 20px; y: 46px; text: root.usage-loading ? @tr("home.usage.loading" => "Loading") : root.usage-error ? @tr("home.usage.failed" => "Could not load") : @tr("home.usage.totals" => "All-time totals"); color: AppColors.text-muted; font-size: 10px; font-weight: 500; }
-        private property <length> metric-step: (self.width - 62px) / 3;
-        UsageMetric { x: 20px; y: 68px; width: parent.metric-step - 30px; height: 68px; value: root.usage-loading ? "•••" : root.usage-error ? "—" : root.usage-total-minutes; unit: @tr("home.usage.minutes.unit" => "min"); show-unit: !root.usage-loading && !root.usage-error; label: @tr("home.usage.dictation-total" => "Voice input time"); }
-        UsageMetric { x: 20px + parent.metric-step; y: 68px; width: parent.metric-step - 30px; height: 68px; value: root.usage-loading ? "•••" : root.usage-error ? "—" : root.usage-total-characters; unit: @tr("home.usage.characters.unit" => "characters"); show-unit: !root.usage-loading && !root.usage-error; label: @tr("home.usage.characters-total" => "Characters entered"); }
-        UsageMetric { x: 20px + parent.metric-step * 2; y: 68px; width: parent.metric-step - 30px; height: 68px; value: root.usage-loading ? "•••" : root.usage-error ? "—" : root.usage-average-speed; unit: @tr("home.usage.speed.unit" => "chars/min"); show-unit: !root.usage-loading && !root.usage-error; label: @tr("home.usage.average-speed" => "Average speed"); }
+        private property <length> metric-width: (self.width - 40px) / 3;
+        UsageMetric { x: 20px; y: 68px; width: parent.metric-width; height: 68px; value: root.usage-loading ? "•••" : root.usage-error ? "—" : root.usage-total-minutes; unit: @tr("home.usage.minutes.unit" => "min"); show-unit: !root.usage-loading && !root.usage-error; label: @tr("home.usage.dictation-total" => "Voice input time"); placement: 0; }
+        UsageMetric { x: 20px + parent.metric-width; y: 68px; width: parent.metric-width; height: 68px; value: root.usage-loading ? "•••" : root.usage-error ? "—" : root.usage-total-characters; unit: @tr("home.usage.characters.unit" => "characters"); show-unit: !root.usage-loading && !root.usage-error; label: @tr("home.usage.characters-total" => "Characters entered"); }
+        UsageMetric { x: 20px + parent.metric-width * 2; y: 68px; width: parent.metric-width; height: 68px; value: root.usage-loading ? "•••" : root.usage-error ? "—" : root.usage-average-speed; unit: @tr("home.usage.speed.unit" => "chars/min"); show-unit: !root.usage-loading && !root.usage-error; label: @tr("home.usage.average-speed" => "Average speed"); placement: 2; }
         if root.usage-error: Rectangle {
-            x: 20px + parent.metric-step * 2; y: 105px; width: parent.metric-step - 30px; height: 24px; background: transparent;
-            Text { text: @tr("common.reload" => "Reload ↗"); color: AppColors.brand; font-size: 10px; font-weight: 600; vertical-alignment: center; }
+            x: 20px + parent.metric-width * 2; y: 105px; width: parent.metric-width; height: 24px; background: transparent;
+            Text { text: @tr("common.reload" => "Reload ↗"); color: AppColors.brand; font-size: 10px; font-weight: 600; horizontal-alignment: right; vertical-alignment: center; }
             TouchArea { mouse-cursor: pointer; clicked => { root.refresh-usage(); } }
         }
         Text { x: 20px; y: 160px; text: @tr("home.usage.seven-day-trend" => "Last 7 days"); color: AppColors.text-muted; font-size: 10px; font-weight: 600; }

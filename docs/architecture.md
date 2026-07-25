@@ -25,7 +25,7 @@ database, HTTP, environment, or process adapters. It may depend on `app`.
 models, callback wiring, and process lifecycle for the macOS and Windows app. It
 may depend on `app` and `infra`; those reusable crates must not depend on Slint.
 
-Desktop appearance has two application-owned persisted values: a five-option
+Desktop appearance has two application-owned persisted values: a six-option
 theme identifier and a follow-system/light/dark preference. The desktop maps
 those values to Slint's `AppColors` semantic roles; pages never select raw
 colors themselves. Independent recording, permission, and result overlays use
