@@ -44,6 +44,10 @@ history-experiments = ["template-app/history-experiments"]
 name = "i18n_runtime"
 harness = false
 
+[[test]]
+name = "models_navigation"
+harness = false
+
 [lints]
 workspace = true
 

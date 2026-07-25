@@ -367,6 +367,7 @@ export component AppWindow inherits Window {
                 request-asr-test => { root.request-asr-test(); }
                 open-key-page => { root.open-current-provider-key-page(); }
                 open-asr-config(original-provider) => {
+                    root.focus-asr-config = false;
                     root.asr-modal-original-provider = original-provider;
                     root.asr-modal-visible = true;
                 }
