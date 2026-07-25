@@ -46,6 +46,8 @@ export component AsrProviderCard inherits Rectangle {
     in property <bool> enabled: true;
     callback activated();
 
+    private property <length> provider-row-y: 24px;
+    private property <length> provider-row-height: 44px;
     height: 108px;
     border-radius: 10px;
     background: !root.enabled ? AppColors.surface
@@ -68,52 +70,66 @@ export component AsrProviderCard inherits Rectangle {
 
     if !root.colorize-logo: Image {
         x: 16px;
-        y: 32px;
-        width: 44px;
-        height: 44px;
+        y: root.provider-row-y;
+        width: root.provider-row-height;
+        height: root.provider-row-height;
         source: root.logo;
         image-fit: contain;
         image-rendering: smooth;
     }
     if root.colorize-logo: Image {
-        x: 20px;
-        y: 36px;
-        width: 36px;
-        height: 36px;
+        x: 16px;
+        y: root.provider-row-y;
+        width: root.provider-row-height;
+        height: root.provider-row-height;
         source: root.logo;
         colorize: AppColors.ink;
         image-fit: contain;
         image-rendering: smooth;
     }
 
-    Text {
+    provider-copy := Rectangle {
         x: 74px;
-        y: 27px;
+        y: root.provider-row-y;
         width: parent.width - 122px;
-        text: root.provider-name;
-        color: root.enabled ? AppColors.ink : AppColors.text;
-        font-size: 12px;
-        font-weight: 700;
-        overflow: elide;
-    }
-    Image {
-        x: 74px;
-        y: 50px;
-        width: 14px;
-        height: 14px;
-        source: root.summary-icon;
-        colorize: AppColors.text-muted;
-        image-fit: contain;
-    }
-    Text {
-        x: 94px;
-        y: 49px;
-        width: parent.width - 142px;
-        text: root.summary;
-        color: AppColors.text-muted;
-        font-size: 9px;
-        vertical-alignment: center;
-        overflow: elide;
+        height: root.provider-row-height;
+        background: transparent;
+
+        Text {
+            width: parent.width;
+            height: 20px;
+            text: root.provider-name;
+            color: root.enabled ? AppColors.ink : AppColors.text;
+            font-size: 12px;
+            font-weight: 700;
+            vertical-alignment: center;
+            overflow: elide;
+        }
+        Rectangle {
+            y: 22px;
+            width: parent.width;
+            height: 22px;
+            background: transparent;
+
+            Image {
+                y: 4px;
+                width: 14px;
+                height: 14px;
+                source: root.summary-icon;
+                colorize: AppColors.text-muted;
+                image-fit: contain;
+            }
+            Text {
+                x: 20px;
+                width: parent.width - 20px;
+                height: parent.height;
+                text: root.summary;
+                color: AppColors.text-muted;
+                font-size: 9px;
+                vertical-alignment: center;
+                overflow: elide;
+            }
+        }
     }
     ProviderStatusBadge {
         x: 74px;
