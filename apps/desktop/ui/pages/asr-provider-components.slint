@@ -4,7 +4,6 @@ import { AppSelect, AsrConfigurationField, AsrProvider } from "../components.sli
 export enum ProviderStatusTone {
     neutral,
     active,
-    warning,
     error,
 }
 
@@ -16,7 +15,6 @@ export component ProviderStatusBadge inherits Rectangle {
     height: 22px;
     border-radius: 6px;
     background: root.tone == ProviderStatusTone.active ? AppColors.success-soft
-        : root.tone == ProviderStatusTone.warning ? AppColors.warning-soft
         : root.tone == ProviderStatusTone.error ? AppColors.danger-soft
         : AppColors.surface-muted;
 
@@ -25,7 +23,6 @@ export component ProviderStatusBadge inherits Rectangle {
         width: parent.width - 16px;
         text: root.label;
         color: root.tone == ProviderStatusTone.active ? AppColors.success
-            : root.tone == ProviderStatusTone.warning ? AppColors.warning
             : root.tone == ProviderStatusTone.error ? AppColors.danger
             : AppColors.text-muted;
         font-size: 9px;
@@ -39,6 +36,7 @@ export component ProviderStatusBadge inherits Rectangle {
 export component AsrProviderCard inherits Rectangle {
     in property <image> logo;
     in property <bool> colorize-logo: false;
+    in property <image> summary-icon;
     in property <string> source-type;
     in property <string> provider-name;
     in property <string> summary;
@@ -50,14 +48,12 @@ export component AsrProviderCard inherits Rectangle {
 
     height: 108px;
     border-radius: 10px;
-    background: !root.enabled ? AppColors.surface-muted
+    background: !root.enabled ? AppColors.surface
         : card-touch.pressed ? AppColors.selected
         : card-focus.has-focus ? AppColors.selected
         : card-touch.has-hover ? AppColors.surface-subtle
         : root.selected ? AppColors.brand-soft : AppColors.surface;
-    opacity: root.enabled ? 1 : 0.72;
     animate background { duration: 140ms; easing: ease-out; }
-    animate opacity { duration: 90ms; easing: ease-out; }
 
     Text {
         x: 12px;
@@ -100,13 +96,23 @@ export component AsrProviderCard inherits Rectangle {
         font-weight: 700;
         overflow: elide;
     }
-    Text {
+    Image {
         x: 74px;
-        y: 51px;
-        width: parent.width - 122px;
+        y: 50px;
+        width: 14px;
+        height: 14px;
+        source: root.summary-icon;
+        colorize: AppColors.text-muted;
+        image-fit: contain;
+    }
+    Text {
+        x: 94px;
+        y: 49px;
+        width: parent.width - 142px;
         text: root.summary;
         color: AppColors.text-muted;
         font-size: 9px;
+        vertical-alignment: center;
         overflow: elide;
     }
     ProviderStatusBadge {
@@ -315,7 +321,10 @@ export component AsrConfigurationModal inherits Rectangle {
     private property <bool> ready: root.provider == AsrProvider.volcengine
         ? !root.volcengine-api-key.is-empty && !root.volcengine-model.is-empty
         : !root.custom-base-url.is-empty && !root.custom-api-key.is-empty && !root.custom-model.is-empty;
-    private property <length> dialog-height: root.provider == AsrProvider.volcengine ? 430px : 510px;
+    private property <string> volcengine-model-name: root.volcengine-model == "volc.bigasr.sauc.duration"
+        ? @tr("models.volcengine.model-v1" => "Doubao Streaming Speech Recognition 1.0")
+        : @tr("models.volcengine.model-v2" => "Doubao Streaming Speech Recognition 2.0");
+    private property <length> dialog-height: root.provider == AsrProvider.volcengine ? 468px : 510px;
 
     background: AppColors.scrim;
     TouchArea { mouse-cursor: default; clicked => { } }
@@ -428,9 +437,20 @@ export component AsrConfigurationModal inherits Rectangle {
             }
 
             Text { x: 0px; y: 93px; text: @tr("models.model-field" => "Model"); color: AppColors.text; font-size: 11px; font-weight: 650; }
+            Text {
+                x: 0px;
+                y: 113px;
+                width: parent.width;
+                text: root.volcengine-model-name;
+                color: AppColors.ink;
+                font-size: 12px;
+                font-weight: 650;
+                overflow: elide;
+            }
+            Text { x: 0px; y: 139px; text: @tr("models.asr.volcengine.model-id" => "Model ID"); color: AppColors.text-muted; font-size: 9px; font-weight: 600; }
             Rectangle {
                 x: 0px;
-                y: 117px;
+                y: 157px;
                 width: parent.width;
                 height: 38px;
                 border-radius: 7px;
@@ -447,11 +467,11 @@ export component AsrConfigurationModal inherits Rectangle {
                 }
             }
             if root.error-field == AsrConfigurationField.model: Text {
-                x: 0px; y: 158px; width: parent.width; text: root.status-message; color: AppColors.danger; font-size: 10px; overflow: elide;
+                x: 0px; y: 199px; width: parent.width; text: root.status-message; color: AppColors.danger; font-size: 10px; overflow: elide;
             }
             if root.testing || root.error-field == AsrConfigurationField.form: Rectangle {
                 x: 0px;
-                y: 188px;
+                y: 224px;
                 width: parent.width;
                 height: 42px;
                 border-radius: 7px;

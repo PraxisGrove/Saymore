@@ -2648,6 +2648,11 @@ msgid "Test the connection before atomically enabling this provider."
 msgstr "连接测试通过后再原子启用此提供商。"
 
 #: apps/desktop/ui/pages/asr-provider-components.slint
+msgctxt "models.asr.volcengine.model-id"
+msgid "Model ID"
+msgstr "模型 ID"
+
+#: apps/desktop/ui/pages/asr-provider-components.slint
 msgctxt "models.asr.custom.dialog-title"
 msgid "Configure custom ASR"
 msgstr "配置自定义 ASR"
@@ -2693,9 +2698,14 @@ msgid "Local model"
 msgstr "本地模型"
 
 #: apps/desktop/ui/pages/speech-recognition.slint
-msgctxt "models.asr.summary.configured-model"
-msgid "{} · API key configured"
-msgstr "{} · 已配置 API Key"
+msgctxt "models.asr.summary.api-key-configured"
+msgid "API key configured"
+msgstr "API Key 已配置"
+
+#: apps/desktop/ui/pages/speech-recognition.slint
+msgctxt "models.asr.summary.custom-configured"
+msgid "Address and credentials configured"
+msgstr "地址与认证已配置"
 
 #: apps/desktop/ui/pages/speech-recognition.slint
 msgctxt "models.asr.summary.saymore-cloud-unavailable"
@@ -2704,8 +2714,8 @@ msgstr "云服务 Adapter 尚未接入"
 
 #: apps/desktop/ui/pages/speech-recognition.slint
 msgctxt "models.asr.summary.system-unavailable"
-msgid "System speech adapter and metrics are not yet connected"
-msgstr "系统语音 Adapter 与指标尚未接入"
+msgid "System speech adapter is not yet connected"
+msgstr "系统语音 Adapter 尚未接入"
 
 #: apps/desktop/ui/pages/speech-recognition.slint
 msgctxt "models.asr.summary.volcengine"
@@ -2719,8 +2729,8 @@ msgstr "服务地址、API Key 与模型"
 
 #: apps/desktop/ui/pages/speech-recognition.slint
 msgctxt "models.asr.summary.local-unavailable"
-msgid "Verified artifacts and production adapter are unavailable"
-msgstr "尚无已验证制品和生产 Adapter"
+msgid "Download and production adapter are not yet connected"
+msgstr "下载与生产 Adapter 尚未接入"
 
 #: apps/desktop/ui/pages/speech-recognition.slint
 msgctxt "models.asr.status.unavailable"

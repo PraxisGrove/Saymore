@@ -2709,6 +2709,11 @@ msgid "Test the connection before atomically enabling this provider."
 msgstr ""
 
 #: apps/desktop/ui/pages/asr-provider-components.slint
+msgctxt "models.asr.volcengine.model-id"
+msgid "Model ID"
+msgstr ""
+
+#: apps/desktop/ui/pages/asr-provider-components.slint
 msgctxt "models.asr.custom.dialog-title"
 msgid "Configure custom ASR"
 msgstr ""
@@ -2754,8 +2759,13 @@ msgid "Local model"
 msgstr ""
 
 #: apps/desktop/ui/pages/speech-recognition.slint
-msgctxt "models.asr.summary.configured-model"
-msgid "{} · API key configured"
+msgctxt "models.asr.summary.api-key-configured"
+msgid "API key configured"
+msgstr ""
+
+#: apps/desktop/ui/pages/speech-recognition.slint
+msgctxt "models.asr.summary.custom-configured"
+msgid "Address and credentials configured"
 msgstr ""
 
 #: apps/desktop/ui/pages/speech-recognition.slint
@@ -2765,7 +2775,7 @@ msgstr ""
 
 #: apps/desktop/ui/pages/speech-recognition.slint
 msgctxt "models.asr.summary.system-unavailable"
-msgid "System speech adapter and metrics are not yet connected"
+msgid "System speech adapter is not yet connected"
 msgstr ""
 
 #: apps/desktop/ui/pages/speech-recognition.slint
@@ -2780,7 +2790,7 @@ msgstr ""
 
 #: apps/desktop/ui/pages/speech-recognition.slint
 msgctxt "models.asr.summary.local-unavailable"
-msgid "Verified artifacts and production adapter are unavailable"
+msgid "Download and production adapter are not yet connected"
 msgstr ""
 
 #: apps/desktop/ui/pages/speech-recognition.slint

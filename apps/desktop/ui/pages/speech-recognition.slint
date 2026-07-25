@@ -70,6 +70,16 @@ export component SpeechRecognitionPage inherits Rectangle {
             colorize-logo: card.kind == AsrProviderCardKind.saymore-cloud
                 || card.kind == AsrProviderCardKind.custom
                 || card.kind == AsrProviderCardKind.macos-dictation;
+            summary-icon: card.kind == AsrProviderCardKind.saymore-cloud
+                ? @image-url("../../icons/lucide/globe.svg")
+                : card.kind == AsrProviderCardKind.macos-dictation
+                    || card.kind == AsrProviderCardKind.windows-speech
+                    ? @image-url("../../icons/lucide/monitor.svg")
+                : card.kind == AsrProviderCardKind.volcengine
+                    ? @image-url("../../icons/lucide/lock-keyhole.svg")
+                : card.kind == AsrProviderCardKind.custom
+                    ? @image-url("../../icons/lucide/globe.svg")
+                    : @image-url("../../icons/lucide/download.svg");
             source-type: card.kind == AsrProviderCardKind.saymore-cloud
                 ? @tr("models.asr.source.saymore-cloud" => "Saymore cloud")
                 : card.kind == AsrProviderCardKind.macos-dictation
@@ -99,16 +109,16 @@ export component SpeechRecognitionPage inherits Rectangle {
                 ? @tr("models.asr.summary.saymore-cloud-unavailable" => "Cloud service adapter is not yet connected")
                 : card.kind == AsrProviderCardKind.macos-dictation
                     || card.kind == AsrProviderCardKind.windows-speech
-                    ? @tr("models.asr.summary.system-unavailable" => "System speech adapter and metrics are not yet connected")
+                    ? @tr("models.asr.summary.system-unavailable" => "System speech adapter is not yet connected")
                 : card.kind == AsrProviderCardKind.volcengine
                 ? root.volcengine-configured
-                    ? @tr("models.asr.summary.configured-model" => "{} · API key configured", root.volcengine-model)
+                    ? @tr("models.asr.summary.api-key-configured" => "API key configured")
                     : @tr("models.asr.summary.volcengine" => "API key and model configuration")
                 : card.kind == AsrProviderCardKind.custom
                     ? root.custom-configured
-                        ? root.custom-base-url
+                        ? @tr("models.asr.summary.custom-configured" => "Address and credentials configured")
                         : @tr("models.asr.summary.custom" => "Base URL, API key, and model")
-                    : @tr("models.asr.summary.local-unavailable" => "Verified artifacts and production adapter are unavailable");
+                    : @tr("models.asr.summary.local-unavailable" => "Download and production adapter are not yet connected");
             status: !card.available
                 ? @tr("models.asr.status.unavailable" => "Unavailable")
                 : card.kind == AsrProviderCardKind.volcengine
@@ -124,7 +134,7 @@ export component SpeechRecognitionPage inherits Rectangle {
                         : root.custom-configured
                             ? @tr("models.status.configured" => "Configured")
                             : @tr("models.status.not-configured.plain" => "Not configured");
-            status-tone: !card.available ? ProviderStatusTone.warning
+            status-tone: !card.available ? ProviderStatusTone.neutral
                 : root.config-error && card.kind == AsrProviderCardKind.volcengine
                     ? ProviderStatusTone.error
                     : (card.kind == AsrProviderCardKind.volcengine && root.provider == AsrProvider.volcengine && root.active-configured)
