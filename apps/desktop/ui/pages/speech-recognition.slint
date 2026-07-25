@@ -1,0 +1,153 @@
+import { ScrollView } from "std-widgets.slint";
+import {
+    AsrConfigurationField,
+    AsrProvider,
+    AsrProviderCardKind,
+    AsrProviderCardSpec,
+} from "../components.slint";
+import {
+    AsrProviderCard,
+    ProviderStatusTone,
+} from "asr-provider-components.slint";
+
+export component SpeechRecognitionPage inherits Rectangle {
+    in property <bool> focus-config: false;
+    in property <[AsrProviderCardSpec]> provider-cards;
+    in-out property <AsrProvider> provider: AsrProvider.volcengine;
+    in-out property <string> volcengine-api-key;
+    in-out property <string> volcengine-model;
+    in property <bool> volcengine-configured: false;
+    in-out property <string> custom-api-key;
+    in-out property <string> custom-base-url;
+    in-out property <string> custom-model;
+    in property <bool> custom-configured: false;
+    in property <bool> active-configured: false;
+    in property <bool> config-error: false;
+    in-out property <bool> draft-error: false;
+    in property <string> config-status;
+    in-out property <bool> testing: false;
+    in-out property <bool> pending-test: false;
+    in-out property <bool> config-dirty: false;
+    in-out property <AsrConfigurationField> error-field: AsrConfigurationField.none;
+    callback select-provider(AsrProvider);
+    callback open-config(AsrProvider);
+
+    background: transparent;
+    init => {
+        if root.focus-config {
+            root.select-provider(root.provider);
+            root.open-config(root.provider);
+        }
+    }
+
+    provider-list := ScrollView {
+        x: 0px;
+        y: 0px;
+        width: parent.width;
+        height: parent.height;
+        viewport-width: self.width;
+        viewport-height: max(self.height, ((root.provider-cards.length + 1) / 2) * 120px);
+
+        for card[card-index] in root.provider-cards: AsrProviderCard {
+            x: Math.mod(card-index, 2) == 0 ? 0px : (provider-list.viewport-width + 16px) / 2;
+            y: Math.floor(card-index / 2) * 120px;
+            width: (provider-list.viewport-width - 16px) / 2;
+            logo: card.kind == AsrProviderCardKind.saymore-cloud
+                ? @image-url("../../icons/saymore-mark-3d-136.png")
+                : card.kind == AsrProviderCardKind.macos-dictation
+                    ? @image-url("../../icons/providers/apple.svg")
+                    : card.kind == AsrProviderCardKind.windows-speech
+                        ? @image-url("../../icons/providers/microsoft.svg")
+                        : card.kind == AsrProviderCardKind.volcengine
+                            ? @image-url("../../icons/providers/volcengine.png")
+                : card.kind == AsrProviderCardKind.paraformer
+                    ? @image-url("../../icons/providers/funasr.png")
+                    : card.kind == AsrProviderCardKind.whisper-large-v3-turbo
+                        ? @image-url("../../icons/providers/openai.png")
+                        : card.kind == AsrProviderCardKind.qwen3-asr
+                            ? @image-url("../../icons/providers/qwen.png")
+                            : @image-url("../../icons/lucide/plus.svg");
+            colorize-logo: card.kind == AsrProviderCardKind.saymore-cloud
+                || card.kind == AsrProviderCardKind.custom
+                || card.kind == AsrProviderCardKind.macos-dictation;
+            source-type: card.kind == AsrProviderCardKind.saymore-cloud
+                ? @tr("models.asr.source.saymore-cloud" => "Saymore cloud")
+                : card.kind == AsrProviderCardKind.macos-dictation
+                    || card.kind == AsrProviderCardKind.windows-speech
+                    ? @tr("models.asr.source.system-built-in" => "System built-in")
+                : card.kind == AsrProviderCardKind.volcengine
+                ? @tr("models.asr.source.cloud-api" => "Cloud API")
+                : card.kind == AsrProviderCardKind.custom
+                    ? @tr("models.asr.source.custom" => "Custom")
+                    : @tr("models.asr.source.local-model" => "Local model");
+            provider-name: card.kind == AsrProviderCardKind.saymore-cloud
+                ? @tr("models.provider.saymore-cloud" => "Saymore Cloud")
+                : card.kind == AsrProviderCardKind.macos-dictation
+                    ? @tr("models.provider.macos-dictation" => "macOS Dictation")
+                    : card.kind == AsrProviderCardKind.windows-speech
+                        ? @tr("models.provider.windows-speech" => "Windows Speech Recognition")
+                        : card.kind == AsrProviderCardKind.volcengine
+                ? @tr("models.provider.volcengine" => "Volcengine")
+                : card.kind == AsrProviderCardKind.paraformer
+                    ? "Paraformer"
+                    : card.kind == AsrProviderCardKind.whisper-large-v3-turbo
+                        ? "Whisper large-v3-turbo"
+                        : card.kind == AsrProviderCardKind.qwen3-asr
+                            ? "Qwen3-ASR 1.7B"
+                            : @tr("models.provider.custom-compatible" => "Custom compatible API");
+            summary: card.kind == AsrProviderCardKind.saymore-cloud
+                ? @tr("models.asr.summary.saymore-cloud-unavailable" => "Cloud service adapter is not yet connected")
+                : card.kind == AsrProviderCardKind.macos-dictation
+                    || card.kind == AsrProviderCardKind.windows-speech
+                    ? @tr("models.asr.summary.system-unavailable" => "System speech adapter and metrics are not yet connected")
+                : card.kind == AsrProviderCardKind.volcengine
+                ? root.volcengine-configured
+                    ? @tr("models.asr.summary.configured-model" => "{} · API key configured", root.volcengine-model)
+                    : @tr("models.asr.summary.volcengine" => "API key and model configuration")
+                : card.kind == AsrProviderCardKind.custom
+                    ? root.custom-configured
+                        ? root.custom-base-url
+                        : @tr("models.asr.summary.custom" => "Base URL, API key, and model")
+                    : @tr("models.asr.summary.local-unavailable" => "Verified artifacts and production adapter are unavailable");
+            status: !card.available
+                ? @tr("models.asr.status.unavailable" => "Unavailable")
+                : card.kind == AsrProviderCardKind.volcengine
+                    ? root.provider == AsrProvider.volcengine && root.active-configured
+                        ? @tr("models.asr.status.current" => "Current")
+                        : root.config-error && root.provider == AsrProvider.volcengine
+                            ? @tr("models.status.connection-failed.plain" => "Connection issue")
+                            : root.volcengine-configured
+                                ? @tr("models.status.configured" => "Configured")
+                                : @tr("models.status.not-configured.plain" => "Not configured")
+                    : root.provider == AsrProvider.custom && root.active-configured
+                        ? @tr("models.asr.status.current" => "Current")
+                        : root.custom-configured
+                            ? @tr("models.status.configured" => "Configured")
+                            : @tr("models.status.not-configured.plain" => "Not configured");
+            status-tone: !card.available ? ProviderStatusTone.warning
+                : root.config-error && card.kind == AsrProviderCardKind.volcengine
+                    ? ProviderStatusTone.error
+                    : (card.kind == AsrProviderCardKind.volcengine && root.provider == AsrProvider.volcengine && root.active-configured)
+                        || (card.kind == AsrProviderCardKind.custom && root.provider == AsrProvider.custom && root.active-configured)
+                        ? ProviderStatusTone.active : ProviderStatusTone.neutral;
+            selected: (card.kind == AsrProviderCardKind.volcengine && root.provider == AsrProvider.volcengine)
+                || (card.kind == AsrProviderCardKind.custom && root.provider == AsrProvider.custom);
+            enabled: card.available;
+            activated => {
+                let original_provider = root.provider;
+                if card.kind == AsrProviderCardKind.volcengine {
+                    root.provider = AsrProvider.volcengine;
+                } else {
+                    root.provider = AsrProvider.custom;
+                }
+                if original_provider != root.provider {
+                    root.config-dirty = true;
+                }
+                root.error-field = AsrConfigurationField.none;
+                root.draft-error = false;
+                root.select-provider(root.provider);
+                root.open-config(original_provider);
+            }
+        }
+    }
+}

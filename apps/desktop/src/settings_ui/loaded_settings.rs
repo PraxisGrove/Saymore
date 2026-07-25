@@ -4,7 +4,10 @@ use template_app::{
 };
 use template_infra::JsonSettingsStore;
 
-use crate::ui::{AppWindow, AsrProvider as UiAsrProvider, Translations};
+use crate::ui::{
+    AppWindow, AsrConfigurationField as UiAsrConfigurationField, AsrProvider as UiAsrProvider,
+    Translations,
+};
 
 use super::{
     VOLCENGINE_ASR_2_MODEL, apply_pending_test, apply_status, llm_configuration_ready,
@@ -20,6 +23,7 @@ pub(super) fn apply_loaded_settings(ui: &AppWindow, store: &JsonSettingsStore) {
             apply_pending_test(ui, configured);
             ui.set_asr_config_dirty(false);
             ui.set_asr_draft_error(false);
+            ui.set_asr_error_field(UiAsrConfigurationField::None);
             ui.set_llm_config_dirty(false);
             ui.set_llm_draft_error(false);
             ui.set_llm_testing(false);
@@ -112,6 +116,7 @@ fn apply_loaded_asr(ui: &AppWindow, settings: SaymoreSettings) -> bool {
         UiAsrProvider::Volcengine
     });
     ui.set_asr_api_key(SharedString::from(volcengine.api_key));
+    ui.set_volcengine_asr_configured(volcengine_configured);
     ui.set_asr_model(SharedString::from(if volcengine.model.trim().is_empty() {
         VOLCENGINE_ASR_2_MODEL
     } else {

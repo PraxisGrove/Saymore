@@ -10,7 +10,10 @@ use template_infra::{
 };
 use uuid::Uuid;
 
-use crate::ui::{AppWindow, AsrProvider as UiAsrProvider, Translations};
+use crate::ui::{
+    AppWindow, AsrConfigurationField as UiAsrConfigurationField, AsrProvider as UiAsrProvider,
+    Translations,
+};
 
 use super::{
     VOLCENGINE_ASR_1_MODEL, VOLCENGINE_ASR_2_MODEL, VOLCENGINE_LEGACY_MODEL, apply_loaded_settings,
@@ -53,6 +56,9 @@ pub(super) fn wire(ui: &AppWindow, store: Arc<JsonSettingsStore>) {
         let Some(ui) = save_ui.upgrade() else {
             return;
         };
+        if ui.get_asr_testing() {
+            return;
+        }
         begin_connection_test(
             &ui,
             Arc::clone(&save_store),
@@ -75,6 +81,9 @@ pub(super) fn wire(ui: &AppWindow, store: Arc<JsonSettingsStore>) {
         let Some(ui) = test_ui.upgrade() else {
             return;
         };
+        if ui.get_asr_testing() {
+            return;
+        }
         let candidate = current_candidate(&ui);
         begin_connection_test(
             &ui,
@@ -84,6 +93,14 @@ pub(super) fn wire(ui: &AppWindow, store: Arc<JsonSettingsStore>) {
         );
     });
 
+    let cancel_ui = ui.as_weak();
+    let cancel_store = Arc::clone(&store);
+    ui.on_cancel_asr_config(move || {
+        if let Some(ui) = cancel_ui.upgrade() {
+            apply_loaded_settings(&ui, &cancel_store);
+        }
+    });
+
     let delete_ui = ui.as_weak();
     ui.on_delete_asr_config(move || {
         let Some(ui) = delete_ui.upgrade() else {
@@ -91,16 +108,7 @@ pub(super) fn wire(ui: &AppWindow, store: Arc<JsonSettingsStore>) {
         };
         match clear_asr_configuration(&store) {
             Ok(()) => {
-                ui.set_asr_api_key(SharedString::new());
-                apply_status(
-                    &ui,
-                    false,
-                    false,
-                    ui.global::<Translations>().get_models_not_configured(),
-                );
-                apply_pending_test(&ui, false);
-                ui.set_asr_config_dirty(false);
-                ui.set_asr_draft_error(false);
+                apply_loaded_settings(&ui, &store);
             }
             Err(_) => apply_status(
                 &ui,
@@ -187,12 +195,14 @@ fn begin_connection_test(
         Ok(candidate) => candidate,
         Err(error) => {
             ui.set_asr_draft_error(true);
+            ui.set_asr_error_field(config_error_field(error));
             ui.set_asr_config_status(asr_config_error_text(ui, error));
             return;
         }
     };
     ui.set_asr_testing(true);
     ui.set_asr_draft_error(false);
+    ui.set_asr_error_field(UiAsrConfigurationField::None);
     ui.set_asr_config_status(ui.global::<Translations>().get_models_testing_connection());
     let result_ui = ui.as_weak();
     let spawn_result = std::thread::Builder::new()
@@ -222,6 +232,7 @@ fn begin_connection_test(
         );
         ui.set_asr_testing(false);
         ui.set_asr_draft_error(true);
+        ui.set_asr_error_field(UiAsrConfigurationField::Form);
         ui.set_asr_config_status(ui.global::<Translations>().get_models_connection_failed());
     }
 }
@@ -241,6 +252,7 @@ fn finish_connection_test(
             };
             tracing::info!(target: "saymore::diagnostics", event = %event);
             ui.set_asr_draft_error(false);
+            ui.set_asr_error_field(UiAsrConfigurationField::None);
             match purpose {
                 TestPurpose::Save => apply_loaded_settings(ui, store),
                 TestPurpose::TestOnly => {}
@@ -255,10 +267,12 @@ fn finish_connection_test(
         }
         Err(AsrSaveError::Configuration(error)) => {
             ui.set_asr_draft_error(true);
+            ui.set_asr_error_field(config_error_field(error));
             ui.set_asr_config_status(asr_config_error_text(ui, error));
         }
         Err(AsrSaveError::Connection(error)) => {
             ui.set_asr_draft_error(true);
+            ui.set_asr_error_field(UiAsrConfigurationField::Form);
             ui.set_asr_config_status(asr_test_failure_status(ui, &error));
         }
     }
@@ -397,6 +411,22 @@ fn apply_provider_status(ui: &AppWindow, store: &JsonSettingsStore, provider: Ui
     );
     apply_pending_test(ui, configured);
     ui.set_asr_draft_error(false);
+    ui.set_asr_error_field(UiAsrConfigurationField::None);
+}
+
+fn config_error_field(error: AsrConfigError) -> UiAsrConfigurationField {
+    match error {
+        AsrConfigError::MissingApiKey | AsrConfigError::InvalidApiKey => {
+            UiAsrConfigurationField::ApiKey
+        }
+        AsrConfigError::MissingBaseUrl | AsrConfigError::InvalidBaseUrl => {
+            UiAsrConfigurationField::BaseUrl
+        }
+        AsrConfigError::MissingModel | AsrConfigError::UnsupportedModel => {
+            UiAsrConfigurationField::Model
+        }
+        AsrConfigError::Store => UiAsrConfigurationField::Form,
+    }
 }
 
 fn asr_test_failure_status(ui: &AppWindow, error: &SpeechRecognitionError) -> SharedString {
@@ -434,7 +464,7 @@ mod tests {
     const CANDIDATE_KEY: &str = "223e4567-e89b-42d3-a456-426614174000";
 
     #[test]
-    fn failed_connection_test_keeps_the_current_configuration() {
+    fn authentication_network_and_quota_failures_keep_the_current_configuration() {
         let directory = std::env::temp_dir().join(format!("saymore-asr-atomic-{}", Uuid::new_v4()));
         let store = JsonSettingsStore::at_path(directory.join("providers.json"));
         assert_eq!(
@@ -451,19 +481,20 @@ mod tests {
             panic!("candidate should be valid");
         };
 
-        assert!(
-            test_and_save(&store, &candidate, |_| {
-                Err(SpeechRecognitionError::Authentication)
-            })
-            .is_err()
-        );
-        assert_eq!(
-            Some(CURRENT_KEY.to_owned()),
-            store
-                .load()
-                .ok()
-                .map(|settings| settings.asr.volcengine.api_key)
-        );
+        for error in [
+            SpeechRecognitionError::Authentication,
+            SpeechRecognitionError::Transport("offline".to_owned()),
+            SpeechRecognitionError::Quota,
+        ] {
+            assert!(test_and_save(&store, &candidate, |_| Err(error)).is_err());
+            assert_eq!(
+                Some(CURRENT_KEY.to_owned()),
+                store
+                    .load()
+                    .ok()
+                    .map(|settings| settings.asr.volcengine.api_key)
+            );
+        }
         let _ = fs::remove_dir_all(directory);
     }
 }

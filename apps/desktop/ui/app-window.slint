@@ -1,10 +1,11 @@
 import { AppSidebar } from "sidebar.slint";
 import { HomePage } from "pages/home.slint";
 import { ModelConsentDialog, ModelsPage } from "pages/models.slint";
+import { AsrConfigurationModal } from "pages/asr-provider-components.slint";
 import { HistoryDialog, HistoryGroup, HistoryPage, HistoryRetentionOption } from "pages/history.slint";
 import { DictionaryAddDialog, DictionaryDraft, DictionaryEvidenceItem, DictionaryFilterKind, DictionaryListItem, DictionaryPage, DictionaryRow } from "pages/dictionary.slint";
 import { AudioInputDevice, SettingsPage } from "pages/settings.slint";
-import { AppPage, AsrProvider, LlmProvider, SettingsSection, UiLanguage } from "components.slint";
+import { AppPage, AsrConfigurationField, AsrProvider, AsrProviderCardSpec, LlmProvider, SettingsSection, UiLanguage } from "components.slint";
 import { AppColors, ColorSchemePreference, ThemeId } from "color-system.slint";
 import { Translations } from "translations.slint";
 export { Translations } from "translations.slint";
@@ -17,10 +18,14 @@ export { StatusTray } from "status-tray.slint";
 export { OnboardingWindow } from "onboarding.slint";
 export { LlmProvider } from "components.slint";
 export { AsrProvider } from "components.slint";
+export { AsrConfigurationField, AsrProviderCardKind, AsrProviderCardSpec } from "components.slint";
 export { AppColors, ColorSchemePreference, ThemeId } from "color-system.slint";
 
 export component AppWindow inherits Window {
     private property <string> translation-marker: Translations.language-save-failed;
+    private property <bool> asr-modal-visible: false;
+    private property <bool> asr-modal-pending-save: false;
+    private property <AsrProvider> asr-modal-original-provider: AsrProvider.volcengine;
     title: root.development-environment ? "Saymore Preview" : "Saymore";
     default-font-family: "PingFang SC";
     default-font-size: 13px;
@@ -99,6 +104,8 @@ export component AppWindow inherits Window {
     in-out property <string> asr-api-key: "";
     in-out property <string> asr-model: "volc.seedasr.sauc.duration";
     in-out property <AsrProvider> asr-provider: AsrProvider.volcengine;
+    in property <[AsrProviderCardSpec]> asr-provider-cards;
+    in property <bool> volcengine-asr-configured: false;
     in-out property <string> custom-asr-api-key: "";
     in-out property <string> custom-asr-base-url: "";
     in-out property <string> custom-asr-model: "";
@@ -111,6 +118,7 @@ export component AppWindow inherits Window {
     in-out property <bool> asr-testing: false;
     in-out property <bool> asr-pending-test: false;
     in-out property <bool> asr-config-dirty: false;
+    in-out property <AsrConfigurationField> asr-error-field: AsrConfigurationField.none;
     in-out property <bool> llm-enabled: false;
     in-out property <LlmProvider> llm-provider: LlmProvider.sensenova;
     in-out property <string> sensenova-api-key: "";
@@ -198,6 +206,7 @@ export component AppWindow inherits Window {
     callback refresh-usage();
     callback save-asr-config(AsrProvider, string, string, string);
     callback select-asr-provider(AsrProvider);
+    callback cancel-asr-config();
     callback delete-asr-config();
     callback request-llm-enable();
     callback set-llm-enabled(bool, string);
@@ -238,6 +247,17 @@ export component AppWindow inherits Window {
     changed model-tab => { root.available-models = []; root.model-discovery-status = ""; root.model-discovery-error = false; }
     changed asr-provider => { root.available-models = []; root.model-discovery-status = ""; root.model-discovery-error = false; }
     changed llm-provider => { root.available-models = []; root.model-discovery-status = ""; root.model-discovery-error = false; }
+    changed asr-testing => {
+        if !root.asr-testing && root.asr-modal-pending-save && root.asr-draft-error {
+            root.asr-modal-pending-save = false;
+        }
+    }
+    changed asr-config-dirty => {
+        if !root.asr-config-dirty && root.asr-modal-pending-save && root.asr-configured && !root.asr-draft-error {
+            root.asr-modal-visible = false;
+            root.asr-modal-pending-save = false;
+        }
+    }
 
     if root.current-page != AppPage.settings: HorizontalLayout {
         padding: 10px;
@@ -297,6 +317,8 @@ export component AppWindow inherits Window {
                 asr-api-key <=> root.asr-api-key;
                 asr-model <=> root.asr-model;
                 asr-provider <=> root.asr-provider;
+                asr-provider-cards: root.asr-provider-cards;
+                volcengine-asr-configured: root.volcengine-asr-configured;
                 custom-asr-api-key <=> root.custom-asr-api-key;
                 custom-asr-base-url <=> root.custom-asr-base-url;
                 custom-asr-model <=> root.custom-asr-model;
@@ -308,6 +330,7 @@ export component AppWindow inherits Window {
                 asr-testing <=> root.asr-testing;
                 asr-pending-test <=> root.asr-pending-test;
                 asr-config-dirty <=> root.asr-config-dirty;
+                asr-error-field <=> root.asr-error-field;
                 llm-enabled <=> root.llm-enabled;
                 llm-provider <=> root.llm-provider;
                 sensenova-api-key <=> root.sensenova-api-key;
@@ -334,6 +357,7 @@ export component AppWindow inherits Window {
                 model-discovery-status <=> root.model-discovery-status;
                 save-asr-config(provider, api-key, base-url, model) => { root.save-asr-config(provider, api-key, base-url, model); }
                 select-asr-provider(provider) => { root.select-asr-provider(provider); }
+                cancel-asr-config => { root.cancel-asr-config(); }
                 delete-asr-config => { root.delete-asr-config(); }
                 request-llm-enable => { root.request-llm-enable(); }
                 set-llm-enabled(enabled, base-url) => { root.set-llm-enabled(enabled, base-url); }
@@ -342,6 +366,10 @@ export component AppWindow inherits Window {
                 refresh-models => { root.refresh-models(); }
                 request-asr-test => { root.request-asr-test(); }
                 open-key-page => { root.open-current-provider-key-page(); }
+                open-asr-config(original-provider) => {
+                    root.asr-modal-original-provider = original-provider;
+                    root.asr-modal-visible = true;
+                }
             }
 
             if root.current-page == AppPage.history: HistoryPage {
@@ -483,6 +511,46 @@ export component AppWindow inherits Window {
         border-radius: 5px;
         background: AppColors.warning-soft;
         Text { text: "DEV"; color: AppColors.warning; font-size: 9px; font-weight: 700; horizontal-alignment: center; vertical-alignment: center; }
+    }
+
+    if root.asr-modal-visible: AsrConfigurationModal {
+        width: parent.width;
+        height: parent.height;
+        dialog-area-x: 235px;
+        dialog-area-width: parent.width - 245px;
+        provider: root.asr-provider;
+        volcengine-api-key <=> root.asr-api-key;
+        volcengine-model <=> root.asr-model;
+        custom-api-key <=> root.custom-asr-api-key;
+        custom-base-url <=> root.custom-asr-base-url;
+        custom-model <=> root.custom-asr-model;
+        configured: root.asr-configured && root.asr-provider == root.asr-modal-original-provider;
+        dirty: root.asr-config-dirty;
+        testing: root.asr-testing;
+        draft-error: root.asr-draft-error;
+        error-field: root.asr-error-field;
+        status-message: root.asr-config-status;
+        cancelled => {
+            root.asr-modal-pending-save = false;
+            root.asr-modal-visible = false;
+            root.cancel-asr-config();
+        }
+        save-and-enable => {
+            root.asr-modal-pending-save = true;
+            root.save-asr-config(
+                root.asr-provider,
+                root.asr-provider == AsrProvider.volcengine ? root.asr-api-key : root.custom-asr-api-key,
+                root.asr-provider == AsrProvider.volcengine ? "" : root.custom-asr-base-url,
+                root.asr-provider == AsrProvider.volcengine ? root.asr-model : root.custom-asr-model,
+            );
+        }
+        test-connection => { root.asr-modal-pending-save = false; root.request-asr-test(); }
+        delete-configuration => {
+            root.asr-modal-pending-save = false;
+            root.asr-modal-visible = false;
+            root.delete-asr-config();
+        }
+        open-key-page => { root.open-current-provider-key-page(); }
     }
 
     HistoryDialog {

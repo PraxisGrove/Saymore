@@ -290,6 +290,48 @@ fn custom_llm_provider_round_trips_and_can_enable_without_a_local_api_key() {
 }
 
 #[test]
+fn loads_the_existing_custom_asr_provider_schema() {
+    let directory = test_directory();
+    let path = directory.join("config.json");
+    assert!(fs::create_dir_all(&directory).is_ok());
+    assert!(
+        fs::write(
+            &path,
+            r#"{
+                "version": 3,
+                "active": {"asr": "custom-asr"},
+                "asr_providers": [{
+                    "id": "custom-asr",
+                    "name": "OpenAI-compatible ASR",
+                    "type": "openai_transcriptions",
+                    "config": {
+                        "base_url": "https://asr.example/v1",
+                        "api_key": "existing-key",
+                        "model": "whisper-1"
+                    }
+                }]
+            }"#,
+        )
+        .is_ok()
+    );
+
+    let store = JsonSettingsStore::at_path(path);
+    let Ok(settings) = store.load() else {
+        panic!("existing custom ASR settings should remain readable");
+    };
+    assert_eq!(
+        OpenAiCompatibleAsrSettings {
+            enabled: true,
+            base_url: "https://asr.example/v1".to_owned(),
+            api_key: "existing-key".to_owned(),
+            model: "whisper-1".to_owned(),
+        },
+        settings.asr.openai_compatible
+    );
+    let _ = fs::remove_dir_all(directory);
+}
+
+#[test]
 fn rejects_active_provider_from_the_wrong_partition() {
     let directory = test_directory();
     let store = JsonSettingsStore::at_path(directory.join("config.json"));

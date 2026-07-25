@@ -11,6 +11,7 @@ use template_infra::JsonSettingsStore;
 use crate::ui::{AppWindow, LlmProvider as UiLlmProvider, Translations};
 
 mod asr_configuration;
+mod asr_provider_cards;
 mod llm_configuration;
 mod llm_enablement;
 mod loaded_settings;
@@ -53,6 +54,7 @@ fn ui_provider(provider: LlmProviderPreset) -> UiLlmProvider {
 }
 
 pub fn wire(ui: &AppWindow, store: Arc<JsonSettingsStore>) {
+    asr_provider_cards::apply(ui);
     apply_loaded_settings(ui, &store);
     let refresh_ui = ui.as_weak();
     let refresh_store = Arc::clone(&store);

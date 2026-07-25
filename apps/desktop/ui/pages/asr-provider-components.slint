@@ -1,0 +1,528 @@
+import { AppColors } from "../color-system.slint";
+import { AppSelect, AsrConfigurationField, AsrProvider } from "../components.slint";
+
+export enum ProviderStatusTone {
+    neutral,
+    active,
+    warning,
+    error,
+}
+
+export component ProviderStatusBadge inherits Rectangle {
+    in property <string> label;
+    in property <ProviderStatusTone> tone: ProviderStatusTone.neutral;
+
+    width: 88px;
+    height: 22px;
+    border-radius: 6px;
+    background: root.tone == ProviderStatusTone.active ? AppColors.success-soft
+        : root.tone == ProviderStatusTone.warning ? AppColors.warning-soft
+        : root.tone == ProviderStatusTone.error ? AppColors.danger-soft
+        : AppColors.surface-muted;
+
+    Text {
+        x: 8px;
+        width: parent.width - 16px;
+        text: root.label;
+        color: root.tone == ProviderStatusTone.active ? AppColors.success
+            : root.tone == ProviderStatusTone.warning ? AppColors.warning
+            : root.tone == ProviderStatusTone.error ? AppColors.danger
+            : AppColors.text-muted;
+        font-size: 9px;
+        font-weight: 650;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+        overflow: elide;
+    }
+}
+
+export component AsrProviderCard inherits Rectangle {
+    in property <image> logo;
+    in property <bool> colorize-logo: false;
+    in property <string> source-type;
+    in property <string> provider-name;
+    in property <string> summary;
+    in property <string> status;
+    in property <ProviderStatusTone> status-tone: ProviderStatusTone.neutral;
+    in property <bool> selected: false;
+    in property <bool> enabled: true;
+    callback activated();
+
+    height: 108px;
+    border-radius: 10px;
+    background: !root.enabled ? AppColors.surface-muted
+        : card-touch.pressed ? AppColors.selected
+        : card-focus.has-focus ? AppColors.selected
+        : card-touch.has-hover ? AppColors.surface-subtle
+        : root.selected ? AppColors.brand-soft : AppColors.surface;
+    opacity: root.enabled ? 1 : 0.72;
+    animate background { duration: 140ms; easing: ease-out; }
+    animate opacity { duration: 90ms; easing: ease-out; }
+
+    Text {
+        x: 12px;
+        y: 8px;
+        width: parent.width - 24px;
+        text: root.source-type;
+        color: root.selected ? AppColors.brand-strong : AppColors.text-muted;
+        font-size: 9px;
+        font-weight: 650;
+        overflow: elide;
+    }
+
+    if !root.colorize-logo: Image {
+        x: 16px;
+        y: 32px;
+        width: 44px;
+        height: 44px;
+        source: root.logo;
+        image-fit: contain;
+        image-rendering: smooth;
+    }
+    if root.colorize-logo: Image {
+        x: 20px;
+        y: 36px;
+        width: 36px;
+        height: 36px;
+        source: root.logo;
+        colorize: AppColors.ink;
+        image-fit: contain;
+        image-rendering: smooth;
+    }
+
+    Text {
+        x: 74px;
+        y: 27px;
+        width: parent.width - 122px;
+        text: root.provider-name;
+        color: root.enabled ? AppColors.ink : AppColors.text;
+        font-size: 12px;
+        font-weight: 700;
+        overflow: elide;
+    }
+    Text {
+        x: 74px;
+        y: 51px;
+        width: parent.width - 122px;
+        text: root.summary;
+        color: AppColors.text-muted;
+        font-size: 9px;
+        overflow: elide;
+    }
+    ProviderStatusBadge {
+        x: 74px;
+        y: 78px;
+        label: root.status;
+        tone: root.status-tone;
+    }
+
+    Image {
+        x: parent.width - 30px;
+        y: 82px;
+        width: 16px;
+        height: 16px;
+        source: @image-url("../../icons/lucide/chevron-right.svg");
+        colorize: root.enabled ? AppColors.text-muted : AppColors.chart-neutral;
+    }
+
+    card-focus := FocusScope {
+        enabled: root.enabled;
+        accessible-role: button;
+        accessible-label: root.provider-name;
+        accessible-enabled: root.enabled;
+        accessible-action-default => { if root.enabled { root.activated(); } }
+        key-pressed(event) => {
+            if root.enabled && (event.text == "\n" || event.text == " ") {
+                root.activated();
+                return accept;
+            }
+            return reject;
+        }
+    }
+    card-touch := TouchArea {
+        enabled: root.enabled;
+        mouse-cursor: root.enabled ? pointer : default;
+        clicked => {
+            card-focus.focus();
+            root.activated();
+        }
+    }
+}
+
+component ModalButton inherits Rectangle {
+    in property <string> label;
+    in property <bool> primary: false;
+    in property <bool> danger: false;
+    in property <bool> enabled: true;
+    callback activated();
+
+    width: max(96px, button-label.preferred-width + 28px);
+    height: 38px;
+    border-radius: 7px;
+    border-width: root.primary ? 0px : 1px;
+    border-color: button-focus.has-focus ? AppColors.brand
+        : root.danger ? AppColors.danger : AppColors.border;
+    background: !root.enabled ? AppColors.surface-muted
+        : root.primary ? (button-touch.has-hover ? AppColors.brand-hover : AppColors.brand)
+        : button-touch.pressed ? AppColors.selected
+        : button-touch.has-hover ? AppColors.surface-subtle : AppColors.surface;
+    opacity: root.enabled ? 1 : 0.55;
+
+    button-label := Text {
+        text: root.label;
+        color: !root.enabled ? AppColors.text-muted
+            : root.primary ? AppColors.on-brand
+            : root.danger ? AppColors.danger : AppColors.text;
+        font-size: 11px;
+        font-weight: 650;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+    button-focus := FocusScope {
+        enabled: root.enabled;
+        accessible-role: button;
+        accessible-label: root.label;
+        accessible-enabled: root.enabled;
+        accessible-action-default => { if root.enabled { root.activated(); } }
+        key-pressed(event) => {
+            if root.enabled && (event.text == "\n" || event.text == " ") {
+                root.activated();
+                return accept;
+            }
+            return reject;
+        }
+    }
+    button-touch := TouchArea {
+        enabled: root.enabled;
+        mouse-cursor: root.enabled ? pointer : default;
+        clicked => {
+            button-focus.focus();
+            root.activated();
+        }
+    }
+}
+
+component ModalTextField inherits Rectangle {
+    in-out property <string> value;
+    in property <string> placeholder;
+    in property <string> accessible-name;
+    in property <bool> error: false;
+    forward-focus: field-input;
+
+    height: 38px;
+    border-radius: 7px;
+    border-width: 1px;
+    border-color: root.error ? AppColors.danger
+        : field-input.has-focus ? AppColors.brand : AppColors.border;
+    background: AppColors.sidebar;
+    clip: true;
+
+    if root.value.is-empty: Text {
+        x: 12px;
+        width: parent.width - 24px;
+        text: root.placeholder;
+        color: AppColors.text-muted;
+        font-size: 11px;
+        vertical-alignment: center;
+        overflow: elide;
+    }
+    field-input := TextInput {
+        x: 12px;
+        width: parent.width - 24px;
+        text <=> root.value;
+        accessible-label: root.accessible-name;
+        color: AppColors.text;
+        font-size: 11px;
+        vertical-alignment: center;
+    }
+}
+
+component ModalSecretField inherits Rectangle {
+    in-out property <string> value;
+    in property <string> accessible-name;
+    in property <bool> error: false;
+    in-out property <bool> reveal: false;
+    forward-focus: secret-input;
+
+    height: 38px;
+    border-radius: 7px;
+    border-width: 1px;
+    border-color: root.error ? AppColors.danger
+        : secret-input.has-focus ? AppColors.brand : AppColors.border;
+    background: AppColors.sidebar;
+    clip: true;
+
+    ContextMenuArea {
+        x: 12px;
+        width: parent.width - 54px;
+        Menu {
+            MenuItem { title: @tr("common.cut" => "Cut"); activated => { secret-input.cut(); } }
+            MenuItem { title: @tr("common.copy" => "Copy"); activated => { secret-input.copy(); } }
+            MenuItem { title: @tr("common.paste" => "Paste"); activated => { secret-input.paste(); } }
+            MenuItem { title: @tr("common.select-all" => "Select All"); activated => { secret-input.select-all(); } }
+        }
+        secret-input := TextInput {
+            text <=> root.value;
+            input-type: root.reveal ? InputType.text : InputType.password;
+            accessible-label: root.accessible-name;
+            accessible-value: root.value.is-empty ? "" : @tr("common.value-entered" => "Entered");
+            color: AppColors.text;
+            font-size: 11px;
+            vertical-alignment: center;
+        }
+    }
+    Image {
+        x: parent.width - 28px;
+        y: 11px;
+        width: 16px;
+        height: 16px;
+        source: @image-url("../../icons/lucide/eye.svg");
+        colorize: AppColors.text-muted;
+    }
+    Rectangle {
+        x: parent.width - 40px;
+        width: 40px;
+        height: 38px;
+        background: reveal-touch.has-hover ? AppColors.surface-subtle : transparent;
+        accessible-role: button;
+        accessible-label: root.reveal ? @tr("models.asr.hide-api-key" => "Hide API key") : @tr("models.asr.show-api-key" => "Show API key");
+        accessible-action-default => { root.reveal = !root.reveal; }
+        reveal-touch := TouchArea { mouse-cursor: pointer; clicked => { root.reveal = !root.reveal; } }
+    }
+}
+
+export component AsrConfigurationModal inherits Rectangle {
+    in property <length> dialog-area-x: 0px;
+    in property <length> dialog-area-width: root.width;
+    in property <AsrProvider> provider: AsrProvider.volcengine;
+    in-out property <string> volcengine-api-key;
+    in-out property <string> volcengine-model;
+    in-out property <string> custom-api-key;
+    in-out property <string> custom-base-url;
+    in-out property <string> custom-model;
+    in property <bool> configured: false;
+    in property <bool> dirty: false;
+    in property <bool> testing: false;
+    in property <bool> draft-error: false;
+    in property <AsrConfigurationField> error-field: AsrConfigurationField.none;
+    in property <string> status-message;
+    callback cancelled();
+    callback save-and-enable();
+    callback test-connection();
+    callback delete-configuration();
+    callback open-key-page();
+
+    private property <bool> ready: root.provider == AsrProvider.volcengine
+        ? !root.volcengine-api-key.is-empty && !root.volcengine-model.is-empty
+        : !root.custom-base-url.is-empty && !root.custom-api-key.is-empty && !root.custom-model.is-empty;
+    private property <length> dialog-height: root.provider == AsrProvider.volcengine ? 430px : 510px;
+
+    background: AppColors.scrim;
+    TouchArea { mouse-cursor: default; clicked => { } }
+
+    modal-focus := FocusScope {
+        width: parent.width;
+        height: parent.height;
+        capture-key-pressed(event) => {
+            if event.text == Key.Escape && !root.testing {
+                root.cancelled();
+                return accept;
+            }
+            return reject;
+        }
+
+    dialog := Rectangle {
+        x: root.dialog-area-x + (root.dialog-area-width - self.width) / 2;
+        y: (parent.height - self.height) / 2;
+        width: min(540px, root.dialog-area-width - 32px);
+        height: root.dialog-height;
+        border-radius: 12px;
+        border-width: 1px;
+        border-color: AppColors.border;
+        background: AppColors.surface;
+        drop-shadow-blur: 28px;
+        drop-shadow-offset-y: 10px;
+        drop-shadow-color: AppColors.shadow;
+
+        Image {
+            x: 24px;
+            y: 22px;
+            width: 38px;
+            height: 38px;
+            source: root.provider == AsrProvider.volcengine
+                ? @image-url("../../icons/providers/volcengine.png")
+                : @image-url("../../icons/lucide/plus.svg");
+            colorize: root.provider == AsrProvider.custom ? AppColors.ink : transparent;
+            image-fit: contain;
+        }
+        Text {
+            x: 76px;
+            y: 18px;
+            width: parent.width - 136px;
+            text: root.provider == AsrProvider.volcengine
+                ? @tr("models.asr.volcengine.dialog-title" => "Configure Volcengine")
+                : @tr("models.asr.custom.dialog-title" => "Configure custom ASR");
+            color: AppColors.ink;
+            font-size: 18px;
+            font-weight: 700;
+            overflow: elide;
+        }
+        Text {
+            x: 76px;
+            y: 45px;
+            width: parent.width - 136px;
+            text: root.provider == AsrProvider.volcengine
+                ? @tr("models.asr.volcengine.dialog-subtitle" => "Test the connection before atomically enabling this provider.")
+                : @tr("models.asr.custom.dialog-subtitle" => "OpenAI-compatible audio transcription endpoint");
+            color: AppColors.text-muted;
+            font-size: 10px;
+            overflow: elide;
+        }
+        Rectangle {
+            x: parent.width - 52px;
+            y: 14px;
+            width: 40px;
+            height: 40px;
+            border-radius: 7px;
+            background: close-touch.pressed ? AppColors.selected
+                : close-touch.has-hover ? AppColors.surface-subtle : transparent;
+            accessible-role: button;
+            accessible-label: @tr("common.close" => "Close");
+            accessible-action-default => { if !root.testing { root.cancelled(); } }
+            Image { x: 11px; y: 11px; width: 18px; height: 18px; source: @image-url("../../icons/lucide/x.svg"); colorize: AppColors.text-muted; }
+            close-touch := TouchArea { enabled: !root.testing; mouse-cursor: self.enabled ? pointer : default; clicked => { root.cancelled(); } }
+        }
+        Rectangle { x: 24px; y: 78px; width: parent.width - 48px; height: 1px; background: AppColors.border; }
+
+        if root.provider == AsrProvider.volcengine: Rectangle {
+            x: 24px;
+            y: 92px;
+            width: parent.width - 48px;
+            height: 250px;
+            background: transparent;
+
+            Text { x: 0px; y: 0px; text: "API Key"; color: AppColors.text; font-size: 11px; font-weight: 650; }
+            Rectangle {
+                x: parent.width - 112px;
+                y: -7px;
+                width: 112px;
+                height: 32px;
+                border-radius: 6px;
+                background: key-touch.has-hover ? AppColors.brand-soft : transparent;
+                accessible-role: button;
+                accessible-label: @tr("models.get-api-key" => "Get API key");
+                accessible-action-default => { root.open-key-page(); }
+                Text { x: 8px; width: parent.width - 16px; text: @tr("models.get-api-key" => "Get API key"); color: AppColors.brand-strong; font-size: 10px; font-weight: 650; horizontal-alignment: center; vertical-alignment: center; }
+                key-touch := TouchArea { mouse-cursor: pointer; clicked => { root.open-key-page(); } }
+            }
+            volc-key := ModalSecretField {
+                x: 0px;
+                y: 25px;
+                width: parent.width;
+                value <=> root.volcengine-api-key;
+                error: root.error-field == AsrConfigurationField.api-key;
+                accessible-name: @tr("models.volcengine-api-key" => "Volcengine API key");
+            }
+            if root.error-field == AsrConfigurationField.api-key: Text {
+                x: 0px; y: 66px; width: parent.width; text: root.status-message; color: AppColors.danger; font-size: 10px; overflow: elide;
+            }
+
+            Text { x: 0px; y: 93px; text: @tr("models.model-field" => "Model"); color: AppColors.text; font-size: 11px; font-weight: 650; }
+            Rectangle {
+                x: 0px;
+                y: 117px;
+                width: parent.width;
+                height: 38px;
+                border-radius: 7px;
+                border-width: 1px;
+                border-color: root.error-field == AsrConfigurationField.model ? AppColors.danger : AppColors.border;
+                AppSelect {
+                    x: 0px;
+                    y: 0px;
+                    width: parent.width;
+                    height: parent.height;
+                    model: ["volc.bigasr.sauc.duration", "volc.seedasr.sauc.duration"];
+                    current-value: root.volcengine-model;
+                    selected(value) => { root.volcengine-model = value; }
+                }
+            }
+            if root.error-field == AsrConfigurationField.model: Text {
+                x: 0px; y: 158px; width: parent.width; text: root.status-message; color: AppColors.danger; font-size: 10px; overflow: elide;
+            }
+            if root.testing || root.error-field == AsrConfigurationField.form: Rectangle {
+                x: 0px;
+                y: 188px;
+                width: parent.width;
+                height: 42px;
+                border-radius: 7px;
+                background: root.error-field == AsrConfigurationField.form ? AppColors.danger-soft : AppColors.info-soft;
+                Image { x: 12px; y: 13px; width: 16px; height: 16px; source: root.error-field == AsrConfigurationField.form ? @image-url("../../icons/lucide/circle-alert.svg") : @image-url("../../icons/lucide/refresh-cw.svg"); colorize: root.error-field == AsrConfigurationField.form ? AppColors.danger : AppColors.info; }
+                Text { x: 38px; width: parent.width - 50px; text: root.status-message; color: root.error-field == AsrConfigurationField.form ? AppColors.danger : AppColors.info; font-size: 10px; font-weight: 600; vertical-alignment: center; overflow: elide; }
+            }
+        }
+
+        if root.provider == AsrProvider.custom: Rectangle {
+            x: 24px;
+            y: 92px;
+            width: parent.width - 48px;
+            height: 330px;
+            background: transparent;
+
+            Text { x: 0px; y: 0px; text: @tr("models.base-url" => "Service URL"); color: AppColors.text; font-size: 11px; font-weight: 650; }
+            custom-url := ModalTextField {
+                x: 0px; y: 23px; width: parent.width; value <=> root.custom-base-url; placeholder: "https://api.example.com/v1"; accessible-name: @tr("models.base-url" => "Service URL"); error: root.error-field == AsrConfigurationField.base-url;
+            }
+            if root.error-field == AsrConfigurationField.base-url: Text { x: 0px; y: 64px; width: parent.width; text: root.status-message; color: AppColors.danger; font-size: 10px; overflow: elide; }
+
+            Text { x: 0px; y: 88px; text: "API Key"; color: AppColors.text; font-size: 11px; font-weight: 650; }
+            ModalSecretField { x: 0px; y: 111px; width: parent.width; value <=> root.custom-api-key; accessible-name: @tr("models.custom-speech-api-key" => "Custom speech recognition API key"); error: root.error-field == AsrConfigurationField.api-key; }
+            if root.error-field == AsrConfigurationField.api-key: Text { x: 0px; y: 152px; width: parent.width; text: root.status-message; color: AppColors.danger; font-size: 10px; overflow: elide; }
+
+            Text { x: 0px; y: 176px; text: @tr("models.model-field" => "Model"); color: AppColors.text; font-size: 11px; font-weight: 650; }
+            ModalTextField { x: 0px; y: 199px; width: parent.width; value <=> root.custom-model; placeholder: "whisper-1"; accessible-name: @tr("models.model-field" => "Model"); error: root.error-field == AsrConfigurationField.model; }
+            if root.error-field == AsrConfigurationField.model: Text { x: 0px; y: 240px; width: parent.width; text: root.status-message; color: AppColors.danger; font-size: 10px; overflow: elide; }
+
+            if root.testing || root.error-field == AsrConfigurationField.form: Rectangle {
+                x: 0px;
+                y: 266px;
+                width: parent.width;
+                height: 42px;
+                border-radius: 7px;
+                background: root.error-field == AsrConfigurationField.form ? AppColors.danger-soft : AppColors.info-soft;
+                Image { x: 12px; y: 13px; width: 16px; height: 16px; source: root.error-field == AsrConfigurationField.form ? @image-url("../../icons/lucide/circle-alert.svg") : @image-url("../../icons/lucide/refresh-cw.svg"); colorize: root.error-field == AsrConfigurationField.form ? AppColors.danger : AppColors.info; }
+                Text { x: 38px; width: parent.width - 50px; text: root.status-message; color: root.error-field == AsrConfigurationField.form ? AppColors.danger : AppColors.info; font-size: 10px; font-weight: 600; vertical-alignment: center; overflow: elide; }
+            }
+        }
+
+        if root.configured: ModalButton {
+            x: 24px;
+            y: parent.height - 56px;
+            width: 116px;
+            label: @tr("models.asr.delete-configuration" => "Delete configuration");
+            danger: true;
+            enabled: !root.testing;
+            activated => { root.delete-configuration(); }
+        }
+        ModalButton {
+            x: parent.width - 274px;
+            y: parent.height - 56px;
+            width: 116px;
+            label: root.testing ? @tr("models.test.testing" => "Testing…") : @tr("models.test.action" => "Test connection");
+            enabled: root.ready && !root.testing;
+            activated => { root.test-connection(); }
+        }
+        ModalButton {
+            x: parent.width - 150px;
+            y: parent.height - 56px;
+            width: 126px;
+            label: root.testing ? @tr("models.save.testing" => "Testing…") : @tr("models.asr.save-and-enable" => "Save and enable");
+            primary: true;
+            enabled: root.ready && root.dirty && !root.testing;
+            activated => { root.save-and-enable(); }
+        }
+    }
+
+    }
+    init => { modal-focus.focus(); }
+    changed visible => { if root.visible { modal-focus.focus(); } }
+}

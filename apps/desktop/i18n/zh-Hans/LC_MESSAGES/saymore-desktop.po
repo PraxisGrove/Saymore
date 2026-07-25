@@ -2627,6 +2627,126 @@ msgctxt "settings.link.terms"
 msgid "Terms of Service"
 msgstr "服务条款"
 
+#: apps/desktop/ui/pages/asr-provider-components.slint
+msgctxt "models.asr.hide-api-key"
+msgid "Hide API key"
+msgstr "隐藏 API Key"
+
+#: apps/desktop/ui/pages/asr-provider-components.slint
+msgctxt "models.asr.show-api-key"
+msgid "Show API key"
+msgstr "显示 API Key"
+
+#: apps/desktop/ui/pages/asr-provider-components.slint
+msgctxt "models.asr.volcengine.dialog-title"
+msgid "Configure Volcengine"
+msgstr "配置火山引擎"
+
+#: apps/desktop/ui/pages/asr-provider-components.slint
+msgctxt "models.asr.volcengine.dialog-subtitle"
+msgid "Test the connection before atomically enabling this provider."
+msgstr "连接测试通过后再原子启用此提供商。"
+
+#: apps/desktop/ui/pages/asr-provider-components.slint
+msgctxt "models.asr.custom.dialog-title"
+msgid "Configure custom ASR"
+msgstr "配置自定义 ASR"
+
+#: apps/desktop/ui/pages/asr-provider-components.slint
+msgctxt "models.asr.custom.dialog-subtitle"
+msgid "OpenAI-compatible audio transcription endpoint"
+msgstr "兼容 OpenAI 音频转写协议的服务端点"
+
+#: apps/desktop/ui/pages/asr-provider-components.slint
+msgctxt "models.asr.delete-configuration"
+msgid "Delete configuration"
+msgstr "删除配置"
+
+#: apps/desktop/ui/pages/asr-provider-components.slint
+msgctxt "models.asr.save-and-enable"
+msgid "Save and enable"
+msgstr "保存并启用"
+
+#: apps/desktop/ui/pages/speech-recognition.slint
+msgctxt "models.asr.source.cloud-api"
+msgid "Cloud API"
+msgstr "云端 API"
+
+#: apps/desktop/ui/pages/speech-recognition.slint
+msgctxt "models.asr.source.saymore-cloud"
+msgid "Saymore cloud"
+msgstr "Saymore 云"
+
+#: apps/desktop/ui/pages/speech-recognition.slint
+msgctxt "models.asr.source.system-built-in"
+msgid "System built-in"
+msgstr "系统内置"
+
+#: apps/desktop/ui/pages/speech-recognition.slint
+msgctxt "models.asr.source.custom"
+msgid "Custom"
+msgstr "自定义"
+
+#: apps/desktop/ui/pages/speech-recognition.slint
+msgctxt "models.asr.source.local-model"
+msgid "Local model"
+msgstr "本地模型"
+
+#: apps/desktop/ui/pages/speech-recognition.slint
+msgctxt "models.asr.summary.configured-model"
+msgid "{} · API key configured"
+msgstr "{} · 已配置 API Key"
+
+#: apps/desktop/ui/pages/speech-recognition.slint
+msgctxt "models.asr.summary.saymore-cloud-unavailable"
+msgid "Cloud service adapter is not yet connected"
+msgstr "云服务 Adapter 尚未接入"
+
+#: apps/desktop/ui/pages/speech-recognition.slint
+msgctxt "models.asr.summary.system-unavailable"
+msgid "System speech adapter and metrics are not yet connected"
+msgstr "系统语音 Adapter 与指标尚未接入"
+
+#: apps/desktop/ui/pages/speech-recognition.slint
+msgctxt "models.asr.summary.volcengine"
+msgid "API key and model configuration"
+msgstr "API Key 与模型配置"
+
+#: apps/desktop/ui/pages/speech-recognition.slint
+msgctxt "models.asr.summary.custom"
+msgid "Base URL, API key, and model"
+msgstr "服务地址、API Key 与模型"
+
+#: apps/desktop/ui/pages/speech-recognition.slint
+msgctxt "models.asr.summary.local-unavailable"
+msgid "Verified artifacts and production adapter are unavailable"
+msgstr "尚无已验证制品和生产 Adapter"
+
+#: apps/desktop/ui/pages/speech-recognition.slint
+msgctxt "models.asr.status.unavailable"
+msgid "Unavailable"
+msgstr "不可用"
+
+#: apps/desktop/ui/pages/speech-recognition.slint
+msgctxt "models.asr.status.current"
+msgid "Current"
+msgstr "当前"
+
+#: apps/desktop/ui/pages/speech-recognition.slint
+msgctxt "models.provider.saymore-cloud"
+msgid "Saymore Cloud"
+msgstr "Saymore 云"
+
+#: apps/desktop/ui/pages/speech-recognition.slint
+msgctxt "models.provider.macos-dictation"
+msgid "macOS Dictation"
+msgstr "macOS 听写"
+
+#: apps/desktop/ui/pages/speech-recognition.slint
+msgctxt "models.provider.windows-speech"
+msgid "Windows Speech Recognition"
+msgstr "Windows 语音识别"
+
 #~ msgctxt "onboarding.test.stop"
 #~ msgid "Finish test"
 #~ msgstr "结束测试"

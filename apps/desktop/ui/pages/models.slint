@@ -1,6 +1,12 @@
-import { AsrProvider, LlmProvider } from "../components.slint";
+import {
+    AsrConfigurationField,
+    AsrProvider,
+    AsrProviderCardSpec,
+    LlmProvider,
+} from "../components.slint";
 import { AppColors } from "../color-system.slint";
 import { ScrollView } from "std-widgets.slint";
+import { SpeechRecognitionPage } from "speech-recognition.slint";
 
 component ModelTab inherits Rectangle {
     in property <string> label;
@@ -231,6 +237,8 @@ export component ModelsPage inherits Rectangle {
     in-out property <string> asr-api-key;
     in-out property <string> asr-model: "volc.seedasr.sauc.duration";
     in-out property <AsrProvider> asr-provider: AsrProvider.volcengine;
+    in property <[AsrProviderCardSpec]> asr-provider-cards;
+    in property <bool> volcengine-asr-configured;
     in-out property <string> custom-asr-api-key;
     in-out property <string> custom-asr-base-url;
     in-out property <string> custom-asr-model;
@@ -242,6 +250,7 @@ export component ModelsPage inherits Rectangle {
     in-out property <bool> asr-testing: false;
     in-out property <bool> asr-pending-test: false;
     in-out property <bool> asr-config-dirty: false;
+    in-out property <AsrConfigurationField> asr-error-field: AsrConfigurationField.none;
     in-out property <bool> llm-enabled;
     in-out property <LlmProvider> llm-provider: LlmProvider.sensenova;
     in-out property <string> sensenova-api-key;
@@ -268,6 +277,7 @@ export component ModelsPage inherits Rectangle {
     in-out property <string> model-discovery-status;
     callback save-asr-config(AsrProvider, string, string, string);
     callback select-asr-provider(AsrProvider);
+    callback cancel-asr-config();
     callback delete-asr-config();
     callback request-llm-enable();
     callback set-llm-enabled(bool, string);
@@ -276,6 +286,7 @@ export component ModelsPage inherits Rectangle {
     callback refresh-models();
     callback request-asr-test();
     callback open-key-page();
+    callback open-asr-config(AsrProvider);
 
     private property <bool> service-menu-open: false;
     private property <bool> model-menu-open: false;
@@ -306,14 +317,12 @@ export component ModelsPage inherits Rectangle {
     private property <string> service-status: root.active-testing ? @tr("models.status.testing" => "●  Testing") : root.active-config-dirty ? root.active-draft-error ? @tr("models.status.connection-failed" => "●  Connection issue") : @tr("models.status.unsaved" => "●  Unsaved changes") : root.active-tab == 0 ? root.asr-config-error ? @tr("models.status.connection-failed" => "●  Connection issue") : root.asr-pending-test ? @tr("models.status.awaiting-connection-test" => "●  Awaiting connection test") : root.service-healthy ? @tr("models.status.connected" => "●  Connected") : @tr("models.status.not-configured" => "●  Not configured") : root.service-healthy ? @tr("models.status.connected" => "●  Connected") : root.llm-config-status;
     private property <length> config-height: root.advanced-visible ? 270px : 228px;
     private property <length> action-y: root.advanced-visible ? 560px : 525px;
-    forward-focus: asr-field;
-    init => { if root.focus-asr-config { root.focus(); } }
     changed model-discovery-error => { if root.model-discovery-error { root.model-menu-open = true; } }
-    changed asr-api-key => { root.asr-config-dirty = true; root.asr-draft-error = false; }
-    changed asr-model => { root.asr-config-dirty = true; root.asr-draft-error = false; }
-    changed custom-asr-api-key => { root.asr-config-dirty = true; root.asr-draft-error = false; }
-    changed custom-asr-base-url => { root.asr-config-dirty = true; root.asr-draft-error = false; }
-    changed custom-asr-model => { root.asr-config-dirty = true; root.asr-draft-error = false; }
+    changed asr-api-key => { root.asr-config-dirty = true; root.asr-draft-error = false; root.asr-error-field = AsrConfigurationField.none; }
+    changed asr-model => { root.asr-config-dirty = true; root.asr-draft-error = false; root.asr-error-field = AsrConfigurationField.none; }
+    changed custom-asr-api-key => { root.asr-config-dirty = true; root.asr-draft-error = false; root.asr-error-field = AsrConfigurationField.none; }
+    changed custom-asr-base-url => { root.asr-config-dirty = true; root.asr-draft-error = false; root.asr-error-field = AsrConfigurationField.none; }
+    changed custom-asr-model => { root.asr-config-dirty = true; root.asr-draft-error = false; root.asr-error-field = AsrConfigurationField.none; }
     changed sensenova-api-key => { root.llm-config-dirty = true; root.llm-draft-error = false; }
     changed sensenova-model => { root.llm-config-dirty = true; root.llm-draft-error = false; }
     changed deepseek-api-key => { root.llm-config-dirty = true; root.llm-draft-error = false; }
@@ -328,6 +337,38 @@ export component ModelsPage inherits Rectangle {
     transcription-tab := ModelTab { x: 0px; y: 89px; label: @tr("models.tab.speech-recognition" => "Transcription"); selected: root.active-tab == 0; activated => { root.active-tab = 0; root.service-menu-open = false; root.model-menu-open = false; root.api-key-visible = false; root.manual-model = false; } }
     ModelTab { x: transcription-tab.x + transcription-tab.width + 24px; y: 89px; label: @tr("models.tab.text-polishing" => "Polishing"); selected: root.active-tab == 1; activated => { root.active-tab = 1; root.service-menu-open = false; root.model-menu-open = false; root.api-key-visible = false; root.manual-model = false; } }
     Rectangle { x: 0px; y: 120px; width: parent.width - 1px; height: 1px; background: AppColors.border; }
+
+    if root.active-tab == 0: SpeechRecognitionPage {
+        x: 0px;
+        y: 140px;
+        width: parent.width;
+        height: parent.height - 140px;
+        focus-config: root.focus-asr-config;
+        provider-cards: root.asr-provider-cards;
+        provider <=> root.asr-provider;
+        volcengine-api-key <=> root.asr-api-key;
+        volcengine-model <=> root.asr-model;
+        volcengine-configured: root.volcengine-asr-configured;
+        custom-api-key <=> root.custom-asr-api-key;
+        custom-base-url <=> root.custom-asr-base-url;
+        custom-model <=> root.custom-asr-model;
+        custom-configured: root.custom-asr-configured;
+        active-configured: root.asr-configured;
+        config-error: root.asr-config-error;
+        draft-error <=> root.asr-draft-error;
+        config-status: root.asr-config-status;
+        testing <=> root.asr-testing;
+        pending-test <=> root.asr-pending-test;
+        config-dirty <=> root.asr-config-dirty;
+        error-field <=> root.asr-error-field;
+        select-provider(provider) => { root.select-asr-provider(provider); }
+        open-config(original-provider) => { root.open-asr-config(original-provider); }
+    }
+
+    if root.active-tab == 1: Rectangle {
+        width: parent.width;
+        height: parent.height;
+        background: transparent;
 
     Text { x: 0px; y: 140px; text: root.active-tab == 0 ? @tr("models.speech-service" => "Speech recognition service") : @tr("models.polishing-service" => "Text polishing service"); color: AppColors.text; font-size: 14px; font-weight: 650; }
     if root.active-tab == 1: LlmEnableSwitch {
@@ -522,5 +563,6 @@ export component ModelsPage inherits Rectangle {
                 }
             }
         }
+    }
     }
 }

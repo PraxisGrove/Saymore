@@ -33,6 +33,30 @@ export enum AsrProvider {
     custom,
 }
 
+export enum AsrProviderCardKind {
+    saymore-cloud,
+    macos-dictation,
+    windows-speech,
+    volcengine,
+    paraformer,
+    whisper-large-v3-turbo,
+    qwen3-asr,
+    custom,
+}
+
+export struct AsrProviderCardSpec {
+    kind: AsrProviderCardKind,
+    available: bool,
+}
+
+export enum AsrConfigurationField {
+    none,
+    api-key,
+    base-url,
+    model,
+    form,
+}
+
 export component StatusPill inherits Rectangle {
     in property <string> label;
     in property <bool> granted;

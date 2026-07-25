@@ -2687,3 +2687,123 @@ msgstr ""
 msgctxt "settings.link.terms"
 msgid "Terms of Service"
 msgstr ""
+
+#: apps/desktop/ui/pages/asr-provider-components.slint
+msgctxt "models.asr.hide-api-key"
+msgid "Hide API key"
+msgstr ""
+
+#: apps/desktop/ui/pages/asr-provider-components.slint
+msgctxt "models.asr.show-api-key"
+msgid "Show API key"
+msgstr ""
+
+#: apps/desktop/ui/pages/asr-provider-components.slint
+msgctxt "models.asr.volcengine.dialog-title"
+msgid "Configure Volcengine"
+msgstr ""
+
+#: apps/desktop/ui/pages/asr-provider-components.slint
+msgctxt "models.asr.volcengine.dialog-subtitle"
+msgid "Test the connection before atomically enabling this provider."
+msgstr ""
+
+#: apps/desktop/ui/pages/asr-provider-components.slint
+msgctxt "models.asr.custom.dialog-title"
+msgid "Configure custom ASR"
+msgstr ""
+
+#: apps/desktop/ui/pages/asr-provider-components.slint
+msgctxt "models.asr.custom.dialog-subtitle"
+msgid "OpenAI-compatible audio transcription endpoint"
+msgstr ""
+
+#: apps/desktop/ui/pages/asr-provider-components.slint
+msgctxt "models.asr.delete-configuration"
+msgid "Delete configuration"
+msgstr ""
+
+#: apps/desktop/ui/pages/asr-provider-components.slint
+msgctxt "models.asr.save-and-enable"
+msgid "Save and enable"
+msgstr ""
+
+#: apps/desktop/ui/pages/speech-recognition.slint
+msgctxt "models.asr.source.cloud-api"
+msgid "Cloud API"
+msgstr ""
+
+#: apps/desktop/ui/pages/speech-recognition.slint
+msgctxt "models.asr.source.saymore-cloud"
+msgid "Saymore cloud"
+msgstr ""
+
+#: apps/desktop/ui/pages/speech-recognition.slint
+msgctxt "models.asr.source.system-built-in"
+msgid "System built-in"
+msgstr ""
+
+#: apps/desktop/ui/pages/speech-recognition.slint
+msgctxt "models.asr.source.custom"
+msgid "Custom"
+msgstr ""
+
+#: apps/desktop/ui/pages/speech-recognition.slint
+msgctxt "models.asr.source.local-model"
+msgid "Local model"
+msgstr ""
+
+#: apps/desktop/ui/pages/speech-recognition.slint
+msgctxt "models.asr.summary.configured-model"
+msgid "{} · API key configured"
+msgstr ""
+
+#: apps/desktop/ui/pages/speech-recognition.slint
+msgctxt "models.asr.summary.saymore-cloud-unavailable"
+msgid "Cloud service adapter is not yet connected"
+msgstr ""
+
+#: apps/desktop/ui/pages/speech-recognition.slint
+msgctxt "models.asr.summary.system-unavailable"
+msgid "System speech adapter and metrics are not yet connected"
+msgstr ""
+
+#: apps/desktop/ui/pages/speech-recognition.slint
+msgctxt "models.asr.summary.volcengine"
+msgid "API key and model configuration"
+msgstr ""
+
+#: apps/desktop/ui/pages/speech-recognition.slint
+msgctxt "models.asr.summary.custom"
+msgid "Base URL, API key, and model"
+msgstr ""
+
+#: apps/desktop/ui/pages/speech-recognition.slint
+msgctxt "models.asr.summary.local-unavailable"
+msgid "Verified artifacts and production adapter are unavailable"
+msgstr ""
+
+#: apps/desktop/ui/pages/speech-recognition.slint
+msgctxt "models.asr.status.unavailable"
+msgid "Unavailable"
+msgstr ""
+
+#: apps/desktop/ui/pages/speech-recognition.slint
+msgctxt "models.asr.status.current"
+msgid "Current"
+msgstr ""
+
+#: apps/desktop/ui/pages/speech-recognition.slint
+msgctxt "models.provider.saymore-cloud"
+msgid "Saymore Cloud"
+msgstr ""
+
+#: apps/desktop/ui/pages/speech-recognition.slint
+msgctxt "models.provider.macos-dictation"
+msgid "macOS Dictation"
+msgstr ""
+
+#: apps/desktop/ui/pages/speech-recognition.slint
+msgctxt "models.provider.windows-speech"
+msgid "Windows Speech Recognition"
+msgstr ""
