@@ -4,27 +4,67 @@ use template_app::{ColorSchemePreference, LocalSettings, LocalSettingsChange, Th
 use crate::{
     local_settings_runtime::LocalSettingsHandle,
     ui::{
-        AppColors, AppWindow, ColorSchemePreference as UiColorSchemePreference,
+        AppColors, AppWindow, ColorSchemePreference as UiColorSchemePreference, OnboardingWindow,
         ThemeId as UiThemeId, Translations,
     },
 };
 
-pub fn wire(ui: &AppWindow, initial: &LocalSettings, settings: LocalSettingsHandle) {
-    apply(ui, initial);
-    wire_theme(ui, settings.clone());
-    wire_color_scheme(ui, settings);
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct UiAppearance {
+    theme: UiThemeId,
+    color_scheme: UiColorSchemePreference,
 }
 
-fn wire_theme(ui: &AppWindow, settings: LocalSettingsHandle) {
-    let weak = ui.as_weak();
+/// Receives the persisted appearance roles shared by application-owned windows.
+/// Implementations must update only their own Slint appearance state.
+trait AppearanceTarget {
+    fn apply_appearance(&self, appearance: UiAppearance);
+}
+
+impl AppearanceTarget for AppWindow {
+    fn apply_appearance(&self, appearance: UiAppearance) {
+        self.set_theme_id(appearance.theme);
+        self.set_color_scheme(appearance.color_scheme);
+        self.set_appearance_status(SharedString::new());
+        self.global::<AppColors>().set_theme_id(appearance.theme);
+        self.global::<AppColors>()
+            .set_color_scheme(appearance.color_scheme);
+    }
+}
+
+impl AppearanceTarget for OnboardingWindow {
+    fn apply_appearance(&self, appearance: UiAppearance) {
+        self.global::<AppColors>().set_theme_id(appearance.theme);
+        self.global::<AppColors>()
+            .set_color_scheme(appearance.color_scheme);
+    }
+}
+
+pub fn wire(
+    ui: &AppWindow,
+    onboarding: &OnboardingWindow,
+    initial: &LocalSettings,
+    settings: LocalSettingsHandle,
+) {
+    apply_to_windows(ui, onboarding, initial);
+    wire_theme(ui, onboarding, settings.clone());
+    wire_color_scheme(ui, onboarding, settings);
+}
+
+fn wire_theme(ui: &AppWindow, onboarding: &OnboardingWindow, settings: LocalSettingsHandle) {
+    let app = ui.as_weak();
+    let onboarding = onboarding.as_weak();
     ui.on_set_theme(move |theme| {
-        let completion_ui = weak.clone();
-        let failure_ui = weak.clone();
+        let completion_app = app.clone();
+        let completion_onboarding = onboarding.clone();
+        let failure_ui = app.clone();
         let result = settings.submit(
             LocalSettingsChange::SetTheme(theme_from_ui(theme)),
             move |result| match result {
-                Ok(committed) => apply_to_weak(&completion_ui, &committed),
-                Err(error) => apply_error(&completion_ui, "theme", error),
+                Ok(committed) => {
+                    apply_to_weak_windows(&completion_app, &completion_onboarding, &committed)
+                }
+                Err(error) => apply_error(&completion_app, "theme", error),
             },
         );
         if let Err(error) = result {
@@ -33,16 +73,20 @@ fn wire_theme(ui: &AppWindow, settings: LocalSettingsHandle) {
     });
 }
 
-fn wire_color_scheme(ui: &AppWindow, settings: LocalSettingsHandle) {
-    let weak = ui.as_weak();
+fn wire_color_scheme(ui: &AppWindow, onboarding: &OnboardingWindow, settings: LocalSettingsHandle) {
+    let app = ui.as_weak();
+    let onboarding = onboarding.as_weak();
     ui.on_set_color_scheme(move |scheme| {
-        let completion_ui = weak.clone();
-        let failure_ui = weak.clone();
+        let completion_app = app.clone();
+        let completion_onboarding = onboarding.clone();
+        let failure_ui = app.clone();
         let result = settings.submit(
             LocalSettingsChange::SetColorScheme(color_scheme_from_ui(scheme)),
             move |result| match result {
-                Ok(committed) => apply_to_weak(&completion_ui, &committed),
-                Err(error) => apply_error(&completion_ui, "color_scheme", error),
+                Ok(committed) => {
+                    apply_to_weak_windows(&completion_app, &completion_onboarding, &committed)
+                }
+                Err(error) => apply_error(&completion_app, "color_scheme", error),
             },
         );
         if let Err(error) = result {
@@ -51,21 +95,32 @@ fn wire_color_scheme(ui: &AppWindow, settings: LocalSettingsHandle) {
     });
 }
 
-fn apply_to_weak(ui: &slint::Weak<AppWindow>, settings: &LocalSettings) {
-    if let Some(ui) = ui.upgrade() {
-        apply(&ui, settings);
+fn apply_to_weak_windows(
+    app: &slint::Weak<AppWindow>,
+    onboarding: &slint::Weak<OnboardingWindow>,
+    settings: &LocalSettings,
+) {
+    if let (Some(app), Some(onboarding)) = (app.upgrade(), onboarding.upgrade()) {
+        apply_to_windows(&app, &onboarding, settings);
     }
 }
 
-fn apply(ui: &AppWindow, settings: &LocalSettings) {
-    let theme = theme_to_ui(settings.theme);
-    let color_scheme = color_scheme_to_ui(settings.color_scheme);
-    ui.set_theme_id(theme);
-    ui.set_color_scheme(color_scheme);
-    ui.set_appearance_status(SharedString::new());
-    ui.global::<AppColors>().set_theme_id(theme);
-    ui.global::<AppColors>().set_color_scheme(color_scheme);
-    crate::main_window::schedule_titlebar_integration(ui);
+fn apply_to_windows(app: &AppWindow, onboarding: &OnboardingWindow, settings: &LocalSettings) {
+    let appearance = ui_appearance(settings);
+    apply(app, appearance);
+    apply(onboarding, appearance);
+    crate::main_window::schedule_titlebar_integration(app);
+}
+
+fn apply(target: &impl AppearanceTarget, appearance: UiAppearance) {
+    target.apply_appearance(appearance);
+}
+
+fn ui_appearance(settings: &LocalSettings) -> UiAppearance {
+    UiAppearance {
+        theme: theme_to_ui(settings.theme),
+        color_scheme: color_scheme_to_ui(settings.color_scheme),
+    }
 }
 
 fn apply_error(
@@ -114,5 +169,43 @@ fn color_scheme_from_ui(scheme: UiColorSchemePreference) -> ColorSchemePreferenc
         UiColorSchemePreference::System => ColorSchemePreference::System,
         UiColorSchemePreference::Light => ColorSchemePreference::Light,
         UiColorSchemePreference::Dark => ColorSchemePreference::Dark,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::cell::Cell;
+
+    use super::*;
+
+    #[derive(Default)]
+    struct RecordedTarget {
+        appearance: Cell<Option<UiAppearance>>,
+    }
+
+    impl AppearanceTarget for RecordedTarget {
+        fn apply_appearance(&self, appearance: UiAppearance) {
+            self.appearance.set(Some(appearance));
+        }
+    }
+
+    #[test]
+    fn persisted_appearance_is_shared_by_main_and_onboarding_targets() {
+        let settings = LocalSettings {
+            theme: ThemeId::IrisMist,
+            color_scheme: ColorSchemePreference::Dark,
+            ..LocalSettings::default()
+        };
+        let main = RecordedTarget::default();
+        let onboarding = RecordedTarget::default();
+        let appearance = ui_appearance(&settings);
+
+        apply(&main, appearance);
+        apply(&onboarding, appearance);
+
+        assert_eq!(Some(appearance), main.appearance.get());
+        assert_eq!(Some(appearance), onboarding.appearance.get());
+        assert_eq!(UiThemeId::IrisMist, appearance.theme);
+        assert_eq!(UiColorSchemePreference::Dark, appearance.color_scheme);
     }
 }

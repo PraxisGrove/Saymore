@@ -148,6 +148,10 @@ impl OnboardingRuntime {
         self.shortcut.clone()
     }
 
+    pub(crate) fn window(&self) -> &OnboardingWindow {
+        &self.window
+    }
+
     pub fn present_initial(&self, app: &AppWindow) -> Result<(), slint::PlatformError> {
         if self.initial_status.should_present() {
             self.active.store(true, Ordering::Release);

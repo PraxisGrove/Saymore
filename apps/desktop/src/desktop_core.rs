@@ -98,15 +98,6 @@ pub(crate) fn wire_core_services(
         local_settings.clone(),
         windows.language_context,
     );
-    wire_local_features(
-        bootstrap,
-        windows,
-        Arc::clone(&recorder),
-        local_settings.clone(),
-        Arc::clone(&feedback_sounds_enabled),
-        Arc::clone(&mute_system_audio_enabled),
-        shortcut_controller.clone(),
-    );
     let onboarding_deliverer: Arc<dyn TextDeliverer> = deliverer.clone();
     let onboarding = crate::onboarding::OnboardingRuntime::new(
         &windows.ui,
@@ -117,6 +108,21 @@ pub(crate) fn wire_core_services(
         Arc::clone(&microphone),
         onboarding_deliverer,
     )?;
+    appearance_ui::wire(
+        &windows.ui,
+        onboarding.window(),
+        &bootstrap.local_settings,
+        local_settings.clone(),
+    );
+    wire_local_features(
+        bootstrap,
+        windows,
+        Arc::clone(&recorder),
+        local_settings.clone(),
+        Arc::clone(&feedback_sounds_enabled),
+        Arc::clone(&mute_system_audio_enabled),
+        shortcut_controller.clone(),
+    );
     let authorization_deliverer: Arc<dyn TextDeliverer> = deliverer;
     let authorization_poll =
         authorization_ui::wire(&windows.ui, authorization_deliverer, microphone);
@@ -145,7 +151,6 @@ fn wire_local_features(
     mute_system_audio_enabled: Arc<AtomicBool>,
     shortcut_controller: settings_actions::PlatformShortcutController,
 ) {
-    appearance_ui::wire(&windows.ui, &bootstrap.local_settings, settings.clone());
     let data_directory = bootstrap.paths.data_directory().to_path_buf();
     home_stats::wire(
         &windows.ui,
