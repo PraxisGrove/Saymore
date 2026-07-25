@@ -16,8 +16,6 @@ use windows::{
 use crate::ui::{AppColors, AppWindow, OnboardingWindow};
 
 const TASKBAR_ICON_RESOURCE_ID: usize = 2;
-const ONBOARDING_CAPTION_COLOR: COLORREF = COLORREF(0x00f4_f7f7);
-const ONBOARDING_CAPTION_TEXT_COLOR: COLORREF = COLORREF(0x001c_1f1f);
 
 pub(crate) fn integrate(ui: &AppWindow) {
     ui.window().set_size(slint::LogicalSize::new(920.0, 700.0));
@@ -46,12 +44,16 @@ pub(crate) fn refresh(ui: &AppWindow) {
 }
 
 pub(crate) fn integrate_onboarding(ui: &OnboardingWindow) {
+    refresh_onboarding(ui);
+}
+
+pub(crate) fn refresh_onboarding(ui: &OnboardingWindow) {
     let initial_ui = ui.as_weak();
     Timer::single_shot(Duration::from_millis(100), move || {
         let Some(ui) = initial_ui.upgrade() else {
             return;
         };
-        if let Err(error) = apply_onboarding(ui.window()) {
+        if let Err(error) = apply_onboarding(&ui) {
             tracing::warn!(event = "onboarding.windows_integration_failed", reason = %error);
         }
     });
@@ -66,11 +68,12 @@ fn apply(ui: &AppWindow) -> Result<(), String> {
     )
 }
 
-fn apply_onboarding(window: &slint::Window) -> Result<(), String> {
+fn apply_onboarding(ui: &OnboardingWindow) -> Result<(), String> {
+    let colors = ui.global::<AppColors>();
     apply_window(
-        window,
-        ONBOARDING_CAPTION_COLOR,
-        ONBOARDING_CAPTION_TEXT_COLOR,
+        ui.window(),
+        colorref(colors.get_canvas()),
+        colorref(colors.get_ink()),
     )
 }
 

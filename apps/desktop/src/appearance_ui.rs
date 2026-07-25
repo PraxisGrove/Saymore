@@ -110,6 +110,8 @@ fn apply_to_windows(app: &AppWindow, onboarding: &OnboardingWindow, settings: &L
     apply(app, appearance);
     apply(onboarding, appearance);
     crate::main_window::schedule_titlebar_integration(app);
+    #[cfg(target_os = "windows")]
+    crate::windows_window::refresh_onboarding(onboarding);
 }
 
 fn apply(target: &impl AppearanceTarget, appearance: UiAppearance) {
