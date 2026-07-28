@@ -6,7 +6,7 @@ pub enum ThemeId {
     WarmClay,
     BerryGraphite,
     IrisMist,
-    ClearSky,
+    SunlitGold,
 }
 
 impl ThemeId {
@@ -17,7 +17,7 @@ impl ThemeId {
             Self::LimePulse => "lime-pulse",
             Self::BerryGraphite => "berry-graphite",
             Self::IrisMist => "iris-mist",
-            Self::ClearSky => "clear-sky",
+            Self::SunlitGold => "sunlit-gold",
         }
     }
 
@@ -28,7 +28,7 @@ impl ThemeId {
             "lime-pulse" => Some(Self::LimePulse),
             "berry-graphite" => Some(Self::BerryGraphite),
             "iris-mist" => Some(Self::IrisMist),
-            "clear-sky" => Some(Self::ClearSky),
+            "sunlit-gold" => Some(Self::SunlitGold),
             _ => None,
         }
     }
@@ -73,7 +73,7 @@ mod tests {
             ThemeId::WarmClay,
             ThemeId::BerryGraphite,
             ThemeId::IrisMist,
-            ThemeId::ClearSky,
+            ThemeId::SunlitGold,
         ] {
             assert_eq!(
                 Some(theme),

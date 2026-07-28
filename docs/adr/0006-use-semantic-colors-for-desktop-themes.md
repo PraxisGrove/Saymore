@@ -21,7 +21,7 @@ theme changes.
 Represent appearance as two independent persisted settings:
 
 - `ThemeId`: Saymore (`saymore`), Lime Pulse (`lime-pulse`), Warm Clay, Berry
-  Graphite, Iris Mist, or Clear Sky. Saymore is the default for new
+  Graphite, Iris Mist, or Sunlit Gold. Saymore is the default for new
   installations and uses neutral surfaces with blue interaction accents and
   green success states.
 - `ColorSchemePreference`: follow the operating system, light, or dark.
@@ -33,15 +33,17 @@ UI only after the settings mutation commits.
 The main window consumes semantic roles from
 `apps/desktop/ui/color-system.slint`. A theme changes accent roles and the
 coordinated dark palette, while layout and component behavior remain unchanged.
-Accent fills use `brand` and `brand-hover`; `brand-strong` is reserved for
-foreground emphasis on light accent surfaces. The Saymore theme keeps large
-areas neutral, uses blue for primary actions, enabled controls, links, focus,
-and active data, and reserves green for ready, healthy, and successful states,
-including automatically learned dictionary entries. Its text hierarchy reserves
-`ink` for selected content, page and dialog titles, key values, and other
-high-priority information; ordinary content uses `text`, while subtitles,
-descriptions, and helper information use `text-muted`. Windows title-bar colors
-use the resolved canvas and ink roles.
+Sunlit Gold uses a bright sunflower-yellow accent with dark foregrounds and
+neutral surfaces; its warning roles shift toward orange-red so warnings remain
+distinct from theme-colored actions. Accent fills use `brand` and `brand-hover`;
+foreground accents and focus outlines use `brand-strong`, including on light
+accent surfaces. The Saymore theme keeps large areas neutral, uses blue for
+primary actions, enabled controls, links, focus, and active data, and reserves
+green for ready, healthy, and successful states, including automatically learned
+dictionary entries. Its text hierarchy reserves `ink` for selected content, page
+and dialog titles, key values, and other high-priority information; ordinary
+content uses `text`, while subtitles, descriptions, and helper information use
+`text-muted`. Windows title-bar colors use the resolved canvas and ink roles.
 
 Independent overlays consume the fixed roles in
 `apps/desktop/ui/overlay-color-system.slint`. They do not read the selected

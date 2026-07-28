@@ -148,7 +148,7 @@ fn settings_are_typed_and_persisted_across_restarts() -> Result<(), Box<dyn std:
         preferred_microphone_name: Some("MacBook 麦克风".to_owned()),
         diagnostics_logging_enabled: true,
         ui_language: UiLanguagePreference::English,
-        theme: ThemeId::ClearSky,
+        theme: ThemeId::SunlitGold,
         color_scheme: ColorSchemePreference::Dark,
         automatic_update_checks: true,
         feedback_sounds_enabled: false,
@@ -171,6 +171,47 @@ fn settings_are_typed_and_persisted_across_restarts() -> Result<(), Box<dyn std:
 
     let reopened_with_default_theme = SqliteStorage::start(path, secrets)?;
     assert_eq!(changed, reopened_with_default_theme.load_settings()?);
+    Ok(())
+}
+
+#[test]
+fn clear_sky_settings_migrate_to_sunlit_gold() -> Result<(), Box<dyn std::error::Error>> {
+    let directory = tempfile::tempdir()?;
+    let path = directory.path().join("saymore.sqlite3");
+    let secrets = Arc::new(MemorySecretStore::default());
+    drop(SqliteStorage::start(path.clone(), secrets.clone())?);
+
+    let connection = rusqlite::Connection::open(&path)?;
+    connection.execute_batch(
+        "PRAGMA writable_schema = ON;
+         UPDATE sqlite_schema
+         SET sql = replace(sql, '''sunlit-gold''', '''clear-sky''')
+         WHERE type = 'table' AND name = 'app_settings';
+         PRAGMA writable_schema = OFF;
+         PRAGMA user_version = 18;",
+    )?;
+    drop(connection);
+
+    let connection = rusqlite::Connection::open(&path)?;
+    connection.execute(
+        "UPDATE app_settings SET theme_id = 'clear-sky' WHERE singleton = 1",
+        [],
+    )?;
+    drop(connection);
+
+    let store = SqliteStorage::start(path.clone(), secrets)?;
+    assert_eq!(ThemeId::SunlitGold, store.load_settings()?.theme);
+    drop(store);
+
+    let connection = rusqlite::Connection::open(path)?;
+    let stored_theme: String = connection.query_row(
+        "SELECT theme_id FROM app_settings WHERE singleton = 1",
+        [],
+        |row| row.get(0),
+    )?;
+    let version: u32 = connection.query_row("PRAGMA user_version", [], |row| row.get(0))?;
+    assert_eq!("sunlit-gold", stored_theme);
+    assert_eq!(19, version);
     Ok(())
 }
 
@@ -662,7 +703,7 @@ fn dictionary_identity_preserves_token_boundaries_across_v3_migration()
 
     let connection = rusqlite::Connection::open(path)?;
     let version: u32 = connection.query_row("PRAGMA user_version", [], |row| row.get(0))?;
-    assert_eq!(18, version);
+    assert_eq!(19, version);
     let spaced_key: String = connection.query_row(
         "SELECT canonical_key FROM dictionary_entries WHERE canonical = 'Open AI'",
         [],

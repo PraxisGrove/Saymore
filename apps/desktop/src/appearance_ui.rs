@@ -143,7 +143,7 @@ fn theme_to_ui(theme: ThemeId) -> UiThemeId {
         ThemeId::LimePulse => UiThemeId::LimePulse,
         ThemeId::BerryGraphite => UiThemeId::BerryGraphite,
         ThemeId::IrisMist => UiThemeId::IrisMist,
-        ThemeId::ClearSky => UiThemeId::ClearSky,
+        ThemeId::SunlitGold => UiThemeId::SunlitGold,
     }
 }
 
@@ -154,7 +154,7 @@ fn theme_from_ui(theme: UiThemeId) -> ThemeId {
         UiThemeId::LimePulse => ThemeId::LimePulse,
         UiThemeId::BerryGraphite => ThemeId::BerryGraphite,
         UiThemeId::IrisMist => ThemeId::IrisMist,
-        UiThemeId::ClearSky => ThemeId::ClearSky,
+        UiThemeId::SunlitGold => ThemeId::SunlitGold,
     }
 }
 
