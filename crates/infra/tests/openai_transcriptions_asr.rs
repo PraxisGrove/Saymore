@@ -15,7 +15,7 @@ async fn sends_an_openai_compatible_transcription_request() -> Result<(), Box<dy
                 .body_includes("vendor-asr")
                 .body_includes("filename=\"saymore.wav\"");
             then.status(200)
-                .json_body(serde_json::json!({ "text": "" }));
+                .json_body(serde_json::json!({ "text": "standard test result" }));
         })
         .await;
     let recognizer = OpenAiCompatibleSpeechRecognizer::new(OpenAiCompatibleAsrSettings {
@@ -25,10 +25,33 @@ async fn sends_an_openai_compatible_transcription_request() -> Result<(), Box<dy
         model: "vendor-asr".to_owned(),
     })?;
 
-    recognizer.test_connection().await?;
+    recognizer.test_audio(vec![1; 1_600]).await?;
 
     transcription.assert_async().await;
     Ok(())
+}
+
+#[tokio::test]
+async fn rejects_an_empty_recognition_test_result() -> Result<(), Box<dyn std::error::Error>> {
+    let server = MockServer::start_async().await;
+    server
+        .mock_async(|when, then| {
+            when.method(POST).path("/audio/transcriptions");
+            then.status(200)
+                .json_body(serde_json::json!({ "text": "" }));
+        })
+        .await;
+    let recognizer = OpenAiCompatibleSpeechRecognizer::new(OpenAiCompatibleAsrSettings {
+        enabled: true,
+        base_url: server.base_url(),
+        api_key: "test-key".to_owned(),
+        model: "vendor-asr".to_owned(),
+    })?;
+
+    match recognizer.test_audio(vec![1; 1_600]).await {
+        Err(SpeechRecognitionError::Protocol(_)) => Ok(()),
+        result => Err(format!("expected an empty-result protocol error, got {result:?}").into()),
+    }
 }
 
 #[tokio::test]
@@ -51,7 +74,7 @@ async fn maps_transcription_authentication_failures() {
     if let Ok(recognizer) = recognizer {
         assert_eq!(
             Err(SpeechRecognitionError::Authentication),
-            recognizer.test_connection().await
+            recognizer.test_audio(vec![1; 1_600]).await
         );
     }
 }

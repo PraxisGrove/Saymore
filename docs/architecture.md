@@ -32,6 +32,14 @@ colors themselves. Independent recording, permission, and result overlays use
 the fixed `OverlayColors` palette and intentionally do not follow the
 main-window theme. `xtask ui-colors` enforces this ownership boundary.
 
+Main-window modal dialogs share the Slint `ModalShell` component. The shell owns
+the scrim, Pencil-aligned viewport positioning, standard and compact sizes,
+surface border, corner radius, shadow, and close control. Standard dialogs use
+the design's 36 px horizontal offset from the viewport center; compact
+confirmations remain centered. Dialog components own only their header,
+scrollable body, and fixed footer actions. Independent recording, permission,
+and result windows remain outside this modal system.
+
 Desktop startup is shared across macOS and Windows. It resolves application
 paths, opens provider settings and local storage, loads local settings, and
 wires the shared Slint settings, history, dictionary, statistics, ASR, and

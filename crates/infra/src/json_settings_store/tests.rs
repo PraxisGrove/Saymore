@@ -332,6 +332,46 @@ fn loads_the_existing_custom_asr_provider_schema() {
 }
 
 #[test]
+fn persists_macos_speech_selection_without_removing_cloud_configuration() {
+    let directory = test_directory();
+    let store = JsonSettingsStore::at_path(directory.join("config.json"));
+    let mut settings = SaymoreSettings::default();
+    settings.asr.volcengine = VolcengineAsrSettings {
+        enabled: true,
+        api_key: "saved-key".to_owned(),
+        model: "saved-model".to_owned(),
+    };
+    assert_eq!(Ok(()), store.save(&settings));
+    let Ok(mut catalog) = store.load_catalog() else {
+        panic!("saved provider catalog should be readable");
+    };
+
+    catalog.select_macos_speech_provider();
+    assert_eq!(Ok(()), store.save_catalog(&catalog));
+
+    let Ok(reloaded_catalog) = store.load_catalog() else {
+        panic!("macOS Speech provider catalog should be readable");
+    };
+    let Ok(reloaded_settings) = store.load() else {
+        panic!("cloud settings should remain readable");
+    };
+    assert!(reloaded_catalog.macos_speech_is_active());
+    assert!(!reloaded_settings.asr.volcengine.enabled);
+    assert_eq!("saved-key", reloaded_settings.asr.volcengine.api_key);
+    assert_eq!("saved-model", reloaded_settings.asr.volcengine.model);
+
+    let mut cloud_settings = reloaded_settings;
+    cloud_settings.asr.volcengine.enabled = true;
+    assert_eq!(Ok(()), store.save(&cloud_settings));
+    let Ok(cloud_catalog) = store.load_catalog() else {
+        panic!("reselected cloud provider catalog should be readable");
+    };
+    assert!(!cloud_catalog.macos_speech_is_active());
+    assert_eq!(2, cloud_catalog.asr_providers.len());
+    let _ = fs::remove_dir_all(directory);
+}
+
+#[test]
 fn rejects_active_provider_from_the_wrong_partition() {
     let directory = test_directory();
     let store = JsonSettingsStore::at_path(directory.join("config.json"));

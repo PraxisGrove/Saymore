@@ -21,7 +21,8 @@ behavior and binary workflows. Desktop integration tests live under
 `apps/desktop/tests/`.
 
 When test helpers become shared across crates, move them into a dedicated
-test-support crate instead of duplicating setup or exposing production internals.
+test-support crate instead of duplicating setup or exposing production
+internals.
 
 ## Required Test Commands
 
@@ -36,6 +37,15 @@ Run doctests with Cargo because nextest does not execute doctests:
 ```bash
 cargo test --workspace --doc
 ```
+
+The `models_navigation` Slint integration test uses a custom main-thread test
+executable and is excluded from Nextest discovery. Run it explicitly with:
+
+```bash
+cargo test -p saymore-desktop --test models_navigation
+```
+
+CI runs this GUI test on macOS, where a windowing environment is available.
 
 ## AI-Assisted Changes
 

@@ -113,6 +113,29 @@ The two app identities currently listen for the same global Right Command
 shortcut. Their storage and processes can coexist, but close one app before a
 dictation test so both do not react to the same shortcut.
 
+### Apple Speech probe
+
+The signed debug Preview contains a hidden diagnostic command for validating
+Apple Speech independently of the normal UI. Release builds do not include the
+command. Build and install Preview, then launch a separate probe process and
+write its structured report under `target/`:
+
+```bash
+./scripts/dev-preview.sh --once
+open -n -W -a "/Applications/Saymore Preview.app" --args \
+  --probe-apple-speech "$PWD/target/apple-speech-probe.json"
+```
+
+The first run may show the macOS Speech Recognition authorization prompt. The
+probe uses the bundled non-sensitive Chinese ASR test fixture and exercises the
+production system-managed adapter, a second consecutive adapter session, forced
+on-device recognition, cancellation, and a 65-second real-time adapter stream.
+Do not reset TCC permissions merely to rerun denial or revocation cases.
+
+The normal Preview and release applications use Apple Speech when macOS
+Dictation is selected on the Models page. That selection is stored in the
+Provider catalog; the independent probe does not change it.
+
 Create the local ad-hoc signed release bundle with:
 
 ```bash

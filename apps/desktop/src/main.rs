@@ -75,6 +75,8 @@ mod home_stats;
 mod i18n;
 mod local_data_ui;
 mod local_settings_runtime;
+#[cfg(all(target_os = "macos", debug_assertions))]
+mod macos_speech_probe_cli;
 #[cfg(target_os = "macos")]
 mod macos_text_delivery_runtime;
 mod main_window;
@@ -96,6 +98,7 @@ mod recording_state;
 mod refinement_runtime;
 mod regional_format;
 mod settings_actions;
+mod settings_links;
 mod settings_ui;
 #[cfg(any(target_os = "macos", target_os = "windows"))]
 mod status_tray;
@@ -170,6 +173,10 @@ struct ShortcutRuntime {
 }
 
 fn main() -> ExitCode {
+    #[cfg(all(target_os = "macos", debug_assertions))]
+    if let Some(exit_code) = macos_speech_probe_cli::run_if_requested() {
+        return exit_code;
+    }
     #[cfg(target_os = "macos")]
     if let Some(exit_code) = ax_compatibility_cli::run_if_requested() {
         return exit_code;

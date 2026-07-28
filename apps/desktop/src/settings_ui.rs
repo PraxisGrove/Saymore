@@ -1,14 +1,23 @@
 use std::sync::Arc;
 
 use slint::{ComponentHandle, SharedString};
-use template_app::LlmProviderPreset;
+use template_app::{LlmProviderPreset, ProviderConfigStore};
 #[cfg(test)]
-use template_app::{ProviderCatalog, ProviderConfigStore, ProviderInstance};
+use template_app::{ProviderCatalog, ProviderInstance};
 #[cfg(test)]
 use template_infra::AppEnvironment;
 use template_infra::JsonSettingsStore;
 
-use crate::ui::{AppWindow, LlmProvider as UiLlmProvider, Translations};
+use crate::ui::{
+    AppWindow, LlmProvider as UiLlmProvider, SystemSpeechStatus as UiSystemSpeechStatus,
+    Translations,
+};
+
+#[cfg(target_os = "macos")]
+use template_infra::{
+    MacOsSpeechAuthorization, macos_speech_capability, open_speech_recognition_privacy_settings,
+    request_macos_speech_authorization,
+};
 
 mod asr_configuration;
 mod asr_provider_cards;
@@ -55,6 +64,7 @@ fn ui_provider(provider: LlmProviderPreset) -> UiLlmProvider {
 
 pub fn wire(ui: &AppWindow, store: Arc<JsonSettingsStore>) {
     asr_provider_cards::apply(ui);
+    wire_macos_speech(ui, Arc::clone(&store));
     apply_loaded_settings(ui, &store);
     let refresh_ui = ui.as_weak();
     let refresh_store = Arc::clone(&store);
@@ -67,6 +77,124 @@ pub fn wire(ui: &AppWindow, store: Arc<JsonSettingsStore>) {
     asr_configuration::wire(ui, Arc::clone(&store));
     wire_llm(ui, store);
     provider_key_page::wire(ui);
+}
+
+#[cfg(target_os = "macos")]
+fn wire_macos_speech(ui: &AppWindow, store: Arc<JsonSettingsStore>) {
+    let activation_ui = ui.as_weak();
+    let activation_store = Arc::clone(&store);
+    ui.on_activate_macos_speech(move || {
+        let capability = macos_speech_capability();
+        match capability.authorization {
+            MacOsSpeechAuthorization::Authorized if capability.available => {
+                select_macos_speech(&activation_ui, &activation_store);
+            }
+            MacOsSpeechAuthorization::NotDetermined => {
+                let result_ui = activation_ui.clone();
+                let result_store = Arc::clone(&activation_store);
+                request_macos_speech_authorization(Arc::new(move |_| {
+                    let result_store = Arc::clone(&result_store);
+                    let _ = result_ui.upgrade_in_event_loop(move |ui| {
+                        let capability = macos_speech_capability();
+                        if capability.authorization == MacOsSpeechAuthorization::Authorized
+                            && capability.available
+                        {
+                            select_macos_speech(&ui.as_weak(), &result_store);
+                        } else {
+                            apply_loaded_settings(&ui, &result_store);
+                        }
+                    });
+                }));
+            }
+            MacOsSpeechAuthorization::Denied | MacOsSpeechAuthorization::Restricted => {
+                if let Err(error) = open_speech_recognition_privacy_settings() {
+                    tracing::warn!(
+                        target: "saymore::diagnostics",
+                        event = "macos_speech.settings_open_failed",
+                        reason = %error
+                    );
+                }
+            }
+            MacOsSpeechAuthorization::Authorized => {
+                if let Some(ui) = activation_ui.upgrade() {
+                    apply_loaded_settings(&ui, &activation_store);
+                }
+            }
+        }
+    });
+
+    let refresh_ui = ui.as_weak();
+    ui.on_refresh_macos_speech(move || {
+        if let Some(ui) = refresh_ui.upgrade() {
+            let selected = ui.get_macos_speech_selected();
+            let ready = apply_macos_speech_state(&ui, selected);
+            if selected {
+                let translations = ui.global::<Translations>();
+                apply_status(
+                    &ui,
+                    ready,
+                    false,
+                    if ready {
+                        translations.get_models_configured()
+                    } else {
+                        translations.get_models_not_configured()
+                    },
+                );
+            }
+        }
+    });
+}
+
+#[cfg(not(target_os = "macos"))]
+fn wire_macos_speech(_ui: &AppWindow, _store: Arc<JsonSettingsStore>) {}
+
+#[cfg(target_os = "macos")]
+fn select_macos_speech(ui: &slint::Weak<AppWindow>, store: &JsonSettingsStore) {
+    let result = store.load_catalog().and_then(|mut catalog| {
+        catalog.select_macos_speech_provider();
+        store.save_catalog(&catalog)
+    });
+    if let Some(ui) = ui.upgrade() {
+        match result {
+            Ok(()) => apply_loaded_settings(&ui, store),
+            Err(error) => {
+                tracing::warn!(
+                    target: "saymore::diagnostics",
+                    event = "macos_speech.selection_save_failed",
+                    reason = %error
+                );
+                apply_status(
+                    &ui,
+                    false,
+                    true,
+                    ui.global::<Translations>()
+                        .get_common_configuration_load_failed(),
+                );
+            }
+        }
+    }
+}
+
+pub(super) fn apply_macos_speech_state(ui: &AppWindow, selected: bool) -> bool {
+    #[cfg(target_os = "macos")]
+    let status = {
+        let capability = macos_speech_capability();
+        match capability.authorization {
+            MacOsSpeechAuthorization::NotDetermined => UiSystemSpeechStatus::PermissionRequired,
+            MacOsSpeechAuthorization::Denied => UiSystemSpeechStatus::PermissionDenied,
+            MacOsSpeechAuthorization::Restricted => UiSystemSpeechStatus::Restricted,
+            MacOsSpeechAuthorization::Authorized if capability.available => {
+                UiSystemSpeechStatus::Ready
+            }
+            MacOsSpeechAuthorization::Authorized => UiSystemSpeechStatus::Unavailable,
+        }
+    };
+    #[cfg(not(target_os = "macos"))]
+    let status = UiSystemSpeechStatus::Unavailable;
+
+    ui.set_macos_speech_selected(selected);
+    ui.set_macos_speech_status(status);
+    status == UiSystemSpeechStatus::Ready
 }
 
 fn wire_llm(ui: &AppWindow, store: Arc<JsonSettingsStore>) {

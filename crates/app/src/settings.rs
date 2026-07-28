@@ -2,6 +2,11 @@ use std::collections::BTreeMap;
 
 use thiserror::Error;
 
+const MACOS_SPEECH_PROVIDER_ID: &str = "macos-speech";
+const MACOS_SPEECH_PROVIDER_TYPE: &str = "macos_speech";
+const OPENAI_TRANSCRIPTIONS_PROVIDER_TYPE: &str = "openai_transcriptions";
+const VOLCENGINE_PROVIDER_TYPE: &str = "volcengine";
+
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct SaymoreSettings {
     pub asr: AsrSettings,
@@ -132,6 +137,54 @@ pub struct ProviderCatalog {
 }
 
 impl ProviderCatalog {
+    pub fn select_macos_speech_provider(&mut self) {
+        let provider_id = self
+            .asr_providers
+            .iter()
+            .find(|provider| provider.provider_type == MACOS_SPEECH_PROVIDER_TYPE)
+            .map(|provider| provider.id.clone())
+            .unwrap_or_else(|| {
+                self.asr_providers.push(ProviderInstance {
+                    id: MACOS_SPEECH_PROVIDER_ID.to_owned(),
+                    name: "macOS Dictation".to_owned(),
+                    provider_type: MACOS_SPEECH_PROVIDER_TYPE.to_owned(),
+                    config: serde_json::json!({}),
+                    data_consent: None,
+                });
+                MACOS_SPEECH_PROVIDER_ID.to_owned()
+            });
+        self.active.asr = Some(provider_id);
+    }
+
+    pub fn macos_speech_is_active(&self) -> bool {
+        self.active.asr.as_deref().is_some_and(|active| {
+            self.asr_providers.iter().any(|provider| {
+                provider.id == active && provider.provider_type == MACOS_SPEECH_PROVIDER_TYPE
+            })
+        })
+    }
+
+    pub fn select_volcengine_asr_provider(&mut self) -> bool {
+        self.select_existing_asr_provider(VOLCENGINE_PROVIDER_TYPE)
+    }
+
+    pub fn select_openai_transcriptions_asr_provider(&mut self) -> bool {
+        self.select_existing_asr_provider(OPENAI_TRANSCRIPTIONS_PROVIDER_TYPE)
+    }
+
+    fn select_existing_asr_provider(&mut self, provider_type: &str) -> bool {
+        let Some(provider_id) = self
+            .asr_providers
+            .iter()
+            .find(|provider| provider.provider_type == provider_type)
+            .map(|provider| provider.id.clone())
+        else {
+            return false;
+        };
+        self.active.asr = Some(provider_id);
+        true
+    }
+
     pub fn save_llm_provider_config(&mut self, preset: LlmProviderPreset, api_key: &str) {
         self.save_llm_provider_model_config(preset, api_key, preset.model());
     }
@@ -336,8 +389,9 @@ mod tests {
     use std::collections::BTreeMap;
 
     use super::{
-        ActiveProviders, ChatCompletionsLlmSettings, LlmProviderPreset, ProviderCatalog,
-        ProviderDataConsent, ProviderInstance, provider_config,
+        ActiveProviders, ChatCompletionsLlmSettings, LlmProviderPreset, MACOS_SPEECH_PROVIDER_ID,
+        MACOS_SPEECH_PROVIDER_TYPE, OPENAI_TRANSCRIPTIONS_PROVIDER_TYPE, ProviderCatalog,
+        ProviderDataConsent, ProviderInstance, VOLCENGINE_PROVIDER_TYPE, provider_config,
     };
 
     #[test]
@@ -453,5 +507,112 @@ mod tests {
         catalog.save_custom_llm_provider_config("http://localhost:11434/v1", "", "qwen3:8b");
         assert_eq!(Some("custom"), catalog.active.llm.as_deref());
         assert_eq!("custom", catalog.llm_providers[0].id);
+    }
+
+    #[test]
+    fn selecting_macos_speech_preserves_other_asr_providers() {
+        let mut catalog = ProviderCatalog {
+            active: ActiveProviders {
+                asr: Some("volcengine-one".to_owned()),
+                llm: None,
+            },
+            asr_providers: vec![ProviderInstance {
+                id: "volcengine-one".to_owned(),
+                name: "Volcengine".to_owned(),
+                provider_type: "volcengine".to_owned(),
+                config: serde_json::json!({"api_key": "saved", "model": "model"}),
+                data_consent: None,
+            }],
+            llm_providers: Vec::new(),
+        };
+
+        catalog.select_macos_speech_provider();
+
+        assert!(catalog.macos_speech_is_active());
+        assert_eq!(2, catalog.asr_providers.len());
+        assert_eq!(
+            Some("saved"),
+            catalog.asr_providers[0]
+                .config
+                .get("api_key")
+                .and_then(serde_json::Value::as_str)
+        );
+    }
+
+    #[test]
+    fn selecting_macos_speech_reuses_its_stable_provider() {
+        let mut catalog = ProviderCatalog::default();
+
+        catalog.select_macos_speech_provider();
+        catalog.select_macos_speech_provider();
+
+        assert!(catalog.macos_speech_is_active());
+        assert_eq!(1, catalog.asr_providers.len());
+    }
+
+    #[test]
+    fn selecting_a_configured_cloud_asr_provider_updates_only_the_active_provider() {
+        let mut catalog = ProviderCatalog {
+            active: ActiveProviders {
+                asr: Some(MACOS_SPEECH_PROVIDER_ID.to_owned()),
+                llm: None,
+            },
+            asr_providers: vec![
+                ProviderInstance {
+                    id: MACOS_SPEECH_PROVIDER_ID.to_owned(),
+                    name: "macOS Dictation".to_owned(),
+                    provider_type: MACOS_SPEECH_PROVIDER_TYPE.to_owned(),
+                    config: serde_json::json!({}),
+                    data_consent: None,
+                },
+                ProviderInstance {
+                    id: "volcengine-one".to_owned(),
+                    name: "Volcengine".to_owned(),
+                    provider_type: VOLCENGINE_PROVIDER_TYPE.to_owned(),
+                    config: serde_json::json!({"api_key": "saved", "model": "model"}),
+                    data_consent: None,
+                },
+                ProviderInstance {
+                    id: "custom-one".to_owned(),
+                    name: "Custom".to_owned(),
+                    provider_type: OPENAI_TRANSCRIPTIONS_PROVIDER_TYPE.to_owned(),
+                    config: serde_json::json!({"api_key": "saved", "model": "model"}),
+                    data_consent: None,
+                },
+            ],
+            llm_providers: Vec::new(),
+        };
+
+        assert!(catalog.select_volcengine_asr_provider());
+        assert_eq!(Some("volcengine-one"), catalog.active.asr.as_deref());
+        assert_eq!(3, catalog.asr_providers.len());
+
+        assert!(catalog.select_openai_transcriptions_asr_provider());
+        assert_eq!(Some("custom-one"), catalog.active.asr.as_deref());
+        assert_eq!(3, catalog.asr_providers.len());
+    }
+
+    #[test]
+    fn selecting_an_unconfigured_cloud_asr_provider_keeps_the_current_provider() {
+        let mut catalog = ProviderCatalog {
+            active: ActiveProviders {
+                asr: Some(MACOS_SPEECH_PROVIDER_ID.to_owned()),
+                llm: None,
+            },
+            asr_providers: vec![ProviderInstance {
+                id: MACOS_SPEECH_PROVIDER_ID.to_owned(),
+                name: "macOS Dictation".to_owned(),
+                provider_type: MACOS_SPEECH_PROVIDER_TYPE.to_owned(),
+                config: serde_json::json!({}),
+                data_consent: None,
+            }],
+            llm_providers: Vec::new(),
+        };
+
+        assert!(!catalog.select_volcengine_asr_provider());
+        assert_eq!(
+            Some(MACOS_SPEECH_PROVIDER_ID),
+            catalog.active.asr.as_deref()
+        );
     }
 }

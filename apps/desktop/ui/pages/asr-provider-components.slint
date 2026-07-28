@@ -1,5 +1,6 @@
 import { AppColors } from "../color-system.slint";
-import { AppSelect, AsrConfigurationField, AsrProvider } from "../components.slint";
+import { AppSelect, AsrConfigurationField, AsrProvider, ModalShell, ModalSize, SystemSpeechStatus } from "../components.slint";
+import { ScrollView } from "std-widgets.slint";
 
 export enum ProviderStatusTone {
     neutral,
@@ -35,6 +36,7 @@ export component ProviderStatusBadge inherits Rectangle {
 
 export component AsrProviderCard inherits Rectangle {
     in property <image> logo;
+    in property <length> logo-size: 44px;
     in property <bool> colorize-logo: false;
     in property <image> summary-icon;
     in property <string> source-type;
@@ -58,30 +60,31 @@ export component AsrProviderCard inherits Rectangle {
     animate background { duration: 140ms; easing: ease-out; }
 
     Text {
-        x: 12px;
+        x: 4px;
         y: 8px;
-        width: parent.width - 24px;
+        width: 68px;
         text: root.source-type;
         color: root.selected ? AppColors.brand-strong : AppColors.text-muted;
         font-size: 9px;
         font-weight: 650;
+        horizontal-alignment: center;
         overflow: elide;
     }
 
     if !root.colorize-logo: Image {
-        x: 16px;
-        y: root.provider-row-y;
-        width: root.provider-row-height;
-        height: root.provider-row-height;
+        x: 16px + (root.provider-row-height - root.logo-size) / 2;
+        y: root.provider-row-y + (root.provider-row-height - root.logo-size) / 2;
+        width: root.logo-size;
+        height: root.logo-size;
         source: root.logo;
         image-fit: contain;
         image-rendering: smooth;
     }
     if root.colorize-logo: Image {
-        x: 16px;
-        y: root.provider-row-y;
-        width: root.provider-row-height;
-        height: root.provider-row-height;
+        x: 16px + (root.provider-row-height - root.logo-size) / 2;
+        y: root.provider-row-y + (root.provider-row-height - root.logo-size) / 2;
+        width: root.logo-size;
+        height: root.logo-size;
         source: root.logo;
         colorize: AppColors.ink;
         image-fit: contain;
@@ -96,6 +99,8 @@ export component AsrProviderCard inherits Rectangle {
         background: transparent;
 
         Text {
+            x: 0px;
+            y: 0px;
             width: parent.width;
             height: 20px;
             text: root.provider-name;
@@ -106,12 +111,14 @@ export component AsrProviderCard inherits Rectangle {
             overflow: elide;
         }
         Rectangle {
+            x: 0px;
             y: 22px;
             width: parent.width;
             height: 22px;
             background: transparent;
 
             Image {
+                x: 0px;
                 y: 4px;
                 width: 14px;
                 height: 14px;
@@ -182,7 +189,7 @@ component ModalButton inherits Rectangle {
     height: 38px;
     border-radius: 7px;
     border-width: root.primary ? 0px : 1px;
-    border-color: button-focus.has-focus ? AppColors.brand
+    border-color: button-focus.has-focus ? AppColors.brand-strong
         : root.danger ? AppColors.danger : AppColors.border;
     background: !root.enabled ? AppColors.surface-muted
         : root.primary ? (button-touch.has-hover ? AppColors.brand-hover : AppColors.brand)
@@ -224,6 +231,64 @@ component ModalButton inherits Rectangle {
     }
 }
 
+component ProviderSelectionControl inherits Rectangle {
+    in property <bool> selected: false;
+    in property <bool> enabled: false;
+    callback activated();
+
+    width: 116px;
+    height: 34px;
+    background: transparent;
+    accessible-role: switch;
+    accessible-label: root.selected
+        ? @tr("models.asr.selection.current" => "Current provider")
+        : @tr("models.asr.selection.set-current" => "Set as current");
+    accessible-enabled: root.enabled;
+    accessible-checked: root.selected;
+    accessible-action-default => { if root.enabled { root.activated(); } }
+
+    switch-track := Rectangle {
+        x: 0px;
+        y: 9px;
+        width: 28px;
+        height: 16px;
+        border-radius: 8px;
+        background: root.selected ? AppColors.success
+            : selection-touch.has-hover && root.enabled ? AppColors.selected
+            : AppColors.chart-neutral;
+        opacity: root.selected || root.enabled ? 1 : 0.5;
+        animate background { duration: 140ms; easing: ease-out; }
+
+        Rectangle {
+            x: root.selected ? 14px : 2px;
+            y: 2px;
+            width: 12px;
+            height: 12px;
+            border-radius: 6px;
+            background: AppColors.surface;
+            animate x { duration: 160ms; easing: ease-out; }
+        }
+    }
+    Text {
+        x: 36px;
+        width: parent.width - 36px;
+        text: root.selected
+            ? @tr("models.asr.selection.current" => "Current provider")
+            : @tr("models.asr.selection.set-current" => "Set as current");
+        color: root.selected ? AppColors.success
+            : root.enabled ? AppColors.text : AppColors.text-muted;
+        font-size: 10px;
+        font-weight: 600;
+        vertical-alignment: center;
+        overflow: elide;
+    }
+    selection-touch := TouchArea {
+        enabled: root.enabled;
+        mouse-cursor: root.enabled ? pointer : default;
+        clicked => { root.activated(); }
+    }
+}
+
 component ModalTextField inherits Rectangle {
     in-out property <string> value;
     in property <string> placeholder;
@@ -235,7 +300,7 @@ component ModalTextField inherits Rectangle {
     border-radius: 7px;
     border-width: 1px;
     border-color: root.error ? AppColors.danger
-        : field-input.has-focus ? AppColors.brand : AppColors.border;
+        : field-input.has-focus ? AppColors.brand-strong : AppColors.border;
     background: AppColors.sidebar;
     clip: true;
 
@@ -270,7 +335,7 @@ component ModalSecretField inherits Rectangle {
     border-radius: 7px;
     border-width: 1px;
     border-color: root.error ? AppColors.danger
-        : secret-input.has-focus ? AppColors.brand : AppColors.border;
+        : secret-input.has-focus ? AppColors.brand-strong : AppColors.border;
     background: AppColors.sidebar;
     clip: true;
 
@@ -313,9 +378,106 @@ component ModalSecretField inherits Rectangle {
     }
 }
 
+component RecognitionTestRow inherits Rectangle {
+    in property <bool> testing: false;
+    in property <bool> succeeded: false;
+    in property <bool> failed: false;
+    in property <bool> ready: false;
+    in property <string> elapsed;
+    callback activated();
+
+    private property <bool> has-result: root.succeeded || root.failed;
+    private property <string> message: root.succeeded
+        ? @tr("models.test.succeeded-duration" => "Recognition succeeded · {} sec", root.elapsed)
+        : root.failed
+            ? root.elapsed.is-empty
+                ? @tr("models.test.failed" => "Recognition failed")
+                : @tr("models.test.failed-duration" => "Recognition failed · {} sec", root.elapsed)
+            : "";
+    private property <bool> action-emphasized: !root.succeeded;
+    private property <string> action-label: root.testing ? @tr("models.test.testing" => "Testing…")
+        : root.succeeded ? @tr("models.test.again" => "Test again")
+        : root.failed ? @tr("models.test.retry" => "Retry test")
+        : @tr("models.test.action" => "Run test");
+
+    height: 54px;
+    background: transparent;
+
+    if root.has-result: HorizontalLayout {
+        x: 0px;
+        y: 9px;
+        width: parent.width - 116px;
+        height: 36px;
+        spacing: 8px;
+        cross-axis-alignment: center;
+
+        Image {
+            width: 14px;
+            height: 14px;
+            source: root.failed ? @image-url("../../icons/lucide/circle-alert.svg") : @image-url("../../icons/lucide/check.svg");
+            colorize: root.failed ? AppColors.danger : AppColors.success;
+        }
+        Text {
+            horizontal-stretch: 1;
+            text: root.message;
+            color: root.failed ? AppColors.danger : AppColors.success;
+            font-size: 10px;
+            font-weight: 650;
+            vertical-alignment: center;
+            overflow: elide;
+        }
+    }
+    Rectangle {
+        x: parent.width - 104px;
+        y: 9px;
+        width: 104px;
+        height: 36px;
+        border-radius: 7px;
+        border-width: root.succeeded ? 0px : 1px;
+        border-color: root.action-emphasized ? AppColors.brand-strong : AppColors.border;
+        background: root.succeeded ? (action-touch.has-hover ? AppColors.surface-subtle : transparent)
+            : !root.ready || root.testing ? AppColors.surface-muted
+            : action-touch.has-hover ? AppColors.surface-subtle : AppColors.surface;
+        opacity: root.ready ? 1 : 0.55;
+        accessible-role: button;
+        accessible-label: root.action-label;
+        accessible-enabled: root.ready && !root.testing;
+        accessible-action-default => { if root.ready && !root.testing { root.activated(); } }
+        HorizontalLayout {
+            width: parent.width;
+            height: parent.height;
+            spacing: 6px;
+            alignment: center;
+            cross-axis-alignment: center;
+
+            Image {
+                width: 14px;
+                height: 14px;
+                source: root.testing || root.has-result
+                    ? @image-url("../../icons/lucide/refresh-cw.svg")
+                    : @image-url("../../icons/lucide/audio-lines.svg");
+                colorize: !root.ready || root.testing ? AppColors.text-muted
+                    : root.action-emphasized ? AppColors.brand-strong : AppColors.text;
+            }
+            Text {
+                text: root.action-label;
+                color: !root.ready || root.testing ? AppColors.text-muted
+                    : root.action-emphasized ? AppColors.brand-strong : AppColors.text;
+                font-size: 10px;
+                font-weight: 650;
+                vertical-alignment: center;
+                overflow: elide;
+            }
+        }
+        action-touch := TouchArea {
+            enabled: root.ready && !root.testing;
+            mouse-cursor: self.enabled ? pointer : default;
+            clicked => { root.activated(); }
+        }
+    }
+}
+
 export component AsrConfigurationModal inherits Rectangle {
-    in property <length> dialog-area-x: 0px;
-    in property <length> dialog-area-width: root.width;
     in property <AsrProvider> provider: AsrProvider.volcengine;
     in-out property <string> volcengine-api-key;
     in-out property <string> volcengine-model;
@@ -323,8 +485,12 @@ export component AsrConfigurationModal inherits Rectangle {
     in-out property <string> custom-base-url;
     in-out property <string> custom-model;
     in property <bool> configured: false;
+    in property <bool> selected: false;
+    in property <bool> selection-enabled: false;
     in property <bool> dirty: false;
     in property <bool> testing: false;
+    in property <bool> test-succeeded: false;
+    in property <string> test-elapsed;
     in property <bool> draft-error: false;
     in property <AsrConfigurationField> error-field: AsrConfigurationField.none;
     in property <string> status-message;
@@ -333,6 +499,7 @@ export component AsrConfigurationModal inherits Rectangle {
     callback test-connection();
     callback delete-configuration();
     callback open-key-page();
+    callback select-provider();
 
     private property <bool> ready: root.provider == AsrProvider.volcengine
         ? !root.volcengine-api-key.is-empty && !root.volcengine-model.is-empty
@@ -340,11 +507,6 @@ export component AsrConfigurationModal inherits Rectangle {
     private property <string> volcengine-model-name: root.volcengine-model == "volc.bigasr.sauc.duration"
         ? @tr("models.volcengine.model-v1" => "Doubao Streaming Speech Recognition 1.0")
         : @tr("models.volcengine.model-v2" => "Doubao Streaming Speech Recognition 2.0");
-    private property <length> dialog-height: root.provider == AsrProvider.volcengine ? 468px : 510px;
-
-    background: AppColors.scrim;
-    TouchArea { mouse-cursor: default; clicked => { } }
-
     modal-focus := FocusScope {
         width: parent.width;
         height: parent.height;
@@ -356,18 +518,12 @@ export component AsrConfigurationModal inherits Rectangle {
             return reject;
         }
 
-    dialog := Rectangle {
-        x: root.dialog-area-x + (root.dialog-area-width - self.width) / 2;
-        y: (parent.height - self.height) / 2;
-        width: min(540px, root.dialog-area-width - 32px);
-        height: root.dialog-height;
-        border-radius: 12px;
-        border-width: 1px;
-        border-color: AppColors.border;
-        background: AppColors.surface;
-        drop-shadow-blur: 28px;
-        drop-shadow-offset-y: 10px;
-        drop-shadow-color: AppColors.shadow;
+    dialog := ModalShell {
+        width: parent.width;
+        height: parent.height;
+        size: ModalSize.standard;
+        close-enabled: !root.testing;
+        close-requested => { root.cancelled(); }
 
         Image {
             x: 24px;
@@ -383,7 +539,7 @@ export component AsrConfigurationModal inherits Rectangle {
         Text {
             x: 76px;
             y: 18px;
-            width: parent.width - 136px;
+            width: dialog.panel-width - 252px;
             text: root.provider == AsrProvider.volcengine
                 ? @tr("models.asr.volcengine.dialog-title" => "Configure Volcengine")
                 : @tr("models.asr.custom.dialog-title" => "Configure custom ASR");
@@ -392,44 +548,45 @@ export component AsrConfigurationModal inherits Rectangle {
             font-weight: 700;
             overflow: elide;
         }
+        ProviderSelectionControl {
+            x: dialog.panel-width - 176px;
+            y: 16px;
+            selected: root.selected;
+            enabled: root.selection-enabled;
+            activated => { root.select-provider(); }
+        }
         Text {
             x: 76px;
             y: 45px;
-            width: parent.width - 136px;
+            width: dialog.panel-width - 252px;
             text: root.provider == AsrProvider.volcengine
-                ? @tr("models.asr.volcengine.dialog-subtitle" => "Test the connection before atomically enabling this provider.")
+                ? @tr("models.asr.volcengine.dialog-subtitle" => "Run a standard audio recognition test before enabling this provider.")
                 : @tr("models.asr.custom.dialog-subtitle" => "OpenAI-compatible audio transcription endpoint");
             color: AppColors.text-muted;
             font-size: 10px;
             overflow: elide;
         }
-        Rectangle {
-            x: parent.width - 52px;
-            y: 14px;
-            width: 40px;
-            height: 40px;
-            border-radius: 7px;
-            background: close-touch.pressed ? AppColors.selected
-                : close-touch.has-hover ? AppColors.surface-subtle : transparent;
-            accessible-role: button;
-            accessible-label: @tr("common.close" => "Close");
-            accessible-action-default => { if !root.testing { root.cancelled(); } }
-            Image { x: 11px; y: 11px; width: 18px; height: 18px; source: @image-url("../../icons/lucide/x.svg"); colorize: AppColors.text-muted; }
-            close-touch := TouchArea { enabled: !root.testing; mouse-cursor: self.enabled ? pointer : default; clicked => { root.cancelled(); } }
-        }
-        Rectangle { x: 24px; y: 78px; width: parent.width - 48px; height: 1px; background: AppColors.border; }
+        form-scroll := ScrollView {
+            x: 24px;
+            y: 86px;
+            width: dialog.panel-width - 48px;
+            height: 302px;
+            viewport-width: self.width;
+            viewport-height: root.provider == AsrProvider.volcengine ? 289px : 320px;
+            vertical-scrollbar-policy: ScrollBarPolicy.as-needed;
+            horizontal-scrollbar-policy: ScrollBarPolicy.always-off;
 
         if root.provider == AsrProvider.volcengine: Rectangle {
-            x: 24px;
-            y: 92px;
-            width: parent.width - 48px;
-            height: 250px;
+            x: 0px;
+            y: 0px;
+            width: form-scroll.viewport-width;
+            height: 289px;
             background: transparent;
 
-            Text { x: 0px; y: 0px; text: "API Key"; color: AppColors.text; font-size: 11px; font-weight: 650; }
+            Text { x: 0px; y: 7px; text: "API Key"; color: AppColors.text; font-size: 11px; font-weight: 650; }
             Rectangle {
                 x: parent.width - 112px;
-                y: -7px;
+                y: 0px;
                 width: 112px;
                 height: 32px;
                 border-radius: 6px;
@@ -442,20 +599,20 @@ export component AsrConfigurationModal inherits Rectangle {
             }
             volc-key := ModalSecretField {
                 x: 0px;
-                y: 25px;
+                y: 36px;
                 width: parent.width;
                 value <=> root.volcengine-api-key;
                 error: root.error-field == AsrConfigurationField.api-key;
                 accessible-name: @tr("models.volcengine-api-key" => "Volcengine API key");
             }
             if root.error-field == AsrConfigurationField.api-key: Text {
-                x: 0px; y: 66px; width: parent.width; text: root.status-message; color: AppColors.danger; font-size: 10px; overflow: elide;
+                x: 0px; y: 77px; width: parent.width; text: root.status-message; color: AppColors.danger; font-size: 10px; overflow: elide;
             }
 
-            Text { x: 0px; y: 93px; text: @tr("models.model-field" => "Model"); color: AppColors.text; font-size: 11px; font-weight: 650; }
+            Text { x: 0px; y: 104px; text: @tr("models.model-field" => "Model"); color: AppColors.text; font-size: 11px; font-weight: 650; }
             Text {
                 x: 0px;
-                y: 113px;
+                y: 124px;
                 width: parent.width;
                 text: root.volcengine-model-name;
                 color: AppColors.ink;
@@ -463,10 +620,10 @@ export component AsrConfigurationModal inherits Rectangle {
                 font-weight: 650;
                 overflow: elide;
             }
-            Text { x: 0px; y: 139px; text: @tr("models.asr.volcengine.model-id" => "Model ID"); color: AppColors.text-muted; font-size: 9px; font-weight: 600; }
+            Text { x: 0px; y: 150px; text: @tr("models.asr.volcengine.model-id" => "Model ID"); color: AppColors.text-muted; font-size: 9px; font-weight: 600; }
             Rectangle {
                 x: 0px;
-                y: 157px;
+                y: 168px;
                 width: parent.width;
                 height: 38px;
                 border-radius: 7px;
@@ -483,25 +640,26 @@ export component AsrConfigurationModal inherits Rectangle {
                 }
             }
             if root.error-field == AsrConfigurationField.model: Text {
-                x: 0px; y: 199px; width: parent.width; text: root.status-message; color: AppColors.danger; font-size: 10px; overflow: elide;
+                x: 0px; y: 210px; width: parent.width; text: root.status-message; color: AppColors.danger; font-size: 10px; overflow: elide;
             }
-            if root.testing || root.error-field == AsrConfigurationField.form: Rectangle {
+            RecognitionTestRow {
                 x: 0px;
-                y: 224px;
+                y: 235px;
                 width: parent.width;
-                height: 42px;
-                border-radius: 7px;
-                background: root.error-field == AsrConfigurationField.form ? AppColors.danger-soft : AppColors.info-soft;
-                Image { x: 12px; y: 13px; width: 16px; height: 16px; source: root.error-field == AsrConfigurationField.form ? @image-url("../../icons/lucide/circle-alert.svg") : @image-url("../../icons/lucide/refresh-cw.svg"); colorize: root.error-field == AsrConfigurationField.form ? AppColors.danger : AppColors.info; }
-                Text { x: 38px; width: parent.width - 50px; text: root.status-message; color: root.error-field == AsrConfigurationField.form ? AppColors.danger : AppColors.info; font-size: 10px; font-weight: 600; vertical-alignment: center; overflow: elide; }
+                testing: root.testing;
+                succeeded: root.test-succeeded;
+                failed: root.error-field == AsrConfigurationField.form;
+                ready: root.ready;
+                elapsed: root.test-elapsed;
+                activated => { root.test-connection(); }
             }
         }
 
         if root.provider == AsrProvider.custom: Rectangle {
-            x: 24px;
-            y: 92px;
-            width: parent.width - 48px;
-            height: 330px;
+            x: 0px;
+            y: 0px;
+            width: form-scroll.viewport-width;
+            height: 320px;
             background: transparent;
 
             Text { x: 0px; y: 0px; text: @tr("models.base-url" => "Service URL"); color: AppColors.text; font-size: 11px; font-weight: 650; }
@@ -518,38 +676,23 @@ export component AsrConfigurationModal inherits Rectangle {
             ModalTextField { x: 0px; y: 199px; width: parent.width; value <=> root.custom-model; placeholder: "whisper-1"; accessible-name: @tr("models.model-field" => "Model"); error: root.error-field == AsrConfigurationField.model; }
             if root.error-field == AsrConfigurationField.model: Text { x: 0px; y: 240px; width: parent.width; text: root.status-message; color: AppColors.danger; font-size: 10px; overflow: elide; }
 
-            if root.testing || root.error-field == AsrConfigurationField.form: Rectangle {
+            RecognitionTestRow {
                 x: 0px;
                 y: 266px;
                 width: parent.width;
-                height: 42px;
-                border-radius: 7px;
-                background: root.error-field == AsrConfigurationField.form ? AppColors.danger-soft : AppColors.info-soft;
-                Image { x: 12px; y: 13px; width: 16px; height: 16px; source: root.error-field == AsrConfigurationField.form ? @image-url("../../icons/lucide/circle-alert.svg") : @image-url("../../icons/lucide/refresh-cw.svg"); colorize: root.error-field == AsrConfigurationField.form ? AppColors.danger : AppColors.info; }
-                Text { x: 38px; width: parent.width - 50px; text: root.status-message; color: root.error-field == AsrConfigurationField.form ? AppColors.danger : AppColors.info; font-size: 10px; font-weight: 600; vertical-alignment: center; overflow: elide; }
+                testing: root.testing;
+                succeeded: root.test-succeeded;
+                failed: root.error-field == AsrConfigurationField.form;
+                ready: root.ready;
+                elapsed: root.test-elapsed;
+                activated => { root.test-connection(); }
             }
         }
+        }
 
-        if root.configured: ModalButton {
-            x: 24px;
-            y: parent.height - 56px;
-            width: 116px;
-            label: @tr("models.asr.delete-configuration" => "Delete configuration");
-            danger: true;
-            enabled: !root.testing;
-            activated => { root.delete-configuration(); }
-        }
-        ModalButton {
-            x: parent.width - 274px;
-            y: parent.height - 56px;
-            width: 116px;
-            label: root.testing ? @tr("models.test.testing" => "Testing…") : @tr("models.test.action" => "Test connection");
-            enabled: root.ready && !root.testing;
-            activated => { root.test-connection(); }
-        }
-        ModalButton {
-            x: parent.width - 150px;
-            y: parent.height - 56px;
+        if !root.configured || root.dirty: ModalButton {
+            x: dialog.panel-width - 150px;
+            y: dialog.panel-height - 59px;
             width: 126px;
             label: root.testing ? @tr("models.save.testing" => "Testing…") : @tr("models.asr.save-and-enable" => "Save and enable");
             primary: true;
@@ -558,6 +701,122 @@ export component AsrConfigurationModal inherits Rectangle {
         }
     }
 
+    }
+    init => { modal-focus.focus(); }
+    changed visible => { if root.visible { modal-focus.focus(); } }
+}
+
+export component MacOsSpeechModal inherits Rectangle {
+    in property <bool> selected: false;
+    in property <SystemSpeechStatus> status: SystemSpeechStatus.unavailable;
+    callback cancelled();
+    callback activate-provider();
+
+    private property <bool> ready: root.status == SystemSpeechStatus.ready;
+    private property <bool> action-available: root.status == SystemSpeechStatus.permission-required
+        || root.status == SystemSpeechStatus.permission-denied
+        || root.status == SystemSpeechStatus.restricted;
+    private property <string> status-summary: root.status == SystemSpeechStatus.ready
+        ? @tr("models.asr.summary.macos-ready" => "No account or model download required")
+        : root.status == SystemSpeechStatus.permission-required
+            ? @tr("models.asr.summary.macos-permission-required" => "Apple Speech permission is required")
+            : root.status == SystemSpeechStatus.permission-denied
+                ? @tr("models.asr.summary.macos-permission-denied" => "Speech Recognition permission is denied")
+                : root.status == SystemSpeechStatus.restricted
+                    ? @tr("models.asr.summary.macos-restricted" => "Speech Recognition is restricted by the system")
+                    : @tr("models.asr.summary.macos-unavailable" => "Apple Speech is temporarily unavailable");
+
+    modal-focus := FocusScope {
+        width: parent.width;
+        height: parent.height;
+        capture-key-pressed(event) => {
+            if event.text == Key.Escape {
+                root.cancelled();
+                return accept;
+            }
+            return reject;
+        }
+
+        dialog := ModalShell {
+            width: parent.width;
+            height: parent.height;
+            size: ModalSize.compact;
+            close-requested => { root.cancelled(); }
+
+            Image {
+                x: 24px;
+                y: 22px;
+                width: 38px;
+                height: 38px;
+                source: @image-url("../../icons/providers/apple.svg");
+                colorize: AppColors.ink;
+                image-fit: contain;
+            }
+            Text {
+                x: 76px;
+                y: 18px;
+                width: dialog.panel-width - 252px;
+                text: @tr("models.provider.macos-dictation" => "macOS Dictation");
+                color: AppColors.ink;
+                font-size: 18px;
+                font-weight: 700;
+                overflow: elide;
+            }
+            ProviderSelectionControl {
+                x: dialog.panel-width - 176px;
+                y: 16px;
+                selected: root.selected;
+                enabled: root.ready && !root.selected;
+                activated => { root.activate-provider(); }
+            }
+            Text {
+                x: 76px;
+                y: 45px;
+                width: dialog.panel-width - 252px;
+                text: @tr("models.asr.source.system-built-in" => "System built-in");
+                color: AppColors.text-muted;
+                font-size: 10px;
+                overflow: elide;
+            }
+
+            Rectangle {
+                x: 24px;
+                y: 92px;
+                width: dialog.panel-width - 48px;
+                height: 48px;
+                border-radius: 7px;
+                background: AppColors.surface-subtle;
+
+                Image {
+                    x: 14px;
+                    y: 15px;
+                    width: 18px;
+                    height: 18px;
+                    source: @image-url("../../icons/lucide/monitor.svg");
+                    colorize: root.ready ? AppColors.success : AppColors.text-muted;
+                }
+                Text {
+                    x: 44px;
+                    width: parent.width - 58px;
+                    text: root.status-summary;
+                    color: AppColors.text;
+                    font-size: 11px;
+                    vertical-alignment: center;
+                    overflow: elide;
+                }
+            }
+
+            if root.action-available: ModalButton {
+                x: dialog.panel-width - 150px;
+                y: dialog.panel-height - 59px;
+                width: 126px;
+                label: root.status == SystemSpeechStatus.permission-required
+                    ? @tr("models.asr.status.authorize" => "Authorize")
+                    : @tr("models.asr.status.open-settings" => "Open Settings");
+                primary: true;
+                activated => { root.activate-provider(); }
+            }
+        }
     }
     init => { modal-focus.focus(); }
     changed visible => { if root.visible { modal-focus.focus(); } }

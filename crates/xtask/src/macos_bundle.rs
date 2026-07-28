@@ -10,6 +10,9 @@ const DEVELOPMENT_MARKER: &str = "saymore-development-environment";
 const MICROPHONE_USAGE_DESCRIPTION_EN: &str =
     "Saymore uses the microphone to transcribe your speech.";
 const MICROPHONE_USAGE_DESCRIPTION_ZH_HANS: &str = "Saymore 使用麦克风将你的语音转写为文字。";
+const SPEECH_USAGE_DESCRIPTION_EN: &str =
+    "Saymore uses Apple Speech Recognition to turn your speech into text.";
+const SPEECH_USAGE_DESCRIPTION_ZH_HANS: &str = "Saymore 使用 Apple 语音识别将你的语音转换为文字。";
 const ENTITLEMENTS_PATH: &str = "apps/desktop/packaging/macos/entitlements.plist";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -84,15 +87,25 @@ pub(crate) fn create_bundle(
 }
 
 fn write_localized_info_plist_strings(resources: &Path) -> Result<(), std::io::Error> {
-    for (locale, description) in [
-        ("en", MICROPHONE_USAGE_DESCRIPTION_EN),
-        ("zh-Hans", MICROPHONE_USAGE_DESCRIPTION_ZH_HANS),
+    for (locale, microphone, speech) in [
+        (
+            "en",
+            MICROPHONE_USAGE_DESCRIPTION_EN,
+            SPEECH_USAGE_DESCRIPTION_EN,
+        ),
+        (
+            "zh-Hans",
+            MICROPHONE_USAGE_DESCRIPTION_ZH_HANS,
+            SPEECH_USAGE_DESCRIPTION_ZH_HANS,
+        ),
     ] {
         let localization = resources.join(format!("{locale}.lproj"));
         fs::create_dir_all(&localization)?;
         fs::write(
             localization.join("InfoPlist.strings"),
-            format!("\"NSMicrophoneUsageDescription\" = \"{description}\";\n"),
+            format!(
+                "\"NSMicrophoneUsageDescription\" = \"{microphone}\";\n\"NSSpeechRecognitionUsageDescription\" = \"{speech}\";\n"
+            ),
         )?;
     }
     Ok(())
@@ -189,6 +202,7 @@ fn info_plist(spec: &BundleSpec<'_>) -> String {
   <key>LSMinimumSystemVersion</key><string>12.0</string>
   <key>NSHighResolutionCapable</key><true/>
   <key>NSMicrophoneUsageDescription</key><string>{MICROPHONE_USAGE_DESCRIPTION_EN}</string>
+  <key>NSSpeechRecognitionUsageDescription</key><string>{SPEECH_USAGE_DESCRIPTION_EN}</string>
 </dict>
 </plist>
 "#
@@ -211,6 +225,7 @@ mod tests {
         assert!(plist.contains("<string>Saymore Preview</string>"));
         assert!(plist.contains("<string>com.saymore.desktop.preview</string>"));
         assert!(plist.contains(MICROPHONE_USAGE_DESCRIPTION_EN));
+        assert!(plist.contains(SPEECH_USAGE_DESCRIPTION_EN));
         assert!(plist.contains("<key>CFBundleDevelopmentRegion</key><string>en</string>"));
         assert!(plist.contains("<string>zh-Hans</string>"));
     }
@@ -227,10 +242,11 @@ mod tests {
         let english = fs::read_to_string(resources.join("en.lproj/InfoPlist.strings"))?;
         let simplified_chinese =
             fs::read_to_string(resources.join("zh-Hans.lproj/InfoPlist.strings"))?;
-        let expected_english =
-            format!("\"NSMicrophoneUsageDescription\" = \"{MICROPHONE_USAGE_DESCRIPTION_EN}\";\n");
+        let expected_english = format!(
+            "\"NSMicrophoneUsageDescription\" = \"{MICROPHONE_USAGE_DESCRIPTION_EN}\";\n\"NSSpeechRecognitionUsageDescription\" = \"{SPEECH_USAGE_DESCRIPTION_EN}\";\n"
+        );
         let expected_simplified_chinese = format!(
-            "\"NSMicrophoneUsageDescription\" = \"{MICROPHONE_USAGE_DESCRIPTION_ZH_HANS}\";\n"
+            "\"NSMicrophoneUsageDescription\" = \"{MICROPHONE_USAGE_DESCRIPTION_ZH_HANS}\";\n\"NSSpeechRecognitionUsageDescription\" = \"{SPEECH_USAGE_DESCRIPTION_ZH_HANS}\";\n"
         );
         if english != expected_english {
             return Err("English microphone usage description should match".into());

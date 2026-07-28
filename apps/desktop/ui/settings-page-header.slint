@@ -1,0 +1,30 @@
+import { AppColors } from "color-system.slint";
+
+export component SettingsPageHeader inherits Rectangle {
+    in property <string> title;
+    in property <string> detail;
+
+    height: 70px;
+    background: transparent;
+
+    Text {
+        width: parent.width;
+        height: 34px;
+        text: root.title;
+        color: AppColors.ink;
+        font-size: 25px;
+        font-weight: 700;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+    Text {
+        y: 50px;
+        width: parent.width;
+        height: 20px;
+        text: root.detail;
+        color: AppColors.text-muted;
+        font-size: 12px;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+}

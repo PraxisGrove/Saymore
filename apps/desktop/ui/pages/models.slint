@@ -3,6 +3,9 @@ import {
     AsrProvider,
     AsrProviderCardSpec,
     LlmProvider,
+    ModalShell,
+    ModalSize,
+    SystemSpeechStatus,
 } from "../components.slint";
 import { AppColors } from "../color-system.slint";
 import { ScrollView } from "std-widgets.slint";
@@ -184,45 +187,52 @@ export component ModelConsentDialog inherits Rectangle {
     in-out property <bool> consent-checked;
     callback cancelled();
     callback confirmed();
-    background: AppColors.scrim;
-    TouchArea { mouse-cursor: default; clicked => { } }
 
-    Rectangle {
-        x: (parent.width - self.width) / 2;
-        y: (parent.height - self.height) / 2;
-        width: 540px;
-        height: 340px;
-        border-radius: 14px;
-        background: AppColors.surface;
-        drop-shadow-blur: 32px;
-        drop-shadow-offset-y: 12px;
-        drop-shadow-color: AppColors.shadow;
+    consent-shell := ModalShell {
+        width: parent.width;
+        height: parent.height;
+        size: ModalSize.standard;
+        close-requested => { root.cancelled(); }
 
-        Rectangle { x: 30px; y: 29px; width: 40px; height: 40px; border-radius: 10px; background: AppColors.brand-soft; Image { x: 10px; y: 10px; width: 20px; height: 20px; source: @image-url("../../icons/lucide/sparkles.svg"); colorize: AppColors.brand; } }
-        Text { x: 86px; y: 26px; text: @tr("models.polishing.consent.title" => "Enable text polishing?"); color: AppColors.ink; font-size: 20px; font-weight: 700; }
-        Text { x: 86px; y: 56px; text: @tr("models.polishing.consent.intro" => "Before enabling it, review what text will be sent."); color: AppColors.text-muted; font-size: 11px; }
-        Rectangle {
-            x: 492px; y: 13px; width: 28px; height: 28px; background: transparent;
-            Image { x: 5px; y: 5px; width: 18px; height: 18px; source: @image-url("../../icons/lucide/x.svg"); colorize: AppColors.text-muted; }
-            TouchArea { mouse-cursor: pointer; clicked => { root.cancelled(); } }
+        Rectangle { x: 24px; y: 22px; width: 38px; height: 38px; border-radius: 10px; background: AppColors.brand-soft; Image { x: 9px; y: 9px; width: 20px; height: 20px; source: @image-url("../../icons/lucide/sparkles.svg"); colorize: AppColors.brand; } }
+        Text { x: 76px; y: 18px; width: consent-shell.panel-width - 136px; text: @tr("models.polishing.consent.title" => "Enable text polishing?"); color: AppColors.ink; font-size: 18px; font-weight: 700; overflow: elide; }
+        Text { x: 76px; y: 45px; width: consent-shell.panel-width - 136px; text: @tr("models.polishing.consent.intro" => "Before enabling it, review what text will be sent."); color: AppColors.text-muted; font-size: 10px; overflow: elide; }
+
+        body-scroll := ScrollView {
+            x: 24px;
+            y: 86px;
+            width: consent-shell.panel-width - 48px;
+            height: 302px;
+            viewport-width: self.width;
+            viewport-height: max(self.height, body.preferred-height);
+            vertical-scrollbar-policy: ScrollBarPolicy.as-needed;
+            horizontal-scrollbar-policy: ScrollBarPolicy.always-off;
+
+            body := Rectangle {
+                width: body-scroll.viewport-width;
+                min-height: 238px;
+                background: transparent;
+
+                Text { x: 0px; y: 0px; width: parent.width; text: @tr("models.polishing.consent.sent-content" => "Saymore sends the current transcript for polishing and may send a short local correction fragment to judge dictionary candidates."); color: AppColors.text; font-size: 12px; wrap: word-wrap; }
+                Rectangle {
+                    x: 0px; y: 42px; width: parent.width; height: 64px; border-radius: 8px; background: AppColors.sidebar;
+                    Text { x: 16px; y: 10px; text: @tr("models.polishing.consent.destination" => "Data destination"); color: AppColors.text-muted; font-size: 9px; font-weight: 600; }
+                    Text { x: 16px; y: 31px; width: parent.width - 32px; text: root.target; color: AppColors.text; font-size: 11px; font-weight: 600; overflow: elide; }
+                }
+                Text { x: 0px; y: 124px; width: parent.width; text: @tr("models.polishing.consent.dictionary-excluded" => "Confirmed dictionary entries and complete input fields are not sent."); color: AppColors.text-muted; font-size: 10px; wrap: word-wrap; }
+                Rectangle {
+                    x: 0px; y: 164px; width: 18px; height: 18px; border-radius: 4px; border-width: 1px; border-color: AppColors.chart-neutral; background: root.consent-checked ? AppColors.brand : AppColors.surface;
+                    if root.consent-checked: Image { x: 2px; y: 2px; width: 14px; height: 14px; source: @image-url("../../icons/lucide/check.svg"); colorize: AppColors.on-brand; }
+                    TouchArea { mouse-cursor: pointer; clicked => { root.consent-checked = !root.consent-checked; } }
+                }
+                Text { x: 30px; y: 162px; width: parent.width - 30px; height: 40px; text: @tr("models.polishing.consent.accept" => "I understand and agree to send the content described above"); color: AppColors.text; font-size: 11px; font-weight: 500; wrap: word-wrap; vertical-alignment: top; }
+            }
         }
-        Text { x: 30px; y: 97px; width: parent.width - 60px; text: @tr("models.polishing.consent.sent-content" => "Saymore sends the current transcript for polishing and may send a short local correction fragment to judge dictionary candidates."); color: AppColors.text; font-size: 12px; wrap: word-wrap; }
-        Rectangle {
-            x: 30px; y: 130px; width: 480px; height: 64px; border-radius: 8px; background: AppColors.sidebar;
-            Text { x: 16px; y: 10px; text: @tr("models.polishing.consent.destination" => "Data destination"); color: AppColors.text-muted; font-size: 9px; font-weight: 600; }
-            Text { x: 16px; y: 31px; text: root.target; color: AppColors.text; font-size: 11px; font-weight: 600; }
-        }
-        Text { x: 30px; y: 212px; width: parent.width - 60px; text: @tr("models.polishing.consent.dictionary-excluded" => "Confirmed dictionary entries and complete input fields are not sent."); color: AppColors.text-muted; font-size: 10px; }
-        Rectangle {
-            x: 30px; y: 244px; width: 18px; height: 18px; border-radius: 4px; border-width: 1px; border-color: AppColors.chart-neutral; background: root.consent-checked ? AppColors.brand : AppColors.surface;
-            if root.consent-checked: Image { x: 2px; y: 2px; width: 14px; height: 14px; source: @image-url("../../icons/lucide/check.svg"); colorize: AppColors.on-brand; }
-            TouchArea { mouse-cursor: pointer; clicked => { root.consent-checked = !root.consent-checked; } }
-        }
-        Text { x: 60px; y: 244px; text: @tr("models.polishing.consent.accept" => "I understand and agree to send the content described above"); color: AppColors.text; font-size: 11px; font-weight: 500; }
-        ModelActionButton { x: 264px; y: 284px; label: @tr("common.cancel" => "Cancel"); primary: false; activated => { root.cancelled(); } }
+
+        ModelActionButton { x: consent-shell.panel-width - 268px; y: consent-shell.panel-height - 59px; width: 116px; label: @tr("common.cancel" => "Cancel"); primary: false; activated => { root.cancelled(); } }
         ModelActionButton {
-            x: 384px;
-            y: 284px;
+            x: consent-shell.panel-width - 138px;
+            y: consent-shell.panel-height - 59px;
             width: 126px;
             label: @tr("models.polishing.consent.confirm-and-test" => "Confirm and test");
             primary: true;
@@ -237,7 +247,10 @@ export component ModelsPage inherits Rectangle {
     in-out property <string> asr-api-key;
     in-out property <string> asr-model: "volc.seedasr.sauc.duration";
     in-out property <AsrProvider> asr-provider: AsrProvider.volcengine;
+    in property <AsrProvider> active-asr-provider: AsrProvider.volcengine;
     in property <[AsrProviderCardSpec]> asr-provider-cards;
+    in property <bool> macos-speech-selected: false;
+    in property <SystemSpeechStatus> macos-speech-status: SystemSpeechStatus.unavailable;
     in property <bool> volcengine-asr-configured;
     in-out property <string> custom-asr-api-key;
     in-out property <string> custom-asr-base-url;
@@ -277,6 +290,7 @@ export component ModelsPage inherits Rectangle {
     in-out property <string> model-discovery-status;
     callback save-asr-config(AsrProvider, string, string, string);
     callback select-asr-provider(AsrProvider);
+    callback open-macos-speech-details();
     callback cancel-asr-config();
     callback delete-asr-config();
     callback request-llm-enable();
@@ -344,7 +358,10 @@ export component ModelsPage inherits Rectangle {
         height: parent.height - 140px;
         focus-config: root.focus-asr-config;
         provider-cards: root.asr-provider-cards;
+        macos-speech-selected: root.macos-speech-selected;
+        macos-speech-status: root.macos-speech-status;
         provider <=> root.asr-provider;
+        active-provider: root.active-asr-provider;
         volcengine-api-key <=> root.asr-api-key;
         volcengine-model <=> root.asr-model;
         volcengine-configured: root.volcengine-asr-configured;
@@ -361,6 +378,7 @@ export component ModelsPage inherits Rectangle {
         config-dirty <=> root.asr-config-dirty;
         error-field <=> root.asr-error-field;
         select-provider(provider) => { root.select-asr-provider(provider); }
+        open-macos-speech-details => { root.open-macos-speech-details(); }
         open-config(original-provider) => { root.open-asr-config(original-provider); }
     }
 

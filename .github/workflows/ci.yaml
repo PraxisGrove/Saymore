@@ -47,6 +47,10 @@ jobs:
       - name: Test
         run: cargo nextest run --workspace --all-targets --profile ci
 
+      - name: Test model navigation
+        if: matrix.platform == 'macOS'
+        run: cargo test -p saymore-desktop --test models_navigation
+
       - name: Doc tests
         run: cargo test --workspace --doc
 

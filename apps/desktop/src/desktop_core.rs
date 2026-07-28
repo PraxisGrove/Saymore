@@ -11,7 +11,7 @@ use template_app::{
 use crate::{
     DesktopBootstrap, DesktopWindows, DictationRuntime, RecorderHandle, appearance_ui,
     authorization_ui, feedback_runtime, home_stats, i18n, local_data_ui, local_settings_runtime,
-    microphone_access, prewarm_audio_recorder, settings_actions, settings_ui,
+    microphone_access, prewarm_audio_recorder, settings_actions, settings_links, settings_ui,
     update_authorizations, update_check,
 };
 
@@ -164,6 +164,7 @@ fn wire_local_features(
         settings.clone(),
     );
     update_check::wire(&windows.ui);
+    settings_links::wire(&windows.ui);
     settings_actions::wire(
         &windows.ui,
         Arc::clone(&bootstrap.local_storage),

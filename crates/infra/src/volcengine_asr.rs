@@ -26,7 +26,7 @@ const ASR_1_RESOURCE_ID: &str = "volc.bigasr.sauc.duration";
 const ASR_2_RESOURCE_ID: &str = "volc.seedasr.sauc.duration";
 const LEGACY_MODEL_ID: &str = "bigmodel_async";
 const FINAL_TIMEOUT: Duration = Duration::from_secs(30);
-const CONNECTION_TEST_TIMEOUT: Duration = Duration::from_secs(8);
+const RECOGNITION_TEST_TIMEOUT: Duration = Duration::from_secs(12);
 const AUDIO_QUEUE_CAPACITY: usize = 128;
 const MAX_HOTWORDS: usize = 5_000;
 const MAX_HOTWORD_CHARS: usize = 10;
@@ -60,34 +60,35 @@ impl VolcengineSpeechRecognizer {
         })
     }
 
-    pub async fn test_connection(&self) -> Result<(), SpeechRecognitionError> {
-        let _ = rustls::crypto::ring::default_provider().install_default();
-        let request = connection_request(&self.api_key, self.resource_id)?;
-        let (mut socket, _) = connect_async(request).await.map_err(handshake_error)?;
-        let test_hints = SpeechRecognitionHints::from_terms(vec!["Saymore".to_owned()]);
-        socket
-            .send(Message::Binary(encode_config_request(&test_hints)?.into()))
+    pub async fn test_audio(&self, samples: Vec<i16>) -> Result<(), SpeechRecognitionError> {
+        let chunk_count = samples.len().div_ceil(1_600);
+        let (command_tx, command_rx) = tokio_mpsc::channel(chunk_count.saturating_add(1));
+        for chunk in samples.chunks(1_600) {
+            command_tx
+                .send(SessionCommand::Audio(chunk.to_vec()))
+                .await
+                .map_err(|error| SpeechRecognitionError::Transport(error.to_string()))?;
+        }
+        command_tx
+            .send(SessionCommand::Finish)
             .await
-            .map_err(transport_error)?;
-        socket
-            .send(Message::Binary(encode_audio_request(-2, &[], true)?.into()))
+            .map_err(|error| SpeechRecognitionError::Transport(error.to_string()))?;
+        let recognition = run_session(
+            self.api_key.clone(),
+            self.resource_id,
+            SpeechRecognitionHints::default(),
+            command_rx,
+            Arc::new(|_| {}),
+        );
+        let transcript = tokio::time::timeout(RECOGNITION_TEST_TIMEOUT, recognition)
             .await
-            .map_err(transport_error)?;
-        let response = tokio::time::timeout(CONNECTION_TEST_TIMEOUT, socket.next())
-            .await
-            .map_err(|_| SpeechRecognitionError::Timeout)?;
-        let result = match response {
-            Some(Ok(Message::Binary(bytes))) => parse_server_message(&bytes).map(|_| ()),
-            Some(Ok(Message::Close(_))) | None => Err(SpeechRecognitionError::Transport(
-                "ASR connection closed during testing".to_owned(),
-            )),
-            Some(Ok(_)) => Err(SpeechRecognitionError::Protocol(
-                "ASR test response is not binary".to_owned(),
-            )),
-            Some(Err(error)) => Err(transport_error(error)),
-        };
-        let _ = socket.close(None).await;
-        result
+            .map_err(|_| SpeechRecognitionError::Timeout)??;
+        if transcript.trim().is_empty() {
+            return Err(SpeechRecognitionError::Protocol(
+                "recognition test returned no text".to_owned(),
+            ));
+        }
+        Ok(())
     }
 }
 
@@ -529,26 +530,6 @@ mod tests {
             )),
             Err(SpeechRecognitionError::Authentication)
         ));
-    }
-
-    #[test]
-    #[ignore = "requires a live Volcengine API key"]
-    fn tests_a_live_connection() {
-        let Ok(api_key) = env::var("SAYMORE_VOLCENGINE_API_KEY") else {
-            panic!("SAYMORE_VOLCENGINE_API_KEY is required");
-        };
-        let Ok(recognizer) = VolcengineSpeechRecognizer::new(settings(&api_key, ASR_2_RESOURCE_ID))
-        else {
-            panic!("live recognizer should be configured");
-        };
-        let Ok(runtime) = tokio::runtime::Builder::new_current_thread()
-            .enable_all()
-            .build()
-        else {
-            panic!("test runtime should start");
-        };
-
-        assert_eq!(Ok(()), runtime.block_on(recognizer.test_connection()));
     }
 
     #[test]

@@ -4,6 +4,7 @@ import {
     AsrProvider,
     AsrProviderCardKind,
     AsrProviderCardSpec,
+    SystemSpeechStatus,
 } from "../components.slint";
 import {
     AsrProviderCard,
@@ -13,7 +14,10 @@ import {
 export component SpeechRecognitionPage inherits Rectangle {
     in property <bool> focus-config: false;
     in property <[AsrProviderCardSpec]> provider-cards;
+    in property <bool> macos-speech-selected: false;
+    in property <SystemSpeechStatus> macos-speech-status: SystemSpeechStatus.unavailable;
     in-out property <AsrProvider> provider: AsrProvider.volcengine;
+    in property <AsrProvider> active-provider: AsrProvider.volcengine;
     in-out property <string> volcengine-api-key;
     in-out property <string> volcengine-model;
     in property <bool> volcengine-configured: false;
@@ -31,6 +35,7 @@ export component SpeechRecognitionPage inherits Rectangle {
     in-out property <AsrConfigurationField> error-field: AsrConfigurationField.none;
     callback select-provider(AsrProvider);
     callback open-config(AsrProvider);
+    callback open-macos-speech-details();
 
     background: transparent;
     init => {
@@ -67,9 +72,13 @@ export component SpeechRecognitionPage inherits Rectangle {
                         : card.kind == AsrProviderCardKind.qwen3-asr
                             ? @image-url("../../icons/providers/qwen.png")
                             : @image-url("../../icons/lucide/plus.svg");
+            logo-size: card.kind == AsrProviderCardKind.saymore-cloud
+                || card.kind == AsrProviderCardKind.macos-dictation
+                ? 36px : 44px;
             colorize-logo: card.kind == AsrProviderCardKind.saymore-cloud
                 || card.kind == AsrProviderCardKind.custom
-                || card.kind == AsrProviderCardKind.macos-dictation;
+                || card.kind == AsrProviderCardKind.macos-dictation
+                || card.kind == AsrProviderCardKind.whisper-large-v3-turbo;
             summary-icon: card.kind == AsrProviderCardKind.saymore-cloud
                 ? @image-url("../../icons/lucide/globe.svg")
                 : card.kind == AsrProviderCardKind.macos-dictation
@@ -81,7 +90,7 @@ export component SpeechRecognitionPage inherits Rectangle {
                     ? @image-url("../../icons/lucide/globe.svg")
                     : @image-url("../../icons/lucide/download.svg");
             source-type: card.kind == AsrProviderCardKind.saymore-cloud
-                ? @tr("models.asr.source.saymore-cloud" => "Saymore cloud")
+                ? @tr("models.asr.source.saymore-cloud" => "Official API")
                 : card.kind == AsrProviderCardKind.macos-dictation
                     || card.kind == AsrProviderCardKind.windows-speech
                     ? @tr("models.asr.source.system-built-in" => "System built-in")
@@ -108,8 +117,17 @@ export component SpeechRecognitionPage inherits Rectangle {
             summary: card.kind == AsrProviderCardKind.saymore-cloud
                 ? @tr("models.asr.summary.saymore-cloud-unavailable" => "Cloud service adapter is not yet connected")
                 : card.kind == AsrProviderCardKind.macos-dictation
-                    || card.kind == AsrProviderCardKind.windows-speech
-                    ? @tr("models.asr.summary.system-unavailable" => "System speech adapter is not yet connected")
+                    ? root.macos-speech-status == SystemSpeechStatus.ready
+                        ? @tr("models.asr.summary.macos-ready" => "No account or model download required")
+                        : root.macos-speech-status == SystemSpeechStatus.permission-required
+                            ? @tr("models.asr.summary.macos-permission-required" => "Apple Speech permission is required")
+                            : root.macos-speech-status == SystemSpeechStatus.permission-denied
+                                ? @tr("models.asr.summary.macos-permission-denied" => "Speech Recognition permission is denied")
+                                : root.macos-speech-status == SystemSpeechStatus.restricted
+                                    ? @tr("models.asr.summary.macos-restricted" => "Speech Recognition is restricted by the system")
+                                    : @tr("models.asr.summary.macos-unavailable" => "Apple Speech is temporarily unavailable")
+                    : card.kind == AsrProviderCardKind.windows-speech
+                        ? @tr("models.asr.summary.system-unavailable" => "System speech adapter is not yet connected")
                 : card.kind == AsrProviderCardKind.volcengine
                 ? root.volcengine-configured
                     ? @tr("models.asr.summary.api-key-configured" => "API key configured")
@@ -121,42 +139,63 @@ export component SpeechRecognitionPage inherits Rectangle {
                     : @tr("models.asr.summary.local-unavailable" => "Download and production adapter are not yet connected");
             status: !card.available
                 ? @tr("models.asr.status.unavailable" => "Unavailable")
+                : card.kind == AsrProviderCardKind.macos-dictation
+                    ? root.macos-speech-status == SystemSpeechStatus.permission-required
+                        ? @tr("models.asr.status.authorize" => "Authorize")
+                        : root.macos-speech-status == SystemSpeechStatus.permission-denied
+                            || root.macos-speech-status == SystemSpeechStatus.restricted
+                            ? @tr("models.asr.status.open-settings" => "Open Settings")
+                            : root.macos-speech-status == SystemSpeechStatus.ready
+                                ? root.macos-speech-selected
+                                    ? @tr("models.asr.status.current" => "Current")
+                                    : @tr("models.asr.status.available" => "Available")
+                                : @tr("models.asr.status.unavailable" => "Unavailable")
                 : card.kind == AsrProviderCardKind.volcengine
-                    ? root.provider == AsrProvider.volcengine && root.active-configured
+                    ? !root.macos-speech-selected && root.active-provider == AsrProvider.volcengine && root.volcengine-configured
                         ? @tr("models.asr.status.current" => "Current")
-                        : root.config-error && root.provider == AsrProvider.volcengine
+                        : root.config-error && root.active-provider == AsrProvider.volcengine
                             ? @tr("models.status.connection-failed.plain" => "Connection issue")
                             : root.volcengine-configured
                                 ? @tr("models.status.configured" => "Configured")
                                 : @tr("models.status.not-configured.plain" => "Not configured")
-                    : root.provider == AsrProvider.custom && root.active-configured
+                    : !root.macos-speech-selected && root.active-provider == AsrProvider.custom && root.custom-configured
                         ? @tr("models.asr.status.current" => "Current")
                         : root.custom-configured
                             ? @tr("models.status.configured" => "Configured")
                             : @tr("models.status.not-configured.plain" => "Not configured");
             status-tone: !card.available ? ProviderStatusTone.neutral
-                : root.config-error && card.kind == AsrProviderCardKind.volcengine
+                : card.kind == AsrProviderCardKind.macos-dictation
+                    && (root.macos-speech-status == SystemSpeechStatus.permission-denied
+                        || root.macos-speech-status == SystemSpeechStatus.restricted)
                     ? ProviderStatusTone.error
-                    : (card.kind == AsrProviderCardKind.volcengine && root.provider == AsrProvider.volcengine && root.active-configured)
-                        || (card.kind == AsrProviderCardKind.custom && root.provider == AsrProvider.custom && root.active-configured)
+                : card.kind == AsrProviderCardKind.macos-dictation && root.macos-speech-selected
+                    && root.macos-speech-status == SystemSpeechStatus.ready
+                    ? ProviderStatusTone.active
+                : root.config-error && card.kind == AsrProviderCardKind.volcengine
+                    && root.active-provider == AsrProvider.volcengine
+                    ? ProviderStatusTone.error
+                    : !root.macos-speech-selected && ((card.kind == AsrProviderCardKind.volcengine && root.active-provider == AsrProvider.volcengine && root.volcengine-configured)
+                        || (card.kind == AsrProviderCardKind.custom && root.active-provider == AsrProvider.custom && root.custom-configured))
                         ? ProviderStatusTone.active : ProviderStatusTone.neutral;
-            selected: (card.kind == AsrProviderCardKind.volcengine && root.provider == AsrProvider.volcengine)
-                || (card.kind == AsrProviderCardKind.custom && root.provider == AsrProvider.custom);
+            selected: (card.kind == AsrProviderCardKind.macos-dictation && root.macos-speech-selected)
+                || (!root.macos-speech-selected && card.kind == AsrProviderCardKind.volcengine && root.active-provider == AsrProvider.volcengine)
+                || (!root.macos-speech-selected && card.kind == AsrProviderCardKind.custom && root.active-provider == AsrProvider.custom);
             enabled: card.available;
             activated => {
-                let original_provider = root.provider;
-                if card.kind == AsrProviderCardKind.volcengine {
-                    root.provider = AsrProvider.volcengine;
+                if card.kind == AsrProviderCardKind.macos-dictation {
+                    root.open-macos-speech-details();
                 } else {
-                    root.provider = AsrProvider.custom;
+                    let original_provider = root.provider;
+                    if card.kind == AsrProviderCardKind.volcengine {
+                        root.provider = AsrProvider.volcengine;
+                    } else {
+                        root.provider = AsrProvider.custom;
+                    }
+                    root.error-field = AsrConfigurationField.none;
+                    root.draft-error = false;
+                    root.select-provider(root.provider);
+                    root.open-config(original_provider);
                 }
-                if original_provider != root.provider {
-                    root.config-dirty = true;
-                }
-                root.error-field = AsrConfigurationField.none;
-                root.draft-error = false;
-                root.select-provider(root.provider);
-                root.open-config(original_provider);
             }
         }
     }

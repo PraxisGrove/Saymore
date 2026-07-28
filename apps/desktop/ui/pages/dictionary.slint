@@ -1,5 +1,6 @@
 import { ScrollView } from "std-widgets.slint";
 import { AppColors } from "../color-system.slint";
+import { ModalShell, ModalSize } from "../components.slint";
 
 export enum DictionaryFilterKind { all, automatic, manual }
 export enum DictionaryOriginKind { automatic, manual }
@@ -268,7 +269,7 @@ export component DictionaryPage inherits Rectangle {
         height: 38px;
         border-radius: 19px;
         border-width: root.search-active ? 1px : 0px;
-        border-color: AppColors.brand;
+        border-color: AppColors.brand-strong;
         background: root.search-active ? AppColors.surface : AppColors.surface-subtle;
         animate width { duration: 200ms; easing: ease-out; }
         Image { x: 11px; y: 11px; width: 16px; height: 16px; source: @image-url("../../icons/lucide/search.svg"); colorize: AppColors.text; }
@@ -390,44 +391,26 @@ export component DictionaryAddDialog inherits Rectangle {
     callback remove-row(int);
     callback save();
 
-    background: AppColors.scrim;
-    opacity: 1;
-    animate opacity { duration: 160ms; easing: ease-out; }
-    TouchArea { mouse-cursor: default; clicked => { } }
-    panel := Rectangle {
-        width: min(500px, parent.width - 64px);
-        height: min(468px, parent.height - 48px);
-        x: max(32px, parent.width - self.width - 120px);
-        y: (parent.height - self.height) / 2;
-        border-radius: 18px;
-        background: AppColors.surface;
-        drop-shadow-blur: 22px;
-        drop-shadow-offset-y: 8px;
-        drop-shadow-color: AppColors.shadow;
+    add-shell := ModalShell {
+        width: parent.width;
+        height: parent.height;
+        size: ModalSize.standard;
+        close-enabled: !root.saving;
+        close-requested => { root.close(); }
 
-        Text { x: 32px; y: 32px; text: @tr("dictionary.add-entry" => "Add entry"); color: AppColors.ink; font-size: 20px; font-weight: 700; }
-        Rectangle {
-            x: parent.width - 54px;
-            y: 23px;
-            width: 30px;
-            height: 30px;
-            border-radius: 7px;
-            background: close-touch.has-hover ? AppColors.surface-subtle : transparent;
-            Image { x: 6px; y: 6px; width: 18px; height: 18px; source: @image-url("../../icons/lucide/x.svg"); }
-            close-touch := TouchArea { enabled: !root.saving; mouse-cursor: root.saving ? default : pointer; clicked => { root.close(); } }
-        }
-        Text { x: 32px; y: 92px; text: @tr("dictionary.entry-field" => "Entry"); color: AppColors.text; font-size: 13px; font-weight: 650; }
-        ScrollView {
-            x: 32px;
-            y: 115px;
-            width: parent.width - 64px;
-            height: parent.height - 202px;
+        Text { x: 24px; y: 24px; width: add-shell.panel-width - 88px; text: @tr("dictionary.add-entry" => "Add entry"); color: AppColors.ink; font-size: 18px; font-weight: 700; overflow: elide; }
+        Text { x: 24px; y: 84px; text: @tr("dictionary.entry-field" => "Entry"); color: AppColors.text; font-size: 12px; font-weight: 650; }
+        body-scroll := ScrollView {
+            x: 24px;
+            y: 108px;
+            width: add-shell.panel-width - 48px;
+            height: 276px;
             viewport-width: self.width;
             viewport-height: max(self.height, root.drafts.length * 57px + 46px);
-            vertical-scrollbar-policy: ScrollBarPolicy.always-off;
+            vertical-scrollbar-policy: ScrollBarPolicy.as-needed;
             horizontal-scrollbar-policy: ScrollBarPolicy.always-off;
             content := Rectangle {
-                width: panel.width - 64px;
+                width: body-scroll.viewport-width;
                 height: max(parent.height, root.drafts.length * 57px + 46px);
                 background: transparent;
                 VerticalLayout {
@@ -443,7 +426,7 @@ export component DictionaryAddDialog inherits Rectangle {
                         height: 50px;
                         border-radius: 10px;
                         border-width: draft-input.has-focus ? 1px : 0px;
-                        border-color: AppColors.brand;
+                        border-color: AppColors.brand-strong;
                         background: AppColors.sidebar;
                         if draft.value.is-empty && !draft-input.has-focus: Text { x: 18px; width: parent.width - 62px; text: @tr("dictionary.entry.placeholder" => "For example: Volcano Engine"); color: AppColors.text-muted; font-size: 13px; vertical-alignment: center; }
                         draft-input := TextInput {
@@ -480,8 +463,8 @@ export component DictionaryAddDialog inherits Rectangle {
                             height: 36px;
                             border-radius: 8px;
                             background: add-touch.has-hover ? AppColors.selected : AppColors.surface-subtle;
-                            Image { x: (parent.width - 128px) / 2; y: 11px; width: 14px; height: 14px; source: @image-url("../../icons/lucide/plus.svg"); colorize: AppColors.brand; }
-                            Text { x: (parent.width - 98px) / 2; width: 98px; text: @tr("dictionary.add-another-entry" => "Add another entry"); color: AppColors.brand; font-size: 12px; font-weight: 650; vertical-alignment: center; }
+                            Image { x: (parent.width - 128px) / 2; y: 11px; width: 14px; height: 14px; source: @image-url("../../icons/lucide/plus.svg"); colorize: AppColors.brand-strong; }
+                            Text { x: (parent.width - 98px) / 2; width: 98px; text: @tr("dictionary.add-another-entry" => "Add another entry"); color: AppColors.brand-strong; font-size: 12px; font-weight: 650; vertical-alignment: center; }
                             add-touch := TouchArea { mouse-cursor: pointer; clicked => { root.add-row(); } }
                         }
                     }
@@ -489,18 +472,18 @@ export component DictionaryAddDialog inherits Rectangle {
             }
         }
         if !root.status-text.is-empty: Text {
-            x: 32px;
-            y: parent.height - 76px;
-            width: parent.width - 64px;
+            x: 24px;
+            y: add-shell.panel-height - 78px;
+            width: 260px;
             text: root.status-text;
             color: root.save-failed ? AppColors.danger : AppColors.success;
             font-size: 11px;
             overflow: elide;
         }
         Rectangle {
-            x: parent.width - 270px;
-            y: parent.height - 58px;
-            width: 96px;
+            x: add-shell.panel-width - 240px;
+            y: add-shell.panel-height - 59px;
+            width: 92px;
             height: 38px;
             border-radius: 8px;
             background: cancel-touch.has-hover ? AppColors.selected : AppColors.surface-subtle;
@@ -508,9 +491,9 @@ export component DictionaryAddDialog inherits Rectangle {
             cancel-touch := TouchArea { enabled: !root.saving; mouse-cursor: root.saving ? default : pointer; clicked => { root.close(); } }
         }
         Rectangle {
-            x: parent.width - 158px;
-            y: parent.height - 58px;
-            width: 126px;
+            x: add-shell.panel-width - 136px;
+            y: add-shell.panel-height - 59px;
+            width: 112px;
             height: 38px;
             border-radius: 8px;
             background: root.nonempty-count == 0 || root.saving ? AppColors.surface-subtle : (save-touch.has-hover ? AppColors.brand-hover : AppColors.brand);

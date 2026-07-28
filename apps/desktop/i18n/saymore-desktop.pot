@@ -602,8 +602,8 @@ msgid "Iris Mist"
 msgstr ""
 
 #: apps/desktop/ui/theme-settings.slint:97
-msgctxt "settings.theme.clear-sky"
-msgid "Clear Sky"
+msgctxt "settings.theme.sunlit-gold"
+msgid "Sunlit Gold"
 msgstr ""
 
 #: apps/desktop/ui/theme-settings.slint:100
@@ -1029,7 +1029,7 @@ msgstr ""
 
 #: apps/desktop/ui/translations.slint:83
 msgctxt "models.status.testing-connection"
-msgid "Testing connection"
+msgid "Running recognition test…"
 msgstr ""
 
 #: apps/desktop/ui/translations.slint:84
@@ -1070,7 +1070,7 @@ msgstr ""
 
 #: apps/desktop/ui/translations.slint:91
 msgctxt "models.test.error.timeout"
-msgid "The connection test timed out. Try again later."
+msgid "The recognition test timed out. Try again later."
 msgstr ""
 
 #: apps/desktop/ui/translations.slint:92
@@ -2705,7 +2705,37 @@ msgstr ""
 
 #: apps/desktop/ui/pages/asr-provider-components.slint
 msgctxt "models.asr.volcengine.dialog-subtitle"
-msgid "Test the connection before atomically enabling this provider."
+msgid "Run a standard audio recognition test before enabling this provider."
+msgstr ""
+
+#: apps/desktop/ui/pages/asr-provider-components.slint
+msgctxt "models.test.succeeded-duration"
+msgid "Recognition succeeded · {} sec"
+msgstr ""
+
+#: apps/desktop/ui/pages/asr-provider-components.slint
+msgctxt "models.test.failed"
+msgid "Recognition failed"
+msgstr ""
+
+#: apps/desktop/ui/pages/asr-provider-components.slint
+msgctxt "models.test.failed-duration"
+msgid "Recognition failed · {} sec"
+msgstr ""
+
+#: apps/desktop/ui/pages/asr-provider-components.slint
+msgctxt "models.test.action"
+msgid "Run test"
+msgstr ""
+
+#: apps/desktop/ui/pages/asr-provider-components.slint
+msgctxt "models.test.again"
+msgid "Test again"
+msgstr ""
+
+#: apps/desktop/ui/pages/asr-provider-components.slint
+msgctxt "models.test.retry"
+msgid "Retry test"
 msgstr ""
 
 #: apps/desktop/ui/pages/asr-provider-components.slint
@@ -2733,6 +2763,16 @@ msgctxt "models.asr.save-and-enable"
 msgid "Save and enable"
 msgstr ""
 
+#: apps/desktop/ui/pages/asr-provider-components.slint
+msgctxt "models.asr.selection.current"
+msgid "Current provider"
+msgstr ""
+
+#: apps/desktop/ui/pages/asr-provider-components.slint
+msgctxt "models.asr.selection.set-current"
+msgid "Set as current"
+msgstr ""
+
 #: apps/desktop/ui/pages/speech-recognition.slint
 msgctxt "models.asr.source.cloud-api"
 msgid "Cloud API"
@@ -2740,7 +2780,7 @@ msgstr ""
 
 #: apps/desktop/ui/pages/speech-recognition.slint
 msgctxt "models.asr.source.saymore-cloud"
-msgid "Saymore cloud"
+msgid "Official API"
 msgstr ""
 
 #: apps/desktop/ui/pages/speech-recognition.slint
@@ -2774,6 +2814,31 @@ msgid "Cloud service adapter is not yet connected"
 msgstr ""
 
 #: apps/desktop/ui/pages/speech-recognition.slint
+msgctxt "models.asr.summary.macos-ready"
+msgid "No account or model download required"
+msgstr ""
+
+#: apps/desktop/ui/pages/speech-recognition.slint
+msgctxt "models.asr.summary.macos-permission-required"
+msgid "Apple Speech permission is required"
+msgstr ""
+
+#: apps/desktop/ui/pages/speech-recognition.slint
+msgctxt "models.asr.summary.macos-permission-denied"
+msgid "Speech Recognition permission is denied"
+msgstr ""
+
+#: apps/desktop/ui/pages/speech-recognition.slint
+msgctxt "models.asr.summary.macos-restricted"
+msgid "Speech Recognition is restricted by the system"
+msgstr ""
+
+#: apps/desktop/ui/pages/speech-recognition.slint
+msgctxt "models.asr.summary.macos-unavailable"
+msgid "Apple Speech is temporarily unavailable"
+msgstr ""
+
+#: apps/desktop/ui/pages/speech-recognition.slint
 msgctxt "models.asr.summary.system-unavailable"
 msgid "System speech adapter is not yet connected"
 msgstr ""
@@ -2801,6 +2866,21 @@ msgstr ""
 #: apps/desktop/ui/pages/speech-recognition.slint
 msgctxt "models.asr.status.current"
 msgid "Current"
+msgstr ""
+
+#: apps/desktop/ui/pages/speech-recognition.slint
+msgctxt "models.asr.status.authorize"
+msgid "Authorize"
+msgstr ""
+
+#: apps/desktop/ui/pages/speech-recognition.slint
+msgctxt "models.asr.status.open-settings"
+msgid "Open Settings"
+msgstr ""
+
+#: apps/desktop/ui/pages/speech-recognition.slint
+msgctxt "models.asr.status.available"
+msgid "Available"
 msgstr ""
 
 #: apps/desktop/ui/pages/speech-recognition.slint

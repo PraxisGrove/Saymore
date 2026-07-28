@@ -18,8 +18,10 @@ pub(super) fn apply_loaded_settings(ui: &AppWindow, store: &JsonSettingsStore) {
     match (store.load(), store.load_catalog()) {
         (Ok(settings), Ok(catalog)) => {
             apply_loaded_llm(ui, &settings, &catalog);
-            let configured = apply_loaded_asr(ui, settings);
+            let configured = apply_loaded_asr(ui, settings, &catalog);
             ui.set_asr_testing(false);
+            ui.set_asr_test_succeeded(false);
+            ui.set_asr_test_elapsed(SharedString::default());
             apply_pending_test(ui, configured);
             ui.set_asr_config_dirty(false);
             ui.set_asr_draft_error(false);
@@ -92,7 +94,7 @@ fn apply_loaded_llm(ui: &AppWindow, settings: &SaymoreSettings, catalog: &Provid
     });
 }
 
-fn apply_loaded_asr(ui: &AppWindow, settings: SaymoreSettings) -> bool {
+fn apply_loaded_asr(ui: &AppWindow, settings: SaymoreSettings, catalog: &ProviderCatalog) -> bool {
     let volcengine = settings.asr.volcengine;
     let custom = settings.asr.openai_compatible;
     let volcengine_api_key = volcengine.api_key.trim();
@@ -105,16 +107,22 @@ fn apply_loaded_asr(ui: &AppWindow, settings: SaymoreSettings) -> bool {
         && !custom.base_url.trim().is_empty()
         && !custom.model.trim().is_empty();
     let custom_active = custom.enabled;
-    let configured = if custom_active {
+    let macos_speech_active = catalog.macos_speech_is_active();
+    let macos_speech_ready = super::apply_macos_speech_state(ui, macos_speech_active);
+    let configured = if macos_speech_active {
+        macos_speech_ready
+    } else if custom_active {
         custom_configured
     } else {
         volcengine.enabled && volcengine_configured
     };
-    ui.set_asr_provider(if custom_active {
+    let active_cloud_provider = if custom_active {
         UiAsrProvider::Custom
     } else {
         UiAsrProvider::Volcengine
-    });
+    };
+    ui.set_asr_provider(active_cloud_provider);
+    ui.set_active_asr_provider(active_cloud_provider);
     ui.set_asr_api_key(SharedString::from(volcengine.api_key));
     ui.set_volcengine_asr_configured(volcengine_configured);
     ui.set_asr_model(SharedString::from(if volcengine.model.trim().is_empty() {
@@ -130,8 +138,8 @@ fn apply_loaded_asr(ui: &AppWindow, settings: SaymoreSettings) -> bool {
     apply_status(
         ui,
         configured,
-        !custom_active && invalid_api_key,
-        if !custom_active && invalid_api_key {
+        !macos_speech_active && !custom_active && invalid_api_key,
+        if !macos_speech_active && !custom_active && invalid_api_key {
             translations.get_models_invalid_api_key()
         } else if configured {
             translations.get_models_configured()

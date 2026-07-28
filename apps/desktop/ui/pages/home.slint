@@ -178,7 +178,7 @@ export component HomePage inherits Rectangle {
         UsageMetric { x: 20px + parent.metric-width * 2; y: 68px; width: parent.metric-width; height: 68px; value: root.usage-loading ? "•••" : root.usage-error ? "—" : root.usage-average-speed; unit: @tr("home.usage.speed.unit" => "chars/min"); show-unit: !root.usage-loading && !root.usage-error; label: @tr("home.usage.average-speed" => "Average speed"); placement: 2; }
         if root.usage-error: Rectangle {
             x: 20px + parent.metric-width * 2; y: 105px; width: parent.metric-width; height: 24px; background: transparent;
-            Text { text: @tr("common.reload" => "Reload ↗"); color: AppColors.brand; font-size: 10px; font-weight: 600; horizontal-alignment: right; vertical-alignment: center; }
+            Text { text: @tr("common.reload" => "Reload ↗"); color: AppColors.brand-strong; font-size: 10px; font-weight: 600; horizontal-alignment: right; vertical-alignment: center; }
             TouchArea { mouse-cursor: pointer; clicked => { root.refresh-usage(); } }
         }
         Text { x: 20px; y: 160px; text: @tr("home.usage.seven-day-trend" => "Last 7 days"); color: AppColors.text-muted; font-size: 10px; font-weight: 600; }

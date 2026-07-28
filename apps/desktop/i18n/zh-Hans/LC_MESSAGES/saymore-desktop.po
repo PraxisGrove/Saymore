@@ -590,9 +590,9 @@ msgid "Iris Mist"
 msgstr "雾紫"
 
 #: apps/desktop/ui/theme-settings.slint:97
-msgctxt "settings.theme.clear-sky"
-msgid "Clear Sky"
-msgstr "晴空蓝"
+msgctxt "settings.theme.sunlit-gold"
+msgid "Sunlit Gold"
+msgstr "暖阳金"
 
 #: apps/desktop/ui/theme-settings.slint:100
 msgctxt "settings.color-scheme.title"
@@ -1016,8 +1016,8 @@ msgstr "已配置"
 
 #: apps/desktop/ui/translations.slint:83
 msgctxt "models.status.testing-connection"
-msgid "Testing connection"
-msgstr "正在测试连接"
+msgid "Running recognition test…"
+msgstr "正在运行识别测试…"
 
 #: apps/desktop/ui/translations.slint:84
 msgctxt "models.status.connected.plain"
@@ -1057,8 +1057,8 @@ msgstr "语音服务响应异常，请稍后重试"
 
 #: apps/desktop/ui/translations.slint:91
 msgctxt "models.test.error.timeout"
-msgid "The connection test timed out. Try again later."
-msgstr "连接测试超时，请稍后重试"
+msgid "The recognition test timed out. Try again later."
+msgstr "识别测试超时，请稍后重试"
 
 #: apps/desktop/ui/translations.slint:92
 msgctxt "models.validation.choose-model"
@@ -2644,8 +2644,38 @@ msgstr "配置火山引擎"
 
 #: apps/desktop/ui/pages/asr-provider-components.slint
 msgctxt "models.asr.volcengine.dialog-subtitle"
-msgid "Test the connection before atomically enabling this provider."
-msgstr "连接测试通过后再原子启用此提供商。"
+msgid "Run a standard audio recognition test before enabling this provider."
+msgstr "启用前先运行一次标准音频识别测试。"
+
+#: apps/desktop/ui/pages/asr-provider-components.slint
+msgctxt "models.test.succeeded-duration"
+msgid "Recognition succeeded · {} sec"
+msgstr "识别成功 · {} 秒"
+
+#: apps/desktop/ui/pages/asr-provider-components.slint
+msgctxt "models.test.failed"
+msgid "Recognition failed"
+msgstr "识别失败"
+
+#: apps/desktop/ui/pages/asr-provider-components.slint
+msgctxt "models.test.failed-duration"
+msgid "Recognition failed · {} sec"
+msgstr "识别失败 · {} 秒"
+
+#: apps/desktop/ui/pages/asr-provider-components.slint
+msgctxt "models.test.action"
+msgid "Run test"
+msgstr "运行测试"
+
+#: apps/desktop/ui/pages/asr-provider-components.slint
+msgctxt "models.test.again"
+msgid "Test again"
+msgstr "再次测试"
+
+#: apps/desktop/ui/pages/asr-provider-components.slint
+msgctxt "models.test.retry"
+msgid "Retry test"
+msgstr "重新测试"
 
 #: apps/desktop/ui/pages/asr-provider-components.slint
 msgctxt "models.asr.volcengine.model-id"
@@ -2672,6 +2702,16 @@ msgctxt "models.asr.save-and-enable"
 msgid "Save and enable"
 msgstr "保存并启用"
 
+#: apps/desktop/ui/pages/asr-provider-components.slint
+msgctxt "models.asr.selection.current"
+msgid "Current provider"
+msgstr "当前使用"
+
+#: apps/desktop/ui/pages/asr-provider-components.slint
+msgctxt "models.asr.selection.set-current"
+msgid "Set as current"
+msgstr "设为当前"
+
 #: apps/desktop/ui/pages/speech-recognition.slint
 msgctxt "models.asr.source.cloud-api"
 msgid "Cloud API"
@@ -2679,8 +2719,8 @@ msgstr "云端 API"
 
 #: apps/desktop/ui/pages/speech-recognition.slint
 msgctxt "models.asr.source.saymore-cloud"
-msgid "Saymore cloud"
-msgstr "Saymore 云"
+msgid "Official API"
+msgstr "官方 API"
 
 #: apps/desktop/ui/pages/speech-recognition.slint
 msgctxt "models.asr.source.system-built-in"
@@ -2713,6 +2753,31 @@ msgid "Cloud service adapter is not yet connected"
 msgstr "云服务 Adapter 尚未接入"
 
 #: apps/desktop/ui/pages/speech-recognition.slint
+msgctxt "models.asr.summary.macos-ready"
+msgid "No account or model download required"
+msgstr "无需账号或下载模型"
+
+#: apps/desktop/ui/pages/speech-recognition.slint
+msgctxt "models.asr.summary.macos-permission-required"
+msgid "Apple Speech permission is required"
+msgstr "需要授权使用 Apple 语音识别"
+
+#: apps/desktop/ui/pages/speech-recognition.slint
+msgctxt "models.asr.summary.macos-permission-denied"
+msgid "Speech Recognition permission is denied"
+msgstr "语音识别权限已被拒绝"
+
+#: apps/desktop/ui/pages/speech-recognition.slint
+msgctxt "models.asr.summary.macos-restricted"
+msgid "Speech Recognition is restricted by the system"
+msgstr "语音识别已被系统限制"
+
+#: apps/desktop/ui/pages/speech-recognition.slint
+msgctxt "models.asr.summary.macos-unavailable"
+msgid "Apple Speech is temporarily unavailable"
+msgstr "Apple 语音识别暂时不可用"
+
+#: apps/desktop/ui/pages/speech-recognition.slint
 msgctxt "models.asr.summary.system-unavailable"
 msgid "System speech adapter is not yet connected"
 msgstr "系统语音 Adapter 尚未接入"
@@ -2741,6 +2806,21 @@ msgstr "不可用"
 msgctxt "models.asr.status.current"
 msgid "Current"
 msgstr "当前"
+
+#: apps/desktop/ui/pages/speech-recognition.slint
+msgctxt "models.asr.status.authorize"
+msgid "Authorize"
+msgstr "授权"
+
+#: apps/desktop/ui/pages/speech-recognition.slint
+msgctxt "models.asr.status.open-settings"
+msgid "Open Settings"
+msgstr "打开设置"
+
+#: apps/desktop/ui/pages/speech-recognition.slint
+msgctxt "models.asr.status.available"
+msgid "Available"
+msgstr "可用"
 
 #: apps/desktop/ui/pages/speech-recognition.slint
 msgctxt "models.provider.saymore-cloud"

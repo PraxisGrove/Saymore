@@ -1,0 +1,86 @@
+import { AppColors } from "color-system.slint";
+
+component SettingsLinkItem inherits Rectangle {
+    in property <image> icon;
+    in property <string> label;
+    callback activated();
+
+    border-radius: 8px;
+    background: link-touch.has-hover ? AppColors.surface-subtle : transparent;
+    accessible-role: button;
+    accessible-label: root.label;
+    accessible-action-default => { root.activated(); }
+
+    HorizontalLayout {
+        padding-left: 12px;
+        padding-right: 12px;
+        spacing: 8px;
+        alignment: center;
+        cross-axis-alignment: center;
+
+        Image {
+            width: 18px;
+            height: 18px;
+            source: root.icon;
+            colorize: AppColors.text-muted;
+        }
+
+        Text {
+            text: root.label;
+            color: AppColors.text;
+            font-size: 12px;
+            vertical-alignment: center;
+            overflow: elide;
+        }
+    }
+
+    link-touch := TouchArea {
+        width: parent.width;
+        height: parent.height;
+        mouse-cursor: pointer;
+        clicked => { root.activated(); }
+    }
+}
+
+export component SettingsLinksRow inherits Rectangle {
+    in property <string> website-label;
+    in property <string> feedback-label;
+    in property <string> terms-label;
+    in property <string> privacy-label;
+    callback open-website();
+    callback open-feedback();
+    callback open-terms();
+    callback open-privacy();
+
+    height: 76px;
+    border-radius: 10px;
+    background: AppColors.surface;
+    clip: true;
+
+    HorizontalLayout {
+        SettingsLinkItem {
+            horizontal-stretch: 1;
+            icon: @image-url("../icons/lucide/globe.svg");
+            label: root.website-label;
+            activated => { root.open-website(); }
+        }
+        SettingsLinkItem {
+            horizontal-stretch: 1;
+            icon: @image-url("../icons/lucide/message-square.svg");
+            label: root.feedback-label;
+            activated => { root.open-feedback(); }
+        }
+        SettingsLinkItem {
+            horizontal-stretch: 1;
+            icon: @image-url("../icons/lucide/file-text.svg");
+            label: root.terms-label;
+            activated => { root.open-terms(); }
+        }
+        SettingsLinkItem {
+            horizontal-stretch: 1;
+            icon: @image-url("../icons/lucide/shield.svg");
+            label: root.privacy-label;
+            activated => { root.open-privacy(); }
+        }
+    }
+}

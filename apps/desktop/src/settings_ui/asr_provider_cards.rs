@@ -50,6 +50,17 @@ impl DesktopPlatform {
             Self::Other => None,
         }
     }
+
+    fn system_card_available(self) -> bool {
+        match self {
+            #[cfg(any(target_os = "macos", test))]
+            Self::Macos => true,
+            #[cfg(any(target_os = "windows", test))]
+            Self::Windows => false,
+            #[cfg(any(not(any(target_os = "macos", target_os = "windows")), test))]
+            Self::Other => false,
+        }
+    }
 }
 
 pub(super) fn apply(ui: &AppWindow) {
@@ -63,9 +74,15 @@ fn provider_cards(mode: CardListMode, platform: DesktopPlatform) -> Vec<AsrProvi
     let mut cards = Vec::new();
     if mode.shows_placeholders() {
         cards.push(unavailable(AsrProviderCardKind::SaymoreCloud));
-        if let Some(system_card) = platform.system_card() {
-            cards.push(unavailable(system_card));
-        }
+    }
+    if let Some(system_card) = platform.system_card()
+        && (platform.system_card_available() || mode.shows_placeholders())
+    {
+        cards.push(if platform.system_card_available() {
+            available(system_card)
+        } else {
+            unavailable(system_card)
+        });
     }
     cards.push(available(AsrProviderCardKind::Volcengine));
     if mode.shows_placeholders() {
@@ -122,8 +139,17 @@ mod tests {
         ));
         for platform in [DesktopPlatform::Macos, DesktopPlatform::Windows] {
             let production = provider_cards(CardListMode::Production, platform);
+            let expected = if matches!(platform, DesktopPlatform::Macos) {
+                vec![
+                    AsrProviderCardKind::MacosDictation,
+                    AsrProviderCardKind::Volcengine,
+                    AsrProviderCardKind::Custom,
+                ]
+            } else {
+                vec![AsrProviderCardKind::Volcengine, AsrProviderCardKind::Custom]
+            };
             assert_eq!(
-                vec![AsrProviderCardKind::Volcengine, AsrProviderCardKind::Custom],
+                expected,
                 production.iter().map(|card| card.kind).collect::<Vec<_>>()
             );
             assert!(production.iter().all(|card| card.available));
@@ -175,7 +201,9 @@ mod tests {
                     .filter(|card| {
                         !matches!(
                             card.kind,
-                            AsrProviderCardKind::Volcengine | AsrProviderCardKind::Custom
+                            AsrProviderCardKind::MacosDictation
+                                | AsrProviderCardKind::Volcengine
+                                | AsrProviderCardKind::Custom
                         )
                     })
                     .all(|card| !card.available)

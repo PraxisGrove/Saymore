@@ -1,5 +1,7 @@
 import { NavItem, SettingsSection, UiLanguage } from "../components.slint";
 import { AppColors, ColorSchemePreference, ThemeId } from "../color-system.slint";
+import { SettingsLinksRow } from "../settings-links.slint";
+import { SettingsPageHeader } from "../settings-page-header.slint";
 import { ThemeSettings } from "../theme-settings.slint";
 import { ScrollView } from "std-widgets.slint";
 
@@ -104,7 +106,7 @@ component ShortcutAddButton inherits Rectangle {
     height: 36px;
     border-radius: 8px;
     border-width: root.capturing ? 2px : 1px;
-    border-color: root.error ? AppColors.danger : root.capturing ? AppColors.brand : AppColors.border;
+    border-color: root.error ? AppColors.danger : root.capturing ? AppColors.brand-strong : AppColors.border;
     background: recorder-touch.has-hover ? AppColors.surface-subtle : AppColors.sidebar;
     accessible-role: button;
     accessible-label: root.capturing ? @tr("settings.shortcut.capture.prompt" => "Press a new shortcut") : @tr("settings.shortcut.add-another" => "Add another");
@@ -174,6 +176,53 @@ component SettingsIcon inherits Rectangle {
     border-radius: 9px;
     background: AppColors.sidebar;
     Image { x: 11px; y: 11px; width: 16px; height: 16px; source: root.source; colorize: root.icon-color; }
+}
+
+component StartupToggleCard inherits Rectangle {
+    in property <string> title;
+    in property <image> icon;
+    in property <string> status;
+    in-out property <bool> checked;
+    callback toggled(bool);
+
+    height: 76px;
+    border-radius: 10px;
+    background: AppColors.surface;
+    SettingsIcon { x: 20px; y: 19px; source: root.icon; }
+    Text { x: 70px; y: root.status.is-empty ? 28px : 14px; width: parent.width - 144px; text: root.title; color: AppColors.text; font-size: 13px; font-weight: 650; overflow: elide; }
+    if !root.status.is-empty: Text { x: 70px; y: 39px; width: parent.width - 144px; text: root.status; color: AppColors.danger; font-size: 10px; overflow: elide; }
+    SettingSwitch { x: parent.width - 62px; y: 26px; checked: root.checked; toggled(value) => { root.toggled(value); } }
+}
+
+component AutomaticUpdateCard inherits Rectangle {
+    in property <string> title;
+    in property <string> detail;
+    in property <string> status;
+    in-out property <bool> checked;
+    callback toggled(bool);
+
+    height: 67px;
+    border-radius: 10px;
+    background: AppColors.surface;
+    Image { x: 24px; y: 25px; width: 16px; height: 16px; source: @image-url("../../icons/lucide/refresh-cw.svg"); colorize: AppColors.text-muted; }
+    Text { x: 54px; y: 15px; width: parent.width - 130px; text: root.title; color: AppColors.text; font-size: 13px; font-weight: 650; overflow: elide; }
+    Text { x: 54px; y: 37px; width: parent.width - 130px; text: root.status.is-empty ? root.detail : root.status; color: root.status.is-empty ? AppColors.text-muted : AppColors.danger; font-size: 10px; overflow: elide; }
+    SettingSwitch { x: parent.width - 62px; y: 21px; checked: root.checked; toggled(value) => { root.toggled(value); } }
+}
+
+component OnboardingCard inherits Rectangle {
+    in property <string> title;
+    in property <string> detail;
+    in property <string> action-label;
+    callback activated();
+
+    height: 67px;
+    border-radius: 10px;
+    background: AppColors.surface;
+    Image { x: 24px; y: 25px; width: 16px; height: 16px; source: @image-url("../../icons/lucide/refresh-cw.svg"); colorize: AppColors.text-muted; }
+    Text { x: 54px; y: 15px; width: parent.width - 178px; text: root.title; color: AppColors.text; font-size: 13px; font-weight: 650; overflow: elide; }
+    Text { x: 54px; y: 40px; width: parent.width - 74px; text: root.detail; color: AppColors.text-muted; font-size: 10px; overflow: elide; }
+    SettingsActionButton { x: parent.width - 124px; y: 7px; width: 104px; height: 32px; label: root.action-label; icon: @image-url("../../icons/lucide/chevron-right.svg"); activated => { root.activated(); } }
 }
 
 component MicrophoneSelect inherits Rectangle {
@@ -454,6 +503,8 @@ export component SettingsPage inherits Rectangle {
     callback open-data-directory();
     callback check-for-updates();
     callback download-update();
+    callback open-release-notes();
+    callback open-website(); callback open-feedback(); callback open-terms(); callback open-privacy();
     callback set-automatic-update-checks(bool);
     callback set-feedback-sounds-enabled(bool);
     callback set-mute-system-audio-enabled(bool);
@@ -467,10 +518,11 @@ export component SettingsPage inherits Rectangle {
 
     private property <bool> compact: root.width < 820px;
     private property <bool> wide: root.width >= 1120px;
+    private property <length> first-section-spacing: 16px;
     private property <length> shortcut-extra-height: max(0, root.shortcut-labels.length - 1) * 48px;
     private property <string> section-title: root.current-section == SettingsSection.general ? @tr("settings.section.general" => "General") : root.current-section == SettingsSection.shortcuts-audio ? @tr("settings.section.shortcuts-audio" => "Shortcuts & Audio") : root.current-section == SettingsSection.delivery-permissions ? @tr("settings.section.delivery-permissions" => "Delivery & Permissions") : root.current-section == SettingsSection.privacy-history ? @tr("settings.section.privacy-data" => "Privacy & Data") : @tr("settings.section.about-updates" => "About & Updates");
     private property <string> section-detail: root.current-section == SettingsSection.general ? @tr("settings.general.detail" => "Control how Saymore starts, appears, and looks on this device.") : root.current-section == SettingsSection.shortcuts-audio ? @tr("settings.shortcuts-audio.detail" => "Choose how voice input starts and how audio feedback works.") : root.current-section == SettingsSection.delivery-permissions ? @tr("settings.delivery-permissions.detail" => "Choose how recognized text is delivered and review system permissions.") : root.current-section == SettingsSection.privacy-history ? @tr("settings.privacy-data.detail" => "Review local data storage and manage diagnostics.") : @tr("settings.about-updates.detail" => "View version information, update status, and product links.");
-    private property <length> content-height: root.current-section == SettingsSection.general ? (root.compact ? (root.show-dock-setting ? 1169px : 1021px) : 889px) : root.current-section == SettingsSection.shortcuts-audio ? (root.compact ? 840px : 570px) + root.shortcut-extra-height : root.current-section == SettingsSection.delivery-permissions ? (root.compact ? 790px : 570px) : root.current-section == SettingsSection.privacy-history ? (root.compact ? 900px : 630px) : (root.compact ? 790px : 600px);
+    private property <length> content-height: root.current-section == SettingsSection.general ? (root.compact ? (root.show-dock-setting ? 925px : 833px) : 750px) : root.current-section == SettingsSection.shortcuts-audio ? (root.compact ? 840px : 570px) + root.shortcut-extra-height : root.current-section == SettingsSection.delivery-permissions ? (root.compact ? 790px : 570px) : root.current-section == SettingsSection.privacy-history ? (root.compact ? 900px : 630px) : (root.compact ? 790px : 600px);
     private property <string> export-button-label: root.diagnostics-export-status == "exporting" ? @tr("settings.diagnostics.exporting" => "Exporting…") : root.diagnostics-export-status == "success" ? @tr("settings.diagnostics.exported" => "Exported") : root.diagnostics-export-status == "failed" ? @tr("settings.diagnostics.export-again" => "Export again") : @tr("settings.diagnostics.export-report" => "Export report");
     private property <string> update-button-label: root.update-status == "checking" ? @tr("settings.update.checking" => "Checking…") : root.update-status == "failed" ? @tr("settings.update.check-again" => "Check again") : @tr("settings.update.check" => "Check for updates");
     private property <string> update-message: root.update-status == "checking" ? @tr("settings.update.checking-detail" => "Checking for updates…") : root.update-status == "latest" ? @tr("settings.update.latest" => "You’re up to date") : root.update-status == "available" ? @tr("settings.update.available" => "Saymore {} is available", root.update-version) : root.update-status == "failed" ? root.update-detail : @tr("settings.update.not-checked" => "Updates have not been checked yet");
@@ -485,67 +537,53 @@ export component SettingsPage inherits Rectangle {
             horizontal-stretch: 1;
             border-radius: 12px;
             background: AppColors.canvas;
-            Rectangle {
+            page-header := SettingsPageHeader {
                 x: (parent.width - self.width) / 2;
                 y: 40px;
                 width: root.compact ? max(0px, parent.width - 40px) : min(parent.width, 880px);
-                height: 70px;
-                background: transparent;
-                Text { height: 34px; text: root.section-title; color: AppColors.ink; font-size: 25px; font-weight: 700; vertical-alignment: center; }
-                Text { y: 50px; height: 20px; text: root.section-detail; color: AppColors.text-muted; font-size: 12px; vertical-alignment: center; }
+                title: root.section-title;
+                detail: root.section-detail;
             }
             settings-scroll := Flickable {
-                y: 110px;
+                y: page-header.y + page-header.height;
                 width: parent.width;
                 height: max(0px, parent.height - self.y);
                 viewport-width: self.width;
-                viewport-height: max(self.height, root.content-height - 110px);
+                viewport-height: max(self.height, root.content-height - self.y);
                 interactive: true;
                 Rectangle {
                     x: (parent.width - self.width) / 2;
                     width: root.compact ? max(0px, parent.width - 40px) : min(parent.width, 880px);
-                    height: max(0px, root.content-height - 110px);
+                    height: settings-scroll.viewport-height;
                     background: transparent;
                         if root.current-section == SettingsSection.general: VerticalLayout {
-                            y: 16px;
+                            y: root.first-section-spacing;
                             width: parent.width;
                             height: max(0px, parent.height - 40px);
                             spacing: 16px;
                             Text { height: 20px; text: @tr("settings.startup-display.title" => "Startup & Display"); color: AppColors.text; font-size: 13px; font-weight: 650; vertical-alignment: center; }
                             if !root.compact: HorizontalLayout {
-                                height: 132px;
+                                height: 76px;
                                 spacing: 16px;
-                                Rectangle {
-                                    horizontal-stretch: 1; border-radius: 10px; background: AppColors.surface;
-                                    SettingsIcon { x: 20px; y: 20px; source: @image-url("../../icons/lucide/power.svg"); }
-                                    Text { x: 20px; y: 72px; text: @tr("settings.launch-at-login.title" => "Launch at login"); color: AppColors.text; font-size: 13px; font-weight: 650; }
-                                    Text { x: 20px; y: 96px; width: parent.width - 40px; text: root.launch-at-login-status.is-empty ? @tr("settings.launch-at-login.detail" => "Prepare voice input in the background after you sign in.") : root.launch-at-login-status; color: root.launch-at-login-status.is-empty ? AppColors.text-muted : AppColors.danger; font-size: 11px; overflow: elide; }
-                                    SettingSwitch { x: parent.width - 62px; y: 20px; checked: root.launch-at-login; toggled(value) => { root.set-launch-at-login(value); } }
+                                StartupToggleCard {
+                                    horizontal-stretch: 1; title: @tr("settings.launch-at-login.title" => "Launch at login"); icon: @image-url("../../icons/lucide/power.svg"); status: root.launch-at-login-status; checked: root.launch-at-login;
+                                    toggled(value) => { root.set-launch-at-login(value); }
                                 }
-                                if root.show-dock-setting: Rectangle {
-                                    horizontal-stretch: 1; border-radius: 10px; background: AppColors.surface;
-                                    SettingsIcon { x: 20px; y: 20px; source: @image-url("../../icons/lucide/dock.svg"); }
-                                    Text { x: 20px; y: 72px; text: @tr("settings.show-in-dock.title" => "Show in Dock"); color: AppColors.text; font-size: 13px; font-weight: 650; }
-                                    Text { x: 20px; y: 96px; width: parent.width - 40px; text: root.show-in-dock-status.is-empty ? @tr("settings.show-in-dock.detail" => "Keep the Dock icon visible for quick access.") : root.show-in-dock-status; color: root.show-in-dock-status.is-empty ? AppColors.text-muted : AppColors.danger; font-size: 11px; overflow: elide; }
-                                    SettingSwitch { x: parent.width - 62px; y: 20px; checked: root.show-in-dock; toggled(value) => { root.set-show-in-dock(value); } }
+                                if root.show-dock-setting: StartupToggleCard {
+                                    horizontal-stretch: 1; title: @tr("settings.show-in-dock.title" => "Show in Dock"); icon: @image-url("../../icons/lucide/dock.svg"); status: root.show-in-dock-status; checked: root.show-in-dock;
+                                    toggled(value) => { root.set-show-in-dock(value); }
                                 }
                             }
                             if root.compact: VerticalLayout {
-                                height: root.show-dock-setting ? 280px : 132px;
+                                height: root.show-dock-setting ? 168px : 76px;
                                 spacing: 16px;
-                                Rectangle {
-                                    height: 132px; border-radius: 10px; background: AppColors.surface;
-                                    SettingsIcon { x: 20px; y: 20px; source: @image-url("../../icons/lucide/power.svg"); }
-                                    Text { x: 20px; y: 72px; text: @tr("settings.launch-at-login.title" => "Launch at login"); color: AppColors.text; font-size: 13px; font-weight: 650; }
-                                    Text { x: 20px; y: 96px; width: parent.width - 40px; text: root.launch-at-login-status.is-empty ? @tr("settings.launch-at-login.detail" => "Prepare voice input in the background after you sign in.") : root.launch-at-login-status; color: root.launch-at-login-status.is-empty ? AppColors.text-muted : AppColors.danger; font-size: 11px; overflow: elide; }
-                                    SettingSwitch { x: parent.width - 62px; y: 20px; checked: root.launch-at-login; toggled(value) => { root.set-launch-at-login(value); } }
+                                StartupToggleCard {
+                                    title: @tr("settings.launch-at-login.title" => "Launch at login"); icon: @image-url("../../icons/lucide/power.svg"); status: root.launch-at-login-status; checked: root.launch-at-login;
+                                    toggled(value) => { root.set-launch-at-login(value); }
                                 }
-                                if root.show-dock-setting: Rectangle {
-                                    height: 132px; border-radius: 10px; background: AppColors.surface;
-                                    SettingsIcon { x: 20px; y: 20px; source: @image-url("../../icons/lucide/dock.svg"); }
-                                    Text { x: 20px; y: 72px; text: @tr("settings.show-in-dock.title" => "Show in Dock"); color: AppColors.text; font-size: 13px; font-weight: 650; }
-                                    Text { x: 20px; y: 96px; width: parent.width - 40px; text: root.show-in-dock-status.is-empty ? @tr("settings.show-in-dock.detail" => "Keep the Dock icon visible for quick access.") : root.show-in-dock-status; color: root.show-in-dock-status.is-empty ? AppColors.text-muted : AppColors.danger; font-size: 11px; overflow: elide; }
-                                    SettingSwitch { x: parent.width - 62px; y: 20px; checked: root.show-in-dock; toggled(value) => { root.set-show-in-dock(value); } }
+                                if root.show-dock-setting: StartupToggleCard {
+                                    title: @tr("settings.show-in-dock.title" => "Show in Dock"); icon: @image-url("../../icons/lucide/dock.svg"); status: root.show-in-dock-status; checked: root.show-in-dock;
+                                    toggled(value) => { root.set-show-in-dock(value); }
                                 }
                             }
                             Text { height: 20px; text: @tr("settings.language.title" => "Interface language"); color: AppColors.text; font-size: 13px; font-weight: 650; vertical-alignment: center; }
@@ -569,24 +607,34 @@ export component SettingsPage inherits Rectangle {
                                 }
                             }
                             Text { height: 20px; text: @tr("settings.software.title" => "Software"); color: AppColors.text; font-size: 13px; font-weight: 650; vertical-alignment: center; }
-                            Rectangle {
-                                height: 67px; border-radius: 10px; background: AppColors.surface;
-                                Image { x: 24px; y: 25px; width: 16px; height: 16px; source: @image-url("../../icons/lucide/refresh-cw.svg"); colorize: AppColors.text-muted; }
-                                Text { x: 54px; y: 15px; text: @tr("settings.auto-update.title" => "Automatically check for updates"); color: AppColors.text; font-size: 13px; font-weight: 650; }
-                                Text { x: 54px; y: 37px; text: root.automatic-update-status.is-empty ? @tr("settings.auto-update.detail" => "Notify you when a new version is available.") : root.automatic-update-status; color: root.automatic-update-status.is-empty ? AppColors.text-muted : AppColors.danger; font-size: 10px; }
-                                SettingSwitch { x: parent.width - 62px; y: 21px; checked: root.automatic-update-checks; toggled(value) => { root.set-automatic-update-checks(value); } }
+                            if !root.compact: HorizontalLayout {
+                                height: 67px;
+                                spacing: 16px;
+                                AutomaticUpdateCard {
+                                    horizontal-stretch: 1; title: @tr("settings.auto-update.title" => "Automatically check for updates"); detail: @tr("settings.auto-update.detail" => "Notify you when a new version is available."); status: root.automatic-update-status; checked: root.automatic-update-checks;
+                                    toggled(value) => { root.set-automatic-update-checks(value); }
+                                }
+                                OnboardingCard {
+                                    horizontal-stretch: 1; title: @tr("settings.onboarding.title" => "Run setup again"); detail: root.show-accessibility-setting ? @tr("settings.onboarding.detail" => "Review microphone, shortcut, and Accessibility setup.") : @tr("settings.onboarding.detail-windows" => "Review microphone and shortcut setup."); action-label: @tr("settings.onboarding.open" => "Open setup");
+                                    activated => { root.rerun-onboarding(); }
+                                }
                             }
-                            Rectangle {
-                                height: 67px; border-radius: 10px; background: AppColors.surface;
-                                Image { x: 24px; y: 25px; width: 16px; height: 16px; source: @image-url("../../icons/lucide/refresh-cw.svg"); colorize: AppColors.text-muted; }
-                                Text { x: 54px; y: 15px; text: @tr("settings.onboarding.title" => "Run setup again"); color: AppColors.text; font-size: 13px; font-weight: 650; }
-                                Text { x: 54px; y: 37px; text: root.show-accessibility-setting ? @tr("settings.onboarding.detail" => "Review microphone, shortcut, and Accessibility setup.") : @tr("settings.onboarding.detail-windows" => "Review microphone and shortcut setup."); color: AppColors.text-muted; font-size: 10px; }
-                                SettingsActionButton { x: parent.width - 150px; y: 15px; width: 130px; label: @tr("settings.onboarding.open" => "Open setup"); icon: @image-url("../../icons/lucide/chevron-right.svg"); activated => { root.rerun-onboarding(); } }
+                            if root.compact: VerticalLayout {
+                                height: 150px;
+                                spacing: 16px;
+                                AutomaticUpdateCard {
+                                    title: @tr("settings.auto-update.title" => "Automatically check for updates"); detail: @tr("settings.auto-update.detail" => "Notify you when a new version is available."); status: root.automatic-update-status; checked: root.automatic-update-checks;
+                                    toggled(value) => { root.set-automatic-update-checks(value); }
+                                }
+                                OnboardingCard {
+                                    title: @tr("settings.onboarding.title" => "Run setup again"); detail: root.show-accessibility-setting ? @tr("settings.onboarding.detail" => "Review microphone, shortcut, and Accessibility setup.") : @tr("settings.onboarding.detail-windows" => "Review microphone and shortcut setup."); action-label: @tr("settings.onboarding.open" => "Open setup");
+                                    activated => { root.rerun-onboarding(); }
+                                }
                             }
                         }
 
                         if root.current-section == SettingsSection.shortcuts-audio: VerticalLayout {
-                            y: 16px;
+                            y: root.first-section-spacing;
                             width: parent.width;
                             height: max(0px, parent.height - 40px);
                             spacing: 16px;
@@ -651,7 +699,7 @@ export component SettingsPage inherits Rectangle {
                         }
 
                         if root.current-section == SettingsSection.delivery-permissions: VerticalLayout {
-                            y: 16px;
+                            y: root.first-section-spacing;
                             width: parent.width;
                             height: max(0px, parent.height - 40px);
                             spacing: 16px;
@@ -680,7 +728,7 @@ export component SettingsPage inherits Rectangle {
                         }
 
                         if root.current-section == SettingsSection.privacy-history: VerticalLayout {
-                            y: 16px;
+                            y: root.first-section-spacing;
                             width: parent.width;
                             height: max(0px, parent.height - 40px);
                             spacing: 16px;
@@ -722,7 +770,7 @@ export component SettingsPage inherits Rectangle {
                         }
 
                         if root.current-section == SettingsSection.about-updates: VerticalLayout {
-                            y: 16px;
+                            y: root.first-section-spacing;
                             width: parent.width;
                             height: max(0px, parent.height - 40px);
                             spacing: 16px;
@@ -738,9 +786,9 @@ export component SettingsPage inherits Rectangle {
                                 if root.update-status != "available": SettingsActionButton { x: parent.width - 174px; y: 94px; width: 154px; label: root.update-button-label; icon: @image-url("../../icons/lucide/refresh-cw.svg"); enabled: root.update-status != "checking"; activated => { root.check-for-updates(); } }
                             }
                             Text { height: 20px; text: @tr("settings.update.title" => "Updates"); color: AppColors.text; font-size: 13px; font-weight: 650; vertical-alignment: center; }
-                            Rectangle { height: 92px; border-radius: 10px; background: AppColors.surface; SettingsIcon { x: 24px; y: 26px; source: @image-url("../../icons/lucide/folder-open.svg"); } Text { x: 78px; y: 20px; text: @tr("settings.release-notes.title" => "Release notes"); color: AppColors.text; font-size: 13px; font-weight: 650; } Text { x: 78px; y: 45px; text: @tr("settings.release-notes.detail" => "See what changed in this release."); color: AppColors.text-muted; font-size: 11px; } Text { x: parent.width - 142px; y: 37px; width: 122px; text: @tr("settings.release-notes.view" => "View release notes"); color: AppColors.text-muted; font-size: 11px; horizontal-alignment: right; } }
+                            Rectangle { height: 92px; border-radius: 10px; background: release-notes-touch.has-hover ? AppColors.surface-subtle : AppColors.surface; accessible-role: button; accessible-label: @tr("settings.release-notes.view" => "View release notes"); accessible-action-default => { root.open-release-notes(); } SettingsIcon { x: 24px; y: 26px; source: @image-url("../../icons/lucide/folder-open.svg"); } Text { x: 78px; y: 20px; text: @tr("settings.release-notes.title" => "Release notes"); color: AppColors.text; font-size: 13px; font-weight: 650; } Text { x: 78px; y: 45px; text: @tr("settings.release-notes.detail" => "See what changed in this release."); color: AppColors.text-muted; font-size: 11px; } Text { x: parent.width - 142px; y: 37px; width: 122px; text: @tr("settings.release-notes.view" => "View release notes"); color: AppColors.text-muted; font-size: 11px; horizontal-alignment: right; } release-notes-touch := TouchArea { mouse-cursor: pointer; clicked => { root.open-release-notes(); } } }
                             Text { height: 20px; text: @tr("settings.links-support.title" => "Links & Support"); color: AppColors.text; font-size: 13px; font-weight: 650; vertical-alignment: center; }
-                            Rectangle { height: 70px; border-radius: 10px; background: AppColors.surface; Text { x: 24px; width: 100px; text: @tr("settings.link.website" => "Website"); color: AppColors.text; font-size: 12px; vertical-alignment: center; } Text { x: parent.width / 4; width: 100px; text: @tr("settings.link.feedback" => "Feedback"); color: AppColors.text; font-size: 12px; vertical-alignment: center; } Text { x: parent.width / 2; width: 100px; text: @tr("settings.link.terms" => "Terms of Service"); color: AppColors.text; font-size: 12px; vertical-alignment: center; } Text { x: parent.width * 3 / 4; width: 100px; text: @tr("settings.privacy-policy.title" => "Privacy Policy"); color: AppColors.text; font-size: 12px; vertical-alignment: center; } }
+                            SettingsLinksRow { website-label: @tr("settings.link.website" => "Website"); feedback-label: @tr("settings.link.feedback" => "Feedback"); terms-label: @tr("settings.link.terms" => "Terms of Service"); privacy-label: @tr("settings.privacy-policy.title" => "Privacy Policy"); open-website => { root.open-website(); } open-feedback => { root.open-feedback(); } open-terms => { root.open-terms(); } open-privacy => { root.open-privacy(); } }
                     }
                 }
             }

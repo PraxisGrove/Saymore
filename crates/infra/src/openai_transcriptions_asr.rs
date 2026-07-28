@@ -18,6 +18,7 @@ use template_app::{
 const SAMPLE_RATE: u32 = 16_000;
 const MAX_SAMPLES: usize = SAMPLE_RATE as usize * 60 * 30;
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(90);
+const RECOGNITION_TEST_TIMEOUT: Duration = Duration::from_secs(12);
 
 pub struct OpenAiCompatibleSpeechRecognizer {
     client: Client,
@@ -47,8 +48,11 @@ impl OpenAiCompatibleSpeechRecognizer {
         })
     }
 
-    pub async fn test_connection(&self) -> Result<(), SpeechRecognitionError> {
-        self.transcribe(vec![0; 1_600], true).await.map(|_| ())
+    pub async fn test_audio(&self, samples: Vec<i16>) -> Result<(), SpeechRecognitionError> {
+        tokio::time::timeout(RECOGNITION_TEST_TIMEOUT, self.transcribe(samples, false))
+            .await
+            .map_err(|_| SpeechRecognitionError::Timeout)??;
+        Ok(())
     }
 
     async fn transcribe(

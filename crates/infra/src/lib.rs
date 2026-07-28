@@ -43,6 +43,12 @@ mod macos_overlay_window;
 #[cfg(target_os = "macos")]
 mod macos_system_audio;
 
+#[cfg(target_os = "macos")]
+mod macos_speech_probe;
+
+#[cfg(target_os = "macos")]
+mod macos_speech;
+
 mod json_settings_store;
 
 #[cfg(target_os = "windows")]
@@ -114,6 +120,18 @@ pub use macos_overlay_window::{MacOsOverlayWindowError, configure_overlay_window
 
 #[cfg(target_os = "macos")]
 pub use macos_system_audio::MacOsOutputAudioMuter;
+
+#[cfg(target_os = "macos")]
+pub use macos_speech_probe::{
+    MacOsSpeechProbeError, MacOsSpeechProbeReport, run_macos_speech_probe,
+};
+
+#[cfg(target_os = "macos")]
+pub use macos_speech::{
+    MacOsSpeechAuthorization, MacOsSpeechCapability, MacOsSpeechRecognizer,
+    macos_speech_capability, open_speech_recognition_privacy_settings,
+    request_macos_speech_authorization,
+};
 
 pub use json_settings_store::JsonSettingsStore;
 

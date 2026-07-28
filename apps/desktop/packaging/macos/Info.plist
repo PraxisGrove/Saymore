@@ -11,5 +11,7 @@
   </array>
   <key>NSMicrophoneUsageDescription</key>
   <string>Saymore uses the microphone to transcribe your speech.</string>
+  <key>NSSpeechRecognitionUsageDescription</key>
+  <string>Saymore uses Apple Speech Recognition to turn your speech into text.</string>
 </dict>
 </plist>

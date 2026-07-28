@@ -5,9 +5,7 @@ use template_app::{
     OpenAiCompatibleAsrSettings, ProviderConfigStore, SettingsStore, SettingsStoreError,
     SpeechRecognitionError, VolcengineAsrSettings,
 };
-use template_infra::{
-    JsonSettingsStore, OpenAiCompatibleSpeechRecognizer, VolcengineSpeechRecognizer,
-};
+use template_infra::{JsonSettingsStore, OpenAiCompatibleSpeechRecognizer};
 use uuid::Uuid;
 
 use crate::ui::{
@@ -19,6 +17,8 @@ use super::{
     VOLCENGINE_ASR_1_MODEL, VOLCENGINE_ASR_2_MODEL, VOLCENGINE_LEGACY_MODEL, apply_loaded_settings,
     apply_pending_test, apply_status,
 };
+
+mod recognition_test;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum AsrConfigError {
@@ -67,13 +67,7 @@ pub(super) fn wire(ui: &AppWindow, store: Arc<JsonSettingsStore>) {
         );
     });
 
-    let select_ui = ui.as_weak();
-    let select_store = Arc::clone(&store);
-    ui.on_select_asr_provider(move |provider| {
-        if let Some(ui) = select_ui.upgrade() {
-            apply_provider_status(&ui, &select_store, provider);
-        }
-    });
+    wire_provider_selection(ui, Arc::clone(&store));
 
     let test_ui = ui.as_weak();
     let test_store = Arc::clone(&store);
@@ -115,6 +109,33 @@ pub(super) fn wire(ui: &AppWindow, store: Arc<JsonSettingsStore>) {
                 true,
                 true,
                 ui.global::<Translations>().get_common_delete_failed(),
+            ),
+        }
+    });
+}
+
+fn wire_provider_selection(ui: &AppWindow, store: Arc<JsonSettingsStore>) {
+    let select_ui = ui.as_weak();
+    let select_store = Arc::clone(&store);
+    ui.on_select_asr_provider(move |provider| {
+        if let Some(ui) = select_ui.upgrade() {
+            apply_provider_status(&ui, &select_store, provider);
+        }
+    });
+
+    let activate_ui = ui.as_weak();
+    ui.on_activate_asr_provider(move |provider| {
+        let Some(ui) = activate_ui.upgrade() else {
+            return;
+        };
+        match select_configured_asr_provider(&store, provider) {
+            Ok(true) => apply_loaded_settings(&ui, &store),
+            Ok(false) => apply_provider_status(&ui, &store, provider),
+            Err(_) => apply_status(
+                &ui,
+                false,
+                true,
+                ui.global::<Translations>().get_common_save_failed(),
             ),
         }
     });
@@ -201,6 +222,8 @@ fn begin_connection_test(
         }
     };
     ui.set_asr_testing(true);
+    ui.set_asr_test_succeeded(false);
+    ui.set_asr_test_elapsed(SharedString::default());
     ui.set_asr_draft_error(false);
     ui.set_asr_error_field(UiAsrConfigurationField::None);
     ui.set_asr_config_status(ui.global::<Translations>().get_models_testing_connection());
@@ -208,12 +231,16 @@ fn begin_connection_test(
     let spawn_result = std::thread::Builder::new()
         .name("saymore-test-asr".to_owned())
         .spawn(move || {
-            let result = match purpose {
-                TestPurpose::Save => test_and_save(&store, &candidate, test_connection),
-                TestPurpose::TestOnly => {
-                    test_connection(&candidate).map_err(AsrSaveError::Connection)
-                }
-            };
+            let attempt = recognition_test::run(&candidate);
+            let result = attempt
+                .result
+                .map_err(AsrSaveError::Connection)
+                .and_then(|()| match purpose {
+                    TestPurpose::Save => {
+                        save_candidate(&store, &candidate).map_err(AsrSaveError::Configuration)
+                    }
+                    TestPurpose::TestOnly => Ok(()),
+                });
             if let Err(error) = &result {
                 tracing::warn!(
                     target: "saymore::diagnostics",
@@ -222,7 +249,7 @@ fn begin_connection_test(
                 );
             }
             let _ = result_ui.upgrade_in_event_loop(move |ui| {
-                finish_connection_test(&ui, &store, purpose, result);
+                finish_connection_test(&ui, &store, purpose, attempt.elapsed, result);
             });
         });
     if spawn_result.is_err() {
@@ -231,6 +258,7 @@ fn begin_connection_test(
             event = "asr.connection_test_worker_start_failed"
         );
         ui.set_asr_testing(false);
+        ui.set_asr_test_succeeded(false);
         ui.set_asr_draft_error(true);
         ui.set_asr_error_field(UiAsrConfigurationField::Form);
         ui.set_asr_config_status(ui.global::<Translations>().get_models_connection_failed());
@@ -241,9 +269,11 @@ fn finish_connection_test(
     ui: &AppWindow,
     store: &JsonSettingsStore,
     purpose: TestPurpose,
+    elapsed: std::time::Duration,
     result: Result<(), AsrSaveError>,
 ) {
     ui.set_asr_testing(false);
+    ui.set_asr_test_elapsed(format!("{:.2}", elapsed.as_secs_f64()).into());
     match result {
         Ok(()) => {
             let event = match purpose {
@@ -252,6 +282,7 @@ fn finish_connection_test(
             };
             tracing::info!(target: "saymore::diagnostics", event = %event);
             ui.set_asr_draft_error(false);
+            ui.set_asr_test_succeeded(true);
             ui.set_asr_error_field(UiAsrConfigurationField::None);
             match purpose {
                 TestPurpose::Save => apply_loaded_settings(ui, store),
@@ -266,11 +297,13 @@ fn finish_connection_test(
             );
         }
         Err(AsrSaveError::Configuration(error)) => {
+            ui.set_asr_test_succeeded(false);
             ui.set_asr_draft_error(true);
             ui.set_asr_error_field(config_error_field(error));
             ui.set_asr_config_status(asr_config_error_text(ui, error));
         }
         Err(AsrSaveError::Connection(error)) => {
+            ui.set_asr_test_succeeded(false);
             ui.set_asr_draft_error(true);
             ui.set_asr_error_field(UiAsrConfigurationField::Form);
             ui.set_asr_config_status(asr_test_failure_status(ui, &error));
@@ -278,6 +311,7 @@ fn finish_connection_test(
     }
 }
 
+#[cfg(test)]
 fn test_and_save(
     store: &JsonSettingsStore,
     candidate: &AsrCandidate,
@@ -285,23 +319,6 @@ fn test_and_save(
 ) -> Result<(), AsrSaveError> {
     test(candidate).map_err(AsrSaveError::Connection)?;
     save_candidate(store, candidate).map_err(AsrSaveError::Configuration)
-}
-
-fn test_connection(candidate: &AsrCandidate) -> Result<(), SpeechRecognitionError> {
-    let runtime = tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .build()
-        .map_err(|error| SpeechRecognitionError::Transport(error.to_string()))?;
-    match candidate {
-        AsrCandidate::Volcengine(settings) => {
-            let recognizer = VolcengineSpeechRecognizer::new(settings.clone())?;
-            runtime.block_on(recognizer.test_connection())
-        }
-        AsrCandidate::Custom(settings) => {
-            let recognizer = OpenAiCompatibleSpeechRecognizer::new(settings.clone())?;
-            runtime.block_on(recognizer.test_connection())
-        }
-    }
 }
 
 fn save_candidate(
@@ -372,6 +389,21 @@ pub(super) fn clear_asr_configuration(store: &JsonSettingsStore) -> Result<(), S
             .retain(|provider| Some(&provider.id) != active.as_ref());
         store.save_catalog(&catalog)
     })
+}
+
+fn select_configured_asr_provider(
+    store: &JsonSettingsStore,
+    provider: UiAsrProvider,
+) -> Result<bool, SettingsStoreError> {
+    let mut catalog = store.load_catalog()?;
+    let selected = match provider {
+        UiAsrProvider::Volcengine => catalog.select_volcengine_asr_provider(),
+        UiAsrProvider::Custom => catalog.select_openai_transcriptions_asr_provider(),
+    };
+    if selected {
+        store.save_catalog(&catalog)?;
+    }
+    Ok(selected)
 }
 
 fn apply_provider_status(ui: &AppWindow, store: &JsonSettingsStore, provider: UiAsrProvider) {
@@ -495,6 +527,49 @@ mod tests {
                     .map(|settings| settings.asr.volcengine.api_key)
             );
         }
+        let _ = fs::remove_dir_all(directory);
+    }
+
+    #[test]
+    fn configured_providers_can_be_switched_without_losing_either_configuration() {
+        let directory = std::env::temp_dir().join(format!("saymore-asr-switch-{}", Uuid::new_v4()));
+        let store = JsonSettingsStore::at_path(directory.join("providers.json"));
+        assert_eq!(
+            Ok(()),
+            save_asr_configuration(&store, CURRENT_KEY, VOLCENGINE_ASR_2_MODEL)
+        );
+        assert_eq!(
+            Ok(()),
+            save_custom_asr_configuration(
+                &store,
+                "custom-key",
+                "https://example.com/v1",
+                "whisper-1",
+            )
+        );
+
+        assert_eq!(
+            Ok(true),
+            select_configured_asr_provider(&store, UiAsrProvider::Volcengine)
+        );
+        let volcengine_settings = store.load();
+        assert!(volcengine_settings.is_ok());
+        let volcengine_settings = volcengine_settings.unwrap_or_default();
+        assert!(volcengine_settings.asr.volcengine.enabled);
+        assert!(!volcengine_settings.asr.openai_compatible.enabled);
+
+        assert_eq!(
+            Ok(true),
+            select_configured_asr_provider(&store, UiAsrProvider::Custom)
+        );
+        let custom_settings = store.load();
+        assert!(custom_settings.is_ok());
+        let custom_settings = custom_settings.unwrap_or_default();
+        assert!(!custom_settings.asr.volcengine.enabled);
+        assert!(custom_settings.asr.openai_compatible.enabled);
+        assert_eq!(CURRENT_KEY, custom_settings.asr.volcengine.api_key);
+        assert_eq!("custom-key", custom_settings.asr.openai_compatible.api_key);
+
         let _ = fs::remove_dir_all(directory);
     }
 }

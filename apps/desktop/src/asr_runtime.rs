@@ -2,9 +2,11 @@ use std::sync::{Arc, Mutex};
 
 use template_app::{
     DictationSessionId, DictionaryStore, OwnedRecognition, PcmRecording,
-    RestoredRecordingTranscriber, SettingsStore, SpeechRecognitionError, SpeechRecognitionHints,
+    RestoredRecordingTranscriber, SpeechRecognitionError, SpeechRecognitionHints,
     StreamingSpeechRecognizer,
 };
+#[cfg(target_os = "macos")]
+use template_infra::MacOsSpeechRecognizer;
 use template_infra::{
     JsonSettingsStore, OpenAiCompatibleSpeechRecognizer, VolcengineSpeechRecognizer,
 };
@@ -29,11 +31,15 @@ impl AsrSessionController {
         id: DictationSessionId,
         on_partial: Arc<dyn Fn(String) + Send + Sync>,
     ) -> Result<(), SpeechRecognitionError> {
-        let settings = self
+        let (settings, catalog) = self
             .settings
-            .load()
+            .load_settings_snapshot()
             .map_err(|error| SpeechRecognitionError::Protocol(error.to_string()))?;
-        if !settings.asr.volcengine.enabled && !settings.asr.openai_compatible.enabled {
+        let macos_speech_active = catalog.macos_speech_is_active();
+        if !macos_speech_active
+            && !settings.asr.volcengine.enabled
+            && !settings.asr.openai_compatible.enabled
+        {
             return Err(SpeechRecognitionError::NotConfigured);
         }
         let hints = match self.dictionary.list_dictionary() {
@@ -59,7 +65,16 @@ impl AsrSessionController {
                 "ASR session is already active".to_owned(),
             ));
         }
-        let session = if settings.asr.openai_compatible.enabled {
+        let session = if macos_speech_active {
+            #[cfg(target_os = "macos")]
+            {
+                MacOsSpeechRecognizer::new().start(hints, on_partial)?
+            }
+            #[cfg(not(target_os = "macos"))]
+            {
+                return Err(SpeechRecognitionError::NotConfigured);
+            }
+        } else if settings.asr.openai_compatible.enabled {
             OpenAiCompatibleSpeechRecognizer::new(settings.asr.openai_compatible)?
                 .start(hints, on_partial)?
         } else {

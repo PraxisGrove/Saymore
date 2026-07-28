@@ -44,6 +44,14 @@ export enum AsrProviderCardKind {
     custom,
 }
 
+export enum SystemSpeechStatus {
+    unavailable,
+    permission-required,
+    permission-denied,
+    restricted,
+    ready,
+}
+
 export struct AsrProviderCardSpec {
     kind: AsrProviderCardKind,
     available: bool,
@@ -55,6 +63,11 @@ export enum AsrConfigurationField {
     base-url,
     model,
     form,
+}
+
+export enum ModalSize {
+    standard,
+    compact,
 }
 
 export component StatusPill inherits Rectangle {
@@ -177,6 +190,81 @@ export component AppButton inherits Rectangle {
     }
 }
 
+export component ModalShell inherits Rectangle {
+    in property <ModalSize> size: ModalSize.standard;
+    in property <bool> show-close: true;
+    in property <bool> close-enabled: true;
+    in property <bool> dismiss-on-backdrop: false;
+    out property <length> panel-width: panel.width;
+    out property <length> panel-height: panel.height;
+    callback close-requested();
+
+    private property <length> requested-width: root.size == ModalSize.compact ? 420px : 540px;
+    private property <length> requested-height: root.size == ModalSize.compact ? 220px : 468px;
+
+    background: AppColors.scrim;
+    opacity: 1;
+    animate opacity { duration: 160ms; easing: ease-out; }
+
+    TouchArea {
+        mouse-cursor: default;
+        clicked => {
+            if root.dismiss-on-backdrop && root.close-enabled {
+                root.close-requested();
+            }
+        }
+    }
+
+    panel := Rectangle {
+        width: min(root.requested-width, root.width - 32px);
+        height: min(root.requested-height, root.height - 32px);
+        x: (root.width - self.width) / 2 + (root.size == ModalSize.standard ? 36px : 0px);
+        y: (root.height - self.height) / 2;
+        border-radius: 12px;
+        border-width: 1px;
+        border-color: AppColors.border;
+        background: AppColors.surface;
+        clip: true;
+        drop-shadow-blur: 28px;
+        drop-shadow-offset-y: 10px;
+        drop-shadow-color: AppColors.shadow;
+
+        @children
+
+        if root.show-close: Rectangle {
+            x: parent.width - 52px;
+            y: 14px;
+            width: 40px;
+            height: 40px;
+            border-radius: 7px;
+            background: close-touch.pressed ? AppColors.selected
+                : close-touch.has-hover ? AppColors.surface-subtle : transparent;
+            accessible-role: button;
+            accessible-label: @tr("common.close" => "Close");
+            accessible-enabled: root.close-enabled;
+            accessible-action-default => {
+                if root.close-enabled {
+                    root.close-requested();
+                }
+            }
+
+            Image {
+                x: 11px;
+                y: 11px;
+                width: 18px;
+                height: 18px;
+                source: @image-url("../icons/lucide/x.svg");
+                colorize: AppColors.text-muted;
+            }
+            close-touch := TouchArea {
+                enabled: root.close-enabled;
+                mouse-cursor: self.enabled ? pointer : default;
+                clicked => { root.close-requested(); }
+            }
+        }
+    }
+}
+
 export component AppCheckBox inherits Rectangle {
     in property <string> text: "";
     in property <bool> enabled: true;
@@ -246,7 +334,7 @@ export component AppLineEdit inherits Rectangle {
     vertical-stretch: 0;
     border-radius: 7px;
     border-width: 1px;
-    border-color: line-input.has-focus ? AppColors.brand : AppColors.border;
+    border-color: line-input.has-focus ? AppColors.brand-strong : AppColors.border;
     background: AppColors.surface;
 
     if root.text.is-empty: Text {

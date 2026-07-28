@@ -1,11 +1,11 @@
 import { AppSidebar } from "sidebar.slint";
 import { HomePage } from "pages/home.slint";
 import { ModelConsentDialog, ModelsPage } from "pages/models.slint";
-import { AsrConfigurationModal } from "pages/asr-provider-components.slint";
+import { AsrConfigurationModal, MacOsSpeechModal } from "pages/asr-provider-components.slint";
 import { HistoryDialog, HistoryGroup, HistoryPage, HistoryRetentionOption } from "pages/history.slint";
 import { DictionaryAddDialog, DictionaryDraft, DictionaryEvidenceItem, DictionaryFilterKind, DictionaryListItem, DictionaryPage, DictionaryRow } from "pages/dictionary.slint";
 import { AudioInputDevice, SettingsPage } from "pages/settings.slint";
-import { AppPage, AsrConfigurationField, AsrProvider, AsrProviderCardSpec, LlmProvider, SettingsSection, UiLanguage } from "components.slint";
+import { AppPage, AsrConfigurationField, AsrProvider, AsrProviderCardSpec, LlmProvider, SettingsSection, SystemSpeechStatus, UiLanguage } from "components.slint";
 import { AppColors, ColorSchemePreference, ThemeId } from "color-system.slint";
 import { Translations } from "translations.slint";
 export { Translations } from "translations.slint";
@@ -18,12 +18,13 @@ export { StatusTray } from "status-tray.slint";
 export { OnboardingWindow } from "onboarding.slint";
 export { LlmProvider } from "components.slint";
 export { AsrProvider } from "components.slint";
-export { AsrConfigurationField, AsrProviderCardKind, AsrProviderCardSpec } from "components.slint";
+export { AsrConfigurationField, AsrProviderCardKind, AsrProviderCardSpec, SystemSpeechStatus } from "components.slint";
 export { AppColors, ColorSchemePreference, ThemeId } from "color-system.slint";
 
 export component AppWindow inherits Window {
     private property <string> translation-marker: Translations.language-save-failed;
     private property <bool> asr-modal-visible: false;
+    private property <bool> macos-speech-modal-visible: false;
     private property <bool> asr-modal-pending-save: false;
     private property <AsrProvider> asr-modal-original-provider: AsrProvider.volcengine;
     title: root.development-environment ? "Saymore Preview" : "Saymore";
@@ -104,7 +105,10 @@ export component AppWindow inherits Window {
     in-out property <string> asr-api-key: "";
     in-out property <string> asr-model: "volc.seedasr.sauc.duration";
     in-out property <AsrProvider> asr-provider: AsrProvider.volcengine;
+    in property <AsrProvider> active-asr-provider: AsrProvider.volcengine;
     in property <[AsrProviderCardSpec]> asr-provider-cards;
+    in property <bool> macos-speech-selected: false;
+    in property <SystemSpeechStatus> macos-speech-status: SystemSpeechStatus.unavailable;
     in property <bool> volcengine-asr-configured: false;
     in-out property <string> custom-asr-api-key: "";
     in-out property <string> custom-asr-base-url: "";
@@ -116,6 +120,8 @@ export component AppWindow inherits Window {
     in-out property <bool> asr-draft-error: false;
     in property <string> asr-config-status: @tr("models.status.not-configured.plain" => "Not configured");
     in-out property <bool> asr-testing: false;
+    in-out property <bool> asr-test-succeeded: false;
+    in-out property <string> asr-test-elapsed: "";
     in-out property <bool> asr-pending-test: false;
     in-out property <bool> asr-config-dirty: false;
     in-out property <AsrConfigurationField> asr-error-field: AsrConfigurationField.none;
@@ -193,6 +199,11 @@ export component AppWindow inherits Window {
     callback open-data-directory();
     callback check-for-updates();
     callback download-update();
+    callback open-release-notes();
+    callback open-website();
+    callback open-feedback();
+    callback open-terms();
+    callback open-privacy();
     callback set-automatic-update-checks(bool);
     callback set-feedback-sounds-enabled(bool);
     callback set-mute-system-audio-enabled(bool);
@@ -206,6 +217,9 @@ export component AppWindow inherits Window {
     callback refresh-usage();
     callback save-asr-config(AsrProvider, string, string, string);
     callback select-asr-provider(AsrProvider);
+    callback activate-asr-provider(AsrProvider);
+    callback activate-macos-speech();
+    callback refresh-macos-speech();
     callback cancel-asr-config();
     callback delete-asr-config();
     callback request-llm-enable();
@@ -246,6 +260,11 @@ export component AppWindow inherits Window {
     }
     changed model-tab => { root.available-models = []; root.model-discovery-status = ""; root.model-discovery-error = false; }
     changed asr-provider => { root.available-models = []; root.model-discovery-status = ""; root.model-discovery-error = false; }
+    changed asr-api-key => { root.asr-test-succeeded = false; root.asr-test-elapsed = ""; }
+    changed asr-model => { root.asr-test-succeeded = false; root.asr-test-elapsed = ""; }
+    changed custom-asr-api-key => { root.asr-test-succeeded = false; root.asr-test-elapsed = ""; }
+    changed custom-asr-base-url => { root.asr-test-succeeded = false; root.asr-test-elapsed = ""; }
+    changed custom-asr-model => { root.asr-test-succeeded = false; root.asr-test-elapsed = ""; }
     changed llm-provider => { root.available-models = []; root.model-discovery-status = ""; root.model-discovery-error = false; }
     changed asr-testing => {
         if !root.asr-testing && root.asr-modal-pending-save && root.asr-draft-error {
@@ -317,7 +336,10 @@ export component AppWindow inherits Window {
                 asr-api-key <=> root.asr-api-key;
                 asr-model <=> root.asr-model;
                 asr-provider <=> root.asr-provider;
+                active-asr-provider: root.active-asr-provider;
                 asr-provider-cards: root.asr-provider-cards;
+                macos-speech-selected: root.macos-speech-selected;
+                macos-speech-status: root.macos-speech-status;
                 volcengine-asr-configured: root.volcengine-asr-configured;
                 custom-asr-api-key <=> root.custom-asr-api-key;
                 custom-asr-base-url <=> root.custom-asr-base-url;
@@ -357,6 +379,7 @@ export component AppWindow inherits Window {
                 model-discovery-status <=> root.model-discovery-status;
                 save-asr-config(provider, api-key, base-url, model) => { root.save-asr-config(provider, api-key, base-url, model); }
                 select-asr-provider(provider) => { root.select-asr-provider(provider); }
+                open-macos-speech-details => { root.macos-speech-modal-visible = true; }
                 cancel-asr-config => { root.cancel-asr-config(); }
                 delete-asr-config => { root.delete-asr-config(); }
                 request-llm-enable => { root.request-llm-enable(); }
@@ -369,6 +392,8 @@ export component AppWindow inherits Window {
                 open-asr-config(original-provider) => {
                     root.focus-asr-config = false;
                     root.asr-modal-original-provider = original-provider;
+                    root.asr-test-succeeded = false;
+                    root.asr-test-elapsed = "";
                     root.asr-modal-visible = true;
                 }
             }
@@ -492,6 +517,11 @@ export component AppWindow inherits Window {
         open-data-directory => { root.open-data-directory(); }
         check-for-updates => { root.check-for-updates(); }
         download-update => { root.download-update(); }
+        open-release-notes => { root.open-release-notes(); }
+        open-website => { root.open-website(); }
+        open-feedback => { root.open-feedback(); }
+        open-terms => { root.open-terms(); }
+        open-privacy => { root.open-privacy(); }
         set-automatic-update-checks(enabled) => { root.set-automatic-update-checks(enabled); }
         set-feedback-sounds-enabled(enabled) => { root.set-feedback-sounds-enabled(enabled); }
         set-mute-system-audio-enabled(enabled) => { root.set-mute-system-audio-enabled(enabled); }
@@ -517,17 +547,20 @@ export component AppWindow inherits Window {
     if root.asr-modal-visible: AsrConfigurationModal {
         width: parent.width;
         height: parent.height;
-        dialog-area-x: 235px;
-        dialog-area-width: parent.width - 245px;
         provider: root.asr-provider;
         volcengine-api-key <=> root.asr-api-key;
         volcengine-model <=> root.asr-model;
         custom-api-key <=> root.custom-asr-api-key;
         custom-base-url <=> root.custom-asr-base-url;
         custom-model <=> root.custom-asr-model;
-        configured: root.asr-configured && root.asr-provider == root.asr-modal-original-provider;
+        configured: root.asr-provider == AsrProvider.volcengine
+            ? root.volcengine-asr-configured : root.custom-asr-configured;
+        selected: !root.macos-speech-selected && root.active-asr-provider == root.asr-provider;
+        selection-enabled: self.configured && !self.selected && !root.asr-config-dirty && !root.asr-testing;
         dirty: root.asr-config-dirty;
         testing: root.asr-testing;
+        test-succeeded: root.asr-test-succeeded;
+        test-elapsed: root.asr-test-elapsed;
         draft-error: root.asr-draft-error;
         error-field: root.asr-error-field;
         status-message: root.asr-config-status;
@@ -552,6 +585,16 @@ export component AppWindow inherits Window {
             root.delete-asr-config();
         }
         open-key-page => { root.open-current-provider-key-page(); }
+        select-provider => { root.activate-asr-provider(root.asr-provider); }
+    }
+
+    if root.macos-speech-modal-visible: MacOsSpeechModal {
+        width: parent.width;
+        height: parent.height;
+        selected: root.macos-speech-selected;
+        status: root.macos-speech-status;
+        cancelled => { root.macos-speech-modal-visible = false; }
+        activate-provider => { root.activate-macos-speech(); }
     }
 
     HistoryDialog {

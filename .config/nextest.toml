@@ -1,10 +1,12 @@
 [profile.default]
+default-filter = "not binary(models_navigation)"
 failure-output = "immediate-final"
 fail-fast = false
 status-level = "slow"
 slow-timeout = { period = "30s", terminate-after = 2 }
 
 [profile.ci]
+default-filter = "not binary(models_navigation)"
 failure-output = "immediate-final"
 fail-fast = false
 status-level = "all"

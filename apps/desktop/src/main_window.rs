@@ -55,6 +55,7 @@ fn configure_close_behavior(ui: &AppWindow) {
             MainWindowEventAction::RefreshAuthorizations => {
                 if let Some(ui) = refresh_ui.upgrade() {
                     ui.invoke_refresh_authorizations();
+                    ui.invoke_refresh_macos_speech();
                 }
                 EventResult::Propagate
             }

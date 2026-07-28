@@ -1,5 +1,6 @@
 import { ScrollView } from "std-widgets.slint";
 import { AppColors } from "../color-system.slint";
+import { ModalShell, ModalSize } from "../components.slint";
 
 export enum HistoryRetentionOption { never, one-day, seven-days, thirty-days, forever }
 
@@ -122,28 +123,26 @@ export component HistoryDialog inherits Rectangle {
 
     property <bool> active: root.detail-visible || root.clear-confirmation-visible || root.reset-confirmation-visible;
     property <bool> detail-copied: false;
-    background: AppColors.scrim;
+    background: transparent;
     z: 100;
     opacity: self.active ? 1 : 0;
     animate opacity { duration: 160ms; easing: ease-out; }
-    TouchArea {
-        enabled: root.active;
-        clicked => {
+    Timer { interval: 1500ms; running: root.detail-copied; triggered => { root.detail-copied = false; } }
+    if root.active: history-shell := ModalShell {
+        width: parent.width;
+        height: parent.height;
+        size: root.detail-visible ? ModalSize.standard : ModalSize.compact;
+        show-close: root.detail-visible;
+        dismiss-on-backdrop: true;
+        close-requested => {
             root.detail-visible = false;
             root.clear-confirmation-visible = false;
             root.reset-confirmation-visible = false;
         }
-    }
-    Timer { interval: 1500ms; running: root.detail-copied; triggered => { root.detail-copied = false; } }
-    Rectangle {
-        width: root.detail-visible ? min(560px, parent.width - 32px) : (root.reset-confirmation-visible ? min(500px, parent.width - 32px) : 350px);
-        height: root.detail-visible ? min(440px, parent.height - 32px) : (root.reset-confirmation-visible ? 250px : 210px);
-        x: (parent.width - self.width) / 2;
-        y: (parent.height - self.height) / 2;
-        border-radius: 8px;
-        background: AppColors.surface;
 
         if root.clear-confirmation-visible: VerticalLayout {
+            width: history-shell.panel-width;
+            height: history-shell.panel-height;
             padding: 24px;
             spacing: 16px;
             Text { text: @tr("history.clear.title" => "Clear all history?"); color: AppColors.ink; font-size: 18px; font-weight: 700; }
@@ -157,6 +156,8 @@ export component HistoryDialog inherits Rectangle {
         }
 
         if root.reset-confirmation-visible: VerticalLayout {
+            width: history-shell.panel-width;
+            height: history-shell.panel-height;
             padding: 24px;
             spacing: 15px;
             Text { text: @tr("history.reset.title" => "Reset history?"); color: AppColors.ink; font-size: 18px; font-weight: 700; }
@@ -173,10 +174,9 @@ export component HistoryDialog inherits Rectangle {
         if root.detail-visible: Rectangle {
             x: 24px;
             y: 20px;
-            width: parent.width - 48px;
-            height: parent.height - 40px;
+            width: history-shell.panel-width - 48px;
+            height: history-shell.panel-height - 40px;
             Text { x: 0px; y: 0px; text: @tr("history.detail.title" => "Record details"); color: AppColors.ink; font-size: 18px; font-weight: 700; }
-            HistoryIconButton { x: parent.width - 34px; y: -5px; icon: @image-url("../../icons/lucide/x.svg"); label: @tr("common.close" => "Close"); activated => { root.detail-visible = false; } }
             Text { x: 0px; y: 36px; text: root.selected-time; color: AppColors.text-muted; font-size: 10px; }
             Text { x: 0px; y: 68px; text: @tr("history.detail.content" => "Content"); color: AppColors.text; font-size: 11px; font-weight: 650; }
             Rectangle {
@@ -193,7 +193,7 @@ export component HistoryDialog inherits Rectangle {
                     height: parent.height - 28px;
                     viewport-width: self.width;
                     viewport-height: max(self.height, detail-copy.preferred-height);
-                    vertical-scrollbar-policy: ScrollBarPolicy.always-off;
+                    vertical-scrollbar-policy: ScrollBarPolicy.as-needed;
                     horizontal-scrollbar-policy: ScrollBarPolicy.always-off;
                     detail-copy := Text {
                         width: detail-scroll.viewport-width;
@@ -295,7 +295,7 @@ export component HistoryPage inherits Rectangle {
         height: 38px;
         border-radius: 8px;
         border-width: root.search-active ? 1px : 0px;
-        border-color: AppColors.brand;
+        border-color: AppColors.brand-strong;
         background: root.search-active ? AppColors.surface : AppColors.surface-subtle;
         animate width { duration: 200ms; easing: ease-out; }
         Image { x: 11px; y: 10px; width: 18px; height: 18px; source: @image-url("../../icons/lucide/search.svg"); }
@@ -364,7 +364,7 @@ export component HistoryPage inherits Rectangle {
                                 y: 0px;
                                 width: 3px;
                                 height: parent.height;
-                                background: AppColors.brand;
+                                background: AppColors.brand-strong;
                                 opacity: parent.hovered ? 1 : 0;
                                 animate opacity { duration: 120ms; easing: ease-out; }
                             }
@@ -389,7 +389,7 @@ export component HistoryPage inherits Rectangle {
             }
             if root.has-more: Rectangle {
                 height: 36px; background: transparent;
-                Text { text: @tr("history.load-more" => "Load more"); color: AppColors.brand; font-size: 11px; font-weight: 650; horizontal-alignment: center; vertical-alignment: center; }
+                Text { text: @tr("history.load-more" => "Load more"); color: AppColors.brand-strong; font-size: 11px; font-weight: 650; horizontal-alignment: center; vertical-alignment: center; }
                 TouchArea { mouse-cursor: pointer; clicked => { root.load-more(); } }
             }
         }
@@ -404,7 +404,7 @@ export component HistoryPage inherits Rectangle {
             if root.loading: Text { text: @tr("history.loading.detail" => "Reading content saved on this device"); color: AppColors.text-muted; font-size: 11px; horizontal-alignment: center; }
             if root.load-failed: StateIcon { size: 28px; source: @image-url("../../icons/lucide/circle-alert.svg"); }
             if root.load-failed: Text { text: @tr("history.load-failed.title" => "Local history is unavailable"); color: AppColors.ink; font-size: 16px; horizontal-alignment: center; }
-            if root.load-failed: Rectangle { width: 84px; height: 28px; background: transparent; Text { text: @tr("common.reload" => "Reload ↗"); color: AppColors.brand; font-size: 11px; font-weight: 650; horizontal-alignment: center; vertical-alignment: center; } TouchArea { mouse-cursor: pointer; clicked => { root.refresh(); } } }
+            if root.load-failed: Rectangle { width: 84px; height: 28px; background: transparent; Text { text: @tr("common.reload" => "Reload ↗"); color: AppColors.brand-strong; font-size: 11px; font-weight: 650; horizontal-alignment: center; vertical-alignment: center; } TouchArea { mouse-cursor: pointer; clicked => { root.refresh(); } } }
             if root.locked: StateIcon { source: @image-url("../../icons/lucide/lock-keyhole.svg"); }
             if root.locked: Text { text: @tr("history.locked.title" => "History is locked"); color: AppColors.ink; font-size: 16px; font-weight: 650; horizontal-alignment: center; }
             if root.locked: Text { text: @tr("history.locked.detail" => "The history key is unavailable. Settings and dictionary remain available."); color: AppColors.text-muted; font-size: 11px; horizontal-alignment: center; }
