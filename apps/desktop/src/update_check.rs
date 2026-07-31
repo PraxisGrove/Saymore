@@ -24,6 +24,12 @@ struct UpdateState {
     download_url: Mutex<Option<String>>,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum CheckPresentation {
+    Settings,
+    StartupNotification,
+}
+
 #[derive(Debug, Deserialize)]
 struct Release {
     tag_name: String,
@@ -32,24 +38,49 @@ struct Release {
     prerelease: bool,
 }
 
-pub fn wire(ui: &AppWindow) {
+pub fn wire(ui: &AppWindow, check_on_startup: bool) {
     let state = Arc::new(UpdateState::default());
     let check_ui = ui.as_weak();
     let check_state = Arc::clone(&state);
-    ui.on_check_for_updates(move || start_check(check_ui.clone(), Arc::clone(&check_state)));
+    ui.on_check_for_updates(move || {
+        start_check(
+            check_ui.clone(),
+            Arc::clone(&check_state),
+            CheckPresentation::Settings,
+        );
+    });
 
     let download_ui = ui.as_weak();
+    let download_state = Arc::clone(&state);
     ui.on_download_update(move || {
-        let url = state
+        if let Some(window) = download_ui.upgrade() {
+            window.set_update_notification_visible(false);
+        }
+        let url = download_state
             .download_url
             .lock()
             .ok()
             .and_then(|guard| guard.clone());
         open_download_page(download_ui.clone(), url);
     });
+
+    let dismiss_ui = ui.as_weak();
+    ui.on_dismiss_update_notification(move || {
+        if let Some(window) = dismiss_ui.upgrade() {
+            window.set_update_notification_visible(false);
+        }
+    });
+
+    if check_on_startup {
+        start_check(ui.as_weak(), state, CheckPresentation::StartupNotification);
+    }
 }
 
-fn start_check(ui: slint::Weak<AppWindow>, state: Arc<UpdateState>) {
+fn start_check(
+    ui: slint::Weak<AppWindow>,
+    state: Arc<UpdateState>,
+    presentation: CheckPresentation,
+) {
     if state
         .checking
         .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
@@ -69,38 +100,17 @@ fn start_check(ui: slint::Weak<AppWindow>, state: Arc<UpdateState>) {
         .spawn(move || {
             let result = latest_release();
             worker_state.checking.store(false, Ordering::Release);
-            let _ = ui.upgrade_in_event_loop(move |window| match result {
-                Ok(Some(release)) => {
-                    if let Ok(mut download_url) = worker_state.download_url.lock() {
-                        *download_url = Some(release.html_url);
-                    }
-                    window.set_update_status(SharedString::from("available"));
-                    window.set_update_version(SharedString::from(release.tag_name));
-                    window.set_update_detail(SharedString::new());
-                }
-                Ok(None) => {
-                    if let Ok(mut download_url) = worker_state.download_url.lock() {
-                        *download_url = None;
-                    }
-                    window.set_update_status(SharedString::from("latest"));
-                    window.set_update_version(SharedString::new());
-                    window.set_update_detail(SharedString::new());
-                }
-                Err(()) => {
-                    window.set_update_status(SharedString::from("failed"));
-                    window.set_update_version(SharedString::new());
-                    window.set_update_detail(
-                        window
-                            .global::<Translations>()
-                            .get_update_service_unavailable(),
-                    );
-                }
+            let _ = ui.upgrade_in_event_loop(move |window| {
+                apply_check_result(&window, &worker_state, presentation, result);
             });
         })
         .is_err()
     {
         state.checking.store(false, Ordering::Release);
         if let Some(window) = failure_ui.upgrade() {
+            if presentation == CheckPresentation::StartupNotification {
+                window.set_update_notification_visible(false);
+            }
             window.set_update_status(SharedString::from("failed"));
             window.set_update_detail(
                 window
@@ -108,6 +118,60 @@ fn start_check(ui: slint::Weak<AppWindow>, state: Arc<UpdateState>) {
                     .get_update_check_start_failed(),
             );
         }
+    }
+}
+
+fn apply_check_result(
+    window: &AppWindow,
+    state: &UpdateState,
+    presentation: CheckPresentation,
+    result: Result<Option<Release>, ()>,
+) {
+    match result {
+        Ok(Some(release)) => {
+            if let Ok(mut download_url) = state.download_url.lock() {
+                *download_url = Some(release.html_url);
+            }
+            window.set_update_status(SharedString::from("available"));
+            window.set_update_version(SharedString::from(release.tag_name));
+            window.set_update_detail(SharedString::new());
+            if let Some(visible) = notification_visibility(presentation, true) {
+                window.set_update_notification_visible(visible);
+            }
+        }
+        Ok(None) => {
+            if let Ok(mut download_url) = state.download_url.lock() {
+                *download_url = None;
+            }
+            window.set_update_status(SharedString::from("latest"));
+            window.set_update_version(SharedString::new());
+            window.set_update_detail(SharedString::new());
+            if let Some(visible) = notification_visibility(presentation, false) {
+                window.set_update_notification_visible(visible);
+            }
+        }
+        Err(()) => {
+            window.set_update_status(SharedString::from("failed"));
+            window.set_update_version(SharedString::new());
+            window.set_update_detail(
+                window
+                    .global::<Translations>()
+                    .get_update_service_unavailable(),
+            );
+            if let Some(visible) = notification_visibility(presentation, false) {
+                window.set_update_notification_visible(visible);
+            }
+        }
+    }
+}
+
+fn notification_visibility(
+    presentation: CheckPresentation,
+    update_available: bool,
+) -> Option<bool> {
+    match presentation {
+        CheckPresentation::Settings => None,
+        CheckPresentation::StartupNotification => Some(update_available),
     }
 }
 
@@ -197,7 +261,7 @@ fn version_numbers(value: &str) -> Option<[u64; 3]> {
 
 #[cfg(test)]
 mod tests {
-    use super::{is_newer_version, version_numbers};
+    use super::{CheckPresentation, is_newer_version, notification_visibility, version_numbers};
 
     #[test]
     fn compares_release_versions_without_a_semver_dependency() {
@@ -211,5 +275,21 @@ mod tests {
     fn accepts_missing_minor_or_patch_numbers() {
         assert_eq!(Some([2, 0, 0]), version_numbers("v2"));
         assert_eq!(Some([2, 3, 0]), version_numbers("2.3"));
+    }
+
+    #[test]
+    fn only_startup_checks_control_notification_visibility() {
+        assert_eq!(
+            Some(true),
+            notification_visibility(CheckPresentation::StartupNotification, true)
+        );
+        assert_eq!(
+            Some(false),
+            notification_visibility(CheckPresentation::StartupNotification, false)
+        );
+        assert_eq!(
+            None,
+            notification_visibility(CheckPresentation::Settings, true)
+        );
     }
 }

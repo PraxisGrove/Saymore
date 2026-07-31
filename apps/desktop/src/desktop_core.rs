@@ -163,7 +163,10 @@ fn wire_local_features(
         recorder,
         settings.clone(),
     );
-    update_check::wire(&windows.ui);
+    update_check::wire(
+        &windows.ui,
+        bootstrap.local_settings.automatic_update_checks,
+    );
     settings_links::wire(&windows.ui);
     settings_actions::wire(
         &windows.ui,
@@ -178,7 +181,4 @@ fn wire_local_features(
             environment: bootstrap.environment,
         },
     );
-    if bootstrap.local_settings.automatic_update_checks {
-        windows.ui.invoke_check_for_updates();
-    }
 }

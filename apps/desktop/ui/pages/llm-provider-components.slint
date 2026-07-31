@@ -1,0 +1,322 @@
+import { LlmProvider, ModalShell, ModalSize } from "../components.slint";
+import { AppColors } from "../color-system.slint";
+import { ProviderSelectionControl } from "asr-provider-components.slint";
+import { ScrollView } from "std-widgets.slint";
+
+component LlmButton inherits Rectangle {
+    in property <string> label;
+    in property <bool> primary: false;
+    in property <bool> enabled: true;
+    callback activated();
+
+    min-width: 96px;
+    height: 36px;
+    border-radius: 7px;
+    border-width: root.primary ? 0px : 1px;
+    border-color: AppColors.border;
+    background: !root.enabled ? AppColors.surface-muted
+        : root.primary ? (button-touch.has-hover ? AppColors.brand-hover : AppColors.brand)
+        : button-touch.has-hover ? AppColors.surface-subtle : AppColors.surface;
+    opacity: root.enabled ? (button-touch.pressed ? 0.84 : 1) : 0.55;
+    accessible-role: button;
+    accessible-label: root.label;
+    accessible-enabled: root.enabled;
+    accessible-action-default => { if root.enabled { root.activated(); } }
+
+    Text {
+        x: 12px;
+        width: parent.width - 24px;
+        text: root.label;
+        color: root.primary && root.enabled ? AppColors.on-brand : root.enabled ? AppColors.text : AppColors.text-muted;
+        font-size: 11px;
+        font-weight: 650;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+        overflow: elide;
+    }
+    button-touch := TouchArea {
+        enabled: root.enabled;
+        mouse-cursor: self.enabled ? pointer : default;
+        clicked => { root.activated(); }
+    }
+}
+
+component ProviderStatus inherits Rectangle {
+    in property <string> label;
+    in property <bool> active: false;
+    width: 72px;
+    height: 22px;
+    border-radius: 6px;
+    background: root.active ? AppColors.success-soft : AppColors.surface-subtle;
+    Text {
+        x: 6px;
+        width: parent.width - 12px;
+        text: root.label;
+        color: root.active ? AppColors.success : AppColors.text-muted;
+        font-size: 9px;
+        font-weight: 600;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+        overflow: elide;
+    }
+}
+
+component LlmProviderCard inherits Rectangle {
+    in property <image> icon;
+    in property <string> name;
+    in property <string> summary;
+    in property <string> status;
+    in property <bool> enabled: true;
+    in property <bool> active: false;
+    in property <bool> tint-icon: false;
+    callback activated();
+
+    height: 76px;
+    border-radius: 9px;
+    background: card-touch.has-hover && root.enabled ? AppColors.surface-subtle : AppColors.surface;
+    opacity: root.enabled ? (card-touch.pressed ? 0.86 : 1) : 0.64;
+    accessible-role: button;
+    accessible-label: root.name + ", " + root.status;
+    accessible-enabled: root.enabled;
+    accessible-action-default => { if root.enabled { root.activated(); } }
+
+    Image { x: 12px; y: 19px; width: 38px; height: 38px; source: root.icon; colorize: root.tint-icon ? AppColors.ink : transparent; image-fit: contain; image-rendering: smooth; }
+    Text { x: 62px; y: 14px; width: parent.width - 174px; text: root.name; color: AppColors.ink; font-size: 11px; font-weight: 700; overflow: elide; }
+    Text { x: 62px; y: 38px; width: parent.width - 174px; text: root.summary; color: AppColors.text-muted; font-size: 9px; overflow: elide; }
+    ProviderStatus { x: parent.width - 102px; y: 27px; label: root.status; active: root.active; }
+    Image { x: parent.width - 20px; y: 31px; width: 14px; height: 14px; source: @image-url("../../icons/lucide/chevron-right.svg"); colorize: AppColors.text-muted; }
+    card-touch := TouchArea { enabled: root.enabled; mouse-cursor: self.enabled ? pointer : default; clicked => { root.activated(); } }
+}
+
+export component TextPolishingPage inherits Rectangle {
+    in property <bool> llm-enabled;
+    in property <bool> testing;
+    in property <LlmProvider> current-provider: LlmProvider.sensenova;
+    in property <bool> sensenova-configured;
+    in property <bool> deepseek-configured;
+    in property <bool> custom-configured;
+    callback toggle-enabled();
+    callback open-provider(LlmProvider);
+
+    private property <bool> has-config: root.sensenova-configured || root.deepseek-configured || root.custom-configured;
+    private property <string> sensenova-status: root.llm-enabled && root.current-provider == LlmProvider.sensenova ? @tr("models.status.connected.plain" => "Connected") : root.sensenova-configured ? @tr("models.status.not-enabled" => "Not enabled") : @tr("models.status.not-configured.plain" => "Not configured");
+    private property <string> deepseek-status: root.llm-enabled && root.current-provider == LlmProvider.deepseek ? @tr("models.status.connected.plain" => "Connected") : root.deepseek-configured ? @tr("models.status.not-enabled" => "Not enabled") : @tr("models.status.not-configured.plain" => "Not configured");
+    private property <string> custom-status: root.llm-enabled && root.current-provider == LlmProvider.custom ? @tr("models.status.connected.plain" => "Connected") : root.custom-configured ? @tr("models.status.not-enabled" => "Not enabled") : @tr("models.status.not-configured.plain" => "Not configured");
+    private property <length> column-gap: 14px;
+    private property <length> card-width: (root.width - root.column-gap) / 2;
+    background: transparent;
+
+    Text { x: 0px; y: 3px; text: @tr("models.providers" => "Model providers"); color: AppColors.text; font-size: 14px; font-weight: 650; }
+    Text { x: parent.width - 194px; y: 0px; width: 150px; text: @tr("models.polishing.enable" => "Enable text polishing"); color: AppColors.text; font-size: 10px; font-weight: 650; horizontal-alignment: right; overflow: elide; }
+    Text { x: parent.width - 254px; y: 18px; width: 210px; text: root.has-config ? @tr("models.polishing.enable.helper" => "Polish recognized text with the current provider") : @tr("models.polishing.enable.configure-first" => "Configure a provider before enabling"); color: AppColors.text-muted; font-size: 8px; horizontal-alignment: right; overflow: elide; }
+    Rectangle {
+        private property <bool> control-enabled: !root.testing && (root.llm-enabled || root.has-config);
+        x: parent.width - 32px; y: 4px; width: 28px; height: 16px; border-radius: 8px;
+        background: root.llm-enabled ? AppColors.brand : switch-touch.has-hover && self.control-enabled ? AppColors.selected : AppColors.chart-neutral;
+        opacity: self.control-enabled ? (switch-touch.pressed ? 0.84 : 1) : 0.55;
+        accessible-role: switch;
+        accessible-label: @tr("models.polishing.enable.accessible-label" => "Enable text polishing");
+        accessible-checked: root.llm-enabled;
+        accessible-enabled: self.control-enabled;
+        accessible-action-default => { if self.control-enabled { root.toggle-enabled(); } }
+        Rectangle { x: root.llm-enabled ? 14px : 2px; y: 2px; width: 12px; height: 12px; border-radius: 6px; background: AppColors.surface; animate x { duration: 160ms; easing: ease-out; } }
+        switch-touch := TouchArea { enabled: parent.control-enabled; mouse-cursor: self.enabled ? pointer : default; clicked => { root.toggle-enabled(); } }
+    }
+
+    VerticalLayout {
+        x: 0px; y: 42px; width: parent.width; spacing: 12px;
+        HorizontalLayout {
+            spacing: root.column-gap;
+            LlmProviderCard { width: root.card-width; icon: @image-url("../../icons/providers/llm/sensenova.png"); name: "SenseNova"; summary: @tr("models.provider.api-model-summary" => "API Key and model selection"); status: root.sensenova-status; active: root.llm-enabled && root.current-provider == LlmProvider.sensenova; activated => { root.open-provider(LlmProvider.sensenova); } }
+            LlmProviderCard { width: root.card-width; icon: @image-url("../../icons/providers/llm/deepseek.png"); name: "DeepSeek"; summary: @tr("models.provider.api-model-summary" => "API Key and model selection"); status: root.deepseek-status; active: root.llm-enabled && root.current-provider == LlmProvider.deepseek; activated => { root.open-provider(LlmProvider.deepseek); } }
+        }
+        HorizontalLayout {
+            spacing: root.column-gap;
+            LlmProviderCard { width: root.card-width; icon: @image-url("../../icons/lucide/plus.svg"); tint-icon: true; name: @tr("models.provider.custom-compatible" => "Custom compatible API"); summary: @tr("models.provider.custom-summary" => "Base URL, API Key, and model"); status: root.custom-status; active: root.llm-enabled && root.current-provider == LlmProvider.custom; activated => { root.open-provider(LlmProvider.custom); } }
+            LlmProviderCard { width: root.card-width; icon: @image-url("../../icons/providers/qwen.png"); name: @tr("models.provider.qwen" => "Tongyi Qianwen"); summary: @tr("models.provider.preset-summary" => "Provider preset and model list"); status: @tr("models.provider.coming-soon" => "Coming soon"); enabled: false; }
+        }
+        HorizontalLayout {
+            spacing: root.column-gap;
+            LlmProviderCard { width: root.card-width; icon: @image-url("../../icons/providers/llm/zhipu-glm.png"); name: @tr("models.provider.zhipu" => "Zhipu GLM"); summary: @tr("models.provider.preset-summary" => "Provider preset and model list"); status: @tr("models.provider.coming-soon" => "Coming soon"); enabled: false; }
+            LlmProviderCard { width: root.card-width; icon: @image-url("../../icons/providers/llm/openai.png"); name: "OpenAI"; summary: @tr("models.provider.preset-summary" => "Provider preset and model list"); status: @tr("models.provider.coming-soon" => "Coming soon"); enabled: false; }
+        }
+        HorizontalLayout {
+            spacing: root.column-gap;
+            LlmProviderCard { width: root.card-width; icon: @image-url("../../icons/providers/llm/minimax.png"); name: "MiniMax"; summary: @tr("models.provider.preset-summary" => "Provider preset and model list"); status: @tr("models.provider.coming-soon" => "Coming soon"); enabled: false; }
+            LlmProviderCard { width: root.card-width; icon: @image-url("../../icons/providers/llm/kimi.png"); name: "Kimi"; summary: @tr("models.provider.preset-summary" => "Provider preset and model list"); status: @tr("models.provider.coming-soon" => "Coming soon"); enabled: false; }
+        }
+        HorizontalLayout {
+            spacing: root.column-gap;
+            LlmProviderCard { width: root.card-width; icon: @image-url("../../icons/providers/llm/gemini.png"); name: "Gemini"; summary: @tr("models.provider.preset-summary" => "Provider preset and model list"); status: @tr("models.provider.coming-soon" => "Coming soon"); enabled: false; }
+            LlmProviderCard { width: root.card-width; icon: @image-url("../../icons/providers/llm/openrouter.png"); name: "OpenRouter"; summary: @tr("models.provider.preset-summary" => "Provider preset and model list"); status: @tr("models.provider.coming-soon" => "Coming soon"); enabled: false; }
+        }
+    }
+}
+
+component LlmSecretField inherits Rectangle {
+    in-out property <string> value;
+    in-out property <bool> reveal: false;
+    in property <string> accessible-name;
+    height: 40px;
+    border-radius: 7px;
+    border-width: 1px;
+    border-color: field.has-focus ? AppColors.brand : AppColors.border;
+    background: AppColors.surface;
+    clip: true;
+    field := TextInput { x: 13px; width: parent.width - 52px; text <=> root.value; input-type: root.reveal ? InputType.text : InputType.password; color: AppColors.text; font-size: 11px; vertical-alignment: center; accessible-label: root.accessible-name; }
+    Image { x: parent.width - 29px; y: 12px; width: 16px; height: 16px; source: @image-url("../../icons/lucide/eye.svg"); colorize: AppColors.text-muted; }
+    TouchArea { x: parent.width - 42px; width: 42px; mouse-cursor: pointer; clicked => { root.reveal = !root.reveal; } }
+}
+
+component LlmTextField inherits Rectangle {
+    in-out property <string> value;
+    in property <string> placeholder;
+    in property <bool> editable: true;
+    in property <string> accessible-name;
+    height: 40px;
+    border-radius: 7px;
+    border-width: 1px;
+    border-color: field.has-focus ? AppColors.brand : AppColors.border;
+    background: root.editable ? AppColors.surface : AppColors.surface-subtle;
+    clip: true;
+    if root.value.is-empty: Text { x: 13px; width: parent.width - 26px; text: root.placeholder; color: AppColors.text-muted; font-size: 10px; vertical-alignment: center; overflow: elide; }
+    field := TextInput { x: 13px; width: parent.width - 26px; text <=> root.value; enabled: root.editable; color: AppColors.text; font-size: 10px; vertical-alignment: center; accessible-label: root.accessible-name; accessible-enabled: root.editable; }
+}
+
+component ModelChoice inherits Rectangle {
+    in property <string> model-id;
+    in property <bool> selected;
+    callback activated();
+    height: 42px;
+    border-radius: 7px;
+    border-width: root.selected ? 1px : 0px;
+    border-color: AppColors.brand;
+    background: root.selected ? AppColors.brand-soft : choice-touch.has-hover ? AppColors.surface-subtle : AppColors.surface;
+    accessible-role: radio-button;
+    accessible-label: root.model-id;
+    accessible-checked: root.selected;
+    accessible-action-default => { root.activated(); }
+    Rectangle { x: 12px; y: 14px; width: 14px; height: 14px; border-radius: 7px; border-width: 1px; border-color: root.selected ? AppColors.brand : AppColors.chart-neutral; background: root.selected ? AppColors.brand : AppColors.surface; }
+    Text { x: 36px; width: parent.width - 48px; text: root.model-id; color: AppColors.ink; font-size: 10px; font-weight: root.selected ? 650 : 500; vertical-alignment: center; overflow: elide; }
+    choice-touch := TouchArea { mouse-cursor: pointer; clicked => { root.activated(); } }
+}
+
+export component LlmConfigurationModal inherits Rectangle {
+    in-out property <LlmProvider> provider: LlmProvider.sensenova;
+    in-out property <string> sensenova-api-key;
+    in-out property <string> deepseek-api-key;
+    in-out property <string> custom-api-key;
+    in-out property <string> sensenova-model;
+    in-out property <string> deepseek-model;
+    in-out property <string> custom-model;
+    in-out property <string> custom-base-url;
+    in property <bool> sensenova-configured;
+    in property <bool> deepseek-configured;
+    in property <bool> custom-configured;
+    in property <bool> llm-enabled;
+    in property <bool> selected;
+    in property <bool> dirty;
+    in property <bool> testing;
+    in property <bool> draft-error;
+    in property <string> status-message;
+    in-out property <[string]> available-models;
+    in property <bool> model-discovery-loading;
+    in property <string> model-discovery-status;
+    callback cancelled();
+    callback save-and-test();
+    callback test-and-enable();
+    callback refresh-models();
+    callback open-key-page();
+
+    private property <string> provider-name: root.provider == LlmProvider.deepseek ? "DeepSeek" : root.provider == LlmProvider.sensenova ? "SenseNova" : @tr("models.provider.custom-compatible" => "Custom compatible API");
+    private property <string> api-key: root.provider == LlmProvider.deepseek ? root.deepseek-api-key : root.provider == LlmProvider.sensenova ? root.sensenova-api-key : root.custom-api-key;
+    private property <string> base-url: root.provider == LlmProvider.deepseek ? "https://api.deepseek.com" : root.provider == LlmProvider.sensenova ? "https://token.sensenova.cn/v1" : root.custom-base-url;
+    private property <string> selected-model: root.provider == LlmProvider.deepseek ? root.deepseek-model : root.provider == LlmProvider.sensenova ? root.sensenova-model : root.custom-model;
+    private property <bool> configured: root.provider == LlmProvider.deepseek ? root.deepseek-configured : root.provider == LlmProvider.sensenova ? root.sensenova-configured : root.custom-configured;
+    private property <bool> ready: root.provider == LlmProvider.custom ? !root.custom-base-url.is-empty && !root.custom-model.is-empty : !root.api-key.is-empty && !root.selected-model.is-empty;
+    private property <bool> refresh-ready: !root.api-key.is-empty && !root.base-url.is-empty && !root.model-discovery-loading && !root.testing;
+    private property <image> provider-icon: root.provider == LlmProvider.deepseek ? @image-url("../../icons/providers/llm/deepseek.png") : root.provider == LlmProvider.sensenova ? @image-url("../../icons/providers/llm/sensenova.png") : @image-url("../../icons/lucide/plus.svg");
+    private property <string> action-label: root.testing ? @tr("models.test.testing" => "Testing…") : root.configured && !root.dirty && !root.llm-enabled ? @tr("models.test-and-enable" => "Test and enable") : @tr("models.test-and-use" => "Test and use");
+
+    dialog := ModalShell {
+        width: parent.width;
+        height: parent.height;
+        size: ModalSize.standard;
+        close-enabled: !root.testing;
+        close-requested => { root.cancelled(); }
+
+        Image { x: 24px; y: 20px; width: 38px; height: 38px; source: root.provider-icon; image-fit: contain; }
+        Text { x: 76px; y: 17px; width: dialog.panel-width - 252px; text: @tr("models.provider.configure-title" => "Configure {}", root.provider-name); color: AppColors.ink; font-size: 18px; font-weight: 700; overflow: elide; }
+        if root.configured: ProviderSelectionControl {
+            x: dialog.panel-width - 176px;
+            y: 15px;
+            selected: root.selected;
+            enabled: !root.selected && !root.testing && !root.dirty;
+            activated => { root.test-and-enable(); }
+        }
+        Text { x: 76px; y: 44px; width: dialog.panel-width - 252px; text: @tr("models.provider.openai-compatible" => "OpenAI-compatible chat completions API"); color: AppColors.text-muted; font-size: 10px; overflow: elide; }
+
+        Text { x: 24px; y: 82px; text: "API Key"; color: AppColors.text; font-size: 10px; font-weight: 600; }
+        if root.provider != LlmProvider.custom: Rectangle {
+            x: dialog.panel-width - 126px; y: 72px; width: 90px; height: 26px; background: transparent;
+            accessible-role: button; accessible-label: @tr("models.get-api-key" => "Get API key"); accessible-action-default => { root.open-key-page(); }
+            Rectangle { x: 28px; width: 62px; height: parent.height; border-radius: 6px; background: key-touch.has-hover ? AppColors.brand-soft : transparent; }
+            Text { x: 6px; width: parent.width - 28px; text: @tr("models.get-api-key" => "Get API key"); color: AppColors.brand-strong; font-size: 9px; font-weight: 650; horizontal-alignment: right; vertical-alignment: center; overflow: elide; }
+            Image { x: parent.width - 17px; y: 8px; width: 10px; height: 10px; source: @image-url("../../icons/lucide/arrow-up-right.svg"); colorize: AppColors.brand-strong; }
+            key-touch := TouchArea { mouse-cursor: pointer; clicked => { root.open-key-page(); } }
+        }
+        if root.provider == LlmProvider.sensenova: LlmSecretField { x: 24px; y: 102px; width: dialog.panel-width - 48px; value <=> root.sensenova-api-key; accessible-name: @tr("models.sensenova-api-key" => "SenseNova API key"); }
+        if root.provider == LlmProvider.deepseek: LlmSecretField { x: 24px; y: 102px; width: dialog.panel-width - 48px; value <=> root.deepseek-api-key; accessible-name: "DeepSeek API Key"; }
+        if root.provider == LlmProvider.custom: LlmSecretField { x: 24px; y: 102px; width: dialog.panel-width - 48px; value <=> root.custom-api-key; accessible-name: @tr("models.custom-llm-api-key" => "Custom polishing API key (optional for local services)"); }
+
+        Text { x: 24px; y: 154px; text: @tr("models.base-url" => "Service URL"); color: AppColors.text; font-size: 10px; font-weight: 600; }
+        if root.provider == LlmProvider.sensenova: LlmTextField { x: 24px; y: 174px; width: dialog.panel-width - 48px; value: "https://token.sensenova.cn/v1"; editable: false; accessible-name: @tr("models.base-url" => "Service URL"); }
+        if root.provider == LlmProvider.deepseek: LlmTextField { x: 24px; y: 174px; width: dialog.panel-width - 48px; value: "https://api.deepseek.com"; editable: false; accessible-name: @tr("models.base-url" => "Service URL"); }
+        if root.provider == LlmProvider.custom: LlmTextField { x: 24px; y: 174px; width: dialog.panel-width - 48px; value <=> root.custom-base-url; placeholder: "https://api.example.com/v1"; accessible-name: @tr("models.base-url" => "Service URL"); }
+
+        Text { x: 24px; y: 226px; text: @tr("models.select-model" => "Select model"); color: AppColors.text; font-size: 10px; font-weight: 600; }
+        Rectangle {
+            private property <bool> control-enabled: root.refresh-ready;
+            x: dialog.panel-width - 132px; y: 216px; width: 96px; height: 28px; border-radius: 6px;
+            background: refresh-touch.has-hover && self.control-enabled ? AppColors.brand-soft : transparent;
+            opacity: self.control-enabled ? 1 : 0.55;
+            accessible-role: button;
+            accessible-label: root.model-discovery-loading ? @tr("models.fetch.loading-accessible" => "Refreshing models") : @tr("models.fetch.action" => "Refresh list");
+            accessible-enabled: self.control-enabled;
+            accessible-action-default => { if self.control-enabled { root.refresh-models(); } }
+            Text { x: 4px; width: 66px; text: root.model-discovery-loading ? @tr("models.fetch.loading" => "Refreshing…") : @tr("models.fetch.action" => "Refresh list"); color: AppColors.brand-strong; font-size: 9px; font-weight: 650; horizontal-alignment: right; vertical-alignment: center; overflow: elide; }
+            Image { visible: !root.model-discovery-loading; x: 76px; y: 8px; width: 12px; height: 12px; source: @image-url("../../icons/lucide/refresh-cw.svg"); colorize: AppColors.brand; }
+            refresh-touch := TouchArea { enabled: parent.control-enabled; mouse-cursor: self.enabled ? pointer : default; clicked => { root.refresh-models(); } }
+        }
+        Text { x: 24px; y: 246px; width: dialog.panel-width - 48px; text: root.refresh-ready ? root.model-discovery-status : root.base-url.is-empty ? @tr("models.fetch.enter-service-url" => "Enter a service URL first") : root.api-key.is-empty ? @tr("models.fetch.enter-api-key" => "Enter an API key first") : ""; color: AppColors.text-muted; font-size: 8px; overflow: elide; }
+
+        model-scroll := ScrollView {
+            x: 24px;
+            y: 266px;
+            width: dialog.panel-width - 48px;
+            height: root.provider == LlmProvider.custom
+                ? root.available-models.length == 0 ? 42px : 80px
+                : 112px;
+            viewport-width: self.width; viewport-height: max(self.height, choices.preferred-height);
+            vertical-scrollbar-policy: ScrollBarPolicy.as-needed; horizontal-scrollbar-policy: ScrollBarPolicy.always-off;
+            choices := VerticalLayout {
+                width: dialog.panel-width - 56px;
+                spacing: 6px;
+                if root.available-models.length == 0: ModelChoice { width: parent.width; model-id: root.provider == LlmProvider.custom || root.selected-model.is-empty ? @tr("models.model.manual-entry" => "Enter model name manually") : root.selected-model; selected: !root.selected-model.is-empty; activated => { } }
+                for model-id in root.available-models: ModelChoice { width: parent.width; model-id: model-id; selected: model-id == root.selected-model; activated => { if root.provider == LlmProvider.sensenova { root.sensenova-model = model-id; } else if root.provider == LlmProvider.deepseek { root.deepseek-model = model-id; } else { root.custom-model = model-id; } } }
+            }
+        }
+        if root.provider == LlmProvider.custom: LlmTextField {
+            x: 24px;
+            y: root.available-models.length == 0 ? 316px : 352px;
+            width: dialog.panel-width - 48px;
+            height: 34px;
+            value <=> root.custom-model;
+            placeholder: @tr("models.model-id.placeholder" => "Enter the model ID from your provider");
+            accessible-name: @tr("models.model-field" => "Model");
+        }
+        Text { x: 24px; y: dialog.panel-height - 48px; width: dialog.panel-width - 280px; text: root.testing ? @tr("models.test.testing-connection" => "Testing connection") : root.draft-error ? root.status-message : root.dirty ? @tr("models.status.unsaved.plain" => "Unsaved changes") : root.status-message; color: root.draft-error ? AppColors.danger : root.dirty ? AppColors.warning : AppColors.text-muted; font-size: 9px; vertical-alignment: center; overflow: elide; }
+        LlmButton { x: dialog.panel-width - 236px; y: dialog.panel-height - 54px; width: 92px; label: @tr("common.cancel" => "Cancel"); enabled: !root.testing; activated => { root.cancelled(); } }
+        LlmButton { x: dialog.panel-width - 132px; y: dialog.panel-height - 54px; width: 120px; label: root.action-label; primary: true; enabled: root.ready && !root.testing; activated => { if root.configured && !root.dirty && !root.llm-enabled { root.test-and-enable(); } else { root.save-and-test(); } } }
+    }
+}

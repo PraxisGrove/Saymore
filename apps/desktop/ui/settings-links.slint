@@ -26,11 +26,19 @@ component SettingsLinkItem inherits Rectangle {
         }
 
         Text {
+            horizontal-stretch: 1;
             text: root.label;
             color: AppColors.text;
             font-size: 12px;
             vertical-alignment: center;
             overflow: elide;
+        }
+
+        Image {
+            width: 12px;
+            height: 12px;
+            source: @image-url("../icons/lucide/arrow-up-right.svg");
+            colorize: AppColors.text-muted;
         }
     }
 

@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{net::IpAddr, sync::Arc};
 
 use slint::{ComponentHandle, SharedString};
 use template_app::{
@@ -22,6 +22,9 @@ fn wire_enable_request(ui: &AppWindow, store: Arc<JsonSettingsStore>) {
         let Some(ui) = prepare_ui.upgrade() else {
             return;
         };
+        if ui.get_llm_testing() {
+            return;
+        }
         let provider = provider_preset(ui.get_llm_provider());
         let Ok(catalog) = store.load_catalog() else {
             ui.set_llm_config_status(
@@ -50,6 +53,7 @@ fn wire_enable_request(ui: &AppWindow, store: Arc<JsonSettingsStore>) {
             return;
         };
         if llm_consent_required(&settings, &base_url) {
+            ui.set_llm_confirmation_for_draft(false);
             ui.set_llm_confirmation_visible(true);
         } else {
             start_llm_test(&ui, Arc::clone(&store), provider);
@@ -105,7 +109,8 @@ fn wire_enable_confirmation(ui: &AppWindow, store: Arc<JsonSettingsStore>) {
 }
 
 pub(super) fn llm_consent_required(settings: &SaymoreSettings, expected_base_url: &str) -> bool {
-    settings.llm.confirmed_base_url.trim() != expected_base_url.trim()
+    !provider_is_local(expected_base_url)
+        && settings.llm.confirmed_base_url.trim() != expected_base_url.trim()
 }
 
 pub(super) fn persist_llm_consent(
@@ -121,6 +126,8 @@ pub(super) fn persist_llm_consent(
 
 fn start_llm_test(ui: &AppWindow, store: Arc<JsonSettingsStore>, provider: LlmProviderPreset) {
     ui.set_llm_enabled(false);
+    ui.set_llm_testing(true);
+    ui.set_llm_draft_error(false);
     ui.set_llm_config_status(ui.global::<Translations>().get_models_testing_connection());
     let test_ui = ui.as_weak();
     let spawn_result = std::thread::Builder::new()
@@ -142,6 +149,7 @@ fn start_llm_test(ui: &AppWindow, store: Arc<JsonSettingsStore>, provider: LlmPr
             let _ = test_ui.upgrade_in_event_loop(move |ui| {
                 apply_loaded_settings(&ui, &event_store);
                 if result.is_err() {
+                    ui.set_llm_draft_error(true);
                     ui.set_llm_config_status(ui.global::<Translations>().get_models_test_failed());
                 }
             });
@@ -151,6 +159,8 @@ fn start_llm_test(ui: &AppWindow, store: Arc<JsonSettingsStore>, provider: LlmPr
             target: "saymore::diagnostics",
             event = "llm.enable_worker_start_failed"
         );
+        ui.set_llm_testing(false);
+        ui.set_llm_draft_error(true);
         ui.set_llm_config_status(ui.global::<Translations>().get_models_test_failed());
     }
 }
@@ -159,11 +169,30 @@ pub(super) fn test_and_enable_llm(
     store: &JsonSettingsStore,
     provider_preset: LlmProviderPreset,
 ) -> Result<(), String> {
+    test_and_enable_llm_with(store, provider_preset, |provider| {
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .map_err(|error| error.to_string())?;
+        runtime
+            .block_on(provider.test_connection())
+            .map_err(|error| error.to_string())
+    })
+}
+
+fn test_and_enable_llm_with(
+    store: &JsonSettingsStore,
+    provider_preset: LlmProviderPreset,
+    test: impl FnOnce(&ChatCompletionsLlmProvider) -> Result<(), String>,
+) -> Result<(), String> {
     let mut catalog = store.load_catalog().map_err(|error| error.to_string())?;
     let provider_settings = catalog
         .llm_provider_settings(provider_preset)
         .filter(|settings| llm_configuration_ready(provider_preset, settings))
         .ok_or_else(|| "LLM configuration is incomplete".to_owned())?;
+    let provider = ChatCompletionsLlmProvider::new(provider_settings.clone())
+        .map_err(|error| error.to_string())?;
+    test(&provider)?;
     catalog.select_llm_provider(provider_preset);
     let expected_provider_id = catalog
         .active
@@ -172,15 +201,6 @@ pub(super) fn test_and_enable_llm(
         .ok_or_else(|| "LLM provider selection failed".to_owned())?;
     store
         .save_catalog(&catalog)
-        .map_err(|error| error.to_string())?;
-    let provider = ChatCompletionsLlmProvider::new(provider_settings.clone())
-        .map_err(|error| error.to_string())?;
-    let runtime = tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .build()
-        .map_err(|error| error.to_string())?;
-    runtime
-        .block_on(provider.test_connection())
         .map_err(|error| error.to_string())?;
     if !store
         .enable_llm_provider_if_unchanged(
@@ -214,20 +234,35 @@ pub(super) fn provider_is_local(base_url: &str) -> bool {
         .rsplit('@')
         .next()
         .unwrap_or_default();
-    let host = if let Some(bracketed) = authority.strip_prefix('[') {
+    let host = if authority.eq_ignore_ascii_case("::1") {
+        authority
+    } else if let Some(bracketed) = authority.strip_prefix('[') {
         bracketed.split(']').next().unwrap_or_default()
     } else {
         authority.split(':').next().unwrap_or_default()
     };
-    matches!(
-        host.to_ascii_lowercase().as_str(),
-        "localhost" | "127.0.0.1" | "::1"
-    )
+    let host = host.trim_end_matches('.');
+    host.eq_ignore_ascii_case("localhost")
+        || host
+            .parse::<IpAddr>()
+            .is_ok_and(|address| address.is_loopback())
 }
 
 #[cfg(test)]
 mod tests {
+    use std::fs;
+
+    use uuid::Uuid;
+
     use super::*;
+
+    fn test_store(name: &str) -> (JsonSettingsStore, std::path::PathBuf) {
+        let directory = std::env::temp_dir().join(format!("saymore-{name}-{}", Uuid::new_v4()));
+        (
+            JsonSettingsStore::at_path(directory.join("providers.json")),
+            directory,
+        )
+    }
 
     #[test]
     fn custom_provider_can_omit_an_api_key() {
@@ -246,5 +281,84 @@ mod tests {
             LlmProviderPreset::DeepSeek,
             &settings
         ));
+    }
+
+    #[test]
+    fn local_provider_does_not_require_data_sending_consent() {
+        let settings = SaymoreSettings::default();
+
+        for endpoint in [
+            "http://localhost:11434/v1",
+            "http://localhost.:11434/v1",
+            "http://127.0.0.1:8080/v1",
+            "http://127.0.0.2:8080/v1",
+            "http://[::1]:11434/v1",
+            "http://[0:0:0:0:0:0:0:1]:11434/v1",
+            "::1",
+        ] {
+            assert!(!llm_consent_required(&settings, endpoint));
+        }
+    }
+
+    #[test]
+    fn new_remote_endpoint_requires_consent_but_confirmed_endpoint_does_not() {
+        let mut settings = SaymoreSettings::default();
+        let endpoint = "https://api.example.com/v1";
+
+        assert!(llm_consent_required(&settings, endpoint));
+        settings.llm.confirmed_base_url = endpoint.to_owned();
+        assert!(!llm_consent_required(&settings, endpoint));
+        assert!(llm_consent_required(
+            &settings,
+            "https://other.example.com/v1"
+        ));
+    }
+
+    #[test]
+    fn failed_test_keeps_saved_provider_disabled_and_unconfirmed() {
+        let (store, directory) = test_store("llm-enable-failure");
+        let mut catalog = template_app::ProviderCatalog::default();
+        catalog.save_llm_provider_model_config(
+            LlmProviderPreset::DeepSeek,
+            "candidate-key",
+            "deepseek-chat",
+        );
+        assert!(store.save_catalog(&catalog).is_ok());
+
+        assert!(
+            test_and_enable_llm_with(&store, LlmProviderPreset::DeepSeek, |_| {
+                Err("connection failed".to_owned())
+            })
+            .is_err()
+        );
+        let Ok(settings) = store.load() else {
+            panic!("saved LLM settings should remain readable");
+        };
+        assert!(!settings.llm.enabled);
+        assert!(settings.llm.confirmed_base_url.is_empty());
+        let _ = fs::remove_dir_all(directory);
+    }
+
+    #[test]
+    fn successful_test_records_endpoint_and_enables_saved_provider() {
+        let (store, directory) = test_store("llm-enable-success");
+        let mut catalog = template_app::ProviderCatalog::default();
+        catalog.save_llm_provider_model_config(
+            LlmProviderPreset::DeepSeek,
+            "candidate-key",
+            "deepseek-chat",
+        );
+        assert!(store.save_catalog(&catalog).is_ok());
+
+        assert!(test_and_enable_llm_with(&store, LlmProviderPreset::DeepSeek, |_| Ok(())).is_ok());
+        let Ok(settings) = store.load() else {
+            panic!("enabled LLM settings should remain readable");
+        };
+        assert!(settings.llm.enabled);
+        assert_eq!(
+            LlmProviderPreset::DeepSeek.base_url(),
+            settings.llm.confirmed_base_url
+        );
+        let _ = fs::remove_dir_all(directory);
     }
 }

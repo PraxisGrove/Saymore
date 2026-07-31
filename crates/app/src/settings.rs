@@ -137,6 +137,33 @@ pub struct ProviderCatalog {
 }
 
 impl ProviderCatalog {
+    pub fn configure_volcengine_asr_provider(&mut self, settings: &VolcengineAsrSettings) {
+        self.configure_asr_provider(
+            VOLCENGINE_PROVIDER_TYPE,
+            "Volcengine",
+            serde_json::json!({
+                "auth_mode": "api_key",
+                "api_key": settings.api_key,
+                "model": settings.model,
+            }),
+        );
+    }
+
+    pub fn configure_openai_transcriptions_asr_provider(
+        &mut self,
+        settings: &OpenAiCompatibleAsrSettings,
+    ) {
+        self.configure_asr_provider(
+            OPENAI_TRANSCRIPTIONS_PROVIDER_TYPE,
+            "自定义兼容接口",
+            serde_json::json!({
+                "base_url": settings.base_url,
+                "api_key": settings.api_key,
+                "model": settings.model,
+            }),
+        );
+    }
+
     pub fn select_macos_speech_provider(&mut self) {
         let provider_id = self
             .asr_providers
@@ -183,6 +210,29 @@ impl ProviderCatalog {
         };
         self.active.asr = Some(provider_id);
         true
+    }
+
+    fn configure_asr_provider(
+        &mut self,
+        provider_type: &str,
+        name: &str,
+        config: serde_json::Value,
+    ) {
+        if let Some(provider) = self
+            .asr_providers
+            .iter_mut()
+            .find(|provider| provider.provider_type == provider_type)
+        {
+            provider.config = config;
+            return;
+        }
+        self.asr_providers.push(ProviderInstance {
+            id: uuid::Uuid::new_v4().to_string(),
+            name: name.to_owned(),
+            provider_type: provider_type.to_owned(),
+            config,
+            data_consent: None,
+        });
     }
 
     pub fn save_llm_provider_config(&mut self, preset: LlmProviderPreset, api_key: &str) {
@@ -390,8 +440,9 @@ mod tests {
 
     use super::{
         ActiveProviders, ChatCompletionsLlmSettings, LlmProviderPreset, MACOS_SPEECH_PROVIDER_ID,
-        MACOS_SPEECH_PROVIDER_TYPE, OPENAI_TRANSCRIPTIONS_PROVIDER_TYPE, ProviderCatalog,
-        ProviderDataConsent, ProviderInstance, VOLCENGINE_PROVIDER_TYPE, provider_config,
+        MACOS_SPEECH_PROVIDER_TYPE, OPENAI_TRANSCRIPTIONS_PROVIDER_TYPE,
+        OpenAiCompatibleAsrSettings, ProviderCatalog, ProviderDataConsent, ProviderInstance,
+        VOLCENGINE_PROVIDER_TYPE, VolcengineAsrSettings, provider_config,
     };
 
     #[test]
@@ -613,6 +664,45 @@ mod tests {
         assert_eq!(
             Some(MACOS_SPEECH_PROVIDER_ID),
             catalog.active.asr.as_deref()
+        );
+    }
+
+    #[test]
+    fn configuring_cloud_asr_providers_preserves_the_current_provider() {
+        let mut catalog = ProviderCatalog::default();
+        catalog.select_macos_speech_provider();
+
+        catalog.configure_volcengine_asr_provider(&VolcengineAsrSettings {
+            enabled: true,
+            api_key: "volc-key".to_owned(),
+            model: "volc-model".to_owned(),
+        });
+        catalog.configure_openai_transcriptions_asr_provider(&OpenAiCompatibleAsrSettings {
+            enabled: true,
+            base_url: "https://example.com/v1".to_owned(),
+            api_key: "custom-key".to_owned(),
+            model: "custom-model".to_owned(),
+        });
+
+        assert!(catalog.macos_speech_is_active());
+        assert_eq!(3, catalog.asr_providers.len());
+        assert_eq!(
+            Some("volc-key"),
+            catalog
+                .asr_providers
+                .iter()
+                .find(|provider| provider.provider_type == VOLCENGINE_PROVIDER_TYPE)
+                .and_then(|provider| provider.config.get("api_key"))
+                .and_then(serde_json::Value::as_str)
+        );
+        assert_eq!(
+            Some("custom-model"),
+            catalog
+                .asr_providers
+                .iter()
+                .find(|provider| provider.provider_type == OPENAI_TRANSCRIPTIONS_PROVIDER_TYPE)
+                .and_then(|provider| provider.config.get("model"))
+                .and_then(serde_json::Value::as_str)
         );
     }
 }

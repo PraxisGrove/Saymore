@@ -1,13 +1,16 @@
 import { AppSidebar } from "sidebar.slint";
 import { HomePage } from "pages/home.slint";
 import { ModelConsentDialog, ModelsPage } from "pages/models.slint";
-import { AsrConfigurationModal, MacOsSpeechModal } from "pages/asr-provider-components.slint";
+import { LlmConfigurationModal } from "pages/llm-provider-components.slint";
+import { AsrConfigurationModal, MacOsSpeechModal, UnavailableAsrProviderModal } from "pages/asr-provider-components.slint";
+import { LocalAsrModelModal, LocalModelDownloadState } from "pages/local-asr-model.slint";
 import { HistoryDialog, HistoryGroup, HistoryPage, HistoryRetentionOption } from "pages/history.slint";
 import { DictionaryAddDialog, DictionaryDraft, DictionaryEvidenceItem, DictionaryFilterKind, DictionaryListItem, DictionaryPage, DictionaryRow } from "pages/dictionary.slint";
 import { AudioInputDevice, SettingsPage } from "pages/settings.slint";
-import { AppPage, AsrConfigurationField, AsrProvider, AsrProviderCardSpec, LlmProvider, SettingsSection, SystemSpeechStatus, UiLanguage } from "components.slint";
+import { AppPage, AsrConfigurationField, AsrProvider, AsrProviderCardKind, AsrProviderCardSpec, LlmProvider, SettingsSection, SystemSpeechStatus, UiLanguage } from "components.slint";
 import { AppColors, ColorSchemePreference, ThemeId } from "color-system.slint";
 import { Translations } from "translations.slint";
+import { UpdateNotification } from "update-notification.slint";
 export { Translations } from "translations.slint";
 export { RecordingOverlay } from "recording-overlay.slint";
 export { ResultOverlay } from "result-overlay.slint";
@@ -19,13 +22,18 @@ export { OnboardingWindow } from "onboarding.slint";
 export { LlmProvider } from "components.slint";
 export { AsrProvider } from "components.slint";
 export { AsrConfigurationField, AsrProviderCardKind, AsrProviderCardSpec, SystemSpeechStatus } from "components.slint";
+export { LocalModelDownloadState } from "pages/local-asr-model.slint";
 export { AppColors, ColorSchemePreference, ThemeId } from "color-system.slint";
 
 export component AppWindow inherits Window {
     private property <string> translation-marker: Translations.language-save-failed;
     private property <bool> asr-modal-visible: false;
     private property <bool> macos-speech-modal-visible: false;
-    private property <bool> asr-modal-pending-save: false;
+    private property <bool> asr-placeholder-modal-visible: false;
+    private property <AsrProviderCardKind> asr-placeholder-kind: AsrProviderCardKind.saymore-cloud;
+    private property <bool> local-asr-model-visible: root.asr-placeholder-kind == AsrProviderCardKind.qwen3-asr
+        || root.asr-placeholder-kind == AsrProviderCardKind.whisper-large-v3-turbo
+        || root.asr-placeholder-kind == AsrProviderCardKind.paraformer;
     private property <AsrProvider> asr-modal-original-provider: AsrProvider.volcengine;
     title: root.development-environment ? "Saymore Preview" : "Saymore";
     default-font-family: "PingFang SC";
@@ -66,6 +74,7 @@ export component AppWindow inherits Window {
     in property <string> update-status: "idle";
     in property <string> update-version: "";
     in property <string> update-detail: "";
+    in property <bool> update-notification-visible: false;
     in-out property <bool> automatic-update-checks: false;
     in property <string> automatic-update-status: "";
     in-out property <bool> feedback-sounds-enabled: true;
@@ -109,6 +118,9 @@ export component AppWindow inherits Window {
     in property <[AsrProviderCardSpec]> asr-provider-cards;
     in property <bool> macos-speech-selected: false;
     in property <SystemSpeechStatus> macos-speech-status: SystemSpeechStatus.unavailable;
+    in property <SystemSpeechStatus> macos-microphone-status: SystemSpeechStatus.unavailable;
+    in property <string> macos-system-version: "macOS";
+    in property <bool> macos-system-supported: false;
     in property <bool> volcengine-asr-configured: false;
     in-out property <string> custom-asr-api-key: "";
     in-out property <string> custom-asr-base-url: "";
@@ -122,11 +134,34 @@ export component AppWindow inherits Window {
     in-out property <bool> asr-testing: false;
     in-out property <bool> asr-test-succeeded: false;
     in-out property <string> asr-test-elapsed: "";
+    in-out property <string> asr-test-result: "";
     in-out property <bool> asr-pending-test: false;
     in-out property <bool> asr-config-dirty: false;
     in-out property <AsrConfigurationField> asr-error-field: AsrConfigurationField.none;
+    in property <LocalModelDownloadState> qwen3-asr-download-state: LocalModelDownloadState.not-downloaded;
+    in property <float> qwen3-asr-download-progress: 0;
+    in property <bool> qwen3-asr-download-supported: false;
+    in property <bool> qwen3-asr-adapter-ready: false;
+    in property <bool> qwen3-asr-selected: false;
+    in property <bool> qwen3-asr-runtime-memory-live: false;
+    in property <string> qwen3-asr-runtime-memory-usage: "";
+    in property <LocalModelDownloadState> whisper-download-state: LocalModelDownloadState.not-downloaded;
+    in property <float> whisper-download-progress: 0;
+    in property <bool> whisper-download-supported: false;
+    in property <bool> whisper-adapter-ready: false;
+    in property <bool> whisper-selected: false;
+    in property <bool> whisper-runtime-memory-live: false;
+    in property <string> whisper-runtime-memory-usage: "";
+    in property <LocalModelDownloadState> paraformer-download-state: LocalModelDownloadState.not-downloaded;
+    in property <float> paraformer-download-progress: 0;
+    in property <bool> paraformer-download-supported: false;
+    in property <bool> paraformer-adapter-ready: false;
+    in property <bool> paraformer-selected: false;
+    in property <bool> paraformer-runtime-memory-live: false;
+    in property <string> paraformer-runtime-memory-usage: "";
     in-out property <bool> llm-enabled: false;
     in-out property <LlmProvider> llm-provider: LlmProvider.sensenova;
+    in property <LlmProvider> active-llm-provider: LlmProvider.sensenova;
     in-out property <string> sensenova-api-key: "";
     in-out property <string> deepseek-api-key: "";
     in property <bool> sensenova-configured: false;
@@ -144,6 +179,8 @@ export component AppWindow inherits Window {
     in-out property <bool> llm-testing: false;
     in-out property <bool> llm-draft-error: false;
     in-out property <bool> llm-confirmation-visible: false;
+    in-out property <bool> llm-confirmation-for-draft: false;
+    in-out property <bool> llm-modal-visible: false;
     in-out property <int> model-tab: 0;
     in-out property <[string]> available-models;
     in-out property <bool> model-discovery-loading: false;
@@ -199,6 +236,7 @@ export component AppWindow inherits Window {
     callback open-data-directory();
     callback check-for-updates();
     callback download-update();
+    callback dismiss-update-notification();
     callback open-release-notes();
     callback open-website();
     callback open-feedback();
@@ -220,14 +258,20 @@ export component AppWindow inherits Window {
     callback activate-asr-provider(AsrProvider);
     callback activate-macos-speech();
     callback refresh-macos-speech();
+    callback open-speech-recognition-settings();
+    callback request-macos-asr-test();
     callback cancel-asr-config();
-    callback delete-asr-config();
     callback request-llm-enable();
     callback set-llm-enabled(bool, string);
     callback save-llm-config(LlmProvider, string, string, string);
+    callback confirm-llm-config(LlmProvider, string, string, string, string);
     callback select-llm-provider(LlmProvider);
     callback refresh-models();
     callback request-asr-test();
+    callback request-local-model-download(AsrProviderCardKind);
+    callback request-local-model-delete(AsrProviderCardKind);
+    callback request-local-model-selection(AsrProviderCardKind);
+    callback request-local-model-test(AsrProviderCardKind);
     callback open-current-provider-key-page();
     callback refresh-history();
     callback search-history(string);
@@ -260,24 +304,12 @@ export component AppWindow inherits Window {
     }
     changed model-tab => { root.available-models = []; root.model-discovery-status = ""; root.model-discovery-error = false; }
     changed asr-provider => { root.available-models = []; root.model-discovery-status = ""; root.model-discovery-error = false; }
-    changed asr-api-key => { root.asr-test-succeeded = false; root.asr-test-elapsed = ""; }
-    changed asr-model => { root.asr-test-succeeded = false; root.asr-test-elapsed = ""; }
-    changed custom-asr-api-key => { root.asr-test-succeeded = false; root.asr-test-elapsed = ""; }
-    changed custom-asr-base-url => { root.asr-test-succeeded = false; root.asr-test-elapsed = ""; }
-    changed custom-asr-model => { root.asr-test-succeeded = false; root.asr-test-elapsed = ""; }
+    changed asr-api-key => { root.asr-test-succeeded = false; root.asr-test-elapsed = ""; root.asr-test-result = ""; }
+    changed asr-model => { root.asr-test-succeeded = false; root.asr-test-elapsed = ""; root.asr-test-result = ""; }
+    changed custom-asr-api-key => { root.asr-test-succeeded = false; root.asr-test-elapsed = ""; root.asr-test-result = ""; root.available-models = []; root.model-discovery-loading = false; root.model-discovery-status = ""; root.model-discovery-error = false; }
+    changed custom-asr-base-url => { root.asr-test-succeeded = false; root.asr-test-elapsed = ""; root.asr-test-result = ""; root.available-models = []; root.model-discovery-loading = false; root.model-discovery-status = ""; root.model-discovery-error = false; }
+    changed custom-asr-model => { root.asr-test-succeeded = false; root.asr-test-elapsed = ""; root.asr-test-result = ""; }
     changed llm-provider => { root.available-models = []; root.model-discovery-status = ""; root.model-discovery-error = false; }
-    changed asr-testing => {
-        if !root.asr-testing && root.asr-modal-pending-save && root.asr-draft-error {
-            root.asr-modal-pending-save = false;
-        }
-    }
-    changed asr-config-dirty => {
-        if !root.asr-config-dirty && root.asr-modal-pending-save && root.asr-configured && !root.asr-draft-error {
-            root.asr-modal-visible = false;
-            root.asr-modal-pending-save = false;
-        }
-    }
-
     if root.current-page != AppPage.settings: HorizontalLayout {
         padding: 10px;
         spacing: 20px;
@@ -355,6 +387,7 @@ export component AppWindow inherits Window {
                 asr-error-field <=> root.asr-error-field;
                 llm-enabled <=> root.llm-enabled;
                 llm-provider <=> root.llm-provider;
+                active-llm-provider: root.active-llm-provider;
                 sensenova-api-key <=> root.sensenova-api-key;
                 deepseek-api-key <=> root.deepseek-api-key;
                 sensenova-configured: root.sensenova-configured;
@@ -379,9 +412,19 @@ export component AppWindow inherits Window {
                 model-discovery-status <=> root.model-discovery-status;
                 save-asr-config(provider, api-key, base-url, model) => { root.save-asr-config(provider, api-key, base-url, model); }
                 select-asr-provider(provider) => { root.select-asr-provider(provider); }
-                open-macos-speech-details => { root.macos-speech-modal-visible = true; }
+                open-macos-speech-details => {
+                    root.asr-test-succeeded = false;
+                    root.asr-draft-error = false;
+                    root.asr-test-elapsed = "";
+                    root.asr-test-result = "";
+                    root.macos-speech-modal-visible = true;
+                    root.refresh-macos-speech();
+                }
+                open-asr-placeholder(kind) => {
+                    root.asr-placeholder-kind = kind;
+                    root.asr-placeholder-modal-visible = true;
+                }
                 cancel-asr-config => { root.cancel-asr-config(); }
-                delete-asr-config => { root.delete-asr-config(); }
                 request-llm-enable => { root.request-llm-enable(); }
                 set-llm-enabled(enabled, base-url) => { root.set-llm-enabled(enabled, base-url); }
                 save-llm-config(provider, api-key, base-url, model) => { root.save-llm-config(provider, api-key, base-url, model); }
@@ -389,11 +432,17 @@ export component AppWindow inherits Window {
                 refresh-models => { root.refresh-models(); }
                 request-asr-test => { root.request-asr-test(); }
                 open-key-page => { root.open-current-provider-key-page(); }
+                open-llm-config(provider) => {
+                    root.llm-provider = provider;
+                    root.llm-draft-error = false;
+                    root.llm-modal-visible = true;
+                }
                 open-asr-config(original-provider) => {
                     root.focus-asr-config = false;
                     root.asr-modal-original-provider = original-provider;
                     root.asr-test-succeeded = false;
                     root.asr-test-elapsed = "";
+                    root.asr-test-result = "";
                     root.asr-modal-visible = true;
                 }
             }
@@ -561,16 +610,19 @@ export component AppWindow inherits Window {
         testing: root.asr-testing;
         test-succeeded: root.asr-test-succeeded;
         test-elapsed: root.asr-test-elapsed;
+        test-result: root.asr-test-result;
         draft-error: root.asr-draft-error;
         error-field: root.asr-error-field;
         status-message: root.asr-config-status;
+        available-models <=> root.available-models;
+        model-discovery-loading: root.model-discovery-loading;
+        model-discovery-error: root.model-discovery-error;
+        model-discovery-status: root.model-discovery-status;
         cancelled => {
-            root.asr-modal-pending-save = false;
             root.asr-modal-visible = false;
             root.cancel-asr-config();
         }
-        save-and-enable => {
-            root.asr-modal-pending-save = true;
+        test-and-save => {
             root.save-asr-config(
                 root.asr-provider,
                 root.asr-provider == AsrProvider.volcengine ? root.asr-api-key : root.custom-asr-api-key,
@@ -578,12 +630,8 @@ export component AppWindow inherits Window {
                 root.asr-provider == AsrProvider.volcengine ? root.asr-model : root.custom-asr-model,
             );
         }
-        test-connection => { root.asr-modal-pending-save = false; root.request-asr-test(); }
-        delete-configuration => {
-            root.asr-modal-pending-save = false;
-            root.asr-modal-visible = false;
-            root.delete-asr-config();
-        }
+        test-connection => { root.request-asr-test(); }
+        refresh-models => { root.refresh-models(); }
         open-key-page => { root.open-current-provider-key-page(); }
         select-provider => { root.activate-asr-provider(root.asr-provider); }
     }
@@ -592,9 +640,73 @@ export component AppWindow inherits Window {
         width: parent.width;
         height: parent.height;
         selected: root.macos-speech-selected;
-        status: root.macos-speech-status;
+        speech-status: root.macos-speech-status;
+        microphone-status: root.macos-microphone-status;
+        system-version: root.macos-system-version;
+        system-supported: root.macos-system-supported;
+        testing: root.asr-testing;
+        test-succeeded: root.asr-test-succeeded;
+        test-failed: root.asr-draft-error;
+        test-elapsed: root.asr-test-elapsed;
+        test-result: root.asr-test-result;
         cancelled => { root.macos-speech-modal-visible = false; }
-        activate-provider => { root.activate-macos-speech(); }
+        select-provider => { root.activate-macos-speech(); }
+        authorize-speech => { root.activate-macos-speech(); }
+        open-microphone-settings => { root.open-microphone-settings(); }
+        open-speech-settings => { root.open-speech-recognition-settings(); }
+        run-test => { root.request-macos-asr-test(); }
+        refresh => { root.refresh-macos-speech(); }
+    }
+
+    if root.asr-placeholder-modal-visible && !root.local-asr-model-visible: UnavailableAsrProviderModal {
+        width: parent.width;
+        height: parent.height;
+        kind: root.asr-placeholder-kind;
+        cancelled => { root.asr-placeholder-modal-visible = false; }
+    }
+
+    if root.asr-placeholder-modal-visible && root.local-asr-model-visible: LocalAsrModelModal {
+        width: parent.width;
+        height: parent.height;
+        kind: root.asr-placeholder-kind;
+        download-state: root.asr-placeholder-kind == AsrProviderCardKind.qwen3-asr
+            ? root.qwen3-asr-download-state
+            : root.asr-placeholder-kind == AsrProviderCardKind.whisper-large-v3-turbo
+                ? root.whisper-download-state : root.paraformer-download-state;
+        download-progress: root.asr-placeholder-kind == AsrProviderCardKind.qwen3-asr
+            ? root.qwen3-asr-download-progress
+            : root.asr-placeholder-kind == AsrProviderCardKind.whisper-large-v3-turbo
+                ? root.whisper-download-progress : root.paraformer-download-progress;
+        download-supported: root.asr-placeholder-kind == AsrProviderCardKind.qwen3-asr
+            ? root.qwen3-asr-download-supported
+            : root.asr-placeholder-kind == AsrProviderCardKind.whisper-large-v3-turbo
+                ? root.whisper-download-supported : root.paraformer-download-supported;
+        adapter-ready: root.asr-placeholder-kind == AsrProviderCardKind.qwen3-asr
+            ? root.qwen3-asr-adapter-ready
+            : root.asr-placeholder-kind == AsrProviderCardKind.whisper-large-v3-turbo
+                ? root.whisper-adapter-ready : root.paraformer-adapter-ready;
+        selected: root.asr-placeholder-kind == AsrProviderCardKind.qwen3-asr
+            ? root.qwen3-asr-selected
+            : root.asr-placeholder-kind == AsrProviderCardKind.whisper-large-v3-turbo
+                ? root.whisper-selected : root.paraformer-selected;
+        runtime-memory-live: root.asr-placeholder-kind == AsrProviderCardKind.qwen3-asr
+            ? root.qwen3-asr-runtime-memory-live
+            : root.asr-placeholder-kind == AsrProviderCardKind.whisper-large-v3-turbo
+                ? root.whisper-runtime-memory-live : root.paraformer-runtime-memory-live;
+        runtime-memory-usage: root.asr-placeholder-kind == AsrProviderCardKind.qwen3-asr
+            ? root.qwen3-asr-runtime-memory-usage
+            : root.asr-placeholder-kind == AsrProviderCardKind.whisper-large-v3-turbo
+                ? root.whisper-runtime-memory-usage : root.paraformer-runtime-memory-usage;
+        testing: root.asr-testing;
+        test-succeeded: root.asr-test-succeeded;
+        test-failed: root.asr-draft-error;
+        test-elapsed: root.asr-test-elapsed;
+        test-result: root.asr-test-result;
+        cancelled => { root.asr-placeholder-modal-visible = false; }
+        download-requested(kind) => { root.request-local-model-download(kind); }
+        delete-requested(kind) => { root.request-local-model-delete(kind); }
+        select-provider(kind) => { root.request-local-model-selection(kind); }
+        run-test(kind) => { root.request-local-model-test(kind); }
     }
 
     HistoryDialog {
@@ -632,14 +744,77 @@ export component AppWindow inherits Window {
         save => { root.save-dictionary-drafts(); }
     }
 
+    if root.llm-modal-visible: LlmConfigurationModal {
+        width: parent.width;
+        height: parent.height;
+        provider <=> root.llm-provider;
+        sensenova-api-key <=> root.sensenova-api-key;
+        deepseek-api-key <=> root.deepseek-api-key;
+        custom-api-key <=> root.custom-llm-api-key;
+        sensenova-model <=> root.sensenova-model;
+        deepseek-model <=> root.deepseek-model;
+        custom-model <=> root.custom-llm-model;
+        custom-base-url <=> root.custom-llm-base-url;
+        sensenova-configured: root.sensenova-configured;
+        deepseek-configured: root.deepseek-configured;
+        custom-configured: root.custom-llm-configured;
+        llm-enabled: root.llm-enabled;
+        selected: root.llm-enabled && root.llm-provider == root.active-llm-provider;
+        dirty: root.llm-config-dirty;
+        testing: root.llm-testing;
+        draft-error: root.llm-draft-error;
+        status-message: root.llm-config-status;
+        available-models <=> root.available-models;
+        model-discovery-loading: root.model-discovery-loading;
+        model-discovery-status: root.model-discovery-status;
+        cancelled => {
+            root.llm-modal-visible = false;
+            root.llm-provider = root.active-llm-provider;
+        }
+        save-and-test => {
+            root.save-llm-config(
+                root.llm-provider,
+                root.llm-provider == LlmProvider.custom ? root.custom-llm-api-key : root.llm-provider == LlmProvider.deepseek ? root.deepseek-api-key : root.sensenova-api-key,
+                root.llm-provider == LlmProvider.custom ? root.custom-llm-base-url : root.llm-provider == LlmProvider.deepseek ? "https://api.deepseek.com" : "https://token.sensenova.cn/v1",
+                root.llm-provider == LlmProvider.custom ? root.custom-llm-model : root.llm-provider == LlmProvider.deepseek ? root.deepseek-model : root.sensenova-model
+            );
+        }
+        test-and-enable => { root.request-llm-enable(); }
+        refresh-models => { root.refresh-models(); }
+        open-key-page => { root.open-current-provider-key-page(); }
+    }
+
     if root.llm-confirmation-visible: ModelConsentDialog {
         width: parent.width;
         height: parent.height;
         target: root.llm-provider-target;
-        cancelled => { root.llm-confirmation-visible = false; }
+        provider-name: root.llm-provider == LlmProvider.deepseek ? "DeepSeek" : root.llm-provider == LlmProvider.sensenova ? "SenseNova" : @tr("models.provider.custom-compatible" => "Custom compatible API");
+        cancelled => {
+            root.llm-confirmation-visible = false;
+            root.llm-confirmation-for-draft = false;
+        }
         confirmed => {
             root.llm-confirmation-visible = false;
-            root.set-llm-enabled(true, root.llm-provider-target);
+            if root.llm-confirmation-for-draft {
+                root.llm-confirmation-for-draft = false;
+                root.confirm-llm-config(
+                    root.llm-provider,
+                    root.llm-provider == LlmProvider.custom ? root.custom-llm-api-key : root.llm-provider == LlmProvider.deepseek ? root.deepseek-api-key : root.sensenova-api-key,
+                    root.llm-provider == LlmProvider.custom ? root.custom-llm-base-url : root.llm-provider == LlmProvider.deepseek ? "https://api.deepseek.com" : "https://token.sensenova.cn/v1",
+                    root.llm-provider == LlmProvider.custom ? root.custom-llm-model : root.llm-provider == LlmProvider.deepseek ? root.deepseek-model : root.sensenova-model,
+                    root.llm-provider-target
+                );
+            } else {
+                root.set-llm-enabled(true, root.llm-provider-target);
+            }
         }
+    }
+
+    if root.update-notification-visible: UpdateNotification {
+        x: parent.width - self.width - 16px;
+        y: 8px;
+        version: root.update-version;
+        close => { root.dismiss-update-notification(); }
+        view-update => { root.download-update(); }
     }
 }

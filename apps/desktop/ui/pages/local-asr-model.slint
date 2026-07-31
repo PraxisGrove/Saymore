@@ -1,0 +1,432 @@
+import { AsrProviderCardKind, ModalShell, ModalSize } from "../components.slint";
+import { AppColors } from "../color-system.slint";
+
+export enum LocalModelDownloadState {
+    not-downloaded,
+    downloading,
+    downloaded,
+}
+
+component LocalModelSummaryPill inherits Rectangle {
+    in property <image> icon;
+    in property <string> label;
+
+    width: 104px;
+    height: 36px;
+    border-radius: 18px;
+    background: AppColors.surface-subtle;
+
+    Image {
+        x: 12px;
+        y: 9px;
+        width: 18px;
+        height: 18px;
+        source: root.icon;
+        colorize: AppColors.text-muted;
+    }
+    Text {
+        x: 38px;
+        width: parent.width - 44px;
+        text: root.label;
+        color: AppColors.text;
+        font-size: 12px;
+        font-weight: 600;
+        vertical-alignment: center;
+        overflow: elide;
+    }
+}
+
+component LocalModelMetric inherits Rectangle {
+    in property <image> icon;
+    in property <string> label;
+    in property <string> value;
+    in property <length> content-offset: 0px;
+    in property <bool> muted-value: false;
+    in property <bool> live-value: false;
+
+    background: transparent;
+
+    Image {
+        x: root.content-offset;
+        y: 5px;
+        width: 14px;
+        height: 14px;
+        source: root.icon;
+        colorize: AppColors.text-muted;
+    }
+    metric-label := Text {
+        x: root.content-offset + 22px;
+        y: 2px;
+        text: root.label;
+        color: AppColors.text;
+        font-size: 10px;
+        font-weight: 700;
+    }
+    metric-value := Text {
+        x: root.content-offset + (root.live-value ? 34px : 22px);
+        y: 27px;
+        text: root.value;
+        color: root.muted-value ? AppColors.text-muted : AppColors.ink;
+        font-size: 11px;
+        font-weight: 600;
+    }
+    if root.live-value: Rectangle {
+        x: root.content-offset + 22px;
+        y: 32px;
+        width: 6px;
+        height: 6px;
+        border-radius: 3px;
+        background: AppColors.success;
+    }
+}
+
+component LocalModelActionButton inherits Rectangle {
+    in property <string> label;
+    in property <bool> enabled: true;
+    in property <bool> primary: false;
+    in property <bool> danger: false;
+    in property <bool> pending: false;
+    in property <bool> brand-outline: false;
+    callback activated();
+
+    width: 90px;
+    height: 32px;
+    border-radius: 7px;
+    border-width: root.primary || root.pending ? 0px : 1px;
+    border-color: root.danger ? AppColors.danger
+        : root.brand-outline ? AppColors.brand-strong : AppColors.border;
+    background: !root.enabled && !root.pending ? AppColors.surface-muted
+        : root.pending ? AppColors.brand-soft
+        : root.primary ? (button-touch.has-hover ? AppColors.brand-hover : AppColors.brand)
+        : button-touch.has-hover ? (root.danger ? AppColors.danger-soft : AppColors.surface)
+        : root.danger ? AppColors.danger-soft : AppColors.surface;
+    opacity: root.enabled || root.pending ? 1 : 0.55;
+    animate background { duration: 120ms; easing: ease-out; }
+    animate opacity { duration: 80ms; easing: ease-out; }
+    accessible-role: button;
+    accessible-label: root.label;
+    accessible-enabled: root.enabled;
+    accessible-action-default => { if root.enabled { root.activated(); } }
+
+    Text {
+        text: root.label;
+        color: !root.enabled && !root.pending ? AppColors.text-muted
+            : root.pending ? AppColors.brand-strong
+            : root.primary ? AppColors.on-brand
+            : root.danger ? AppColors.danger
+            : root.brand-outline ? AppColors.brand-strong : AppColors.text;
+        font-size: 10px;
+        font-weight: 650;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+        overflow: elide;
+    }
+    button-touch := TouchArea {
+        enabled: root.enabled;
+        mouse-cursor: root.enabled ? pointer : default;
+        clicked => { root.activated(); }
+    }
+}
+
+component LocalModelSelectionControl inherits Rectangle {
+    in property <LocalModelDownloadState> download-state;
+    in property <bool> selected: false;
+    in property <bool> enabled: false;
+    callback activated();
+
+    private property <string> label: root.selected
+        ? @tr("models.asr.selection.current" => "Current provider")
+        : root.download-state == LocalModelDownloadState.downloading
+            ? @tr("models.asr.local.downloading" => "Downloading")
+            : root.download-state == LocalModelDownloadState.downloaded
+                ? @tr("models.asr.local.downloaded" => "Downloaded")
+                : @tr("models.asr.local.not-downloaded" => "Not downloaded");
+
+    width: 116px;
+    height: 34px;
+    background: transparent;
+    accessible-role: switch;
+    accessible-label: root.label;
+    accessible-enabled: root.enabled;
+    accessible-checked: root.selected;
+    accessible-action-default => { if root.enabled { root.activated(); } }
+
+    Rectangle {
+        x: 0px;
+        y: 9px;
+        width: 28px;
+        height: 16px;
+        border-radius: 8px;
+        background: root.selected ? AppColors.success
+            : selection-touch.has-hover && root.enabled ? AppColors.selected
+            : AppColors.chart-neutral;
+        opacity: root.selected || root.enabled ? 1 : 0.5;
+
+        Rectangle {
+            x: root.selected ? 14px : 2px;
+            y: 2px;
+            width: 12px;
+            height: 12px;
+            border-radius: 6px;
+            background: AppColors.surface;
+            animate x { duration: 160ms; easing: ease-out; }
+        }
+    }
+    Text {
+        x: 36px;
+        width: parent.width - 36px;
+        text: root.label;
+        color: root.selected ? AppColors.success
+            : root.enabled ? AppColors.text : AppColors.text-muted;
+        font-size: 10px;
+        font-weight: 600;
+        vertical-alignment: center;
+        overflow: elide;
+    }
+    selection-touch := TouchArea {
+        enabled: root.enabled;
+        mouse-cursor: root.enabled ? pointer : default;
+        clicked => { root.activated(); }
+    }
+}
+
+export component LocalAsrModelModal inherits Rectangle {
+    in property <AsrProviderCardKind> kind: AsrProviderCardKind.qwen3-asr;
+    in property <LocalModelDownloadState> download-state: LocalModelDownloadState.not-downloaded;
+    in property <float> download-progress: 0;
+    in property <bool> download-supported: false;
+    in property <bool> adapter-ready: false;
+    in property <bool> selected: false;
+    in property <bool> runtime-memory-live: false;
+    in property <string> runtime-memory-usage;
+    in property <bool> testing: false;
+    in property <bool> test-succeeded: false;
+    in property <bool> test-failed: false;
+    in property <string> test-elapsed;
+    in property <string> test-result;
+    callback cancelled();
+    callback download-requested(AsrProviderCardKind);
+    callback delete-requested(AsrProviderCardKind);
+    callback select-provider(AsrProviderCardKind);
+    callback run-test(AsrProviderCardKind);
+
+    private property <float> bounded-progress: max(0, min(1, root.download-progress));
+    private property <int> progress-percent: round(root.bounded-progress * 100);
+    private property <string> title: root.kind == AsrProviderCardKind.qwen3-asr ? "Qwen3-ASR 1.7B"
+        : root.kind == AsrProviderCardKind.paraformer ? "Paraformer-zh"
+        : "Whisper large-v3-turbo";
+    private property <string> download-size: root.kind == AsrProviderCardKind.qwen3-asr ? "2.1 GB"
+        : root.kind == AsrProviderCardKind.paraformer ? "889 MB" : "3.1 GB";
+    private property <string> memory-estimate: root.kind == AsrProviderCardKind.qwen3-asr ? "3.8 GB"
+        : root.kind == AsrProviderCardKind.paraformer ? "2.0 GB" : "5.4 GB";
+    private property <bool> showing-live-memory: root.runtime-memory-live && root.runtime-memory-usage != "";
+    private property <string> memory-display: root.showing-live-memory
+        ? root.runtime-memory-usage
+        : @tr("models.asr.local.memory-approximate" => "Approx. {}", root.memory-estimate);
+    private property <bool> installed: root.download-state == LocalModelDownloadState.downloaded;
+    private property <bool> downloading: root.download-state == LocalModelDownloadState.downloading;
+    private property <bool> test-ready: root.installed && root.adapter-ready;
+    private property <string> model-status: root.downloading
+        ? @tr("models.asr.local.status.downloading" => "Downloading · {}", root.title)
+        : root.installed
+            ? @tr("models.asr.local.status.downloaded" => "Downloaded · {}", root.title)
+            : @tr("models.asr.local.status.not-downloaded" => "Not downloaded · {}", root.title);
+    private property <string> model-detail: !root.download-supported
+        ? @tr("models.asr.placeholder.download-disabled" => "No verified download source or production adapter is available.")
+        : root.downloading
+            ? @tr("models.asr.local.progress-detail" => "{}% of {}", root.progress-percent, root.download-size)
+            : root.installed && root.selected
+                ? @tr("models.asr.local.delete-current-disabled" => "Switch providers before deleting the model")
+                : root.installed
+                    ? @tr("models.asr.local.delete-ready" => "Stored locally and ready to delete")
+                    : @tr("models.asr.local.download-ready" => "Download to use this model offline");
+    private property <string> action-label: root.downloading
+        ? @tr("models.asr.local.downloading-percent" => "Downloading {}%", root.progress-percent)
+        : root.installed ? @tr("models.asr.local.delete" => "Delete model")
+        : @tr("models.asr.local.download" => "Download model");
+    private property <bool> action-enabled: root.installed
+        ? !root.selected
+        : !root.downloading && root.download-supported;
+
+    modal-focus := FocusScope {
+        width: parent.width;
+        height: parent.height;
+        capture-key-pressed(event) => {
+            if event.text == Key.Escape { root.cancelled(); return accept; }
+            return reject;
+        }
+
+        dialog := ModalShell {
+            width: parent.width;
+            height: parent.height;
+            size: ModalSize.standard;
+            close-requested => { root.cancelled(); }
+
+            Image {
+                x: 24px;
+                y: 22px;
+                width: 42px;
+                height: 42px;
+                source: root.kind == AsrProviderCardKind.qwen3-asr
+                    ? @image-url("../../icons/providers/qwen.png")
+                    : root.kind == AsrProviderCardKind.paraformer
+                        ? @image-url("../../icons/providers/funasr.png")
+                        : @image-url("../../icons/providers/openai.png");
+                image-fit: contain;
+            }
+            Text {
+                x: 80px;
+                y: 18px;
+                width: dialog.panel-width - 276px;
+                text: root.title;
+                color: AppColors.ink;
+                font-size: 18px;
+                font-weight: 700;
+                overflow: elide;
+            }
+            Text {
+                x: 80px;
+                y: 45px;
+                width: dialog.panel-width - 276px;
+                text: root.download-supported
+                    ? @tr("models.asr.local.subtitle.verified" => "Local open-source model · Verified")
+                    : @tr("models.asr.local.subtitle.pending" => "Local open-source model · Awaiting verification");
+                color: AppColors.text-muted;
+                font-size: 10px;
+                overflow: elide;
+            }
+            LocalModelSelectionControl {
+                x: 378px;
+                y: 16px;
+                download-state: root.download-state;
+                selected: root.selected;
+                enabled: root.installed && root.adapter-ready && !root.selected;
+                activated => { root.select-provider(root.kind); }
+            }
+
+            LocalModelSummaryPill { x: 24px; y: 80px; icon: @image-url("../../icons/lucide/monitor.svg"); label: @tr("models.asr.summary.local-processing" => "Local"); }
+            LocalModelSummaryPill { x: 153px; y: 80px; icon: @image-url("../../icons/lucide/globe.svg"); label: @tr("models.asr.summary.no-network" => "Offline"); }
+            LocalModelSummaryPill { x: 281px; y: 80px; icon: @image-url("../../icons/lucide/book-open.svg"); label: @tr("models.asr.summary.simplified-chinese" => "Chinese"); }
+            LocalModelSummaryPill { x: 410px; y: 80px; icon: @image-url("../../icons/lucide/file-text.svg"); label: @tr("models.asr.summary.free" => "Free"); }
+
+            Rectangle {
+                x: 28px;
+                y: 140px;
+                width: 486px;
+                height: 52px;
+                background: transparent;
+
+                LocalModelMetric {
+                    x: 0px;
+                    width: parent.width / 3;
+                    height: parent.height;
+                    content-offset: 12px;
+                    icon: @image-url("../../icons/lucide/download.svg");
+                    label: @tr("models.asr.local.download-size" => "Download size");
+                    value: root.download-size;
+                }
+                LocalModelMetric {
+                    x: parent.width / 3;
+                    width: parent.width / 3;
+                    height: parent.height;
+                    content-offset: 31px;
+                    icon: @image-url("../../icons/lucide/memory-stick.svg");
+                    label: @tr("models.asr.local.memory" => "Runtime memory");
+                    value: root.memory-display;
+                    live-value: root.showing-live-memory;
+                }
+                LocalModelMetric {
+                    x: parent.width * 2 / 3;
+                    width: parent.width / 3;
+                    height: parent.height;
+                    content-offset: 76px;
+                    icon: @image-url("../../icons/lucide/badge-check.svg");
+                    label: @tr("models.asr.local.compatibility" => "Compatibility");
+                    value: root.adapter-ready
+                        ? @tr("models.asr.status.supported" => "Supported")
+                        : @tr("models.asr.placeholder.unverified" => "Unverified");
+                    muted-value: !root.adapter-ready;
+                }
+            }
+
+            Rectangle {
+                x: 28px;
+                y: 204px;
+                width: 486px;
+                height: 78px;
+                background: transparent;
+
+                Image { x: 0px; y: 10px; width: 15px; height: 15px; source: @image-url("../../icons/lucide/package-check.svg"); colorize: AppColors.text-muted; }
+                Text { x: 23px; y: 9px; text: @tr("models.asr.local.model-files" => "Model files"); color: AppColors.text; font-size: 11px; font-weight: 700; }
+                Text { x: 23px; y: 31px; width: 330px; text: root.model-status; color: AppColors.ink; font-size: 10px; font-weight: 600; overflow: elide; }
+                Text { x: 23px; y: 51px; width: 330px; text: root.model-detail; color: AppColors.text-muted; font-size: 8px; overflow: elide; }
+                LocalModelActionButton {
+                    x: 380px;
+                    y: 13px;
+                    label: root.action-label;
+                    enabled: root.action-enabled;
+                    primary: !root.installed && !root.downloading;
+                    pending: root.downloading;
+                    danger: root.installed && !root.selected;
+                    activated => {
+                        if root.installed { root.delete-requested(root.kind); }
+                        else { root.download-requested(root.kind); }
+                    }
+                }
+                if root.downloading: Rectangle {
+                    x: 380px;
+                    y: 53px;
+                    width: 90px;
+                    height: 4px;
+                    border-radius: 2px;
+                    background: AppColors.selected;
+
+                    Rectangle {
+                        width: parent.width * root.bounded-progress;
+                        height: parent.height;
+                        border-radius: 2px;
+                        background: AppColors.brand;
+                    }
+                }
+            }
+
+            Rectangle {
+                x: 28px;
+                y: 294px;
+                width: 486px;
+                height: 96px;
+                border-radius: 8px;
+                background: AppColors.surface-subtle;
+
+                Text { x: 16px; y: 12px; text: @tr("models.test.title" => "Recognition test"); color: AppColors.text; font-size: 11px; font-weight: 700; }
+                Text { x: 16px; y: 34px; text: @tr("models.test.fixed-audio" => "Fixed test audio 3.9 sec"); color: AppColors.text-muted; font-size: 9px; }
+                if root.test-succeeded || root.test-failed: Text {
+                    x: 16px;
+                    y: 70px;
+                    width: 350px;
+                    text: root.test-failed
+                        ? @tr("models.test.failed" => "Recognition failed")
+                        : root.test-result.is-empty
+                            ? @tr("models.test.succeeded" => "Recognition succeeded")
+                            : @tr("models.test.transcript" => "Transcript: {}", root.test-result);
+                    color: root.test-failed ? AppColors.danger : AppColors.success;
+                    font-size: 9px;
+                    font-weight: 650;
+                    overflow: elide;
+                }
+                LocalModelActionButton {
+                    x: 380px;
+                    y: 12px;
+                    label: root.testing
+                        ? @tr("models.test.testing" => "Testing…")
+                        : @tr("models.test.action" => "Run test");
+                    enabled: root.test-ready && !root.testing;
+                    brand-outline: true;
+                    activated => { root.run-test(root.kind); }
+                }
+            }
+        }
+    }
+    init => { modal-focus.focus(); }
+    changed visible => { if root.visible { modal-focus.focus(); } }
+}

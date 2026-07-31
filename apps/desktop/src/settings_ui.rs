@@ -1,7 +1,11 @@
 use std::sync::Arc;
 
 use slint::{ComponentHandle, SharedString};
-use template_app::{LlmProviderPreset, ProviderConfigStore};
+use template_app::LlmProviderPreset;
+#[cfg(any(target_os = "macos", test))]
+use template_app::ProviderConfigStore;
+#[cfg(target_os = "macos")]
+use template_app::{MicrophoneAuthorization, MicrophonePermissionProvider};
 #[cfg(test)]
 use template_app::{ProviderCatalog, ProviderInstance};
 #[cfg(test)]
@@ -15,7 +19,8 @@ use crate::ui::{
 
 #[cfg(target_os = "macos")]
 use template_infra::{
-    MacOsSpeechAuthorization, macos_speech_capability, open_speech_recognition_privacy_settings,
+    MacOsMicrophonePermission, MacOsSpeechAuthorization, macos_product_version,
+    macos_speech_capability, open_speech_recognition_privacy_settings,
     request_macos_speech_authorization,
 };
 
@@ -30,9 +35,7 @@ mod provider_key_page;
 mod regression_tests;
 
 #[cfg(test)]
-use asr_configuration::{
-    AsrConfigError, clear_asr_configuration, save_asr_configuration, save_custom_asr_configuration,
-};
+use asr_configuration::{AsrConfigError, save_asr_configuration, save_custom_asr_configuration};
 use asr_configuration::{volcengine_api_key_is_valid, volcengine_model_id};
 use llm_enablement::{llm_configuration_ready, provider_is_local};
 #[cfg(test)]
@@ -85,8 +88,10 @@ fn wire_macos_speech(ui: &AppWindow, store: Arc<JsonSettingsStore>) {
     let activation_store = Arc::clone(&store);
     ui.on_activate_macos_speech(move || {
         let capability = macos_speech_capability();
+        let microphone_ready =
+            MacOsMicrophonePermission.authorization() == MicrophoneAuthorization::Granted;
         match capability.authorization {
-            MacOsSpeechAuthorization::Authorized if capability.available => {
+            MacOsSpeechAuthorization::Authorized if capability.available && microphone_ready => {
                 select_macos_speech(&activation_ui, &activation_store);
             }
             MacOsSpeechAuthorization::NotDetermined => {
@@ -98,6 +103,8 @@ fn wire_macos_speech(ui: &AppWindow, store: Arc<JsonSettingsStore>) {
                         let capability = macos_speech_capability();
                         if capability.authorization == MacOsSpeechAuthorization::Authorized
                             && capability.available
+                            && MacOsMicrophonePermission.authorization()
+                                == MicrophoneAuthorization::Granted
                         {
                             select_macos_speech(&ui.as_weak(), &result_store);
                         } else {
@@ -141,6 +148,16 @@ fn wire_macos_speech(ui: &AppWindow, store: Arc<JsonSettingsStore>) {
                     },
                 );
             }
+        }
+    });
+
+    ui.on_open_speech_recognition_settings(move || {
+        if let Err(error) = open_speech_recognition_privacy_settings() {
+            tracing::warn!(
+                target: "saymore::diagnostics",
+                event = "macos_speech.settings_open_failed",
+                reason = %error
+            );
         }
     });
 }
@@ -192,9 +209,39 @@ pub(super) fn apply_macos_speech_state(ui: &AppWindow, selected: bool) -> bool {
     #[cfg(not(target_os = "macos"))]
     let status = UiSystemSpeechStatus::Unavailable;
 
+    #[cfg(target_os = "macos")]
+    let microphone_status = match MacOsMicrophonePermission.authorization() {
+        MicrophoneAuthorization::NotDetermined => UiSystemSpeechStatus::PermissionRequired,
+        MicrophoneAuthorization::Granted => UiSystemSpeechStatus::Ready,
+        MicrophoneAuthorization::Denied => UiSystemSpeechStatus::PermissionDenied,
+        MicrophoneAuthorization::Restricted => UiSystemSpeechStatus::Restricted,
+    };
+    #[cfg(not(target_os = "macos"))]
+    let microphone_status = UiSystemSpeechStatus::Unavailable;
+
+    #[cfg(target_os = "macos")]
+    let version = macos_product_version().unwrap_or_else(|_| "macOS".to_owned());
+    #[cfg(not(target_os = "macos"))]
+    let version = "macOS".to_owned();
+    let supported = macos_major_version(&version).is_some_and(|major| major >= 13);
+
     ui.set_macos_speech_selected(selected);
     ui.set_macos_speech_status(status);
-    status == UiSystemSpeechStatus::Ready
+    ui.set_macos_microphone_status(microphone_status);
+    ui.set_macos_system_version(format!("macOS {version}").into());
+    ui.set_macos_system_supported(supported);
+    supported
+        && status == UiSystemSpeechStatus::Ready
+        && microphone_status == UiSystemSpeechStatus::Ready
+}
+
+fn macos_major_version(version: &str) -> Option<u32> {
+    version
+        .strip_prefix("macOS ")
+        .unwrap_or(version)
+        .split('.')
+        .next()
+        .and_then(|major| major.parse().ok())
 }
 
 fn wire_llm(ui: &AppWindow, store: Arc<JsonSettingsStore>) {
@@ -279,6 +326,13 @@ mod tests {
             provider_key_page::url(1, UiLlmProvider::Deepseek)
         );
         assert_eq!(None, provider_key_page::url(1, UiLlmProvider::Custom));
+    }
+
+    #[test]
+    fn parses_supported_macos_major_versions() {
+        assert_eq!(Some(13), macos_major_version("13.6.1"));
+        assert_eq!(Some(26), macos_major_version("macOS 26.3.2"));
+        assert_eq!(None, macos_major_version("macOS"));
     }
 
     #[test]

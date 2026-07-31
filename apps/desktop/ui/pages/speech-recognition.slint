@@ -36,6 +36,7 @@ export component SpeechRecognitionPage inherits Rectangle {
     callback select-provider(AsrProvider);
     callback open-config(AsrProvider);
     callback open-macos-speech-details();
+    callback open-placeholder-details(AsrProviderCardKind);
 
     background: transparent;
     init => {
@@ -156,12 +157,12 @@ export component SpeechRecognitionPage inherits Rectangle {
                         : root.config-error && root.active-provider == AsrProvider.volcengine
                             ? @tr("models.status.connection-failed.plain" => "Connection issue")
                             : root.volcengine-configured
-                                ? @tr("models.status.configured" => "Configured")
+                                ? @tr("models.asr.status.available" => "Available")
                                 : @tr("models.status.not-configured.plain" => "Not configured")
                     : !root.macos-speech-selected && root.active-provider == AsrProvider.custom && root.custom-configured
                         ? @tr("models.asr.status.current" => "Current")
                         : root.custom-configured
-                            ? @tr("models.status.configured" => "Configured")
+                            ? @tr("models.asr.status.available" => "Available")
                             : @tr("models.status.not-configured.plain" => "Not configured");
             status-tone: !card.available ? ProviderStatusTone.neutral
                 : card.kind == AsrProviderCardKind.macos-dictation
@@ -180,11 +181,14 @@ export component SpeechRecognitionPage inherits Rectangle {
             selected: (card.kind == AsrProviderCardKind.macos-dictation && root.macos-speech-selected)
                 || (!root.macos-speech-selected && card.kind == AsrProviderCardKind.volcengine && root.active-provider == AsrProvider.volcengine)
                 || (!root.macos-speech-selected && card.kind == AsrProviderCardKind.custom && root.active-provider == AsrProvider.custom);
-            enabled: card.available;
+            available: card.available && !self.selected && ((card.kind == AsrProviderCardKind.macos-dictation && root.macos-speech-status == SystemSpeechStatus.ready)
+                || (card.kind == AsrProviderCardKind.volcengine && root.volcengine-configured)
+                || (card.kind == AsrProviderCardKind.custom && root.custom-configured));
+            enabled: true;
             activated => {
                 if card.kind == AsrProviderCardKind.macos-dictation {
                     root.open-macos-speech-details();
-                } else {
+                } else if card.kind == AsrProviderCardKind.volcengine || card.kind == AsrProviderCardKind.custom {
                     let original_provider = root.provider;
                     if card.kind == AsrProviderCardKind.volcengine {
                         root.provider = AsrProvider.volcengine;
@@ -195,6 +199,8 @@ export component SpeechRecognitionPage inherits Rectangle {
                     root.draft-error = false;
                     root.select-provider(root.provider);
                     root.open-config(original_provider);
+                } else {
+                    root.open-placeholder-details(card.kind);
                 }
             }
         }

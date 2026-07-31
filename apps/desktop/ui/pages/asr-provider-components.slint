@@ -1,5 +1,6 @@
 import { AppColors } from "../color-system.slint";
-import { AppSelect, AsrConfigurationField, AsrProvider, ModalShell, ModalSize, SystemSpeechStatus } from "../components.slint";
+import { AppSelect, AsrConfigurationField, AsrProvider, AsrProviderCardKind, ModalShell, ModalSize, SystemSpeechStatus } from "../components.slint";
+import { RecognitionTestPanel } from "asr-recognition-test.slint";
 import { ScrollView } from "std-widgets.slint";
 
 export enum ProviderStatusTone {
@@ -11,23 +12,43 @@ export enum ProviderStatusTone {
 export component ProviderStatusBadge inherits Rectangle {
     in property <string> label;
     in property <ProviderStatusTone> tone: ProviderStatusTone.neutral;
+    in property <bool> current: false;
+    in property <bool> available: false;
 
-    width: 88px;
-    height: 22px;
+    width: 56px;
+    height: 16px;
     border-radius: 6px;
-    background: root.tone == ProviderStatusTone.active ? AppColors.success-soft
+    background: root.current ? AppColors.success
+        : root.available ? AppColors.success-soft
+        : root.tone == ProviderStatusTone.active ? AppColors.success-soft
         : root.tone == ProviderStatusTone.error ? AppColors.danger-soft
         : AppColors.surface-muted;
 
+    if root.current || root.available: Rectangle {
+        x: root.current ? 11px : 12px;
+        y: root.current ? 4px : 6px;
+        width: root.current ? 8px : 5px;
+        height: root.current ? 8px : 5px;
+        border-radius: root.available ? 3px : 0px;
+        background: root.available ? AppColors.success : transparent;
+        if root.current: Image {
+            width: 8px;
+            height: 8px;
+            source: @image-url("../../icons/lucide/check.svg");
+            colorize: AppColors.on-brand;
+        }
+    }
     Text {
-        x: 8px;
-        width: parent.width - 16px;
+        x: root.current || root.available ? 22px : 4px;
+        width: root.current || root.available ? parent.width - 25px : parent.width - 8px;
         text: root.label;
-        color: root.tone == ProviderStatusTone.active ? AppColors.success
+        color: root.current ? AppColors.on-brand
+            : root.available ? AppColors.success
+            : root.tone == ProviderStatusTone.active ? AppColors.success
             : root.tone == ProviderStatusTone.error ? AppColors.danger
             : AppColors.text-muted;
-        font-size: 9px;
-        font-weight: 650;
+        font-size: 7px;
+        font-weight: root.current ? 700 : 650;
         horizontal-alignment: center;
         vertical-alignment: center;
         overflow: elide;
@@ -45,6 +66,7 @@ export component AsrProviderCard inherits Rectangle {
     in property <string> status;
     in property <ProviderStatusTone> status-tone: ProviderStatusTone.neutral;
     in property <bool> selected: false;
+    in property <bool> available: false;
     in property <bool> enabled: true;
     callback activated();
 
@@ -143,6 +165,8 @@ export component AsrProviderCard inherits Rectangle {
         y: 78px;
         label: root.status;
         tone: root.status-tone;
+        current: root.selected;
+        available: root.available && !root.selected;
     }
 
     Image {
@@ -231,7 +255,7 @@ component ModalButton inherits Rectangle {
     }
 }
 
-component ProviderSelectionControl inherits Rectangle {
+export component ProviderSelectionControl inherits Rectangle {
     in property <bool> selected: false;
     in property <bool> enabled: false;
     callback activated();
@@ -378,105 +402,6 @@ component ModalSecretField inherits Rectangle {
     }
 }
 
-component RecognitionTestRow inherits Rectangle {
-    in property <bool> testing: false;
-    in property <bool> succeeded: false;
-    in property <bool> failed: false;
-    in property <bool> ready: false;
-    in property <string> elapsed;
-    callback activated();
-
-    private property <bool> has-result: root.succeeded || root.failed;
-    private property <string> message: root.succeeded
-        ? @tr("models.test.succeeded-duration" => "Recognition succeeded · {} sec", root.elapsed)
-        : root.failed
-            ? root.elapsed.is-empty
-                ? @tr("models.test.failed" => "Recognition failed")
-                : @tr("models.test.failed-duration" => "Recognition failed · {} sec", root.elapsed)
-            : "";
-    private property <bool> action-emphasized: !root.succeeded;
-    private property <string> action-label: root.testing ? @tr("models.test.testing" => "Testing…")
-        : root.succeeded ? @tr("models.test.again" => "Test again")
-        : root.failed ? @tr("models.test.retry" => "Retry test")
-        : @tr("models.test.action" => "Run test");
-
-    height: 54px;
-    background: transparent;
-
-    if root.has-result: HorizontalLayout {
-        x: 0px;
-        y: 9px;
-        width: parent.width - 116px;
-        height: 36px;
-        spacing: 8px;
-        cross-axis-alignment: center;
-
-        Image {
-            width: 14px;
-            height: 14px;
-            source: root.failed ? @image-url("../../icons/lucide/circle-alert.svg") : @image-url("../../icons/lucide/check.svg");
-            colorize: root.failed ? AppColors.danger : AppColors.success;
-        }
-        Text {
-            horizontal-stretch: 1;
-            text: root.message;
-            color: root.failed ? AppColors.danger : AppColors.success;
-            font-size: 10px;
-            font-weight: 650;
-            vertical-alignment: center;
-            overflow: elide;
-        }
-    }
-    Rectangle {
-        x: parent.width - 104px;
-        y: 9px;
-        width: 104px;
-        height: 36px;
-        border-radius: 7px;
-        border-width: root.succeeded ? 0px : 1px;
-        border-color: root.action-emphasized ? AppColors.brand-strong : AppColors.border;
-        background: root.succeeded ? (action-touch.has-hover ? AppColors.surface-subtle : transparent)
-            : !root.ready || root.testing ? AppColors.surface-muted
-            : action-touch.has-hover ? AppColors.surface-subtle : AppColors.surface;
-        opacity: root.ready ? 1 : 0.55;
-        accessible-role: button;
-        accessible-label: root.action-label;
-        accessible-enabled: root.ready && !root.testing;
-        accessible-action-default => { if root.ready && !root.testing { root.activated(); } }
-        HorizontalLayout {
-            width: parent.width;
-            height: parent.height;
-            spacing: 6px;
-            alignment: center;
-            cross-axis-alignment: center;
-
-            Image {
-                width: 14px;
-                height: 14px;
-                source: root.testing || root.has-result
-                    ? @image-url("../../icons/lucide/refresh-cw.svg")
-                    : @image-url("../../icons/lucide/audio-lines.svg");
-                colorize: !root.ready || root.testing ? AppColors.text-muted
-                    : root.action-emphasized ? AppColors.brand-strong : AppColors.text;
-            }
-            Text {
-                text: root.action-label;
-                color: !root.ready || root.testing ? AppColors.text-muted
-                    : root.action-emphasized ? AppColors.brand-strong : AppColors.text;
-                font-size: 10px;
-                font-weight: 650;
-                vertical-alignment: center;
-                overflow: elide;
-            }
-        }
-        action-touch := TouchArea {
-            enabled: root.ready && !root.testing;
-            mouse-cursor: self.enabled ? pointer : default;
-            clicked => { root.activated(); }
-        }
-    }
-}
-
 export component AsrConfigurationModal inherits Rectangle {
     in property <AsrProvider> provider: AsrProvider.volcengine;
     in-out property <string> volcengine-api-key;
@@ -491,19 +416,29 @@ export component AsrConfigurationModal inherits Rectangle {
     in property <bool> testing: false;
     in property <bool> test-succeeded: false;
     in property <string> test-elapsed;
+    in property <string> test-result;
     in property <bool> draft-error: false;
     in property <AsrConfigurationField> error-field: AsrConfigurationField.none;
     in property <string> status-message;
+    in-out property <[string]> available-models;
+    in property <bool> model-discovery-loading: false;
+    in property <bool> model-discovery-error: false;
+    in property <string> model-discovery-status;
     callback cancelled();
-    callback save-and-enable();
+    callback test-and-save();
     callback test-connection();
-    callback delete-configuration();
+    callback refresh-models();
     callback open-key-page();
     callback select-provider();
 
     private property <bool> ready: root.provider == AsrProvider.volcengine
         ? !root.volcengine-api-key.is-empty && !root.volcengine-model.is-empty
         : !root.custom-base-url.is-empty && !root.custom-api-key.is-empty && !root.custom-model.is-empty;
+    private property <bool> model-refresh-ready: root.provider == AsrProvider.custom
+        && !root.custom-base-url.is-empty
+        && !root.custom-api-key.is-empty
+        && !root.model-discovery-loading
+        && !root.testing;
     private property <string> volcengine-model-name: root.volcengine-model == "volc.bigasr.sauc.duration"
         ? @tr("models.volcengine.model-v1" => "Doubao Streaming Speech Recognition 1.0")
         : @tr("models.volcengine.model-v2" => "Doubao Streaming Speech Recognition 2.0");
@@ -567,20 +502,20 @@ export component AsrConfigurationModal inherits Rectangle {
             overflow: elide;
         }
         form-scroll := ScrollView {
-            x: 24px;
-            y: 86px;
-            width: dialog.panel-width - 48px;
-            height: 302px;
+            x: 31px;
+            y: 80px;
+            width: dialog.panel-width - 62px;
+            height: 246px;
             viewport-width: self.width;
-            viewport-height: root.provider == AsrProvider.volcengine ? 289px : 320px;
-            vertical-scrollbar-policy: ScrollBarPolicy.as-needed;
+            viewport-height: 230px;
+            vertical-scrollbar-policy: ScrollBarPolicy.always-off;
             horizontal-scrollbar-policy: ScrollBarPolicy.always-off;
 
         if root.provider == AsrProvider.volcengine: Rectangle {
             x: 0px;
             y: 0px;
             width: form-scroll.viewport-width;
-            height: 289px;
+            height: 222px;
             background: transparent;
 
             Text { x: 0px; y: 7px; text: "API Key"; color: AppColors.text; font-size: 11px; font-weight: 650; }
@@ -589,12 +524,13 @@ export component AsrConfigurationModal inherits Rectangle {
                 y: 0px;
                 width: 112px;
                 height: 32px;
-                border-radius: 6px;
-                background: key-touch.has-hover ? AppColors.brand-soft : transparent;
+                background: transparent;
                 accessible-role: button;
                 accessible-label: @tr("models.get-api-key" => "Get API key");
                 accessible-action-default => { root.open-key-page(); }
-                Text { x: 8px; width: parent.width - 16px; text: @tr("models.get-api-key" => "Get API key"); color: AppColors.brand-strong; font-size: 10px; font-weight: 650; horizontal-alignment: center; vertical-alignment: center; }
+                Rectangle { x: 43px; width: 66px; height: parent.height; border-radius: 6px; background: key-touch.has-hover ? AppColors.brand-soft : transparent; }
+                Text { x: 8px; width: parent.width - 30px; text: @tr("models.get-api-key" => "Get API key"); color: AppColors.brand-strong; font-size: 10px; font-weight: 650; horizontal-alignment: right; vertical-alignment: center; overflow: elide; }
+                Image { x: parent.width - 18px; y: 10px; width: 11px; height: 11px; source: @image-url("../../icons/lucide/arrow-up-right.svg"); colorize: AppColors.brand-strong; }
                 key-touch := TouchArea { mouse-cursor: pointer; clicked => { root.open-key-page(); } }
             }
             volc-key := ModalSecretField {
@@ -642,62 +578,122 @@ export component AsrConfigurationModal inherits Rectangle {
             if root.error-field == AsrConfigurationField.model: Text {
                 x: 0px; y: 210px; width: parent.width; text: root.status-message; color: AppColors.danger; font-size: 10px; overflow: elide;
             }
-            RecognitionTestRow {
-                x: 0px;
-                y: 235px;
-                width: parent.width;
-                testing: root.testing;
-                succeeded: root.test-succeeded;
-                failed: root.error-field == AsrConfigurationField.form;
-                ready: root.ready;
-                elapsed: root.test-elapsed;
-                activated => { root.test-connection(); }
-            }
         }
 
         if root.provider == AsrProvider.custom: Rectangle {
             x: 0px;
             y: 0px;
             width: form-scroll.viewport-width;
-            height: 320px;
+            height: 230px;
             background: transparent;
 
             Text { x: 0px; y: 0px; text: @tr("models.base-url" => "Service URL"); color: AppColors.text; font-size: 11px; font-weight: 650; }
             custom-url := ModalTextField {
-                x: 0px; y: 23px; width: parent.width; value <=> root.custom-base-url; placeholder: "https://api.example.com/v1"; accessible-name: @tr("models.base-url" => "Service URL"); error: root.error-field == AsrConfigurationField.base-url;
+                x: 0px; y: 22px; width: parent.width; value <=> root.custom-base-url; placeholder: "https://api.example.com/v1"; accessible-name: @tr("models.base-url" => "Service URL"); error: root.error-field == AsrConfigurationField.base-url;
             }
-            if root.error-field == AsrConfigurationField.base-url: Text { x: 0px; y: 64px; width: parent.width; text: root.status-message; color: AppColors.danger; font-size: 10px; overflow: elide; }
+            if root.error-field == AsrConfigurationField.base-url: Text { x: 0px; y: 61px; width: parent.width; text: root.status-message; color: AppColors.danger; font-size: 9px; overflow: elide; }
 
-            Text { x: 0px; y: 88px; text: "API Key"; color: AppColors.text; font-size: 11px; font-weight: 650; }
-            ModalSecretField { x: 0px; y: 111px; width: parent.width; value <=> root.custom-api-key; accessible-name: @tr("models.custom-speech-api-key" => "Custom speech recognition API key"); error: root.error-field == AsrConfigurationField.api-key; }
-            if root.error-field == AsrConfigurationField.api-key: Text { x: 0px; y: 152px; width: parent.width; text: root.status-message; color: AppColors.danger; font-size: 10px; overflow: elide; }
+            Text { x: 0px; y: 68px; text: "API Key"; color: AppColors.text; font-size: 11px; font-weight: 650; }
+            ModalSecretField { x: 0px; y: 90px; width: parent.width; value <=> root.custom-api-key; accessible-name: @tr("models.custom-speech-api-key" => "Custom speech recognition API key"); error: root.error-field == AsrConfigurationField.api-key; }
+            if root.error-field == AsrConfigurationField.api-key: Text { x: 0px; y: 129px; width: parent.width; text: root.status-message; color: AppColors.danger; font-size: 9px; overflow: elide; }
 
-            Text { x: 0px; y: 176px; text: @tr("models.model-field" => "Model"); color: AppColors.text; font-size: 11px; font-weight: 650; }
-            ModalTextField { x: 0px; y: 199px; width: parent.width; value <=> root.custom-model; placeholder: "whisper-1"; accessible-name: @tr("models.model-field" => "Model"); error: root.error-field == AsrConfigurationField.model; }
-            if root.error-field == AsrConfigurationField.model: Text { x: 0px; y: 240px; width: parent.width; text: root.status-message; color: AppColors.danger; font-size: 10px; overflow: elide; }
-
-            RecognitionTestRow {
+            Text { x: 0px; y: 136px; text: @tr("models.model-field" => "Model"); color: AppColors.text; font-size: 11px; font-weight: 650; }
+            model-refresh := Rectangle {
+                x: parent.width - 112px;
+                y: 126px;
+                width: 112px;
+                height: 30px;
+                border-radius: 6px;
+                background: refresh-touch.has-hover && root.model-refresh-ready ? AppColors.brand-soft : transparent;
+                opacity: root.model-refresh-ready ? 1 : 0.55;
+                accessible-role: button;
+                accessible-label: root.model-discovery-loading
+                    ? @tr("models.asr.fetch.loading-accessible" => "Fetching speech models")
+                    : @tr("models.asr.fetch.action" => "Get models");
+                accessible-enabled: root.model-refresh-ready;
+                accessible-action-default => { if root.model-refresh-ready { root.refresh-models(); } }
+                Text {
+                    x: 4px;
+                    width: 84px;
+                    text: root.model-discovery-loading
+                        ? @tr("models.asr.fetch.loading" => "Fetching…")
+                        : @tr("models.asr.fetch.action" => "Get models");
+                    color: AppColors.brand-strong;
+                    font-size: 10px;
+                    font-weight: 650;
+                    horizontal-alignment: right;
+                    vertical-alignment: center;
+                    overflow: elide;
+                }
+                Image {
+                    visible: !root.model-discovery-loading;
+                    x: 94px;
+                    y: 9px;
+                    width: 12px;
+                    height: 12px;
+                    source: @image-url("../../icons/lucide/refresh-cw.svg");
+                    colorize: AppColors.brand;
+                }
+                refresh-touch := TouchArea {
+                    enabled: root.model-refresh-ready;
+                    mouse-cursor: self.enabled ? pointer : default;
+                    clicked => { root.refresh-models(); }
+                }
+            }
+            Text {
                 x: 0px;
-                y: 266px;
+                y: 157px;
                 width: parent.width;
-                testing: root.testing;
-                succeeded: root.test-succeeded;
-                failed: root.error-field == AsrConfigurationField.form;
-                ready: root.ready;
-                elapsed: root.test-elapsed;
-                activated => { root.test-connection(); }
+                text: root.model-refresh-ready || root.model-discovery-loading
+                    ? root.model-discovery-status
+                    : root.custom-base-url.is-empty
+                        ? @tr("models.fetch.enter-service-url" => "Enter a service URL first")
+                        : root.custom-api-key.is-empty
+                            ? @tr("models.fetch.enter-api-key" => "Enter an API key first") : root.model-discovery-status;
+                color: root.model-discovery-error ? AppColors.danger : AppColors.text-muted;
+                font-size: 9px;
+                overflow: elide;
             }
-        }
-        }
+            if root.available-models.length == 0: ModalTextField {
+                x: 0px; y: 176px; width: parent.width; value <=> root.custom-model; placeholder: "whisper-1"; accessible-name: @tr("models.model-field" => "Model"); error: root.error-field == AsrConfigurationField.model;
+            }
+            if root.available-models.length > 0: Rectangle {
+                x: 0px;
+                y: 176px;
+                width: parent.width;
+                height: 38px;
+                border-radius: 7px;
+                border-width: 1px;
+                border-color: root.error-field == AsrConfigurationField.model ? AppColors.danger : AppColors.border;
+                AppSelect {
+                    width: parent.width;
+                    height: parent.height;
+                    model: root.available-models;
+                    current-value: root.custom-model;
+                    selected(value) => { root.custom-model = value; }
+                }
+            }
+            if root.error-field == AsrConfigurationField.model: Text { x: 0px; y: 217px; width: parent.width; text: root.status-message; color: AppColors.danger; font-size: 9px; overflow: elide; }
 
-        if !root.configured || root.dirty: ModalButton {
-            x: dialog.panel-width - 150px;
-            y: dialog.panel-height - 59px;
-            width: 126px;
-            label: root.testing ? @tr("models.save.testing" => "Testing…") : @tr("models.asr.save-and-enable" => "Save and enable");
-            primary: true;
-            enabled: root.ready && root.dirty && !root.testing;
-            activated => { root.save-and-enable(); }
+        }
+        }
+        RecognitionTestPanel {
+            x: 31px;
+            y: 332px;
+            width: 483px;
+            testing: root.testing;
+            succeeded: root.test-succeeded;
+            failed: root.error-field == AsrConfigurationField.form;
+            ready: root.ready;
+            elapsed: root.test-elapsed;
+            transcript: root.test-result;
+            activated => {
+                if root.configured && !root.dirty {
+                    root.test-connection();
+                } else {
+                    root.test-and-save();
+                }
+            }
         }
     }
 
@@ -706,31 +702,107 @@ export component AsrConfigurationModal inherits Rectangle {
     changed visible => { if root.visible { modal-focus.focus(); } }
 }
 
+component SummaryPill inherits Rectangle {
+    in property <image> icon;
+    in property <string> label;
+    width: 104px;
+    height: 36px;
+    border-radius: 18px;
+    background: AppColors.surface-subtle;
+    Image { x: 12px; y: 9px; width: 18px; height: 18px; source: root.icon; colorize: AppColors.text-muted; }
+    Text { x: 38px; width: parent.width - 44px; text: root.label; color: AppColors.text; font-size: 12px; font-weight: 600; vertical-alignment: center; overflow: elide; }
+}
+
+enum MetricAlignment {
+    left,
+    center,
+    right,
+}
+
+component LocalModelMetric inherits Rectangle {
+    in property <image> icon;
+    in property <string> label;
+    in property <string> value;
+    in property <MetricAlignment> alignment: MetricAlignment.left;
+    in property <bool> muted-value: false;
+
+    private property <length> content-width: max(metric-label.preferred-width + 22px, metric-value.preferred-width + 22px);
+    private property <length> content-x: root.alignment == MetricAlignment.left ? 0px
+        : root.alignment == MetricAlignment.center ? (root.width - root.content-width) / 2
+        : root.width - root.content-width;
+
+    background: transparent;
+
+    Image {
+        x: root.content-x;
+        y: 5px;
+        width: 14px;
+        height: 14px;
+        source: root.icon;
+        colorize: AppColors.text-muted;
+    }
+    metric-label := Text {
+        x: root.content-x + 22px;
+        y: 2px;
+        text: root.label;
+        color: AppColors.text;
+        font-size: 10px;
+        font-weight: 700;
+    }
+    metric-value := Text {
+        x: root.content-x + 22px;
+        y: 27px;
+        text: root.value;
+        color: root.muted-value ? AppColors.text-muted : AppColors.ink;
+        font-size: 11px;
+        font-weight: 600;
+    }
+}
+
 export component MacOsSpeechModal inherits Rectangle {
     in property <bool> selected: false;
-    in property <SystemSpeechStatus> status: SystemSpeechStatus.unavailable;
+    in property <SystemSpeechStatus> speech-status: SystemSpeechStatus.unavailable;
+    in property <SystemSpeechStatus> microphone-status: SystemSpeechStatus.unavailable;
+    in property <string> system-version: "macOS";
+    in property <bool> system-supported: false;
+    in property <bool> testing: false;
+    in property <bool> test-succeeded: false;
+    in property <bool> test-failed: false;
+    in property <string> test-elapsed;
+    in property <string> test-result;
     callback cancelled();
-    callback activate-provider();
+    callback select-provider();
+    callback authorize-speech();
+    callback open-microphone-settings();
+    callback open-speech-settings();
+    callback run-test();
+    callback refresh();
 
-    private property <bool> ready: root.status == SystemSpeechStatus.ready;
-    private property <bool> action-available: root.status == SystemSpeechStatus.permission-required
-        || root.status == SystemSpeechStatus.permission-denied
-        || root.status == SystemSpeechStatus.restricted;
-    private property <string> status-summary: root.status == SystemSpeechStatus.ready
-        ? @tr("models.asr.summary.macos-ready" => "No account or model download required")
-        : root.status == SystemSpeechStatus.permission-required
-            ? @tr("models.asr.summary.macos-permission-required" => "Apple Speech permission is required")
-            : root.status == SystemSpeechStatus.permission-denied
-                ? @tr("models.asr.summary.macos-permission-denied" => "Speech Recognition permission is denied")
-                : root.status == SystemSpeechStatus.restricted
-                    ? @tr("models.asr.summary.macos-restricted" => "Speech Recognition is restricted by the system")
-                    : @tr("models.asr.summary.macos-unavailable" => "Apple Speech is temporarily unavailable");
+    private property <bool> ready: root.system-supported
+        && root.speech-status == SystemSpeechStatus.ready
+        && root.microphone-status == SystemSpeechStatus.ready;
+    private property <string> microphone-label: root.microphone-status == SystemSpeechStatus.ready
+        ? @tr("permissions.status.authorized" => "Authorized")
+        : root.microphone-status == SystemSpeechStatus.permission-required
+            ? @tr("permissions.status.not-determined" => "Not determined")
+            : root.microphone-status == SystemSpeechStatus.restricted
+                ? @tr("permissions.status.restricted" => "Restricted")
+                : @tr("permissions.status.denied" => "Denied");
+    private property <string> speech-label: root.speech-status == SystemSpeechStatus.ready
+        ? @tr("permissions.status.authorized" => "Authorized")
+        : root.speech-status == SystemSpeechStatus.permission-required
+            ? @tr("permissions.status.not-determined" => "Not determined")
+            : root.speech-status == SystemSpeechStatus.restricted
+                ? @tr("permissions.status.restricted" => "Restricted")
+                : root.speech-status == SystemSpeechStatus.permission-denied
+                    ? @tr("permissions.status.denied" => "Denied")
+                    : @tr("models.asr.status.unavailable" => "Unavailable");
 
     modal-focus := FocusScope {
         width: parent.width;
         height: parent.height;
         capture-key-pressed(event) => {
-            if event.text == Key.Escape {
+            if event.text == Key.Escape && !root.testing {
                 root.cancelled();
                 return accept;
             }
@@ -740,7 +812,8 @@ export component MacOsSpeechModal inherits Rectangle {
         dialog := ModalShell {
             width: parent.width;
             height: parent.height;
-            size: ModalSize.compact;
+            size: ModalSize.standard;
+            close-enabled: !root.testing;
             close-requested => { root.cancelled(); }
 
             Image {
@@ -766,8 +839,8 @@ export component MacOsSpeechModal inherits Rectangle {
                 x: dialog.panel-width - 176px;
                 y: 16px;
                 selected: root.selected;
-                enabled: root.ready && !root.selected;
-                activated => { root.activate-provider(); }
+                enabled: root.ready && !root.selected && !root.testing;
+                activated => { root.select-provider(); }
             }
             Text {
                 x: 76px;
@@ -779,42 +852,169 @@ export component MacOsSpeechModal inherits Rectangle {
                 overflow: elide;
             }
 
-            Rectangle {
-                x: 24px;
-                y: 92px;
-                width: dialog.panel-width - 48px;
-                height: 48px;
-                border-radius: 7px;
-                background: AppColors.surface-subtle;
+            SummaryPill { x: 31px; y: 80px; icon: @image-url("../../icons/lucide/monitor.svg"); label: @tr("models.asr.summary.system-service" => "System"); }
+            SummaryPill { x: 157px; y: 80px; icon: @image-url("../../icons/lucide/globe.svg"); label: @tr("models.asr.summary.partial-network" => "Hybrid"); }
+            SummaryPill { x: 284px; y: 80px; icon: @image-url("../../icons/lucide/book-open.svg"); label: @tr("models.asr.summary.simplified-chinese" => "Chinese"); }
+            SummaryPill { x: 410px; y: 80px; icon: @image-url("../../icons/lucide/file-text.svg"); label: @tr("models.asr.summary.free" => "Free"); }
 
-                Image {
-                    x: 14px;
-                    y: 15px;
-                    width: 18px;
-                    height: 18px;
-                    source: @image-url("../../icons/lucide/monitor.svg");
-                    colorize: root.ready ? AppColors.success : AppColors.text-muted;
+            Rectangle {
+                x: 31px; y: 144px; width: 483px; height: 176px;
+                border-radius: 8px; border-width: 1px; border-color: AppColors.border; background: transparent;
+                Text { x: 30px; y: 0px; width: 140px; height: 44px; text: @tr("models.asr.macos.compatibility" => "System compatibility"); color: AppColors.text-muted; font-size: 11px; font-weight: 600; vertical-alignment: center; overflow: elide; }
+                Text { x: 183px; y: 5px; width: 190px; text: root.system-version; color: AppColors.ink; font-size: 12px; font-weight: 600; overflow: elide; }
+                Text { x: 183px; y: 23px; width: 190px; text: @tr("models.asr.macos.minimum" => "Minimum macOS 13"); color: AppColors.text-muted; font-size: 9px; overflow: elide; }
+                Text { x: 372px; y: 0px; width: 74px; height: 44px; text: root.system-supported ? @tr("models.asr.status.supported" => "Supported") : @tr("models.asr.status.unsupported" => "Unsupported"); color: root.system-supported ? AppColors.success : AppColors.danger; font-size: 11px; font-weight: 600; horizontal-alignment: right; vertical-alignment: center; overflow: elide; }
+                if root.system-supported: Image { x: 453px; y: 16px; width: 12px; height: 12px; source: @image-url("../../icons/lucide/check.svg"); colorize: AppColors.success; }
+                Rectangle { x: 12px; y: 44px; width: parent.width - 24px; height: 1px; background: AppColors.border; }
+                Text { x: 30px; y: 44px; width: 140px; height: 44px; text: @tr("models.asr.macos.limit" => "Dictation limit"); color: AppColors.text-muted; font-size: 11px; font-weight: 600; vertical-alignment: center; overflow: elide; }
+                Text { x: 183px; y: 44px; width: 271px; height: 44px; text: @tr("models.asr.macos.limit-value" => "Recommended under 1 minute"); color: AppColors.ink; font-size: 12px; font-weight: 600; vertical-alignment: center; overflow: elide; }
+                Rectangle { x: 12px; y: 88px; width: parent.width - 24px; height: 1px; background: AppColors.border; }
+                Text { x: 30px; y: 88px; width: 140px; height: 44px; text: @tr("models.asr.macos.microphone" => "Microphone"); color: AppColors.text-muted; font-size: 11px; font-weight: 600; vertical-alignment: center; overflow: elide; }
+                Text { x: 183px; y: 88px; width: 190px; height: 44px; text: @tr("models.asr.macos.microphone-detail" => "Receive audio for recognition"); color: AppColors.ink; font-size: 11px; font-weight: 600; vertical-alignment: center; overflow: elide; }
+                Text { x: 380px; y: 88px; width: 74px; height: 44px; text: root.microphone-label; color: root.microphone-status == SystemSpeechStatus.ready ? AppColors.success : AppColors.warning; font-size: 10px; font-weight: 600; horizontal-alignment: right; vertical-alignment: center; overflow: elide; }
+                Image { x: 461px; y: 104px; width: 12px; height: 12px; source: @image-url("../../icons/lucide/arrow-up-right.svg"); colorize: AppColors.text-muted; }
+                Rectangle {
+                    x: 12px; y: 88px; width: parent.width - 24px; height: 44px; background: transparent;
+                    accessible-role: button; accessible-label: @tr("models.asr.macos.microphone" => "Microphone") + ", " + root.microphone-label; accessible-action-default => { root.open-microphone-settings(); }
+                    TouchArea { mouse-cursor: pointer; clicked => { root.open-microphone-settings(); } }
                 }
-                Text {
-                    x: 44px;
-                    width: parent.width - 58px;
-                    text: root.status-summary;
-                    color: AppColors.text;
-                    font-size: 11px;
-                    vertical-alignment: center;
-                    overflow: elide;
+                Rectangle { x: 12px; y: 132px; width: parent.width - 24px; height: 1px; background: AppColors.border; }
+                Text { x: 30px; y: 132px; width: 140px; height: 44px; text: @tr("models.asr.macos.speech" => "Speech Recognition"); color: AppColors.text-muted; font-size: 11px; font-weight: 600; vertical-alignment: center; overflow: elide; }
+                Text { x: 183px; y: 132px; width: 190px; height: 44px; text: @tr("models.asr.macos.speech-detail" => "Use macOS dictation service"); color: AppColors.ink; font-size: 11px; font-weight: 600; vertical-alignment: center; overflow: elide; }
+                Text { x: 380px; y: 132px; width: 74px; height: 44px; text: root.speech-label; color: root.speech-status == SystemSpeechStatus.ready ? AppColors.success : AppColors.warning; font-size: 10px; font-weight: 600; horizontal-alignment: right; vertical-alignment: center; overflow: elide; }
+                Image { x: 461px; y: 148px; width: 12px; height: 12px; source: @image-url("../../icons/lucide/arrow-up-right.svg"); colorize: AppColors.text-muted; }
+                Rectangle {
+                    x: 12px; y: 132px; width: parent.width - 24px; height: 44px; background: transparent;
+                    accessible-role: button; accessible-label: @tr("models.asr.macos.speech" => "Speech Recognition") + ", " + root.speech-label; accessible-action-default => { if root.speech-status == SystemSpeechStatus.permission-required { root.authorize-speech(); } else { root.open-speech-settings(); } }
+                    TouchArea { mouse-cursor: pointer; clicked => { if root.speech-status == SystemSpeechStatus.permission-required { root.authorize-speech(); } else { root.open-speech-settings(); } } }
                 }
             }
+            RecognitionTestPanel {
+                x: 31px;
+                y: 348px;
+                width: 483px;
+                testing: root.testing;
+                succeeded: root.test-succeeded;
+                failed: root.test-failed;
+                ready: root.ready;
+                elapsed: root.test-elapsed;
+                transcript: root.test-result;
+                activated => { root.run-test(); }
+            }
+        }
+    }
+    Timer { interval: 1s; running: root.visible && !root.testing; triggered => { root.refresh(); } }
+    init => { modal-focus.focus(); }
+    changed visible => { if root.visible { modal-focus.focus(); } }
+}
 
-            if root.action-available: ModalButton {
-                x: dialog.panel-width - 150px;
-                y: dialog.panel-height - 59px;
-                width: 126px;
-                label: root.status == SystemSpeechStatus.permission-required
-                    ? @tr("models.asr.status.authorize" => "Authorize")
-                    : @tr("models.asr.status.open-settings" => "Open Settings");
-                primary: true;
-                activated => { root.activate-provider(); }
+export component UnavailableAsrProviderModal inherits Rectangle {
+    in property <AsrProviderCardKind> kind: AsrProviderCardKind.saymore-cloud;
+    callback cancelled();
+
+    private property <bool> cloud: root.kind == AsrProviderCardKind.saymore-cloud;
+    private property <string> title: root.cloud ? @tr("models.provider.saymore-cloud" => "Saymore Cloud")
+        : root.kind == AsrProviderCardKind.qwen3-asr ? "Qwen3-ASR 1.7B"
+        : root.kind == AsrProviderCardKind.paraformer ? "Paraformer-zh"
+        : root.kind == AsrProviderCardKind.whisper-large-v3-turbo ? "Whisper large-v3"
+        : @tr("models.provider.windows-speech" => "Windows Speech Recognition");
+    private property <string> subtitle: root.cloud
+        ? @tr("models.asr.placeholder.cloud-subtitle" => "First-party speech service placeholder")
+        : @tr("models.asr.placeholder.local-subtitle" => "Local model adapter is not yet connected");
+    private property <string> download-size: root.kind == AsrProviderCardKind.qwen3-asr ? "2.1 GB"
+        : root.kind == AsrProviderCardKind.paraformer ? "889 MB"
+        : root.kind == AsrProviderCardKind.whisper-large-v3-turbo ? "3.1 GB" : "—";
+    private property <string> memory: root.kind == AsrProviderCardKind.qwen3-asr ? "~3.8 GB"
+        : root.kind == AsrProviderCardKind.paraformer ? "~2.0 GB"
+        : root.kind == AsrProviderCardKind.whisper-large-v3-turbo ? "~5.4 GB" : "—";
+
+    modal-focus := FocusScope {
+        width: parent.width;
+        height: parent.height;
+        capture-key-pressed(event) => {
+            if event.text == Key.Escape { root.cancelled(); return accept; }
+            return reject;
+        }
+        dialog := ModalShell {
+            width: parent.width;
+            height: parent.height;
+            size: ModalSize.standard;
+            close-requested => { root.cancelled(); }
+
+            Image {
+                x: 24px; y: 22px; width: 42px; height: 42px;
+                source: root.cloud ? @image-url("../../icons/saymore-mark-3d-136.png")
+                    : root.kind == AsrProviderCardKind.qwen3-asr ? @image-url("../../icons/providers/qwen.png")
+                    : root.kind == AsrProviderCardKind.paraformer ? @image-url("../../icons/providers/funasr.png")
+                    : root.kind == AsrProviderCardKind.whisper-large-v3-turbo ? @image-url("../../icons/providers/openai.png")
+                    : @image-url("../../icons/providers/microsoft.svg");
+                image-fit: contain;
+            }
+            Text { x: 80px; y: 18px; width: dialog.panel-width - 128px; text: root.title; color: AppColors.ink; font-size: 18px; font-weight: 700; overflow: elide; }
+            Text { x: 80px; y: 45px; width: dialog.panel-width - 128px; text: root.subtitle; color: AppColors.text-muted; font-size: 10px; overflow: elide; }
+
+            SummaryPill { x: 24px; y: 80px; icon: root.cloud ? @image-url("../../icons/lucide/globe.svg") : @image-url("../../icons/lucide/monitor.svg"); label: root.cloud ? @tr("models.asr.summary.cloud-processing" => "Cloud") : @tr("models.asr.summary.local-processing" => "Local"); }
+            SummaryPill { x: 153px; y: 80px; icon: @image-url("../../icons/lucide/globe.svg"); label: root.cloud ? @tr("models.asr.summary.network-required" => "Online") : @tr("models.asr.summary.no-network" => "Offline"); }
+            SummaryPill { x: 281px; y: 80px; icon: @image-url("../../icons/lucide/book-open.svg"); label: @tr("models.asr.summary.simplified-chinese" => "Chinese"); }
+            SummaryPill { x: 410px; y: 80px; icon: @image-url("../../icons/lucide/file-text.svg"); label: root.cloud ? @tr("models.asr.summary.plan-billing" => "Plan") : @tr("models.asr.summary.free" => "Free"); }
+
+            if root.cloud: Rectangle {
+                x: 30px; y: 140px; width: 236px; height: 72px; border-radius: 8px; background: AppColors.surface-subtle;
+                Text { x: 16px; y: 9px; text: @tr("models.asr.cloud.account" => "Account"); color: AppColors.text; font-size: 11px; font-weight: 700; }
+                Text { x: 16px; y: 33px; text: @tr("models.asr.placeholder.not-connected" => "Not connected"); color: AppColors.text-muted; font-size: 11px; font-weight: 600; }
+                Text { x: 16px; y: 52px; text: @tr("models.asr.placeholder.no-service" => "Service unavailable"); color: AppColors.text-muted; font-size: 9px; }
+            }
+            if root.cloud: Rectangle {
+                x: 278px; y: 140px; width: 236px; height: 72px; border-radius: 8px; background: AppColors.surface-subtle;
+                Text { x: 16px; y: 9px; text: @tr("models.asr.cloud.plan-quota" => "Plan and quota"); color: AppColors.text; font-size: 11px; font-weight: 700; }
+                Text { x: 16px; y: 33px; text: @tr("models.asr.placeholder.not-available" => "Not available"); color: AppColors.text-muted; font-size: 11px; font-weight: 600; }
+            }
+            if !root.cloud: Rectangle {
+                x: 28px; y: 140px; width: 486px; height: 72px; background: transparent;
+                LocalModelMetric {
+                    x: 0px;
+                    width: parent.width / 3;
+                    height: parent.height;
+                    icon: @image-url("../../icons/lucide/download.svg");
+                    label: @tr("models.asr.local.download-size" => "Download size");
+                    value: root.download-size;
+                }
+                LocalModelMetric {
+                    x: parent.width / 3;
+                    width: parent.width / 3;
+                    height: parent.height;
+                    icon: @image-url("../../icons/lucide/memory-stick.svg");
+                    label: @tr("models.asr.local.memory" => "Runtime memory");
+                    value: root.memory;
+                    alignment: MetricAlignment.center;
+                }
+                LocalModelMetric {
+                    x: parent.width * 2 / 3;
+                    width: parent.width / 3;
+                    height: parent.height;
+                    icon: @image-url("../../icons/lucide/badge-check.svg");
+                    label: @tr("models.asr.local.compatibility" => "Compatibility");
+                    value: @tr("models.asr.placeholder.unverified" => "Unverified");
+                    alignment: MetricAlignment.right;
+                    muted-value: true;
+                }
+            }
+            if root.cloud: Rectangle {
+                x: 28px; y: 230px; width: 486px; height: 92px; border-radius: 8px; background: AppColors.surface-subtle;
+                Text { x: 16px; y: 12px; text: @tr("models.test.title" => "Recognition test"); color: AppColors.text; font-size: 11px; font-weight: 700; }
+                Text { x: 16px; y: 34px; width: parent.width - 32px; text: @tr("models.asr.placeholder.test-disabled" => "No production adapter is available. Recognition testing is disabled."); color: AppColors.text-muted; font-size: 9px; wrap: word-wrap; }
+            }
+            if !root.cloud: Rectangle {
+                x: 28px; y: 224px; width: 486px; height: 78px; background: transparent;
+                Image { x: 0px; y: 10px; width: 15px; height: 15px; source: @image-url("../../icons/lucide/package-check.svg"); colorize: AppColors.text-muted; }
+                Text { x: 23px; y: 9px; text: @tr("models.asr.local.model-files" => "Model files"); color: AppColors.text; font-size: 11px; font-weight: 700; }
+                Text { x: 23px; y: 31px; width: parent.width - 23px; text: @tr("models.asr.placeholder.download-disabled" => "No verified download source or production adapter is available."); color: AppColors.text-muted; font-size: 9px; wrap: word-wrap; }
+            }
+            if !root.cloud: Rectangle {
+                x: 28px; y: 314px; width: 486px; height: 96px; border-radius: 8px; background: AppColors.surface-subtle;
+                Text { x: 16px; y: 12px; text: @tr("models.test.title" => "Recognition test"); color: AppColors.text; font-size: 11px; font-weight: 700; }
+                Text { x: 16px; y: 34px; text: @tr("models.test.fixed-audio" => "Fixed test audio 3.9 sec"); color: AppColors.text-muted; font-size: 9px; }
+                ModalButton { x: parent.width - 106px; y: 12px; width: 90px; height: 32px; label: @tr("models.test.action" => "Run test"); enabled: false; }
             }
         }
     }

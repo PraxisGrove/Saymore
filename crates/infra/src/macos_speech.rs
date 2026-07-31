@@ -90,6 +90,28 @@ pub fn open_speech_recognition_privacy_settings() -> Result<(), io::Error> {
     }
 }
 
+pub fn macos_product_version() -> Result<String, io::Error> {
+    let output = Command::new("/usr/bin/sw_vers")
+        .arg("-productVersion")
+        .output()?;
+    if !output.status.success() {
+        return Err(io::Error::other(format!(
+            "sw_vers exited with status {}",
+            output.status
+        )));
+    }
+    let version = String::from_utf8(output.stdout)
+        .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))?;
+    let version = version.trim();
+    if version.is_empty() {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "sw_vers returned an empty product version",
+        ));
+    }
+    Ok(version.to_owned())
+}
+
 impl MacOsSpeechRecognizer {
     pub fn new() -> Self {
         Self::default()

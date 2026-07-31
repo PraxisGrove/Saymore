@@ -1,0 +1,133 @@
+import { AppColors } from "../color-system.slint";
+
+export component RecognitionTestPanel inherits Rectangle {
+    in property <bool> testing: false;
+    in property <bool> succeeded: false;
+    in property <bool> failed: false;
+    in property <bool> ready: false;
+    in property <string> elapsed;
+    in property <string> transcript;
+    callback activated();
+
+    private property <bool> has-result: root.succeeded || root.failed;
+    private property <bool> action-emphasized: !root.succeeded;
+    private property <string> action-label: root.testing ? @tr("models.test.testing" => "Testing…")
+        : root.succeeded ? @tr("models.test.again" => "Test again")
+        : root.failed ? @tr("models.test.retry" => "Retry test")
+        : @tr("models.test.action" => "Run test");
+
+    height: root.has-result ? 92px : 64px;
+    border-radius: 8px;
+    background: AppColors.surface-subtle;
+
+    Text {
+        x: 16px;
+        y: 9px;
+        text: @tr("models.test.title" => "Recognition test");
+        color: AppColors.text;
+        font-size: 11px;
+        font-weight: 700;
+    }
+    Text {
+        x: 16px;
+        y: 29px;
+        text: @tr("models.test.fixed-audio" => "Fixed test audio 3.9 sec");
+        color: AppColors.text-muted;
+        font-size: 9px;
+    }
+
+    if root.has-result: HorizontalLayout {
+        x: 16px;
+        y: 45px;
+        width: parent.width - 152px;
+        height: 18px;
+        spacing: 6px;
+        cross-axis-alignment: center;
+
+        Text {
+            text: root.failed
+                ? @tr("models.test.failed" => "Recognition failed")
+                : @tr("models.test.succeeded" => "Recognition succeeded");
+            color: root.failed ? AppColors.danger : AppColors.success;
+            font-size: 11px;
+            font-weight: 700;
+            vertical-alignment: center;
+        }
+        Image {
+            width: 13px;
+            height: 13px;
+            source: root.failed
+                ? @image-url("../../icons/lucide/circle-alert.svg")
+                : @image-url("../../icons/lucide/check.svg");
+            colorize: root.failed ? AppColors.danger : AppColors.success;
+        }
+        if !root.elapsed.is-empty: Text {
+            horizontal-stretch: 1;
+            text: @tr("models.test.elapsed" => "· {} sec", root.elapsed);
+            color: root.failed ? AppColors.danger : AppColors.success;
+            font-size: 11px;
+            font-weight: 700;
+            vertical-alignment: center;
+            overflow: elide;
+        }
+    }
+    if root.has-result && !root.transcript.is-empty: Text {
+        x: 16px;
+        y: 69px;
+        width: parent.width - 152px;
+        text: @tr("models.test.transcript" => "Transcript: {}", root.transcript);
+        color: AppColors.text;
+        font-size: 10px;
+        overflow: elide;
+    }
+
+    Rectangle {
+        x: parent.width - 120px;
+        y: root.has-result ? 43px : 14px;
+        width: 104px;
+        height: 36px;
+        border-radius: 7px;
+        border-width: root.succeeded ? 0px : 1px;
+        border-color: root.action-emphasized ? AppColors.brand-strong : AppColors.border;
+        background: root.succeeded ? (action-touch.has-hover ? AppColors.surface : transparent)
+            : !root.ready || root.testing ? AppColors.surface-muted
+            : action-touch.has-hover ? AppColors.surface : AppColors.surface-subtle;
+        opacity: root.ready ? 1 : 0.55;
+        accessible-role: button;
+        accessible-label: root.action-label;
+        accessible-enabled: root.ready && !root.testing;
+        accessible-action-default => { if root.ready && !root.testing { root.activated(); } }
+
+        HorizontalLayout {
+            width: parent.width;
+            height: parent.height;
+            spacing: 6px;
+            alignment: center;
+            cross-axis-alignment: center;
+
+            Image {
+                width: 14px;
+                height: 14px;
+                source: root.testing || root.has-result
+                    ? @image-url("../../icons/lucide/refresh-cw.svg")
+                    : @image-url("../../icons/lucide/audio-lines.svg");
+                colorize: !root.ready || root.testing ? AppColors.text-muted
+                    : root.action-emphasized ? AppColors.brand-strong : AppColors.text;
+            }
+            Text {
+                text: root.action-label;
+                color: !root.ready || root.testing ? AppColors.text-muted
+                    : root.action-emphasized ? AppColors.brand-strong : AppColors.text;
+                font-size: 10px;
+                font-weight: 650;
+                vertical-alignment: center;
+                overflow: elide;
+            }
+        }
+        action-touch := TouchArea {
+            enabled: root.ready && !root.testing;
+            mouse-cursor: self.enabled ? pointer : default;
+            clicked => { root.activated(); }
+        }
+    }
+}

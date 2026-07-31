@@ -1,0 +1,96 @@
+import { OverlayColors } from "overlay-color-system.slint";
+
+export component UpdateNotification inherits Rectangle {
+    in property <string> version: "";
+    callback close();
+    callback view-update();
+
+    width: 280px;
+    height: 94px;
+    border-radius: 12px;
+    background: OverlayColors.surface;
+    border-width: 1px;
+    border-color: OverlayColors.notification-border;
+    drop-shadow-blur: 6px;
+    drop-shadow-offset-y: 2px;
+    drop-shadow-color: OverlayColors.notification-shadow;
+
+    Text {
+        x: 16px;
+        y: 5px;
+        width: 205px;
+        height: 22px;
+        text: @tr("update.notification.title" => "New version available");
+        color: OverlayColors.notification-ink;
+        font-size: 13px;
+        font-weight: 700;
+        vertical-alignment: center;
+    }
+
+    Text {
+        x: 16px;
+        y: 27px;
+        width: 248px;
+        height: 16px;
+        text: @tr("update.notification.detail" => "{} is now available. Update now to get the latest features.", root.version);
+        color: OverlayColors.notification-muted;
+        font-size: 9px;
+        overflow: elide;
+        vertical-alignment: center;
+    }
+
+    Rectangle {
+        x: 246px;
+        y: 4px;
+        width: 24px;
+        height: 24px;
+        border-radius: 6px;
+        background: close-area.has-hover ? OverlayColors.surface-hover : transparent;
+        accessible-role: button;
+        accessible-label: @tr("common.close" => "Close");
+        accessible-action-default => { root.close(); }
+
+        Image {
+            x: 5px;
+            y: 5px;
+            width: 14px;
+            height: 14px;
+            source: @image-url("../icons/lucide/x.svg");
+            colorize: OverlayColors.notification-muted;
+        }
+
+        close-area := TouchArea {
+            mouse-cursor: pointer;
+            clicked => { root.close(); }
+        }
+    }
+
+    Rectangle {
+        x: 14px;
+        y: 54px;
+        width: 252px;
+        height: 30px;
+        border-radius: 8px;
+        background: update-area.pressed ? OverlayColors.update-accent-pressed
+            : update-area.has-hover ? OverlayColors.update-accent-hover
+            : OverlayColors.update-accent;
+        accessible-role: button;
+        accessible-label: @tr("update.notification.action" => "View update");
+        accessible-action-default => { root.view-update(); }
+
+        Text {
+            text: @tr("update.notification.action" => "View update");
+            color: OverlayColors.on-accent;
+            font-size: 10px;
+            font-weight: 700;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+        }
+        Image { x: parent.width - 24px; y: 9px; width: 12px; height: 12px; source: @image-url("../icons/lucide/arrow-up-right.svg"); colorize: OverlayColors.on-accent; }
+
+        update-area := TouchArea {
+            mouse-cursor: pointer;
+            clicked => { root.view-update(); }
+        }
+    }
+}

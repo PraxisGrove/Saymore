@@ -53,6 +53,6 @@ mod tests {
     fn bundled_audio_is_valid_pcm() {
         let samples = standard_audio_samples();
         assert!(samples.is_ok());
-        assert_eq!(Some(49_536), samples.ok().map(|samples| samples.len()));
+        assert_eq!(Some(61_744), samples.ok().map(|samples| samples.len()));
     }
 }

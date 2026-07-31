@@ -128,7 +128,7 @@ pub use macos_speech_probe::{
 
 #[cfg(target_os = "macos")]
 pub use macos_speech::{
-    MacOsSpeechAuthorization, MacOsSpeechCapability, MacOsSpeechRecognizer,
+    MacOsSpeechAuthorization, MacOsSpeechCapability, MacOsSpeechRecognizer, macos_product_version,
     macos_speech_capability, open_speech_recognition_privacy_settings,
     request_macos_speech_authorization,
 };

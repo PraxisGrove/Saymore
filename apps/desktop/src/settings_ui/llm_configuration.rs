@@ -2,12 +2,14 @@ use std::sync::Arc;
 
 use slint::ComponentHandle;
 use template_app::{
-    ChatCompletionsLlmSettings, LlmProviderPreset, ProviderConfigStore, SettingsStoreError,
+    ChatCompletionsLlmSettings, LlmProviderPreset, ProviderConfigStore, SettingsStore,
+    SettingsStoreError,
 };
 use template_infra::{ChatCompletionsLlmProvider, JsonSettingsStore};
 
 use crate::ui::{AppWindow, LlmProvider as UiLlmProvider, Translations};
 
+use super::llm_enablement::{llm_consent_required, provider_is_local};
 use super::{apply_loaded_settings, provider_preset};
 
 #[derive(Clone)]
@@ -21,6 +23,7 @@ enum LlmSaveError {
     Invalid,
     Connection,
     Store,
+    Changed,
 }
 
 pub(super) fn wire(ui: &AppWindow, store: Arc<JsonSettingsStore>) {
@@ -31,8 +34,35 @@ pub(super) fn wire(ui: &AppWindow, store: Arc<JsonSettingsStore>) {
             return;
         };
         let candidate = candidate(provider, &api_key, &base_url, &model);
-        begin_save(&ui, Arc::clone(&save_store), candidate);
+        begin_activation(&ui, Arc::clone(&save_store), candidate);
     });
+
+    let confirm_ui = ui.as_weak();
+    let confirm_store = Arc::clone(&store);
+    ui.on_confirm_llm_config(
+        move |provider, api_key, base_url, model, expected_base_url| {
+            let Some(ui) = confirm_ui.upgrade() else {
+                return;
+            };
+            let candidate = candidate(provider, &api_key, &base_url, &model);
+            let candidate = match candidate {
+                Ok(candidate) if candidate.settings.base_url == expected_base_url.trim() => {
+                    candidate
+                }
+                Ok(_) => {
+                    ui.set_llm_config_status(
+                        ui.global::<Translations>().get_models_provider_changed(),
+                    );
+                    return;
+                }
+                Err(_) => {
+                    apply_validation_error(&ui);
+                    return;
+                }
+            };
+            start_activation(&ui, Arc::clone(&confirm_store), candidate);
+        },
+    );
 
     let select_ui = ui.as_weak();
     ui.on_select_llm_provider(move |provider| {
@@ -83,7 +113,7 @@ fn candidate(
     Ok(LlmCandidate { provider, settings })
 }
 
-fn begin_save(
+fn begin_activation(
     ui: &AppWindow,
     store: Arc<JsonSettingsStore>,
     candidate: Result<LlmCandidate, LlmSaveError>,
@@ -91,11 +121,29 @@ fn begin_save(
     let candidate = match candidate {
         Ok(candidate) => candidate,
         Err(_) => {
-            ui.set_llm_draft_error(true);
-            ui.set_llm_config_status(validation_error_text(ui));
+            apply_validation_error(ui);
             return;
         }
     };
+    let base_url = candidate.settings.base_url.as_str();
+    ui.set_llm_provider_target(base_url.into());
+    ui.set_llm_provider_local(provider_is_local(base_url));
+    let Ok(settings) = store.load() else {
+        ui.set_llm_config_status(
+            ui.global::<Translations>()
+                .get_common_configuration_load_failed(),
+        );
+        return;
+    };
+    if llm_consent_required(&settings, base_url) {
+        ui.set_llm_confirmation_for_draft(true);
+        ui.set_llm_confirmation_visible(true);
+        return;
+    }
+    start_activation(ui, store, candidate);
+}
+
+fn start_activation(ui: &AppWindow, store: Arc<JsonSettingsStore>, candidate: LlmCandidate) {
     ui.set_llm_testing(true);
     ui.set_llm_draft_error(false);
     ui.set_llm_config_status(ui.global::<Translations>().get_models_testing_connection());
@@ -103,7 +151,7 @@ fn begin_save(
     let spawn_result = std::thread::Builder::new()
         .name("saymore-test-llm-config".to_owned())
         .spawn(move || {
-            let result = test_and_save(&store, &candidate, test_connection);
+            let result = test_save_and_enable(&store, &candidate, test_connection);
             if let Err(error) = &result {
                 tracing::warn!(
                     target: "saymore::diagnostics",
@@ -120,9 +168,7 @@ fn begin_save(
                             event = "llm.configuration_saved"
                         );
                         apply_loaded_settings(&ui, &store);
-                        ui.set_llm_config_status(
-                            ui.global::<Translations>().get_models_connected(),
-                        );
+                        ui.set_llm_config_status(ui.global::<Translations>().get_models_enabled());
                     }
                     Err(_) => {
                         ui.set_llm_draft_error(true);
@@ -144,13 +190,21 @@ fn begin_save(
     }
 }
 
-fn test_and_save(
+fn test_save_and_enable(
     store: &JsonSettingsStore,
     candidate: &LlmCandidate,
     test: impl FnOnce(&ChatCompletionsLlmSettings) -> Result<(), String>,
 ) -> Result<(), LlmSaveError> {
     test(&candidate.settings).map_err(|_| LlmSaveError::Connection)?;
-    save_candidate(store, candidate).map_err(|_| LlmSaveError::Store)
+    save_candidate(store, candidate).map_err(|_| LlmSaveError::Store)?;
+    let enabled = store
+        .enable_llm_provider_if_unchanged(
+            candidate.provider.id(),
+            &candidate.settings.base_url,
+            &candidate.settings.api_key,
+        )
+        .map_err(|_| LlmSaveError::Store)?;
+    enabled.then_some(()).ok_or(LlmSaveError::Changed)
 }
 
 fn test_connection(settings: &ChatCompletionsLlmSettings) -> Result<(), String> {
@@ -217,6 +271,11 @@ fn validation_error_text(ui: &AppWindow) -> slint::SharedString {
     }
 }
 
+fn apply_validation_error(ui: &AppWindow) {
+    ui.set_llm_draft_error(true);
+    ui.set_llm_config_status(validation_error_text(ui));
+}
+
 #[cfg(test)]
 mod tests {
     use std::fs;
@@ -241,7 +300,7 @@ mod tests {
         };
 
         assert!(
-            test_and_save(&store, &replacement, |_| {
+            test_save_and_enable(&store, &replacement, |_| {
                 Err("connection failed".to_owned())
             })
             .is_err()
@@ -251,6 +310,35 @@ mod tests {
             store.load_catalog().ok().and_then(|catalog| catalog
                 .llm_provider_api_key(LlmProviderPreset::DeepSeek)
                 .map(str::to_owned))
+        );
+        let _ = fs::remove_dir_all(directory);
+    }
+
+    #[test]
+    fn successful_connection_test_saves_and_enables_the_candidate() {
+        let directory = std::env::temp_dir().join(format!("saymore-llm-enable-{}", Uuid::new_v4()));
+        let store = JsonSettingsStore::at_path(directory.join("providers.json"));
+        let candidate = LlmCandidate {
+            provider: LlmProviderPreset::DeepSeek,
+            settings: ChatCompletionsLlmSettings {
+                model: "deepseek-chat".to_owned(),
+                ..LlmProviderPreset::DeepSeek.settings("candidate-key")
+            },
+        };
+
+        assert!(test_save_and_enable(&store, &candidate, |_| Ok(())).is_ok());
+        let Ok(settings) = store.load() else {
+            panic!("enabled LLM settings should remain readable");
+        };
+        assert!(settings.llm.enabled);
+        assert_eq!(candidate.settings.base_url, settings.llm.confirmed_base_url);
+        assert_eq!(
+            candidate.settings.api_key,
+            settings.llm.chat_completions.api_key
+        );
+        assert_eq!(
+            candidate.settings.model,
+            settings.llm.chat_completions.model
         );
         let _ = fs::remove_dir_all(directory);
     }

@@ -43,8 +43,7 @@ fn prepare_discovery(ui: &AppWindow) -> Option<DiscoveryRequest> {
         return None;
     }
     let api_key = selected_api_key(ui, tab);
-    let custom_llm = tab == 1 && ui.get_llm_provider() == UiLlmProvider::Custom;
-    if api_key.trim().is_empty() && !custom_llm {
+    if api_key.trim().is_empty() {
         discovery_input_error(
             ui,
             ui.global::<Translations>().get_models_fetch_enter_api_key(),
@@ -78,9 +77,13 @@ fn prepare_discovery(ui: &AppWindow) -> Option<DiscoveryRequest> {
     }
     Some(DiscoveryRequest {
         target,
-        endpoint: format!("{}/models", endpoint.trim().trim_end_matches('/')),
+        endpoint: model_list_endpoint(&endpoint),
         api_key: api_key.to_string(),
     })
+}
+
+fn model_list_endpoint(base_url: &str) -> String {
+    format!("{}/models", base_url.trim().trim_end_matches('/'))
 }
 
 fn selected_api_key(ui: &AppWindow, tab: i32) -> SharedString {
@@ -121,7 +124,7 @@ fn start_discovery(ui: &AppWindow, request: DiscoveryRequest) {
                     runtime.block_on(discover_models(&request.endpoint, &request.api_key))
                 });
             let _ = request_ui.upgrade_in_event_loop(move |ui| {
-                if !target_is_current(&ui, request.target) {
+                if !request_is_current(&ui, &request) {
                     return;
                 }
                 match result {
@@ -148,6 +151,25 @@ fn target_is_current(ui: &AppWindow, target: DiscoveryTarget) -> bool {
             ui.get_model_tab() == 1 && provider_preset(ui.get_llm_provider()) == provider
         }
     }
+}
+
+fn request_is_current(ui: &AppWindow, request: &DiscoveryRequest) -> bool {
+    if !target_is_current(ui, request.target) {
+        return false;
+    }
+    let tab = ui.get_model_tab();
+    if selected_api_key(ui, tab).trim() != request.api_key.trim() {
+        return false;
+    }
+    let endpoint = match request.target {
+        DiscoveryTarget::Volcengine => return false,
+        DiscoveryTarget::CustomAsr => model_list_endpoint(&ui.get_custom_asr_base_url()),
+        DiscoveryTarget::Llm(LlmProviderPreset::Custom) => {
+            model_list_endpoint(&ui.get_custom_llm_base_url())
+        }
+        DiscoveryTarget::Llm(provider) => provider.model_list_url().to_owned(),
+    };
+    endpoint == request.endpoint
 }
 
 fn apply_models(ui: &AppWindow, target: DiscoveryTarget, models: Vec<String>) {
@@ -202,4 +224,17 @@ fn apply_error(ui: &AppWindow, error: ModelDiscoveryError) {
     ui.set_model_discovery_loading(false);
     ui.set_model_discovery_error(true);
     ui.set_model_discovery_status(status);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::model_list_endpoint;
+
+    #[test]
+    fn custom_model_list_endpoint_normalizes_surrounding_whitespace_and_slashes() {
+        assert_eq!(
+            "https://asr.example/v1/models",
+            model_list_endpoint("  https://asr.example/v1///  ")
+        );
+    }
 }

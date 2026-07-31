@@ -83,13 +83,15 @@ component StatusNode inherits Rectangle {
     accessible-action-default => { root.activated(); }
     Rectangle {
         x: (parent.width - self.width) / 2;
+        y: -6px;
         width: 30px;
         height: 30px;
         border-radius: 15px;
         background: root.ready ? AppColors.success-soft : AppColors.surface-subtle;
         Image { x: 8px; y: 8px; width: 14px; height: 14px; source: root.icon; colorize: root.ready ? AppColors.success : AppColors.text-muted; }
     }
-    Text { y: 52px; width: parent.width; text: root.label; color: AppColors.text; font-size: 10px; font-weight: 650; horizontal-alignment: center; overflow: elide; }
+    status-label := Text { x: (root.width - self.width - 14px) / 2; y: 52px; width: min(self.preferred-width, root.width - 14px); text: root.label; color: AppColors.text; font-size: 10px; font-weight: 650; horizontal-alignment: center; overflow: elide; }
+    Image { x: status-label.x + status-label.width + 4px; y: status-label.y + (status-label.preferred-height - self.height) / 2; width: 10px; height: 10px; source: @image-url("../../icons/lucide/arrow-up-right.svg"); colorize: AppColors.text-muted; }
     TouchArea { mouse-cursor: pointer; clicked => { root.activated(); } }
 }
 
@@ -147,8 +149,8 @@ export component HomePage inherits Rectangle {
             Text { text: "+" + (root.shortcut-labels.length - 1); color: AppColors.brand-strong; font-size: 9px; font-weight: 700; horizontal-alignment: center; vertical-alignment: center; }
         }
         Text { x: 20px; y: 160px; text: @tr("home.shortcut.toggle-hint" => "Press once to start, then again to finish"); color: AppColors.text-muted; font-size: 10px; }
-        Text { x: parent.width - 60px; y: 160px; width: 36px; text: @tr("common.edit" => "Edit"); color: AppColors.text; font-size: 10px; font-weight: 600; horizontal-alignment: right; }
-        Image { x: parent.width - 17px; y: 163px; width: 11px; height: 11px; source: @image-url("../../icons/lucide/chevron-right.svg"); colorize: AppColors.text-muted; }
+        Text { x: parent.width - 75px; y: 160px; width: 36px; text: @tr("common.edit" => "Edit"); color: AppColors.text; font-size: 10px; font-weight: 600; horizontal-alignment: right; }
+        Image { x: parent.width - 32px; y: 160px; width: 11px; height: 11px; source: @image-url("../../icons/lucide/chevron-right.svg"); colorize: AppColors.text-muted; }
         TouchArea { mouse-cursor: pointer; clicked => { root.open-shortcut-settings(); } }
     }
 

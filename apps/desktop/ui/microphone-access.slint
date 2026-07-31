@@ -75,7 +75,8 @@ export component MicrophonePermissionOverlay inherits Window {
             x: 267px; y: 24px; width: 100px; height: 34px; border-radius: 10px; background: settings-area.has-hover ? OverlayColors.text : OverlayColors.ink;
             accessible-role: button; accessible-label: @tr("common.open-system-settings" => "Open System Settings");
             accessible-action-default => { root.open-settings(); }
-            Text { text: @tr("common.open-system-settings" => "Open System Settings"); color: OverlayColors.on-accent; font-size: 10px; font-weight: 650; horizontal-alignment: center; vertical-alignment: center; }
+            Text { x: 6px; width: parent.width - 24px; text: @tr("common.open-system-settings" => "Open System Settings"); color: OverlayColors.on-accent; font-size: 10px; font-weight: 650; horizontal-alignment: center; vertical-alignment: center; overflow: elide; }
+            Image { x: parent.width - 16px; y: 12px; width: 10px; height: 10px; source: @image-url("../icons/lucide/arrow-up-right.svg"); colorize: OverlayColors.on-accent; }
             settings-area := TouchArea { mouse-cursor: pointer; clicked => { root.open-settings(); } }
         }
         TouchArea { width: 258px; height: parent.height; clicked => { root.dismiss(); } }
@@ -112,7 +113,8 @@ export component AccessibilityPermissionOverlay inherits Window {
             x: 254px; y: 28px; width: 112px; height: 34px; border-radius: 10px; background: settings-area.has-hover ? OverlayColors.text : OverlayColors.ink;
             accessible-role: button; accessible-label: @tr("common.open-system-settings" => "Open System Settings");
             accessible-action-default => { root.open-settings(); }
-            Text { x: 8px; width: parent.width - 16px; text: @tr("common.open-system-settings" => "Open System Settings"); color: OverlayColors.on-accent; font-size: 10px; font-weight: 650; horizontal-alignment: center; vertical-alignment: center; overflow: elide; }
+            Text { x: 6px; width: parent.width - 24px; text: @tr("common.open-system-settings" => "Open System Settings"); color: OverlayColors.on-accent; font-size: 10px; font-weight: 650; horizontal-alignment: center; vertical-alignment: center; overflow: elide; }
+            Image { x: parent.width - 16px; y: 12px; width: 10px; height: 10px; source: @image-url("../icons/lucide/arrow-up-right.svg"); colorize: OverlayColors.on-accent; }
             settings-area := TouchArea { mouse-cursor: pointer; clicked => { root.open-settings(); } }
         }
         Rectangle {

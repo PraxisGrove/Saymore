@@ -44,11 +44,14 @@ Desktop startup is shared across macOS and Windows. It resolves application
 paths, opens provider settings and local storage, loads local settings, and
 wires the shared Slint settings, history, dictionary, statistics, ASR, and
 dictation completion modules before platform-specific capabilities are attached.
-Concrete audio capture, permissions, global shortcuts, text delivery, window
-behavior, and system settings actions remain narrow adapters rather than one
-aggregate platform service. A platform that does not yet implement one of those
-adapters must return an explicit unavailable error; it must not replace the
-shared UI or bootstrap with a platform-specific application flow.
+When automatic update checks are enabled, startup also queries the latest stable
+GitHub Release. A newer version is presented as a dismissible in-window notice;
+manual checks continue to report their result only in Settings. Concrete audio
+capture, permissions, global shortcuts, text delivery, window behavior, and
+system settings actions remain narrow adapters rather than one aggregate
+platform service. A platform that does not yet implement one of those adapters
+must return an explicit unavailable error; it must not replace the shared UI or
+bootstrap with a platform-specific application flow.
 
 macOS text delivery is an incremental main-thread state machine. Focus settling,
 accessibility verification, and clipboard restoration waits are represented as

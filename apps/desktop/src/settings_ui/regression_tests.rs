@@ -8,9 +8,8 @@ use template_infra::JsonSettingsStore;
 use uuid::Uuid;
 
 use super::{
-    AsrConfigError, asr_available_on_home, clear_asr_configuration, llm_consent_required,
-    persist_llm_consent, save_asr_configuration, save_custom_asr_configuration,
-    volcengine_api_key_is_valid,
+    AsrConfigError, asr_available_on_home, llm_consent_required, persist_llm_consent,
+    save_asr_configuration, save_custom_asr_configuration, volcengine_api_key_is_valid,
 };
 
 const VALID_ASR_API_KEY: &str = "123e4567-e89b-42d3-a456-426614174000";
@@ -36,7 +35,7 @@ fn asr_configuration_rejects_an_empty_model() {
 }
 
 #[test]
-fn asr_configuration_normalizes_the_legacy_model_and_can_be_deleted() {
+fn asr_configuration_normalizes_the_legacy_model_without_changing_the_current_provider() {
     let directory = std::env::temp_dir().join(format!("saymore-asr-round-trip-{}", Uuid::new_v4()));
     let store = JsonSettingsStore::at_path(directory.join("providers.json"));
 
@@ -53,15 +52,13 @@ fn asr_configuration_normalizes_the_legacy_model_and_can_be_deleted() {
     };
     assert_eq!(
         VolcengineAsrSettings {
-            enabled: true,
+            enabled: false,
             api_key: VALID_ASR_API_KEY.to_owned(),
             model: "volc.seedasr.sauc.duration".to_owned(),
         },
         settings.asr.volcengine
     );
 
-    assert_eq!(Ok(()), clear_asr_configuration(&store));
-    assert_eq!(Ok(SaymoreSettings::default()), store.load());
     let _ = fs::remove_dir_all(directory);
 }
 
@@ -100,7 +97,7 @@ fn volcengine_api_key_validation_matches_the_new_console_format() {
 }
 
 #[test]
-fn custom_asr_configuration_round_trips_and_becomes_active() {
+fn custom_asr_configuration_round_trips_and_switches_only_when_selected() {
     let directory = std::env::temp_dir().join(format!("saymore-custom-asr-{}", Uuid::new_v4()));
     let store = JsonSettingsStore::at_path(directory.join("providers.json"));
 
@@ -123,7 +120,7 @@ fn custom_asr_configuration_round_trips_and_becomes_active() {
     assert!(!settings.asr.volcengine.enabled);
     assert_eq!(
         OpenAiCompatibleAsrSettings {
-            enabled: true,
+            enabled: false,
             base_url: "https://asr.example/v1".to_owned(),
             api_key: "test-key".to_owned(),
             model: "whisper-large-v3".to_owned(),
@@ -138,10 +135,22 @@ fn custom_asr_configuration_round_trips_and_becomes_active() {
             .unwrap_or_default()
     );
 
-    assert_eq!(
-        Ok(()),
-        save_asr_configuration(&store, VALID_ASR_API_KEY, "bigmodel_async")
-    );
+    let Ok(mut catalog) = store.load_catalog() else {
+        panic!("saved provider catalog should be readable");
+    };
+    assert!(catalog.select_openai_transcriptions_asr_provider());
+    assert_eq!(Ok(()), store.save_catalog(&catalog));
+    let Ok(settings) = store.load() else {
+        panic!("selected custom ASR settings should be readable");
+    };
+    assert!(!settings.asr.volcengine.enabled);
+    assert!(settings.asr.openai_compatible.enabled);
+
+    let Ok(mut catalog) = store.load_catalog() else {
+        panic!("saved provider catalog should be readable");
+    };
+    assert!(catalog.select_volcengine_asr_provider());
+    assert_eq!(Ok(()), store.save_catalog(&catalog));
     let Ok(settings) = store.load() else {
         panic!("switched ASR settings should be readable");
     };

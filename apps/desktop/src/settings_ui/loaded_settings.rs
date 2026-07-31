@@ -22,6 +22,7 @@ pub(super) fn apply_loaded_settings(ui: &AppWindow, store: &JsonSettingsStore) {
             ui.set_asr_testing(false);
             ui.set_asr_test_succeeded(false);
             ui.set_asr_test_elapsed(SharedString::default());
+            ui.set_asr_test_result(SharedString::default());
             apply_pending_test(ui, configured);
             ui.set_asr_config_dirty(false);
             ui.set_asr_draft_error(false);
@@ -45,6 +46,7 @@ fn apply_loaded_llm(ui: &AppWindow, settings: &SaymoreSettings, catalog: &Provid
         .active_llm_provider()
         .unwrap_or(LlmProviderPreset::SenseNova);
     ui.set_llm_provider(ui_provider(selected));
+    ui.set_active_llm_provider(ui_provider(selected));
     ui.set_sensenova_api_key(SharedString::from(
         catalog
             .llm_provider_api_key(LlmProviderPreset::SenseNova)

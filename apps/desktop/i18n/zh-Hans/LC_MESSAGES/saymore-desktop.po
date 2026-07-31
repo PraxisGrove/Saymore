@@ -1,7 +1,7 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: Saymore 0.1.0\n"
-"POT-Creation-Date: 2026-07-20 07:04+0000\n"
+"POT-Creation-Date: 2026-07-31 08:24+0000\n"
 "PO-Revision-Date: 2026-07-15 16:30+0800\n"
 "Last-Translator: Saymore Team\n"
 "Language-Team: Simplified Chinese\n"
@@ -11,42 +11,52 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=1; plural=0;\n"
 
-#: apps/desktop/ui/app-window.slint:39 apps/desktop/ui/app-window.slint:41
+#: apps/desktop/ui/app-window.slint:54 apps/desktop/ui/app-window.slint:56
 msgctxt "permissions.status.checking"
 msgid "Checking…"
 msgstr "检测中"
 
-#: apps/desktop/ui/app-window.slint:44 apps/desktop/ui/app-window.slint:45
+#: apps/desktop/ui/app-window.slint:59 apps/desktop/ui/app-window.slint:60
 msgctxt "settings.microphone.system-default"
 msgid "Automatic (system default microphone)"
 msgstr "自动（系统默认麦克风）"
 
-#: apps/desktop/ui/app-window.slint:79
+#: apps/desktop/ui/app-window.slint:97
 msgctxt "recording.status.ready"
 msgid "Ready for voice input"
 msgstr "等待录音"
 
-#: apps/desktop/ui/app-window.slint:80
+#: apps/desktop/ui/app-window.slint:98
 msgctxt "recording.start-hint"
 msgid "Press Right Command to start"
 msgstr "按 Right Command 开始"
 
-#: apps/desktop/ui/app-window.slint:95 apps/desktop/ui/sidebar.slint:6
+#: apps/desktop/ui/app-window.slint:113 apps/desktop/ui/sidebar.slint:6
 msgctxt "storage.usage.calculating"
 msgid "Calculating…"
 msgstr "正在计算…"
 
-#: apps/desktop/ui/app-window.slint:107 apps/desktop/ui/translations.slint:81
+#: apps/desktop/ui/app-window.slint:133 apps/desktop/ui/translations.slint:81
 msgctxt "models.status.not-configured.plain"
 msgid "Not configured"
 msgstr "未配置"
 
-#: apps/desktop/ui/app-window.slint:125 apps/desktop/ui/translations.slint:100
+#: apps/desktop/ui/app-window.slint:177 apps/desktop/ui/translations.slint:100
 msgctxt "models.status.not-enabled"
 msgid "Not enabled"
 msgstr "未启用"
 
-#: apps/desktop/ui/components.slint:262
+#: apps/desktop/ui/app-window.slint:791
+msgctxt "models.provider.custom-compatible"
+msgid "Custom compatible API"
+msgstr "自定义兼容接口"
+
+#: apps/desktop/ui/components.slint:244
+msgctxt "common.close"
+msgid "Close"
+msgstr "关闭"
+
+#: apps/desktop/ui/components.slint:375
 msgctxt "common.select-value.accessible-label"
 msgid "Select {}"
 msgstr "选择 {}"
@@ -60,11 +70,6 @@ msgstr "已添加到个人词典"
 msgctxt "dictionary.notification.added.detail"
 msgid "Automatically added based on your repeated corrections"
 msgstr "已根据你多次纠正的结果自动添加"
-
-#: apps/desktop/ui/dictionary-added-overlay.slint:96
-msgctxt "common.close"
-msgid "Close"
-msgstr "关闭"
 
 #: apps/desktop/ui/dictionary-added-overlay.slint:121
 msgctxt "dictionary.notification.undo"
@@ -107,7 +112,7 @@ msgid "Continue to microphone access"
 msgstr "继续授权麦克风"
 
 #: apps/desktop/ui/microphone-access.slint:45
-#: apps/desktop/ui/onboarding.slint:259
+#: apps/desktop/ui/onboarding.slint:260
 msgctxt "common.continue"
 msgid "Continue"
 msgstr "继续"
@@ -127,22 +132,22 @@ msgctxt "common.open-system-settings"
 msgid "Open System Settings"
 msgstr "打开系统设置"
 
-#: apps/desktop/ui/microphone-access.slint:108
+#: apps/desktop/ui/microphone-access.slint:109
 msgctxt "accessibility.permission.title"
 msgid "Accessibility permission required"
 msgstr "需要辅助功能权限"
 
-#: apps/desktop/ui/microphone-access.slint:109
+#: apps/desktop/ui/microphone-access.slint:110
 msgctxt "accessibility.permission.detail"
 msgid "Allow Saymore to detect the shortcut and insert text."
 msgstr "允许 Saymore 检测快捷键并自动输入文字。"
 
-#: apps/desktop/ui/microphone-access.slint:153
+#: apps/desktop/ui/microphone-access.slint:151
 msgctxt "asr.configuration-required.title"
 msgid "Set up voice recognition first"
 msgstr "先配置语音识别"
 
-#: apps/desktop/ui/microphone-access.slint:156
+#: apps/desktop/ui/microphone-access.slint:154
 msgctxt "asr.configuration-required.detail"
 msgid ""
 "Saymore needs a voice recognition service to turn your recording into text. "
@@ -151,17 +156,17 @@ msgstr ""
 "Saymore 需要语音识别服务才能将录音转换为文字。配置完成后，再按一次快捷键即可"
 "开始。"
 
-#: apps/desktop/ui/microphone-access.slint:163
+#: apps/desktop/ui/microphone-access.slint:161
 msgctxt "asr.configuration-required.not-now-accessible"
 msgid "Do not configure voice recognition now"
 msgstr "暂不配置语音识别"
 
-#: apps/desktop/ui/microphone-access.slint:171
+#: apps/desktop/ui/microphone-access.slint:169
 msgctxt "asr.configuration-required.open-accessible"
 msgid "Open voice recognition settings"
 msgstr "打开语音识别设置"
 
-#: apps/desktop/ui/microphone-access.slint:173
+#: apps/desktop/ui/microphone-access.slint:171
 msgctxt "asr.configuration-required.open"
 msgid "Set up now"
 msgstr "去配置"
@@ -171,42 +176,42 @@ msgctxt "onboarding.window-title"
 msgid "Set up Saymore"
 msgstr "设置 Saymore"
 
-#: apps/desktop/ui/onboarding.slint:166
+#: apps/desktop/ui/onboarding.slint:167
 msgctxt "onboarding.setup"
 msgid "Get started"
 msgstr "开始设置"
 
-#: apps/desktop/ui/onboarding.slint:172
+#: apps/desktop/ui/onboarding.slint:173
 msgctxt "onboarding.step.welcome"
 msgid "Welcome"
 msgstr "欢迎"
 
-#: apps/desktop/ui/onboarding.slint:173
+#: apps/desktop/ui/onboarding.slint:174
 msgctxt "onboarding.step.microphone"
 msgid "Microphone & shortcut"
 msgstr "麦克风与快捷键"
 
-#: apps/desktop/ui/onboarding.slint:174
+#: apps/desktop/ui/onboarding.slint:175
 msgctxt "onboarding.step.accessibility"
 msgid "Accessibility"
 msgstr "辅助功能"
 
-#: apps/desktop/ui/onboarding.slint:175
+#: apps/desktop/ui/onboarding.slint:176
 msgctxt "onboarding.step.complete"
 msgid "Finish"
 msgstr "完成"
 
-#: apps/desktop/ui/onboarding.slint:181
+#: apps/desktop/ui/onboarding.slint:182
 msgctxt "onboarding.local-only"
 msgid "Microphone testing is processed only on this device."
 msgstr "麦克风测试仅在本机处理。"
 
-#: apps/desktop/ui/onboarding.slint:200
+#: apps/desktop/ui/onboarding.slint:201
 msgctxt "onboarding.welcome.title"
 msgid "Type less. Say more."
 msgstr "少打字，多表达。"
 
-#: apps/desktop/ui/onboarding.slint:201
+#: apps/desktop/ui/onboarding.slint:202
 msgctxt "onboarding.welcome.detail"
 msgid ""
 "Saymore lets you use your voice in any text field. Set up your microphone, "
@@ -215,7 +220,7 @@ msgstr ""
 "Saymore 让你在任意输入框中使用语音。大约一分钟即可完成麦克风、默认快捷键和辅"
 "助功能权限设置。"
 
-#: apps/desktop/ui/onboarding.slint:201
+#: apps/desktop/ui/onboarding.slint:202
 msgctxt "onboarding.welcome.detail-windows"
 msgid ""
 "Saymore lets you use your voice in any text field. Set up your microphone "
@@ -224,89 +229,89 @@ msgstr ""
 "Saymore 让你在任意输入框中使用语音。大约一分钟即可完成麦克风和默认快捷键设"
 "置。"
 
-#: apps/desktop/ui/onboarding.slint:202
+#: apps/desktop/ui/onboarding.slint:203
 msgctxt "onboarding.start"
 msgid "Start setup"
 msgstr "开始设置"
 
-#: apps/desktop/ui/onboarding.slint:208
+#: apps/desktop/ui/onboarding.slint:209
 msgctxt "onboarding.microphone.title"
 msgid "Test your microphone"
 msgstr "测试你的麦克风"
 
-#: apps/desktop/ui/onboarding.slint:209
+#: apps/desktop/ui/onboarding.slint:210
 msgctxt "onboarding.microphone.detail"
 msgid ""
 "Allow microphone access, press {}, and say a few words. The waveform "
 "responds to your voice without sending audio anywhere."
 msgstr "允许麦克风后，按下 {} 并说几句话。波形会随声音变化，测试音频不会上传。"
 
-#: apps/desktop/ui/onboarding.slint:213
+#: apps/desktop/ui/onboarding.slint:214
 msgctxt "onboarding.microphone.device"
 msgid "System microphone"
 msgstr "系统麦克风"
 
-#: apps/desktop/ui/onboarding.slint:214
+#: apps/desktop/ui/onboarding.slint:215
 msgctxt "onboarding.microphone.granted"
 msgid "Permission enabled · ready to test"
 msgstr "已授权 · 可以开始测试"
 
-#: apps/desktop/ui/onboarding.slint:214
+#: apps/desktop/ui/onboarding.slint:215
 msgctxt "onboarding.microphone.required"
 msgid "Microphone permission is required"
 msgstr "需要开启麦克风权限"
 
-#: apps/desktop/ui/onboarding.slint:214
+#: apps/desktop/ui/onboarding.slint:215
 msgctxt "onboarding.microphone.denied"
 msgid "Permission denied · open System Settings"
 msgstr "权限被拒绝 · 请打开系统设置"
 
-#: apps/desktop/ui/onboarding.slint:215 apps/desktop/ui/onboarding.slint:238
+#: apps/desktop/ui/onboarding.slint:216 apps/desktop/ui/onboarding.slint:239
 msgctxt "onboarding.permission.granted-short"
 msgid "Enabled"
 msgstr "已启用"
 
-#: apps/desktop/ui/onboarding.slint:216
+#: apps/desktop/ui/onboarding.slint:217
 msgctxt "onboarding.microphone.allow"
 msgid "Allow microphone"
 msgstr "允许麦克风"
 
-#: apps/desktop/ui/onboarding.slint:222
+#: apps/desktop/ui/onboarding.slint:223
 msgctxt "onboarding.shortcut.try"
 msgid "Try the default shortcut"
 msgstr "试用默认快捷键"
 
-#: apps/desktop/ui/onboarding.slint:223
+#: apps/desktop/ui/onboarding.slint:224
 msgctxt "onboarding.shortcut.success"
 msgid "Microphone and shortcut are working."
 msgstr "麦克风和快捷键工作正常。"
 
-#: apps/desktop/ui/onboarding.slint:223
+#: apps/desktop/ui/onboarding.slint:224
 msgctxt "onboarding.shortcut.speak"
 msgid "Speak now, then press the shortcut again to finish."
 msgstr "现在请说话，再按一次快捷键结束测试。"
 
-#: apps/desktop/ui/onboarding.slint:223
+#: apps/desktop/ui/onboarding.slint:224
 msgctxt "onboarding.shortcut.waiting"
 msgid "Press the shortcut to start the local microphone test."
 msgstr "按下快捷键开始本地麦克风测试。"
 
-#: apps/desktop/ui/onboarding.slint:225
+#: apps/desktop/ui/onboarding.slint:226
 msgctxt "onboarding.shortcut.press-again"
 msgid "Press again to finish"
 msgstr "再次按下即可结束"
 
-#: apps/desktop/ui/onboarding.slint:225
+#: apps/desktop/ui/onboarding.slint:226
 msgctxt "onboarding.shortcut.press-to-start"
 msgid "Press shortcut to start"
 msgstr "按快捷键开始"
 
-#: apps/desktop/ui/onboarding.slint:232
+#: apps/desktop/ui/onboarding.slint:233
 msgctxt "onboarding.accessibility.title"
 msgid "Enable Accessibility"
 msgstr "开启辅助功能权限"
 
-#: apps/desktop/ui/onboarding.slint:233
+#: apps/desktop/ui/onboarding.slint:234
 msgctxt "onboarding.accessibility.detail"
 msgid ""
 "Accessibility lets Saymore listen for the global shortcut and insert "
@@ -314,85 +319,85 @@ msgid ""
 msgstr ""
 "辅助功能权限让 Saymore 监听全局快捷键，并将识别文本写入你正在使用的输入框。"
 
-#: apps/desktop/ui/onboarding.slint:237
+#: apps/desktop/ui/onboarding.slint:238
 msgctxt "onboarding.accessibility.card-title"
 msgid "Allow Saymore in System Settings"
 msgstr "在系统设置中允许 Saymore"
 
-#: apps/desktop/ui/onboarding.slint:238
+#: apps/desktop/ui/onboarding.slint:239
 msgctxt "onboarding.permission.required-short"
 msgid "Required"
 msgstr "需要开启"
 
-#: apps/desktop/ui/onboarding.slint:239
+#: apps/desktop/ui/onboarding.slint:240
 msgctxt "onboarding.accessibility.card-detail"
 msgid "Saymore does not use this permission to read password fields."
 msgstr "Saymore 不会使用此权限读取密码输入框。"
 
-#: apps/desktop/ui/onboarding.slint:240
+#: apps/desktop/ui/onboarding.slint:241
 msgctxt "onboarding.permission.granted"
 msgid "Permission enabled"
 msgstr "权限已开启"
 
-#: apps/desktop/ui/onboarding.slint:240
+#: apps/desktop/ui/onboarding.slint:241
 msgctxt "onboarding.accessibility.request"
 msgid "Request access"
 msgstr "请求授权"
 
-#: apps/desktop/ui/onboarding.slint:241
+#: apps/desktop/ui/onboarding.slint:242
 msgctxt "common.recheck"
 msgid "Recheck"
 msgstr "重新检测"
 
-#: apps/desktop/ui/onboarding.slint:249
+#: apps/desktop/ui/onboarding.slint:250
 msgctxt "onboarding.complete.title"
 msgid "Saymore is ready"
 msgstr "Saymore 已准备好"
 
-#: apps/desktop/ui/onboarding.slint:250
+#: apps/desktop/ui/onboarding.slint:251
 msgctxt "onboarding.complete.detail"
 msgid ""
 "Press {} in any text field to start speaking, then press it again to finish."
 msgstr "在任意输入框中按下 {} 开始说话，再按一次结束。"
 
-#: apps/desktop/ui/onboarding.slint:251
+#: apps/desktop/ui/onboarding.slint:252
 msgctxt "onboarding.complete.shortcut"
 msgid "Your voice input shortcut"
 msgstr "你的语音输入快捷键"
 
-#: apps/desktop/ui/onboarding.slint:252
+#: apps/desktop/ui/onboarding.slint:253
 msgctxt "onboarding.complete.login-title"
 msgid "Launch Saymore at login"
 msgstr "登录时启动 Saymore"
 
-#: apps/desktop/ui/onboarding.slint:252
+#: apps/desktop/ui/onboarding.slint:253
 msgctxt "onboarding.complete.login-detail"
 msgid "Keep voice input ready in the background."
 msgstr "让语音输入在后台保持就绪。"
 
-#: apps/desktop/ui/onboarding.slint:253
+#: apps/desktop/ui/onboarding.slint:254
 msgctxt "onboarding.error.microphone-test"
 msgid ""
 "The microphone test could not start. Check the selected input device and try "
 "again."
 msgstr "无法启动麦克风测试。请检查输入设备后重试。"
 
-#: apps/desktop/ui/onboarding.slint:253
+#: apps/desktop/ui/onboarding.slint:254
 msgctxt "common.save-failed"
 msgid "Could not save this change. Try again."
 msgstr "无法保存此更改，请重试。"
 
-#: apps/desktop/ui/onboarding.slint:256
+#: apps/desktop/ui/onboarding.slint:257
 msgctxt "common.back"
 msgid "Back"
 msgstr "返回"
 
-#: apps/desktop/ui/onboarding.slint:257
+#: apps/desktop/ui/onboarding.slint:258
 msgctxt "onboarding.skip"
 msgid "Skip for now"
 msgstr "暂时跳过"
 
-#: apps/desktop/ui/onboarding.slint:260
+#: apps/desktop/ui/onboarding.slint:261
 msgctxt "onboarding.finish"
 msgid "Start using Saymore"
 msgstr "开始使用 Saymore"
@@ -434,22 +439,22 @@ msgctxt "recording.finish.accessible-label"
 msgid "Finish recording"
 msgstr "完成录音"
 
-#: apps/desktop/ui/recording-overlay.slint:139
+#: apps/desktop/ui/recording-overlay.slint:147
 msgctxt "recording.cancelled"
 msgid "Cancelled"
 msgstr "已取消"
 
-#: apps/desktop/ui/recording-overlay.slint:149
+#: apps/desktop/ui/recording-overlay.slint:157
 msgctxt "recording.undo-cancel.accessible-label"
 msgid "Undo cancellation"
 msgstr "撤销取消"
 
-#: apps/desktop/ui/recording-overlay.slint:151
+#: apps/desktop/ui/recording-overlay.slint:159
 msgctxt "common.undo"
 msgid "Undo"
 msgstr "撤销"
 
-#: apps/desktop/ui/recording-overlay.slint:163
+#: apps/desktop/ui/recording-overlay.slint:171
 msgctxt "recording.refinement-failed"
 msgid "Polishing failed"
 msgstr "润色失败"
@@ -479,47 +484,47 @@ msgctxt "result.copy-text"
 msgid "Copy text"
 msgstr "复制文字"
 
-#: apps/desktop/ui/sidebar.slint:31
+#: apps/desktop/ui/sidebar.slint:32
 msgctxt "navigation.home"
 msgid "Home"
 msgstr "首页"
 
-#: apps/desktop/ui/sidebar.slint:32
+#: apps/desktop/ui/sidebar.slint:33
 msgctxt "navigation.models"
 msgid "Models"
 msgstr "模型"
 
-#: apps/desktop/ui/sidebar.slint:33
+#: apps/desktop/ui/sidebar.slint:34
 msgctxt "navigation.history"
 msgid "History"
 msgstr "历史"
 
-#: apps/desktop/ui/sidebar.slint:34
+#: apps/desktop/ui/sidebar.slint:35
 msgctxt "navigation.dictionary"
 msgid "Dictionary"
 msgstr "词典"
 
-#: apps/desktop/ui/sidebar.slint:35
+#: apps/desktop/ui/sidebar.slint:36
 msgctxt "navigation.settings"
 msgid "Settings"
 msgstr "设置"
 
-#: apps/desktop/ui/sidebar.slint:45
+#: apps/desktop/ui/sidebar.slint:46
 msgctxt "storage.local.title"
 msgid "Local storage"
 msgstr "本地存储"
 
-#: apps/desktop/ui/sidebar.slint:56
+#: apps/desktop/ui/sidebar.slint:59
 msgctxt "storage.manage.accessible-label"
 msgid "Manage local storage"
 msgstr "管理本地存储空间"
 
-#: apps/desktop/ui/sidebar.slint:58
+#: apps/desktop/ui/sidebar.slint:61
 msgctxt "storage.manage.action"
 msgid "Manage storage"
 msgstr "管理空间"
 
-#: apps/desktop/ui/sidebar.slint:67
+#: apps/desktop/ui/sidebar.slint:70
 msgctxt "sidebar.privacy-tagline"
 msgid "Local-first · Privacy protected"
 msgstr "本地优先 · 隐私保护"
@@ -554,62 +559,57 @@ msgctxt "tray.menu.quit"
 msgid "Quit Saymore"
 msgstr "退出 Saymore"
 
-#: apps/desktop/ui/theme-settings.slint:71
+#: apps/desktop/ui/theme-settings.slint:110
 msgctxt "settings.theme-color.title"
 msgid "Theme color"
 msgstr "主题配色"
 
-#: apps/desktop/ui/theme-settings.slint:80
-msgctxt "settings.theme-color.detail"
-msgid "Choose the accent color used by the application"
-msgstr "选择软件界面的主题强调色"
-
-#: apps/desktop/ui/theme-settings.slint
+#: apps/desktop/ui/theme-settings.slint:132
 msgctxt "settings.theme.saymore"
 msgid "Default"
 msgstr "默认"
 
-#: apps/desktop/ui/theme-settings.slint:93
-msgctxt "settings.theme.warm-clay"
-msgid "Warm Clay"
-msgstr "暖陶橙"
-
-#: apps/desktop/ui/theme-settings.slint:94
+#: apps/desktop/ui/theme-settings.slint:133
 msgctxt "settings.theme.lime-pulse"
 msgid "Lime Pulse"
 msgstr "青柠悦动"
 
-#: apps/desktop/ui/theme-settings.slint:95
+#: apps/desktop/ui/theme-settings.slint:134
+msgctxt "settings.theme.warm-clay"
+msgid "Warm Clay"
+msgstr "暖陶橙"
+
+#: apps/desktop/ui/theme-settings.slint:135
 msgctxt "settings.theme.berry-graphite"
 msgid "Berry"
 msgstr "玫果"
 
-#: apps/desktop/ui/theme-settings.slint:96
+#: apps/desktop/ui/theme-settings.slint:136
 msgctxt "settings.theme.iris-mist"
 msgid "Iris Mist"
 msgstr "雾紫"
 
-#: apps/desktop/ui/theme-settings.slint:97
+#: apps/desktop/ui/theme-settings.slint:137
 msgctxt "settings.theme.sunlit-gold"
 msgid "Sunlit Gold"
 msgstr "暖阳金"
 
-#: apps/desktop/ui/theme-settings.slint:100
+#: apps/desktop/ui/theme-settings.slint:148
 msgctxt "settings.color-scheme.title"
 msgid "Light and dark mode"
 msgstr "明暗模式"
 
-#: apps/desktop/ui/theme-settings.slint:107
+#: apps/desktop/ui/theme-settings.slint:155
 msgctxt "common.follow-system"
 msgid "Follow System"
 msgstr "跟随系统"
 
-#: apps/desktop/ui/theme-settings.slint:108
+#: apps/desktop/ui/theme-settings.slint:156
 msgctxt "settings.color-scheme.light"
 msgid "Light"
 msgstr "浅色"
 
-#: apps/desktop/ui/theme-settings.slint:109
+#: apps/desktop/ui/theme-settings.slint:157
 msgctxt "settings.color-scheme.dark"
 msgid "Dark"
 msgstr "深色"
@@ -1022,7 +1022,7 @@ msgstr "正在运行识别测试…"
 #: apps/desktop/ui/translations.slint:84
 msgctxt "models.status.connected.plain"
 msgid "Connected"
-msgstr "连接正常"
+msgstr "已连接"
 
 #: apps/desktop/ui/translations.slint:85
 msgctxt "models.status.connected-not-saved"
@@ -1316,194 +1316,584 @@ msgctxt "diagnostics.report.generated"
 msgid "Generated: {}"
 msgstr "生成时间：{}"
 
-#: apps/desktop/ui/pages/dictionary.slint:123
+#: apps/desktop/ui/update-notification.slint:23
+msgctxt "update.notification.title"
+msgid "New version available"
+msgstr "发现新版本"
+
+#: apps/desktop/ui/update-notification.slint:35
+msgctxt "update.notification.detail"
+msgid "{} is now available. Update now to get the latest features."
+msgstr "{} 现已可用，立即更新体验新功能"
+
+#: apps/desktop/ui/update-notification.slint:78
+msgctxt "update.notification.action"
+msgid "View update"
+msgstr "查看更新"
+
+#: apps/desktop/ui/pages/asr-provider-components.slint:268
+msgctxt "models.asr.selection.current"
+msgid "Current provider"
+msgstr "当前使用"
+
+#: apps/desktop/ui/pages/asr-provider-components.slint:269
+msgctxt "models.asr.selection.set-current"
+msgid "Set as current"
+msgstr "设为当前"
+
+#: apps/desktop/ui/pages/asr-provider-components.slint:370
+msgctxt "common.cut"
+msgid "Cut"
+msgstr "剪切"
+
+#: apps/desktop/ui/pages/asr-provider-components.slint:371
+msgctxt "common.copy"
+msgid "Copy"
+msgstr "复制"
+
+#: apps/desktop/ui/pages/asr-provider-components.slint:372
+msgctxt "common.paste"
+msgid "Paste"
+msgstr "粘贴"
+
+#: apps/desktop/ui/pages/asr-provider-components.slint:373
+msgctxt "common.select-all"
+msgid "Select All"
+msgstr "全选"
+
+#: apps/desktop/ui/pages/asr-provider-components.slint:379
+msgctxt "common.value-entered"
+msgid "Entered"
+msgstr "已填写"
+
+#: apps/desktop/ui/pages/asr-provider-components.slint:399
+msgctxt "models.asr.hide-api-key"
+msgid "Hide API key"
+msgstr "隐藏 API Key"
+
+#: apps/desktop/ui/pages/asr-provider-components.slint:399
+msgctxt "models.asr.show-api-key"
+msgid "Show API key"
+msgstr "显示 API Key"
+
+#: apps/desktop/ui/pages/asr-provider-components.slint:443
+msgctxt "models.volcengine.model-v1"
+msgid "Doubao Streaming Speech Recognition 1.0"
+msgstr "豆包流式语音识别模型 1.0"
+
+#: apps/desktop/ui/pages/asr-provider-components.slint:444
+msgctxt "models.volcengine.model-v2"
+msgid "Doubao Streaming Speech Recognition 2.0"
+msgstr "豆包流式语音识别模型 2.0"
+
+#: apps/desktop/ui/pages/asr-provider-components.slint:479
+msgctxt "models.asr.volcengine.dialog-title"
+msgid "Configure Volcengine"
+msgstr "配置火山引擎"
+
+#: apps/desktop/ui/pages/asr-provider-components.slint:480
+msgctxt "models.asr.custom.dialog-title"
+msgid "Configure custom ASR"
+msgstr "配置自定义 ASR"
+
+#: apps/desktop/ui/pages/asr-provider-components.slint:498
+msgctxt "models.asr.volcengine.dialog-subtitle"
+msgid "Run a standard audio recognition test before enabling this provider."
+msgstr "启用前先运行一次标准音频识别测试。"
+
+#: apps/desktop/ui/pages/asr-provider-components.slint:499
+msgctxt "models.asr.custom.dialog-subtitle"
+msgid "OpenAI-compatible audio transcription endpoint"
+msgstr "兼容 OpenAI 音频转写协议的服务端点"
+
+#: apps/desktop/ui/pages/asr-provider-components.slint:529
+msgctxt "models.get-api-key"
+msgid "Get API key"
+msgstr "获取密钥"
+
+#: apps/desktop/ui/pages/asr-provider-components.slint:542
+msgctxt "models.volcengine-api-key"
+msgid "Volcengine API key"
+msgstr "火山引擎 API Key"
+
+#: apps/desktop/ui/pages/asr-provider-components.slint:548
+msgctxt "models.model-field"
+msgid "Model"
+msgstr "模型"
+
+#: apps/desktop/ui/pages/asr-provider-components.slint:559
+msgctxt "models.asr.volcengine.model-id"
+msgid "Model ID"
+msgstr "模型 ID"
+
+#: apps/desktop/ui/pages/asr-provider-components.slint:590
+msgctxt "models.base-url"
+msgid "Service URL"
+msgstr "服务地址"
+
+#: apps/desktop/ui/pages/asr-provider-components.slint:597
+msgctxt "models.custom-speech-api-key"
+msgid "Custom speech recognition API key"
+msgstr "自定义语音识别 API Key"
+
+#: apps/desktop/ui/pages/asr-provider-components.slint:611
+msgctxt "models.asr.fetch.loading-accessible"
+msgid "Fetching speech models"
+msgstr "正在获取语音识别模型"
+
+#: apps/desktop/ui/pages/asr-provider-components.slint:612
+msgctxt "models.asr.fetch.action"
+msgid "Get models"
+msgstr "获取模型"
+
+#: apps/desktop/ui/pages/asr-provider-components.slint:619
+msgctxt "models.asr.fetch.loading"
+msgid "Fetching…"
+msgstr "获取中…"
+
+#: apps/desktop/ui/pages/asr-provider-components.slint:785
+msgctxt "permissions.status.authorized"
+msgid "Authorized"
+msgstr "已授权"
+
+#: apps/desktop/ui/pages/asr-provider-components.slint:787
+msgctxt "permissions.status.not-determined"
+msgid "Not determined"
+msgstr "待授权"
+
+#: apps/desktop/ui/pages/asr-provider-components.slint:789
+msgctxt "permissions.status.restricted"
+msgid "Restricted"
+msgstr "受限制"
+
+#: apps/desktop/ui/pages/asr-provider-components.slint:799
+msgctxt "models.asr.status.unavailable"
+msgid "Unavailable"
+msgstr "不可用"
+
+#: apps/desktop/ui/pages/asr-provider-components.slint:832
+msgctxt "models.provider.macos-dictation"
+msgid "macOS Dictation"
+msgstr "macOS 听写"
+
+#: apps/desktop/ui/pages/asr-provider-components.slint:849
+msgctxt "models.asr.source.system-built-in"
+msgid "System built-in"
+msgstr "系统内置"
+
+#: apps/desktop/ui/pages/asr-provider-components.slint:855
+msgctxt "models.asr.summary.system-service"
+msgid "System"
+msgstr "系统服务"
+
+#: apps/desktop/ui/pages/asr-provider-components.slint:856
+msgctxt "models.asr.summary.partial-network"
+msgid "Hybrid"
+msgstr "部分联网"
+
+#: apps/desktop/ui/pages/asr-provider-components.slint:857
+msgctxt "models.asr.summary.simplified-chinese"
+msgid "Chinese"
+msgstr "简体中文"
+
+#: apps/desktop/ui/pages/asr-provider-components.slint:858
+msgctxt "models.asr.summary.free"
+msgid "Free"
+msgstr "免费使用"
+
+#: apps/desktop/ui/pages/asr-provider-components.slint:863
+msgctxt "models.asr.macos.compatibility"
+msgid "System compatibility"
+msgstr "系统兼容性"
+
+#: apps/desktop/ui/pages/asr-provider-components.slint:865
+msgctxt "models.asr.macos.minimum"
+msgid "Minimum macOS 13"
+msgstr "最低支持 macOS 13"
+
+#: apps/desktop/ui/pages/asr-provider-components.slint:866
+msgctxt "models.asr.status.supported"
+msgid "Supported"
+msgstr "支持"
+
+#: apps/desktop/ui/pages/asr-provider-components.slint:866
+msgctxt "models.asr.status.unsupported"
+msgid "Unsupported"
+msgstr "不支持"
+
+#: apps/desktop/ui/pages/asr-provider-components.slint:868
+msgctxt "models.asr.macos.limit"
+msgid "Dictation limit"
+msgstr "听写限制"
+
+#: apps/desktop/ui/pages/asr-provider-components.slint:869
+msgctxt "models.asr.macos.limit-value"
+msgid "Recommended under 1 minute"
+msgstr "建议单次 1 分钟以内"
+
+#: apps/desktop/ui/pages/asr-provider-components.slint:871
+msgctxt "models.asr.macos.microphone"
+msgid "Microphone"
+msgstr "麦克风"
+
+#: apps/desktop/ui/pages/asr-provider-components.slint:872
+msgctxt "models.asr.macos.microphone-detail"
+msgid "Receive audio for recognition"
+msgstr "接收需要识别的音频"
+
+#: apps/desktop/ui/pages/asr-provider-components.slint:881
+msgctxt "models.asr.macos.speech"
+msgid "Speech Recognition"
+msgstr "语音识别"
+
+#: apps/desktop/ui/pages/asr-provider-components.slint:882
+msgctxt "models.asr.macos.speech-detail"
+msgid "Use macOS dictation service"
+msgstr "调用 macOS 听写服务"
+
+#: apps/desktop/ui/pages/asr-provider-components.slint:915
+msgctxt "models.provider.saymore-cloud"
+msgid "Saymore Cloud"
+msgstr "Saymore 云"
+
+#: apps/desktop/ui/pages/asr-provider-components.slint:919
+msgctxt "models.provider.windows-speech"
+msgid "Windows Speech Recognition"
+msgstr "Windows 语音识别"
+
+#: apps/desktop/ui/pages/asr-provider-components.slint:921
+msgctxt "models.asr.placeholder.cloud-subtitle"
+msgid "First-party speech service placeholder"
+msgstr "第一方语音识别服务占位"
+
+#: apps/desktop/ui/pages/asr-provider-components.slint:922
+msgctxt "models.asr.placeholder.local-subtitle"
+msgid "Local model adapter is not yet connected"
+msgstr "本地模型 Adapter 尚未接入"
+
+#: apps/desktop/ui/pages/asr-provider-components.slint:955
+msgctxt "models.asr.summary.cloud-processing"
+msgid "Cloud"
+msgstr "云端处理"
+
+#: apps/desktop/ui/pages/asr-provider-components.slint:955
+msgctxt "models.asr.summary.local-processing"
+msgid "Local"
+msgstr "本地处理"
+
+#: apps/desktop/ui/pages/asr-provider-components.slint:956
+msgctxt "models.asr.summary.network-required"
+msgid "Online"
+msgstr "需要网络"
+
+#: apps/desktop/ui/pages/asr-provider-components.slint:956
+msgctxt "models.asr.summary.no-network"
+msgid "Offline"
+msgstr "无需网络"
+
+#: apps/desktop/ui/pages/asr-provider-components.slint:958
+msgctxt "models.asr.summary.plan-billing"
+msgid "Plan"
+msgstr "套餐计费"
+
+#: apps/desktop/ui/pages/asr-provider-components.slint:962
+msgctxt "models.asr.cloud.account"
+msgid "Account"
+msgstr "账户"
+
+#: apps/desktop/ui/pages/asr-provider-components.slint:963
+msgctxt "models.asr.placeholder.not-connected"
+msgid "Not connected"
+msgstr "尚未连接"
+
+#: apps/desktop/ui/pages/asr-provider-components.slint:964
+msgctxt "models.asr.placeholder.no-service"
+msgid "Service unavailable"
+msgstr "服务尚未开放"
+
+#: apps/desktop/ui/pages/asr-provider-components.slint:968
+msgctxt "models.asr.cloud.plan-quota"
+msgid "Plan and quota"
+msgstr "套餐与额度"
+
+#: apps/desktop/ui/pages/asr-provider-components.slint:969
+msgctxt "models.asr.placeholder.not-available"
+msgid "Not available"
+msgstr "暂不可用"
+
+#: apps/desktop/ui/pages/asr-provider-components.slint:978
+msgctxt "models.asr.local.download-size"
+msgid "Download size"
+msgstr "下载大小"
+
+#: apps/desktop/ui/pages/asr-provider-components.slint:986
+msgctxt "models.asr.local.memory"
+msgid "Runtime memory"
+msgstr "运行内存"
+
+#: apps/desktop/ui/pages/asr-provider-components.slint:995
+msgctxt "models.asr.local.compatibility"
+msgid "Compatibility"
+msgstr "设备兼容性"
+
+#: apps/desktop/ui/pages/asr-provider-components.slint:996
+msgctxt "models.asr.placeholder.unverified"
+msgid "Unverified"
+msgstr "尚未验证"
+
+#: apps/desktop/ui/pages/asr-provider-components.slint:1003
+msgctxt "models.test.title"
+msgid "Recognition test"
+msgstr "识别测试"
+
+#: apps/desktop/ui/pages/asr-provider-components.slint:1004
+msgctxt "models.asr.placeholder.test-disabled"
+msgid "No production adapter is available. Recognition testing is disabled."
+msgstr "暂无生产 Adapter，识别测试不可用。"
+
+#: apps/desktop/ui/pages/asr-provider-components.slint:1009
+msgctxt "models.asr.local.model-files"
+msgid "Model files"
+msgstr "模型文件"
+
+#: apps/desktop/ui/pages/asr-provider-components.slint:1010
+msgctxt "models.asr.placeholder.download-disabled"
+msgid "No verified download source or production adapter is available."
+msgstr "暂无已验证的下载源或生产 Adapter。"
+
+#: apps/desktop/ui/pages/asr-provider-components.slint:1015
+msgctxt "models.test.fixed-audio"
+msgid "Fixed test audio 3.9 sec"
+msgstr "固定测试音频 3.9 秒"
+
+#: apps/desktop/ui/pages/asr-provider-components.slint:1016
+msgctxt "models.test.action"
+msgid "Run test"
+msgstr "运行测试"
+
+#: apps/desktop/ui/pages/asr-recognition-test.slint:14
+msgctxt "models.test.testing"
+msgid "Testing…"
+msgstr "正在测试…"
+
+#: apps/desktop/ui/pages/asr-recognition-test.slint:15
+msgctxt "models.test.again"
+msgid "Test again"
+msgstr "再次测试"
+
+#: apps/desktop/ui/pages/asr-recognition-test.slint:16
+msgctxt "models.test.retry"
+msgid "Retry test"
+msgstr "重新测试"
+
+#: apps/desktop/ui/pages/asr-recognition-test.slint:49
+msgctxt "models.test.failed"
+msgid "Recognition failed"
+msgstr "识别失败"
+
+#: apps/desktop/ui/pages/asr-recognition-test.slint:50
+msgctxt "models.test.succeeded"
+msgid "Recognition succeeded"
+msgstr "识别成功"
+
+#: apps/desktop/ui/pages/asr-recognition-test.slint:66
+msgctxt "models.test.elapsed"
+msgid "· {} sec"
+msgstr "· 耗时 {} 秒"
+
+#: apps/desktop/ui/pages/asr-recognition-test.slint:78
+msgctxt "models.test.transcript"
+msgid "Transcript: {}"
+msgstr "转写结果：{}"
+
+#: apps/desktop/ui/pages/dictionary.slint:124
 msgctxt "common.delete"
 msgid "Delete"
 msgstr "删除"
 
-#: apps/desktop/ui/pages/dictionary.slint:155
+#: apps/desktop/ui/pages/dictionary.slint:156
 msgctxt "common.reload"
 msgid "Reload"
 msgstr "重新加载"
 
-#: apps/desktop/ui/pages/dictionary.slint:186
+#: apps/desktop/ui/pages/dictionary.slint:187
 msgctxt "dictionary.entry-count"
 msgid "{} entry"
 msgid_plural "{} entries"
 msgstr[0] "{} 个词条"
 
-#: apps/desktop/ui/pages/dictionary.slint:187
+#: apps/desktop/ui/pages/dictionary.slint:188
 msgctxt "dictionary.search-result-count"
 msgid "{} search result"
 msgid_plural "{} search results"
 msgstr[0] "搜索结果：{}"
 
-#: apps/desktop/ui/pages/dictionary.slint:200
+#: apps/desktop/ui/pages/dictionary.slint:201
 msgctxt "dictionary.title"
 msgid "Dictionary"
 msgstr "词典"
 
-#: apps/desktop/ui/pages/dictionary.slint:209
+#: apps/desktop/ui/pages/dictionary.slint:210
 msgctxt "dictionary.subtitle"
 msgid "Save names and terms you use often to improve voice input accuracy."
 msgstr "把你常说的名字和术语收进词典，让语音输入更懂你的表达。"
 
-#: apps/desktop/ui/pages/dictionary.slint:225
+#: apps/desktop/ui/pages/dictionary.slint:226
 msgctxt "dictionary.import-csv"
 msgid "Import CSV"
 msgstr "导入 CSV"
 
-#: apps/desktop/ui/pages/dictionary.slint:229
+#: apps/desktop/ui/pages/dictionary.slint:230
 msgctxt "dictionary.importing"
 msgid "Importing…"
 msgstr "正在导入…"
 
-#: apps/desktop/ui/pages/dictionary.slint:240
+#: apps/desktop/ui/pages/dictionary.slint:241
 msgctxt "dictionary.add-entry"
 msgid "Add entry"
 msgstr "添加词条"
 
-#: apps/desktop/ui/pages/dictionary.slint:259
+#: apps/desktop/ui/pages/dictionary.slint:260
 msgctxt "dictionary.filter.all"
 msgid "All"
 msgstr "全部"
 
-#: apps/desktop/ui/pages/dictionary.slint:260
+#: apps/desktop/ui/pages/dictionary.slint:261
 msgctxt "dictionary.filter.automatic"
 msgid "Automatic"
 msgstr "自动添加"
 
-#: apps/desktop/ui/pages/dictionary.slint:261
+#: apps/desktop/ui/pages/dictionary.slint:262
 msgctxt "dictionary.filter.manual"
 msgid "Manual"
 msgstr "手动添加"
 
-#: apps/desktop/ui/pages/dictionary.slint:275
+#: apps/desktop/ui/pages/dictionary.slint:276
 msgctxt "dictionary.search.placeholder"
 msgid "Search entries"
 msgstr "搜索词条"
 
-#: apps/desktop/ui/pages/dictionary.slint:321
+#: apps/desktop/ui/pages/dictionary.slint:322
 msgctxt "dictionary.local-only"
 msgid "Dictionary entries are stored only on this device"
 msgstr "词典内容仅保存在本地设备"
 
-#: apps/desktop/ui/pages/dictionary.slint:341
+#: apps/desktop/ui/pages/dictionary.slint:342
 msgctxt "dictionary.loading.title"
 msgid "Loading dictionary"
 msgstr "正在加载词典"
 
-#: apps/desktop/ui/pages/dictionary.slint:342
+#: apps/desktop/ui/pages/dictionary.slint:343
 msgctxt "dictionary.loading.detail"
 msgid "Reading entries stored on this device."
 msgstr "正在读取本地词条。"
 
-#: apps/desktop/ui/pages/dictionary.slint:350
+#: apps/desktop/ui/pages/dictionary.slint:351
 msgctxt "dictionary.load-failed.title"
 msgid "Dictionary unavailable"
 msgstr "词典暂时无法加载"
 
-#: apps/desktop/ui/pages/dictionary.slint:351
+#: apps/desktop/ui/pages/dictionary.slint:352
 msgctxt "dictionary.load-failed.detail"
 msgid "Check local storage and try again."
 msgstr "请检查本地存储后重试。"
 
-#: apps/desktop/ui/pages/dictionary.slint:361
+#: apps/desktop/ui/pages/dictionary.slint:362
 msgctxt "dictionary.empty.title"
 msgid "No entries yet"
 msgstr "还没有词条"
 
-#: apps/desktop/ui/pages/dictionary.slint:361
+#: apps/desktop/ui/pages/dictionary.slint:362
 msgctxt "dictionary.no-results.title"
 msgid "No matching entries"
 msgstr "没有找到相关词条"
 
-#: apps/desktop/ui/pages/dictionary.slint:363
+#: apps/desktop/ui/pages/dictionary.slint:364
 msgctxt "dictionary.empty.detail"
 msgid "Add an entry so Saymore remembers how you write it."
 msgstr "添加一个词条，让 Saymore 记住你的写法。"
 
-#: apps/desktop/ui/pages/dictionary.slint:363
+#: apps/desktop/ui/pages/dictionary.slint:364
 msgctxt "dictionary.filter-empty.detail"
 msgid "No entries match this filter."
 msgstr "当前筛选下没有词条。"
 
-#: apps/desktop/ui/pages/dictionary.slint:364
+#: apps/desktop/ui/pages/dictionary.slint:365
 msgctxt "dictionary.no-results.detail"
 msgid "Try a different search term."
 msgstr "换个关键词试试。"
 
-#: apps/desktop/ui/pages/dictionary.slint:419
+#: apps/desktop/ui/pages/dictionary.slint:402
 msgctxt "dictionary.entry-field"
 msgid "Entry"
 msgstr "词条"
 
-#: apps/desktop/ui/pages/dictionary.slint:448
+#: apps/desktop/ui/pages/dictionary.slint:431
 msgctxt "dictionary.entry.placeholder"
 msgid "For example: Volcano Engine"
 msgstr "例如：火山引擎"
 
-#: apps/desktop/ui/pages/dictionary.slint:484
+#: apps/desktop/ui/pages/dictionary.slint:467
 msgctxt "dictionary.add-another-entry"
 msgid "Add another entry"
 msgstr "添加一个词条"
 
-#: apps/desktop/ui/pages/dictionary.slint:507
+#: apps/desktop/ui/pages/dictionary.slint:490
 msgctxt "common.cancel"
 msgid "Cancel"
 msgstr "取消"
 
-#: apps/desktop/ui/pages/dictionary.slint:517
+#: apps/desktop/ui/pages/dictionary.slint:500
 msgctxt "common.saving"
 msgid "Saving…"
 msgstr "正在保存"
 
-#: apps/desktop/ui/pages/dictionary.slint:517
+#: apps/desktop/ui/pages/dictionary.slint:500
 msgctxt "dictionary.save-entry-count"
 msgid "Save {} entry"
 msgid_plural "Save {} entries"
 msgstr[0] "保存 {} 个词条"
 
-#: apps/desktop/ui/pages/history.slint:149
+#: apps/desktop/ui/pages/history.slint:148
 msgctxt "history.clear.title"
 msgid "Clear all history?"
 msgstr "清空全部历史？"
 
-#: apps/desktop/ui/pages/history.slint:150
+#: apps/desktop/ui/pages/history.slint:149
 msgctxt "history.clear.detail"
 msgid ""
 "All records will be permanently deleted from this device. This cannot be "
 "undone."
 msgstr "所有记录都会从这台设备永久删除，此操作无法撤销。"
 
-#: apps/desktop/ui/pages/history.slint:155
+#: apps/desktop/ui/pages/history.slint:154
 msgctxt "history.clear.action"
 msgid "Clear"
 msgstr "清空"
 
-#: apps/desktop/ui/pages/history.slint:162
+#: apps/desktop/ui/pages/history.slint:163
 msgctxt "history.reset.title"
 msgid "Reset history?"
 msgstr "重新初始化历史？"
 
-#: apps/desktop/ui/pages/history.slint:163
+#: apps/desktop/ui/pages/history.slint:164
 msgctxt "history.reset.detail"
 msgid "Existing history will be permanently deleted and cannot be recovered."
 msgstr "旧历史将永久删除，且无法恢复。"
 
-#: apps/desktop/ui/pages/history.slint:164
+#: apps/desktop/ui/pages/history.slint:165
 msgctxt "history.reset.unaffected"
 msgid ""
 "Your dictionary, model configuration, and other settings will not be "
 "affected."
 msgstr "词典、模型配置和其他设置不会受到影响。"
 
-#: apps/desktop/ui/pages/history.slint:169
+#: apps/desktop/ui/pages/history.slint:170
 msgctxt "history.reset.action"
 msgid "Delete and reset"
 msgstr "删除并重置"
 
-#: apps/desktop/ui/pages/history.slint:178
+#: apps/desktop/ui/pages/history.slint:179
 msgctxt "history.detail.title"
 msgid "Record details"
 msgstr "记录详情"
@@ -1699,172 +2089,347 @@ msgctxt "history.deleted-one"
 msgid "1 record deleted"
 msgstr "已删除 1 条记录"
 
-#: apps/desktop/ui/pages/home.slint:112
+#: apps/desktop/ui/pages/home.slint:135
 msgctxt "home.headline"
 msgid "Speak your mind, hands-free"
 msgstr "解放双手，说出所想"
 
-#: apps/desktop/ui/pages/home.slint:116 apps/desktop/ui/pages/home.slint:118
+#: apps/desktop/ui/pages/home.slint:139 apps/desktop/ui/pages/home.slint:141
 msgctxt "home.shortcut.title"
 msgid "Voice input shortcut"
 msgstr "语音输入快捷键"
 
-#: apps/desktop/ui/pages/home.slint:121
+#: apps/desktop/ui/pages/home.slint:144
 msgctxt "common.enabled"
 msgid "Enabled"
 msgstr "已启用"
 
-#: apps/desktop/ui/pages/home.slint:121
+#: apps/desktop/ui/pages/home.slint:144
 msgctxt "common.disabled"
 msgid "Disabled"
 msgstr "已关闭"
 
-#: apps/desktop/ui/pages/home.slint:128
+#: apps/desktop/ui/pages/home.slint:151
 msgctxt "home.shortcut.toggle-hint"
 msgid "Press once to start, then again to finish"
 msgstr "按一下开始，再按一下结束"
 
-#: apps/desktop/ui/pages/home.slint:129
+#: apps/desktop/ui/pages/home.slint:152
 msgctxt "common.edit"
 msgid "Edit"
 msgstr "修改"
 
-#: apps/desktop/ui/pages/home.slint:136
+#: apps/desktop/ui/pages/home.slint:159
 msgctxt "home.configuration-status.title"
 msgid "Configuration status"
 msgstr "配置状态"
 
-#: apps/desktop/ui/pages/home.slint:137
+#: apps/desktop/ui/pages/home.slint:160
 msgctxt "home.health.summary-ready"
 msgid "Voice pipeline is ready"
 msgstr "语音链路运行正常"
 
-#: apps/desktop/ui/pages/home.slint:137
+#: apps/desktop/ui/pages/home.slint:160
 msgctxt "home.health.summary-incomplete"
 msgid "Finish the remaining setup"
 msgstr "请完成剩余配置"
 
-#: apps/desktop/ui/pages/home.slint:141
+#: apps/desktop/ui/pages/home.slint:164
 msgctxt "home.health.all-good"
 msgid "All good"
 msgstr "全部正常"
 
-#: apps/desktop/ui/pages/home.slint:141
+#: apps/desktop/ui/pages/home.slint:164
 msgctxt "home.health.pending"
 msgid "Pending"
 msgstr "待处理"
 
-#: apps/desktop/ui/pages/home.slint:145
+#: apps/desktop/ui/pages/home.slint:168
 msgctxt "home.health.model"
 msgid "Model service"
 msgstr "模型服务"
 
-#: apps/desktop/ui/pages/home.slint:146
+#: apps/desktop/ui/pages/home.slint:169
 msgctxt "home.health.microphone"
 msgid "Microphone"
 msgstr "麦克风"
 
-#: apps/desktop/ui/pages/home.slint:147
+#: apps/desktop/ui/pages/home.slint:170
 msgctxt "home.health.delivery"
 msgid "Text delivery"
 msgstr "文本投递"
 
-#: apps/desktop/ui/pages/home.slint:152
+#: apps/desktop/ui/pages/home.slint:175
 msgctxt "home.usage.title"
 msgid "Usage overview"
 msgstr "使用概览"
 
-#: apps/desktop/ui/pages/home.slint:153
+#: apps/desktop/ui/pages/home.slint:176
 msgctxt "home.usage.loading"
 msgid "Loading"
 msgstr "加载中"
 
-#: apps/desktop/ui/pages/home.slint:153
+#: apps/desktop/ui/pages/home.slint:176
 msgctxt "home.usage.failed"
 msgid "Could not load"
 msgstr "加载失败"
 
-#: apps/desktop/ui/pages/home.slint:153
+#: apps/desktop/ui/pages/home.slint:176
 msgctxt "home.usage.totals"
 msgid "All-time totals"
 msgstr "累计数据"
 
-#: apps/desktop/ui/pages/home.slint:155
+#: apps/desktop/ui/pages/home.slint:178
 msgctxt "home.usage.minutes.unit"
 msgid "min"
 msgstr "分钟"
 
-#: apps/desktop/ui/pages/home.slint:155
+#: apps/desktop/ui/pages/home.slint:178
 msgctxt "home.usage.dictation-total"
 msgid "Voice input time"
 msgstr "语音输入时长"
 
-#: apps/desktop/ui/pages/home.slint:156
+#: apps/desktop/ui/pages/home.slint:179
 msgctxt "home.usage.characters.unit"
 msgid "characters"
 msgstr "字"
 
-#: apps/desktop/ui/pages/home.slint:156
+#: apps/desktop/ui/pages/home.slint:179
 msgctxt "home.usage.characters-total"
 msgid "Characters entered"
 msgstr "输入字数"
 
-#: apps/desktop/ui/pages/home.slint:157
+#: apps/desktop/ui/pages/home.slint:180
 msgctxt "home.usage.speed.unit"
 msgid "chars/min"
 msgstr "字/分钟"
 
-#: apps/desktop/ui/pages/home.slint:157
+#: apps/desktop/ui/pages/home.slint:180
 msgctxt "home.usage.average-speed"
 msgid "Average speed"
 msgstr "平均速度"
 
-#: apps/desktop/ui/pages/home.slint:163
+#: apps/desktop/ui/pages/home.slint:186
 msgctxt "home.usage.seven-day-trend"
 msgid "Last 7 days"
 msgstr "最近 7 天"
 
-#: apps/desktop/ui/pages/models.slint:77
+#: apps/desktop/ui/pages/llm-provider-components.slint:109
+msgctxt "models.providers"
+msgid "Model providers"
+msgstr "模型提供商"
+
+#: apps/desktop/ui/pages/llm-provider-components.slint:110
+msgctxt "models.polishing.enable"
+msgid "Enable text polishing"
+msgstr "启用文本润色"
+
+#: apps/desktop/ui/pages/llm-provider-components.slint:111
+msgctxt "models.polishing.enable.helper"
+msgid "Polish recognized text with the current provider"
+msgstr "使用当前提供商润色识别文本"
+
+#: apps/desktop/ui/pages/llm-provider-components.slint:111
+msgctxt "models.polishing.enable.configure-first"
+msgid "Configure a provider before enabling"
+msgstr "请先配置提供商"
+
+#: apps/desktop/ui/pages/llm-provider-components.slint:118
 msgctxt "models.polishing.enable.accessible-label"
 msgid "Enable text polishing"
 msgstr "启用文本润色"
 
-#: apps/desktop/ui/pages/models.slint:149
-msgctxt "common.cut"
-msgid "Cut"
-msgstr "剪切"
+#: apps/desktop/ui/pages/llm-provider-components.slint:130
+msgctxt "models.provider.api-model-summary"
+msgid "API Key and model selection"
+msgstr "API Key 与模型选择"
 
-#: apps/desktop/ui/pages/models.slint:150
-msgctxt "common.copy"
-msgid "Copy"
-msgstr "复制"
+#: apps/desktop/ui/pages/llm-provider-components.slint:135
+msgctxt "models.provider.custom-summary"
+msgid "Base URL, API Key, and model"
+msgstr "服务地址、API Key 与模型"
 
-#: apps/desktop/ui/pages/models.slint:151
-msgctxt "common.paste"
-msgid "Paste"
-msgstr "粘贴"
+#: apps/desktop/ui/pages/llm-provider-components.slint:136
+msgctxt "models.provider.qwen"
+msgid "Tongyi Qianwen"
+msgstr "通义千问"
 
-#: apps/desktop/ui/pages/models.slint:152
-msgctxt "common.select-all"
-msgid "Select All"
-msgstr "全选"
+#: apps/desktop/ui/pages/llm-provider-components.slint:136
+msgctxt "models.provider.preset-summary"
+msgid "Provider preset and model list"
+msgstr "提供商预设与模型列表"
 
-#: apps/desktop/ui/pages/models.slint:159
-msgctxt "common.value-entered"
-msgid "Entered"
-msgstr "已填写"
+#: apps/desktop/ui/pages/llm-provider-components.slint:136
+msgctxt "models.provider.coming-soon"
+msgid "Coming soon"
+msgstr "即将支持"
 
-#: apps/desktop/ui/pages/models.slint:196
+#: apps/desktop/ui/pages/llm-provider-components.slint:140
+msgctxt "models.provider.zhipu"
+msgid "Zhipu GLM"
+msgstr "智谱 GLM"
+
+#: apps/desktop/ui/pages/llm-provider-components.slint:239
+msgctxt "models.test-and-enable"
+msgid "Test and enable"
+msgstr "测试并启用"
+
+#: apps/desktop/ui/pages/llm-provider-components.slint:239
+msgctxt "models.test-and-use"
+msgid "Test and use"
+msgstr "测试并使用"
+
+#: apps/desktop/ui/pages/llm-provider-components.slint:249
+msgctxt "models.provider.configure-title"
+msgid "Configure {}"
+msgstr "配置 {}"
+
+#: apps/desktop/ui/pages/llm-provider-components.slint:257
+msgctxt "models.provider.openai-compatible"
+msgid "OpenAI-compatible chat completions API"
+msgstr "OpenAI 兼容的对话补全 API"
+
+#: apps/desktop/ui/pages/llm-provider-components.slint:268
+msgctxt "models.sensenova-api-key"
+msgid "SenseNova API key"
+msgstr "商汤 SenseNova API Key"
+
+#: apps/desktop/ui/pages/llm-provider-components.slint:270
+msgctxt "models.custom-llm-api-key"
+msgid "Custom polishing API key (optional for local services)"
+msgstr "自定义润色 API Key（本地服务可不填）"
+
+#: apps/desktop/ui/pages/llm-provider-components.slint:277
+msgctxt "models.select-model"
+msgid "Select model"
+msgstr "选择模型"
+
+#: apps/desktop/ui/pages/llm-provider-components.slint:284
+msgctxt "models.fetch.loading-accessible"
+msgid "Refreshing models"
+msgstr "正在刷新模型列表"
+
+#: apps/desktop/ui/pages/llm-provider-components.slint:284
+msgctxt "models.fetch.action"
+msgid "Refresh list"
+msgstr "刷新列表"
+
+#: apps/desktop/ui/pages/llm-provider-components.slint:287
+msgctxt "models.fetch.loading"
+msgid "Refreshing…"
+msgstr "刷新中…"
+
+#: apps/desktop/ui/pages/llm-provider-components.slint:300
+msgctxt "models.model.manual-entry"
+msgid "Enter model name manually"
+msgstr "手动输入模型名称"
+
+#: apps/desktop/ui/pages/llm-provider-components.slint:304
+msgctxt "models.model-id.placeholder"
+msgid "Enter the model ID from your provider"
+msgstr "输入服务商提供的模型 ID"
+
+#: apps/desktop/ui/pages/llm-provider-components.slint:305
+msgctxt "models.test.testing-connection"
+msgid "Testing connection"
+msgstr "正在测试连接"
+
+#: apps/desktop/ui/pages/llm-provider-components.slint:305
+msgctxt "models.status.unsaved.plain"
+msgid "Unsaved changes"
+msgstr "有未保存的更改"
+
+#: apps/desktop/ui/pages/local-asr-model.slint:140
+msgctxt "models.asr.local.downloading"
+msgid "Downloading"
+msgstr "下载中"
+
+#: apps/desktop/ui/pages/local-asr-model.slint:142
+msgctxt "models.asr.local.downloaded"
+msgid "Downloaded"
+msgstr "已下载"
+
+#: apps/desktop/ui/pages/local-asr-model.slint:143
+msgctxt "models.asr.local.not-downloaded"
+msgid "Not downloaded"
+msgstr "未下载"
+
+#: apps/desktop/ui/pages/local-asr-model.slint:225
+msgctxt "models.asr.local.memory-approximate"
+msgid "Approx. {}"
+msgstr "约 {}"
+
+#: apps/desktop/ui/pages/local-asr-model.slint:230
+msgctxt "models.asr.local.status.downloading"
+msgid "Downloading · {}"
+msgstr "正在下载 · {}"
+
+#: apps/desktop/ui/pages/local-asr-model.slint:232
+msgctxt "models.asr.local.status.downloaded"
+msgid "Downloaded · {}"
+msgstr "已下载 · {}"
+
+#: apps/desktop/ui/pages/local-asr-model.slint:233
+msgctxt "models.asr.local.status.not-downloaded"
+msgid "Not downloaded · {}"
+msgstr "尚未下载 · {}"
+
+#: apps/desktop/ui/pages/local-asr-model.slint:237
+msgctxt "models.asr.local.progress-detail"
+msgid "{}% of {}"
+msgstr "已下载 {}%，共 {}"
+
+#: apps/desktop/ui/pages/local-asr-model.slint:239
+msgctxt "models.asr.local.delete-current-disabled"
+msgid "Switch providers before deleting the model"
+msgstr "当前正在使用，切换服务后可以删除模型"
+
+#: apps/desktop/ui/pages/local-asr-model.slint:241
+msgctxt "models.asr.local.delete-ready"
+msgid "Stored locally and ready to delete"
+msgstr "模型已保存在本地，可随时删除"
+
+#: apps/desktop/ui/pages/local-asr-model.slint:242
+msgctxt "models.asr.local.download-ready"
+msgid "Download to use this model offline"
+msgstr "下载后即可在本地离线使用"
+
+#: apps/desktop/ui/pages/local-asr-model.slint:244
+msgctxt "models.asr.local.downloading-percent"
+msgid "Downloading {}%"
+msgstr "下载中 {}%"
+
+#: apps/desktop/ui/pages/local-asr-model.slint:245
+msgctxt "models.asr.local.delete"
+msgid "Delete model"
+msgstr "删除模型"
+
+#: apps/desktop/ui/pages/local-asr-model.slint:246
+msgctxt "models.asr.local.download"
+msgid "Download model"
+msgstr "下载模型"
+
+#: apps/desktop/ui/pages/local-asr-model.slint:292
+msgctxt "models.asr.local.subtitle.verified"
+msgid "Local open-source model · Verified"
+msgstr "本地开源模型 · 已校验"
+
+#: apps/desktop/ui/pages/local-asr-model.slint:293
+msgctxt "models.asr.local.subtitle.pending"
+msgid "Local open-source model · Awaiting verification"
+msgstr "本地开源模型 · 待校验"
+
+#: apps/desktop/ui/pages/models.slint:89
 msgctxt "models.polishing.consent.title"
-msgid "Enable text polishing?"
-msgstr "启用文本润色？"
+msgid "Confirm sending to {}"
+msgstr "确认发送到 {}"
 
-#: apps/desktop/ui/pages/models.slint:197
+#: apps/desktop/ui/pages/models.slint:90
 msgctxt "models.polishing.consent.intro"
-msgid "Before enabling it, review what text will be sent."
-msgstr "首次启用前，请确认文本的发送范围。"
+msgid "Review what will be sent before testing the connection."
+msgstr "测试连接前，请确认将发送哪些内容。"
 
-#: apps/desktop/ui/pages/models.slint:203
+#: apps/desktop/ui/pages/models.slint:107
 msgctxt "models.polishing.consent.sent-content"
 msgid ""
 "Saymore sends the current transcript for polishing and may send a short "
@@ -1873,247 +2438,87 @@ msgstr ""
 "Saymore 会发送本次转写文本用于润色，也可能发送一小段局部纠正文本来判断词典候"
 "选。"
 
-#: apps/desktop/ui/pages/models.slint:206
+#: apps/desktop/ui/pages/models.slint:110
 msgctxt "models.polishing.consent.destination"
 msgid "Data destination"
 msgstr "数据发送目标"
 
-#: apps/desktop/ui/pages/models.slint:209
+#: apps/desktop/ui/pages/models.slint:113
 msgctxt "models.polishing.consent.dictionary-excluded"
 msgid "Confirmed dictionary entries and complete input fields are not sent."
 msgstr "不会发送已确认的词典条目，也不会发送完整输入框内容。"
 
-#: apps/desktop/ui/pages/models.slint:215
+#: apps/desktop/ui/pages/models.slint:117
 msgctxt "models.polishing.consent.accept"
 msgid "I understand and agree to send the content described above"
 msgstr "我已了解并同意发送上述内容"
 
-#: apps/desktop/ui/pages/models.slint:221
+#: apps/desktop/ui/pages/models.slint:136
 msgctxt "models.polishing.consent.confirm-and-test"
-msgid "Confirm and test"
-msgstr "确认并测试"
+msgid "Agree and test"
+msgstr "同意并测试"
 
-#: apps/desktop/ui/pages/models.slint:289
-msgctxt "models.volcengine.model-v1"
-msgid "Doubao Streaming Speech Recognition 1.0"
-msgstr "豆包流式语音识别模型 1.0"
-
-#: apps/desktop/ui/pages/models.slint:289
-msgctxt "models.volcengine.model-v2"
-msgid "Doubao Streaming Speech Recognition 2.0"
-msgstr "豆包流式语音识别模型 2.0"
-
-#: apps/desktop/ui/pages/models.slint:292
-msgctxt "models.provider.custom-compatible"
-msgid "Custom compatible API"
-msgstr "自定义兼容接口"
-
-#: apps/desktop/ui/pages/models.slint:292
+#: apps/desktop/ui/pages/models.slint:218
 msgctxt "models.provider.volcengine"
 msgid "Volcengine"
 msgstr "火山引擎"
 
-#: apps/desktop/ui/pages/models.slint:306
+#: apps/desktop/ui/pages/models.slint:234
 msgctxt "models.status.testing"
 msgid "●  Testing"
 msgstr "●  正在测试"
 
-#: apps/desktop/ui/pages/models.slint:306
+#: apps/desktop/ui/pages/models.slint:234
 msgctxt "models.status.connection-failed"
 msgid "●  Connection issue"
 msgstr "●  连接异常"
 
-#: apps/desktop/ui/pages/models.slint:306
+#: apps/desktop/ui/pages/models.slint:234
 msgctxt "models.status.unsaved"
 msgid "●  Unsaved changes"
 msgstr "●  有未保存的更改"
 
-#: apps/desktop/ui/pages/models.slint:306
+#: apps/desktop/ui/pages/models.slint:234
 msgctxt "models.status.awaiting-connection-test"
 msgid "●  Awaiting connection test"
 msgstr "●  等待连接测试"
 
-#: apps/desktop/ui/pages/models.slint:306
+#: apps/desktop/ui/pages/models.slint:234
 msgctxt "models.status.connected"
 msgid "●  Connected"
 msgstr "●  连接正常"
 
-#: apps/desktop/ui/pages/models.slint:306
+#: apps/desktop/ui/pages/models.slint:234
 msgctxt "models.status.not-configured"
 msgid "●  Not configured"
 msgstr "●  未配置"
 
-#: apps/desktop/ui/pages/models.slint:327
+#: apps/desktop/ui/pages/models.slint:253
 msgctxt "models.title"
 msgid "Models"
 msgstr "模型"
 
-#: apps/desktop/ui/pages/models.slint:328
+#: apps/desktop/ui/pages/models.slint:254
 msgctxt "models.tab.speech-recognition"
 msgid "Transcription"
 msgstr "语音识别"
 
-#: apps/desktop/ui/pages/models.slint:329
+#: apps/desktop/ui/pages/models.slint:255
 msgctxt "models.tab.text-polishing"
 msgid "Polishing"
 msgstr "文本润色"
 
-#: apps/desktop/ui/pages/models.slint:332
-msgctxt "models.speech-service"
-msgid "Speech recognition service"
-msgstr "语音识别服务"
-
-#: apps/desktop/ui/pages/models.slint:332
-msgctxt "models.polishing-service"
-msgid "Text polishing service"
-msgstr "文本润色服务"
-
-#: apps/desktop/ui/pages/models.slint:349
-msgctxt "models.api-key.not-configured"
-msgid "API key not configured"
-msgstr "尚未配置 API Key"
-
-#: apps/desktop/ui/pages/models.slint:349
-msgctxt "models.model.saved-not-enabled"
-msgid "{} · Connection not tested"
-msgstr "{} · 尚未测试连接"
-
-#: apps/desktop/ui/pages/models.slint:349
-msgctxt "models.model.current-default"
-msgid "{} · Current default"
-msgstr "{} · 当前默认"
-
-#: apps/desktop/ui/pages/models.slint:356
-msgctxt "models.connection-settings"
-msgid "Connection settings"
-msgstr "连接配置"
-
-#: apps/desktop/ui/pages/models.slint:365
-msgctxt "models.get-api-key"
-msgid "Get API key"
-msgstr "获取密钥"
-
-#: apps/desktop/ui/pages/models.slint:375
-msgctxt "models.volcengine-api-key"
-msgid "Volcengine API key"
-msgstr "火山引擎 API Key"
-
-#: apps/desktop/ui/pages/models.slint:380
-msgctxt "models.custom-speech-api-key"
-msgid "Custom speech recognition API key"
-msgstr "自定义语音识别 API Key"
-
-#: apps/desktop/ui/pages/models.slint:384
-msgctxt "models.sensenova-api-key"
-msgid "SenseNova API key"
-msgstr "商汤 SenseNova API Key"
-
-#: apps/desktop/ui/pages/models.slint:392
-msgctxt "models.custom-llm-api-key"
-msgid "Custom polishing API key (optional for local services)"
-msgstr "自定义润色 API Key（本地服务可不填）"
-
-#: apps/desktop/ui/pages/models.slint:396
-msgctxt "models.model-field"
-msgid "Model"
-msgstr "模型"
-
-#: apps/desktop/ui/pages/models.slint:401
-msgctxt "models.fetch.loading-accessible"
-msgid "Fetching models"
-msgstr "正在获取模型"
-
-#: apps/desktop/ui/pages/models.slint:401
-msgctxt "models.fetch.action"
-msgid "Fetch models"
-msgstr "获取模型"
-
-#: apps/desktop/ui/pages/models.slint:402
-msgctxt "models.fetch.loading"
-msgid "Fetching…"
-msgstr "获取中…"
-
-#: apps/desktop/ui/pages/models.slint:408
-msgctxt "models.model-id.placeholder"
-msgid "Enter the model ID from your provider"
-msgstr "输入服务商提供的模型 ID"
-
-#: apps/desktop/ui/pages/models.slint:420
-msgctxt "models.advanced-settings"
-msgid "Advanced settings"
-msgstr "高级设置"
-
-#: apps/desktop/ui/pages/models.slint:422
-msgctxt "models.base-url"
-msgid "Service URL"
-msgstr "服务地址"
-
-#: apps/desktop/ui/pages/models.slint:440
-msgctxt "models.save.testing"
-msgid "Testing…"
-msgstr "正在测试…"
-
-#: apps/desktop/ui/pages/models.slint:440
-msgctxt "models.save-configuration"
-msgid "Save configuration"
-msgstr "保存配置"
-
-#: apps/desktop/ui/pages/models.slint:450
-msgctxt "models.test.testing"
-msgid "Testing…"
-msgstr "正在测试…"
-
-#: apps/desktop/ui/pages/models.slint:450
-msgctxt "models.test.retry"
-msgid "Test again"
-msgstr "重新测试"
-
-#: apps/desktop/ui/pages/models.slint:450
-msgctxt "models.test.action"
-msgid "Test connection"
-msgstr "测试连接"
-
-#: apps/desktop/ui/pages/models.slint:453
-msgctxt "models.api-key.auto-hide"
-msgid "Hides automatically in 5 seconds"
-msgstr "5 秒后自动隐藏"
-
-#: apps/desktop/ui/pages/models.slint:453
-msgctxt "models.test.testing-connection"
-msgid "Testing connection"
-msgstr "正在测试连接"
-
-#: apps/desktop/ui/pages/models.slint:453
-msgctxt "models.status.unsaved.plain"
-msgid "Unsaved changes"
-msgstr "有未保存的更改"
-
-#: apps/desktop/ui/pages/models.slint:503
-msgctxt "models.list.load-failed"
-msgid "Could not load models. Check your network connection."
-msgstr "模型列表加载失败，请检查网络"
-
-#: apps/desktop/ui/pages/models.slint:509
-msgctxt "models.list.not-fetched"
-msgid "Models have not been fetched yet"
-msgstr "尚未获取模型"
-
-#: apps/desktop/ui/pages/models.slint:519
-msgctxt "models.model.manual-entry"
-msgid "Enter model name manually"
-msgstr "手动输入模型名称"
-
-#: apps/desktop/ui/pages/settings.slint:110
+#: apps/desktop/ui/pages/settings.slint:112
 msgctxt "settings.shortcut.capture.prompt"
 msgid "Press a new shortcut"
 msgstr "请按下新快捷键"
 
-#: apps/desktop/ui/pages/settings.slint:110
+#: apps/desktop/ui/pages/settings.slint:112
 msgctxt "settings.shortcut.add-another"
 msgid "Add another"
 msgstr "添加另一个"
 
-#: apps/desktop/ui/pages/settings.slint:142
+#: apps/desktop/ui/pages/settings.slint:143
 msgctxt "settings.shortcut.edit"
 msgid "Edit shortcut"
 msgstr "修改快捷键"
@@ -2123,719 +2528,689 @@ msgctxt "settings.shortcut.remove"
 msgid "Remove shortcut"
 msgstr "删除快捷键"
 
-#: apps/desktop/ui/pages/settings.slint:195
+#: apps/desktop/ui/pages/settings.slint:242
 msgctxt "settings.microphone.select-accessible"
 msgid "Select microphone: {}"
 msgstr "选择麦克风：{}"
 
-#: apps/desktop/ui/pages/settings.slint:200
+#: apps/desktop/ui/pages/settings.slint:247
 msgctxt "settings.microphone.loading"
 msgid "Loading microphones…"
 msgstr "正在读取麦克风…"
 
-#: apps/desktop/ui/pages/settings.slint:255
+#: apps/desktop/ui/pages/settings.slint:302
 msgctxt "settings.language.follow-system-zh"
 msgid "Follow System (Simplified Chinese)"
 msgstr "跟随系统（简体中文）"
 
-#: apps/desktop/ui/pages/settings.slint:256
+#: apps/desktop/ui/pages/settings.slint:303
 msgctxt "settings.language.follow-system-en"
 msgid "Follow System (English)"
 msgstr "跟随系统（English）"
 
-#: apps/desktop/ui/pages/settings.slint:260
+#: apps/desktop/ui/pages/settings.slint:307
 msgctxt "settings.language.english"
 msgid "English"
 msgstr "English"
 
-#: apps/desktop/ui/pages/settings.slint:261
+#: apps/desktop/ui/pages/settings.slint:308
 msgctxt "settings.language.simplified-chinese"
 msgid "Simplified Chinese"
 msgstr "简体中文"
 
-#: apps/desktop/ui/pages/settings.slint:269
+#: apps/desktop/ui/pages/settings.slint:316
 msgctxt "settings.language.accessible-label"
 msgid "Interface language: {}"
 msgstr "界面语言：{}"
 
-#: apps/desktop/ui/pages/settings.slint:275
+#: apps/desktop/ui/pages/settings.slint:322
 msgctxt "settings.language.saving"
 msgid "Saving…"
 msgstr "正在保存…"
 
-#: apps/desktop/ui/pages/settings.slint:374
+#: apps/desktop/ui/pages/settings.slint:422
 msgctxt "settings.title"
 msgid "Settings"
 msgstr "设置"
 
-#: apps/desktop/ui/pages/settings.slint:381
+#: apps/desktop/ui/pages/settings.slint:429
 msgctxt "settings.back-home"
 msgid "Back to Home"
 msgstr "返回首页"
 
-#: apps/desktop/ui/pages/settings.slint:388
+#: apps/desktop/ui/pages/settings.slint:436
 msgctxt "settings.nav.general"
 msgid "General"
 msgstr "通用"
 
-#: apps/desktop/ui/pages/settings.slint:389
+#: apps/desktop/ui/pages/settings.slint:437
 msgctxt "settings.nav.shortcuts"
 msgid "Shortcuts"
 msgstr "快捷键"
 
-#: apps/desktop/ui/pages/settings.slint:390
+#: apps/desktop/ui/pages/settings.slint:438
 msgctxt "settings.nav.permissions"
 msgid "Permissions"
 msgstr "权限"
 
-#: apps/desktop/ui/pages/settings.slint:391
+#: apps/desktop/ui/pages/settings.slint:439
 msgctxt "settings.nav.privacy"
 msgid "Privacy"
 msgstr "隐私"
 
-#: apps/desktop/ui/pages/settings.slint:392
+#: apps/desktop/ui/pages/settings.slint:440
 msgctxt "settings.nav.about"
 msgid "About"
 msgstr "关于"
 
-#: apps/desktop/ui/pages/settings.slint:468
+#: apps/desktop/ui/pages/settings.slint:523
 msgctxt "settings.section.general"
 msgid "General"
 msgstr "通用"
 
-#: apps/desktop/ui/pages/settings.slint:468
+#: apps/desktop/ui/pages/settings.slint:523
 msgctxt "settings.section.shortcuts-audio"
 msgid "Shortcuts & Audio"
 msgstr "快捷键与音频"
 
-#: apps/desktop/ui/pages/settings.slint:468
+#: apps/desktop/ui/pages/settings.slint:523
 msgctxt "settings.section.delivery-permissions"
 msgid "Delivery & Permissions"
 msgstr "投递与权限"
 
-#: apps/desktop/ui/pages/settings.slint:468
+#: apps/desktop/ui/pages/settings.slint:523
 msgctxt "settings.section.privacy-data"
 msgid "Privacy & Data"
 msgstr "隐私与数据"
 
-#: apps/desktop/ui/pages/settings.slint:468
+#: apps/desktop/ui/pages/settings.slint:523
 msgctxt "settings.section.about-updates"
 msgid "About & Updates"
 msgstr "关于与更新"
 
-#: apps/desktop/ui/pages/settings.slint:469
+#: apps/desktop/ui/pages/settings.slint:524
 msgctxt "settings.general.detail"
 msgid "Control how Saymore starts, appears, and looks on this device."
 msgstr "控制 Saymore 在这台设备上的启动、显示与外观。"
 
-#: apps/desktop/ui/pages/settings.slint:469
+#: apps/desktop/ui/pages/settings.slint:524
 msgctxt "settings.shortcuts-audio.detail"
 msgid "Choose how voice input starts and how audio feedback works."
 msgstr "设置开始语音输入的方式，以及识别过程中的声音反馈。"
 
-#: apps/desktop/ui/pages/settings.slint:469
+#: apps/desktop/ui/pages/settings.slint:524
 msgctxt "settings.delivery-permissions.detail"
 msgid "Choose how recognized text is delivered and review system permissions."
 msgstr "设置识别结果的投递方式，并检查系统授权状态。"
 
-#: apps/desktop/ui/pages/settings.slint:469
+#: apps/desktop/ui/pages/settings.slint:524
 msgctxt "settings.privacy-data.detail"
 msgid "Review local data storage and manage diagnostics."
 msgstr "了解本地数据的保存方式，并管理诊断信息。"
 
-#: apps/desktop/ui/pages/settings.slint:469
+#: apps/desktop/ui/pages/settings.slint:524
 msgctxt "settings.about-updates.detail"
 msgid "View version information, update status, and product links."
 msgstr "查看版本信息、更新状态与产品相关链接。"
 
-#: apps/desktop/ui/pages/settings.slint:471
+#: apps/desktop/ui/pages/settings.slint:526
 msgctxt "settings.diagnostics.exporting"
 msgid "Exporting…"
 msgstr "正在导出"
 
-#: apps/desktop/ui/pages/settings.slint:471
+#: apps/desktop/ui/pages/settings.slint:526
 msgctxt "settings.diagnostics.exported"
 msgid "Exported"
 msgstr "已导出"
 
-#: apps/desktop/ui/pages/settings.slint:471
+#: apps/desktop/ui/pages/settings.slint:526
 msgctxt "settings.diagnostics.export-again"
 msgid "Export again"
 msgstr "重新导出"
 
-#: apps/desktop/ui/pages/settings.slint:471
+#: apps/desktop/ui/pages/settings.slint:526
 msgctxt "settings.diagnostics.export-report"
 msgid "Export report"
 msgstr "导出报告"
 
-#: apps/desktop/ui/pages/settings.slint:472
+#: apps/desktop/ui/pages/settings.slint:527
 msgctxt "settings.update.checking"
 msgid "Checking…"
 msgstr "正在检查"
 
-#: apps/desktop/ui/pages/settings.slint:472
+#: apps/desktop/ui/pages/settings.slint:527
 msgctxt "settings.update.check-again"
 msgid "Check again"
 msgstr "重新检查"
 
-#: apps/desktop/ui/pages/settings.slint:472
+#: apps/desktop/ui/pages/settings.slint:527
 msgctxt "settings.update.check"
 msgid "Check for updates"
 msgstr "检查更新"
 
-#: apps/desktop/ui/pages/settings.slint:473
+#: apps/desktop/ui/pages/settings.slint:528
 msgctxt "settings.update.checking-detail"
 msgid "Checking for updates…"
 msgstr "正在检查更新…"
 
-#: apps/desktop/ui/pages/settings.slint:473
+#: apps/desktop/ui/pages/settings.slint:528
 msgctxt "settings.update.latest"
 msgid "You’re up to date"
 msgstr "当前已是最新版本"
 
-#: apps/desktop/ui/pages/settings.slint:473
+#: apps/desktop/ui/pages/settings.slint:528
 msgctxt "settings.update.available"
 msgid "Saymore {} is available"
 msgstr "发现 Saymore {}"
 
-#: apps/desktop/ui/pages/settings.slint:473
+#: apps/desktop/ui/pages/settings.slint:528
 msgctxt "settings.update.not-checked"
 msgid "Updates have not been checked yet"
 msgstr "尚未检查更新"
 
-#: apps/desktop/ui/pages/settings.slint:511
+#: apps/desktop/ui/pages/settings.slint:564
 msgctxt "settings.startup-display.title"
 msgid "Startup & Display"
 msgstr "启动与显示"
 
-#: apps/desktop/ui/pages/settings.slint:518
+#: apps/desktop/ui/pages/settings.slint:569
 msgctxt "settings.launch-at-login.title"
 msgid "Launch at login"
 msgstr "登录时启动"
 
-#: apps/desktop/ui/pages/settings.slint:519
-msgctxt "settings.launch-at-login.detail"
-msgid "Prepare voice input in the background after you sign in."
-msgstr "开机后在后台准备语音输入。"
-
-#: apps/desktop/ui/pages/settings.slint:525
+#: apps/desktop/ui/pages/settings.slint:573
 msgctxt "settings.show-in-dock.title"
 msgid "Show in Dock"
 msgstr "在 Dock 中显示"
 
-#: apps/desktop/ui/pages/settings.slint:526
-msgctxt "settings.show-in-dock.detail"
-msgid "Keep the Dock icon visible for quick access."
-msgstr "保留应用图标，方便随时回到主窗口。"
-
-#: apps/desktop/ui/pages/settings.slint:548
-msgctxt "settings.appearance.title"
-msgid "Appearance"
-msgstr "外观"
-
-#: apps/desktop/ui/pages/settings.slint:552
+#: apps/desktop/ui/pages/settings.slint:589
 msgctxt "settings.language.title"
 msgid "Interface language"
 msgstr "界面语言"
 
-#: apps/desktop/ui/pages/settings.slint:553
+#: apps/desktop/ui/pages/settings.slint:594
 msgctxt "settings.language.detail"
 msgid "Language used by the application interface"
 msgstr "应用显示语言"
 
-#: apps/desktop/ui/pages/settings.slint:565
+#: apps/desktop/ui/pages/settings.slint:597
+msgctxt "settings.appearance.title"
+msgid "Appearance"
+msgstr "外观"
+
+#: apps/desktop/ui/pages/settings.slint:609
 msgctxt "settings.software.title"
 msgid "Software"
 msgstr "软件"
 
-#: apps/desktop/ui/pages/settings.slint:569
+#: apps/desktop/ui/pages/settings.slint:614
 msgctxt "settings.auto-update.title"
 msgid "Automatically check for updates"
 msgstr "自动检查更新"
 
-#: apps/desktop/ui/pages/settings.slint:570
+#: apps/desktop/ui/pages/settings.slint:614
 msgctxt "settings.auto-update.detail"
 msgid "Notify you when a new version is available."
 msgstr "发现新版本时提示你。"
 
-#: apps/desktop/ui/pages/settings.slint:576
+#: apps/desktop/ui/pages/settings.slint:618
 msgctxt "settings.onboarding.title"
 msgid "Run setup again"
 msgstr "重新运行新手引导"
 
-#: apps/desktop/ui/pages/settings.slint:577
+#: apps/desktop/ui/pages/settings.slint:618
 msgctxt "settings.onboarding.detail"
 msgid "Review microphone, shortcut, and Accessibility setup."
 msgstr "重新检查麦克风、快捷键和辅助功能设置。"
 
-#: apps/desktop/ui/pages/settings.slint:577
+#: apps/desktop/ui/pages/settings.slint:618
 msgctxt "settings.onboarding.detail-windows"
 msgid "Review microphone and shortcut setup."
 msgstr "重新检查麦克风和快捷键设置。"
 
-#: apps/desktop/ui/pages/settings.slint:578
+#: apps/desktop/ui/pages/settings.slint:618
 msgctxt "settings.onboarding.open"
 msgid "Open setup"
 msgstr "打开引导"
 
-#: apps/desktop/ui/pages/settings.slint:587
+#: apps/desktop/ui/pages/settings.slint:641
 msgctxt "settings.shortcuts.title"
 msgid "Shortcuts"
 msgstr "快捷键"
 
-#: apps/desktop/ui/pages/settings.slint:591
+#: apps/desktop/ui/pages/settings.slint:645
 msgctxt "settings.shortcut.global.title"
 msgid "Global voice input shortcut"
 msgstr "全局语音快捷键"
 
-#: apps/desktop/ui/pages/settings.slint:592
+#: apps/desktop/ui/pages/settings.slint:646
 msgctxt "settings.shortcut.global.detail"
 msgid "Press to start or finish voice input."
 msgstr "按下开始或结束语音输入。"
 
-#: apps/desktop/ui/pages/settings.slint:613
+#: apps/desktop/ui/pages/settings.slint:666
 msgctxt "settings.shortcut.cancel"
 msgid "Esc to cancel"
 msgstr "Esc 取消"
 
-#: apps/desktop/ui/pages/settings.slint:615
+#: apps/desktop/ui/pages/settings.slint:669
 msgctxt "settings.audio.title"
 msgid "Audio"
 msgstr "音频"
 
-#: apps/desktop/ui/pages/settings.slint:619
+#: apps/desktop/ui/pages/settings.slint:673
 msgctxt "settings.microphone.input-device"
 msgid "Input device"
 msgstr "输入设备"
 
-#: apps/desktop/ui/pages/settings.slint:620
+#: apps/desktop/ui/pages/settings.slint:674
 msgctxt "settings.microphone.input-device-detail"
 msgid "Use the system default microphone or choose another device."
 msgstr "使用系统默认麦克风，可随时切换。"
 
-#: apps/desktop/ui/pages/settings.slint:637
+#: apps/desktop/ui/pages/settings.slint:691
 msgctxt "settings.audio.cue.title"
 msgid "Voice input sounds"
 msgstr "识别提示音"
 
-#: apps/desktop/ui/pages/settings.slint:637
+#: apps/desktop/ui/pages/settings.slint:691
 msgctxt "settings.audio.cue.detail"
 msgid "Play a short sound when voice input starts and finishes."
 msgstr "开始与结束识别时播放简短提示音。"
 
-#: apps/desktop/ui/pages/settings.slint:642
-#: apps/desktop/ui/pages/settings.slint:647
+#: apps/desktop/ui/pages/settings.slint:692
 msgctxt "settings.audio.mute-system.title"
 msgid "Mute system audio during voice input"
 msgstr "识别时静音系统声音"
 
-#: apps/desktop/ui/pages/settings.slint:642
-#: apps/desktop/ui/pages/settings.slint:647
+#: apps/desktop/ui/pages/settings.slint:692
 msgctxt "settings.audio.mute-system.detail"
 msgid "Temporarily mute system audio only while listening."
 msgstr "仅在语音识别期间临时静音。"
 
-#: apps/desktop/ui/pages/settings.slint:650
+#: apps/desktop/ui/pages/settings.slint:706
 msgctxt "settings.delivery.title"
 msgid "Delivery"
 msgstr "投递方式"
 
-#: apps/desktop/ui/pages/settings.slint:654
+#: apps/desktop/ui/pages/settings.slint:710
 msgctxt "settings.delivery.auto-insert.title"
 msgid "Automatically insert recognized text"
 msgstr "自动输入识别结果"
 
-#: apps/desktop/ui/pages/settings.slint:655
+#: apps/desktop/ui/pages/settings.slint:711
 msgctxt "settings.delivery.auto-insert.detail"
 msgid "Insert completed text into the app you are currently using."
 msgstr "识别完成后，自动输入到当前正在使用的应用。"
 
-#: apps/desktop/ui/pages/settings.slint:656
+#: apps/desktop/ui/pages/settings.slint:712
 msgctxt "settings.delivery.copy.title"
 msgid "Also copy to clipboard"
 msgstr "同时复制到剪贴板"
 
-#: apps/desktop/ui/pages/settings.slint:657
+#: apps/desktop/ui/pages/settings.slint:713
 msgctxt "settings.delivery.copy.detail"
 msgid "Keep a copy so you can paste it manually when needed."
 msgstr "保留一份结果，方便你在需要时手动粘贴。"
 
-#: apps/desktop/ui/pages/settings.slint:660
+#: apps/desktop/ui/pages/settings.slint:716
 msgctxt "settings.permissions.title"
 msgid "System Permissions"
 msgstr "系统权限"
 
-#: apps/desktop/ui/pages/settings.slint:663
+#: apps/desktop/ui/pages/settings.slint:719
 msgctxt "settings.permissions.microphone.title"
 msgid "Microphone"
 msgstr "麦克风"
 
-#: apps/desktop/ui/pages/settings.slint:663
+#: apps/desktop/ui/pages/settings.slint:719
 msgctxt "settings.permissions.microphone.granted-detail"
 msgid "Captures your voice only while voice input is active."
 msgstr "用于捕捉你的语音；仅在开始识别时访问。"
 
-#: apps/desktop/ui/pages/settings.slint:663
+#: apps/desktop/ui/pages/settings.slint:719
 msgctxt "settings.permissions.microphone.required-detail"
 msgid "Allow microphone access to start voice input."
 msgstr "允许访问麦克风后才能开始语音输入。"
 
-#: apps/desktop/ui/pages/settings.slint:664
+#: apps/desktop/ui/pages/settings.slint:720
 msgctxt "settings.permissions.accessibility.title"
 msgid "Accessibility"
 msgstr "辅助功能"
 
-#: apps/desktop/ui/pages/settings.slint:664
+#: apps/desktop/ui/pages/settings.slint:720
 msgctxt "settings.permissions.accessibility.granted-detail"
 msgid "Inserts recognized text into the app you are using."
 msgstr "用于将识别结果自动输入到当前应用。"
 
-#: apps/desktop/ui/pages/settings.slint:664
+#: apps/desktop/ui/pages/settings.slint:720
 msgctxt "settings.permissions.accessibility.required-detail"
 msgid "Enable Accessibility to insert recognized text."
 msgstr "允许辅助功能后才能自动输入识别结果。"
 
-#: apps/desktop/ui/pages/settings.slint:671
+#: apps/desktop/ui/pages/settings.slint:727
 msgctxt "settings.permissions.system-managed"
 msgid "Permission status is managed by the system and refreshes automatically."
 msgstr "权限状态由系统管理；开启后会自动刷新。"
 
-#: apps/desktop/ui/pages/settings.slint:679
+#: apps/desktop/ui/pages/settings.slint:735
 msgctxt "settings.local-data.title"
 msgid "Local Data"
 msgstr "本地数据"
 
-#: apps/desktop/ui/pages/settings.slint:683
+#: apps/desktop/ui/pages/settings.slint:739
 msgctxt "settings.local-data.device-only.title"
 msgid "Data stays on this device"
 msgstr "数据保存在本机"
 
-#: apps/desktop/ui/pages/settings.slint:684
+#: apps/desktop/ui/pages/settings.slint:740
 msgctxt "settings.local-data.device-only.detail"
 msgid ""
 "History, dictionary entries, and configuration are stored only on this "
 "device by default."
 msgstr "识别记录、词典与配置默认仅保存在当前设备。"
 
-#: apps/desktop/ui/pages/settings.slint:685
+#: apps/desktop/ui/pages/settings.slint:741
 msgctxt "settings.local-data.usage"
 msgid "Currently using {}"
 msgstr "当前占用 {}"
 
-#: apps/desktop/ui/pages/settings.slint:686
+#: apps/desktop/ui/pages/settings.slint:742
 msgctxt "settings.local-data.open-folder"
 msgid "Open data folder"
 msgstr "打开数据目录"
 
-#: apps/desktop/ui/pages/settings.slint:687
+#: apps/desktop/ui/pages/settings.slint:743
 msgctxt "settings.local-data.no-cloud-sync"
 msgid "Saymore does not sync this content to the cloud."
 msgstr "Saymore 不会将这些内容同步到云端。"
 
-#: apps/desktop/ui/pages/settings.slint:689
+#: apps/desktop/ui/pages/settings.slint:745
 msgctxt "settings.diagnostics.title"
 msgid "Diagnostics & Support"
 msgstr "诊断与支持"
 
-#: apps/desktop/ui/pages/settings.slint:695
+#: apps/desktop/ui/pages/settings.slint:751
 msgctxt "settings.diagnostics.logging.title"
 msgid "Diagnostic logging"
 msgstr "记录诊断日志"
 
-#: apps/desktop/ui/pages/settings.slint:697
+#: apps/desktop/ui/pages/settings.slint:753
 msgctxt "settings.diagnostics.logging.detail"
 msgid "Records runtime status and errors, never recognized text."
 msgstr "仅记录运行状态和错误，不包含识别文本。"
 
-#: apps/desktop/ui/pages/settings.slint:702
+#: apps/desktop/ui/pages/settings.slint:758
 msgctxt "settings.diagnostics.report.title"
 msgid "Diagnostic report"
 msgstr "诊断报告"
 
-#: apps/desktop/ui/pages/settings.slint:704
+#: apps/desktop/ui/pages/settings.slint:760
 msgctxt "settings.diagnostics.report.detail"
 msgid "Export a report without sensitive content when you need support."
 msgstr "需要协助时，可导出不含敏感内容的报告。"
 
-#: apps/desktop/ui/pages/settings.slint:712
+#: apps/desktop/ui/pages/settings.slint:768
 msgctxt "settings.policy.title"
 msgid "Policy"
 msgstr "政策"
 
-#: apps/desktop/ui/pages/settings.slint:713
+#: apps/desktop/ui/pages/settings.slint:769
 msgctxt "settings.privacy-policy.title"
 msgid "Privacy Policy"
 msgstr "隐私政策"
 
-#: apps/desktop/ui/pages/settings.slint:713
+#: apps/desktop/ui/pages/settings.slint:769
 msgctxt "settings.privacy-policy.detail"
 msgid "Learn how Saymore handles and protects your data."
 msgstr "查看 Saymore 如何处理和保护你的数据。"
 
-#: apps/desktop/ui/pages/settings.slint:721
+#: apps/desktop/ui/pages/settings.slint:777
 msgctxt "settings.product.title"
 msgid "Product"
 msgstr "产品"
 
-#: apps/desktop/ui/pages/settings.slint:726
+#: apps/desktop/ui/pages/settings.slint:782
 msgctxt "settings.product.tagline"
 msgid "Speak your mind, hands-free."
 msgstr "解放双手，说出所想"
 
-#: apps/desktop/ui/pages/settings.slint:729
+#: apps/desktop/ui/pages/settings.slint:785
 msgctxt "settings.update.download-install"
 msgid "Download and install"
 msgstr "下载并安装"
 
-#: apps/desktop/ui/pages/settings.slint:732
+#: apps/desktop/ui/pages/settings.slint:788
 msgctxt "settings.update.title"
 msgid "Updates"
 msgstr "更新"
 
-#: apps/desktop/ui/pages/settings.slint:733
-msgctxt "settings.release-notes.title"
-msgid "Release notes"
-msgstr "版本说明"
-
-#: apps/desktop/ui/pages/settings.slint:733
-msgctxt "settings.release-notes.detail"
-msgid "See what changed in this release."
-msgstr "查看本次更新内容与功能变化。"
-
-#: apps/desktop/ui/pages/settings.slint:733
+#: apps/desktop/ui/pages/settings.slint:789
 msgctxt "settings.release-notes.view"
 msgid "View release notes"
 msgstr "查看版本说明"
 
-#: apps/desktop/ui/pages/settings.slint:734
+#: apps/desktop/ui/pages/settings.slint:789
+msgctxt "settings.release-notes.title"
+msgid "Release notes"
+msgstr "版本说明"
+
+#: apps/desktop/ui/pages/settings.slint:789
+msgctxt "settings.release-notes.detail"
+msgid "See what changed in this release."
+msgstr "查看本次更新内容与功能变化。"
+
+#: apps/desktop/ui/pages/settings.slint:790
 msgctxt "settings.links-support.title"
 msgid "Links & Support"
 msgstr "链接与支持"
 
-#: apps/desktop/ui/pages/settings.slint:735
+#: apps/desktop/ui/pages/settings.slint:791
 msgctxt "settings.link.website"
 msgid "Website"
 msgstr "官方网站"
 
-#: apps/desktop/ui/pages/settings.slint:735
+#: apps/desktop/ui/pages/settings.slint:791
 msgctxt "settings.link.feedback"
 msgid "Feedback"
 msgstr "反馈与建议"
 
-#: apps/desktop/ui/pages/settings.slint:735
+#: apps/desktop/ui/pages/settings.slint:791
 msgctxt "settings.link.terms"
 msgid "Terms of Service"
 msgstr "服务条款"
 
-#: apps/desktop/ui/pages/asr-provider-components.slint
-msgctxt "models.asr.hide-api-key"
-msgid "Hide API key"
-msgstr "隐藏 API Key"
-
-#: apps/desktop/ui/pages/asr-provider-components.slint
-msgctxt "models.asr.show-api-key"
-msgid "Show API key"
-msgstr "显示 API Key"
-
-#: apps/desktop/ui/pages/asr-provider-components.slint
-msgctxt "models.asr.volcengine.dialog-title"
-msgid "Configure Volcengine"
-msgstr "配置火山引擎"
-
-#: apps/desktop/ui/pages/asr-provider-components.slint
-msgctxt "models.asr.volcengine.dialog-subtitle"
-msgid "Run a standard audio recognition test before enabling this provider."
-msgstr "启用前先运行一次标准音频识别测试。"
-
-#: apps/desktop/ui/pages/asr-provider-components.slint
-msgctxt "models.test.succeeded-duration"
-msgid "Recognition succeeded · {} sec"
-msgstr "识别成功 · {} 秒"
-
-#: apps/desktop/ui/pages/asr-provider-components.slint
-msgctxt "models.test.failed"
-msgid "Recognition failed"
-msgstr "识别失败"
-
-#: apps/desktop/ui/pages/asr-provider-components.slint
-msgctxt "models.test.failed-duration"
-msgid "Recognition failed · {} sec"
-msgstr "识别失败 · {} 秒"
-
-#: apps/desktop/ui/pages/asr-provider-components.slint
-msgctxt "models.test.action"
-msgid "Run test"
-msgstr "运行测试"
-
-#: apps/desktop/ui/pages/asr-provider-components.slint
-msgctxt "models.test.again"
-msgid "Test again"
-msgstr "再次测试"
-
-#: apps/desktop/ui/pages/asr-provider-components.slint
-msgctxt "models.test.retry"
-msgid "Retry test"
-msgstr "重新测试"
-
-#: apps/desktop/ui/pages/asr-provider-components.slint
-msgctxt "models.asr.volcengine.model-id"
-msgid "Model ID"
-msgstr "模型 ID"
-
-#: apps/desktop/ui/pages/asr-provider-components.slint
-msgctxt "models.asr.custom.dialog-title"
-msgid "Configure custom ASR"
-msgstr "配置自定义 ASR"
-
-#: apps/desktop/ui/pages/asr-provider-components.slint
-msgctxt "models.asr.custom.dialog-subtitle"
-msgid "OpenAI-compatible audio transcription endpoint"
-msgstr "兼容 OpenAI 音频转写协议的服务端点"
-
-#: apps/desktop/ui/pages/asr-provider-components.slint
-msgctxt "models.asr.delete-configuration"
-msgid "Delete configuration"
-msgstr "删除配置"
-
-#: apps/desktop/ui/pages/asr-provider-components.slint
-msgctxt "models.asr.save-and-enable"
-msgid "Save and enable"
-msgstr "保存并启用"
-
-#: apps/desktop/ui/pages/asr-provider-components.slint
-msgctxt "models.asr.selection.current"
-msgid "Current provider"
-msgstr "当前使用"
-
-#: apps/desktop/ui/pages/asr-provider-components.slint
-msgctxt "models.asr.selection.set-current"
-msgid "Set as current"
-msgstr "设为当前"
-
-#: apps/desktop/ui/pages/speech-recognition.slint
-msgctxt "models.asr.source.cloud-api"
-msgid "Cloud API"
-msgstr "云端 API"
-
-#: apps/desktop/ui/pages/speech-recognition.slint
+#: apps/desktop/ui/pages/speech-recognition.slint:94
 msgctxt "models.asr.source.saymore-cloud"
 msgid "Official API"
 msgstr "官方 API"
 
-#: apps/desktop/ui/pages/speech-recognition.slint
-msgctxt "models.asr.source.system-built-in"
-msgid "System built-in"
-msgstr "系统内置"
+#: apps/desktop/ui/pages/speech-recognition.slint:99
+msgctxt "models.asr.source.cloud-api"
+msgid "Cloud API"
+msgstr "云端 API"
 
-#: apps/desktop/ui/pages/speech-recognition.slint
+#: apps/desktop/ui/pages/speech-recognition.slint:101
 msgctxt "models.asr.source.custom"
 msgid "Custom"
 msgstr "自定义"
 
-#: apps/desktop/ui/pages/speech-recognition.slint
+#: apps/desktop/ui/pages/speech-recognition.slint:102
 msgctxt "models.asr.source.local-model"
 msgid "Local model"
 msgstr "本地模型"
 
-#: apps/desktop/ui/pages/speech-recognition.slint
-msgctxt "models.asr.summary.api-key-configured"
-msgid "API key configured"
-msgstr "API Key 已配置"
-
-#: apps/desktop/ui/pages/speech-recognition.slint
-msgctxt "models.asr.summary.custom-configured"
-msgid "Address and credentials configured"
-msgstr "地址与认证已配置"
-
-#: apps/desktop/ui/pages/speech-recognition.slint
+#: apps/desktop/ui/pages/speech-recognition.slint:119
 msgctxt "models.asr.summary.saymore-cloud-unavailable"
 msgid "Cloud service adapter is not yet connected"
 msgstr "云服务 Adapter 尚未接入"
 
-#: apps/desktop/ui/pages/speech-recognition.slint
+#: apps/desktop/ui/pages/speech-recognition.slint:122
 msgctxt "models.asr.summary.macos-ready"
 msgid "No account or model download required"
 msgstr "无需账号或下载模型"
 
-#: apps/desktop/ui/pages/speech-recognition.slint
+#: apps/desktop/ui/pages/speech-recognition.slint:124
 msgctxt "models.asr.summary.macos-permission-required"
 msgid "Apple Speech permission is required"
 msgstr "需要授权使用 Apple 语音识别"
 
-#: apps/desktop/ui/pages/speech-recognition.slint
+#: apps/desktop/ui/pages/speech-recognition.slint:126
 msgctxt "models.asr.summary.macos-permission-denied"
 msgid "Speech Recognition permission is denied"
 msgstr "语音识别权限已被拒绝"
 
-#: apps/desktop/ui/pages/speech-recognition.slint
+#: apps/desktop/ui/pages/speech-recognition.slint:128
 msgctxt "models.asr.summary.macos-restricted"
 msgid "Speech Recognition is restricted by the system"
 msgstr "语音识别已被系统限制"
 
-#: apps/desktop/ui/pages/speech-recognition.slint
+#: apps/desktop/ui/pages/speech-recognition.slint:129
 msgctxt "models.asr.summary.macos-unavailable"
 msgid "Apple Speech is temporarily unavailable"
 msgstr "Apple 语音识别暂时不可用"
 
-#: apps/desktop/ui/pages/speech-recognition.slint
+#: apps/desktop/ui/pages/speech-recognition.slint:131
 msgctxt "models.asr.summary.system-unavailable"
 msgid "System speech adapter is not yet connected"
 msgstr "系统语音 Adapter 尚未接入"
 
-#: apps/desktop/ui/pages/speech-recognition.slint
+#: apps/desktop/ui/pages/speech-recognition.slint:134
+msgctxt "models.asr.summary.api-key-configured"
+msgid "API key configured"
+msgstr "API Key 已配置"
+
+#: apps/desktop/ui/pages/speech-recognition.slint:135
 msgctxt "models.asr.summary.volcengine"
 msgid "API key and model configuration"
 msgstr "API Key 与模型配置"
 
-#: apps/desktop/ui/pages/speech-recognition.slint
+#: apps/desktop/ui/pages/speech-recognition.slint:138
+msgctxt "models.asr.summary.custom-configured"
+msgid "Address and credentials configured"
+msgstr "地址与认证已配置"
+
+#: apps/desktop/ui/pages/speech-recognition.slint:139
 msgctxt "models.asr.summary.custom"
 msgid "Base URL, API key, and model"
 msgstr "服务地址、API Key 与模型"
 
-#: apps/desktop/ui/pages/speech-recognition.slint
+#: apps/desktop/ui/pages/speech-recognition.slint:140
 msgctxt "models.asr.summary.local-unavailable"
 msgid "Download and production adapter are not yet connected"
 msgstr "下载与生产 Adapter 尚未接入"
 
-#: apps/desktop/ui/pages/speech-recognition.slint
-msgctxt "models.asr.status.unavailable"
-msgid "Unavailable"
-msgstr "不可用"
-
-#: apps/desktop/ui/pages/speech-recognition.slint
-msgctxt "models.asr.status.current"
-msgid "Current"
-msgstr "当前"
-
-#: apps/desktop/ui/pages/speech-recognition.slint
+#: apps/desktop/ui/pages/speech-recognition.slint:145
 msgctxt "models.asr.status.authorize"
 msgid "Authorize"
 msgstr "授权"
 
-#: apps/desktop/ui/pages/speech-recognition.slint
+#: apps/desktop/ui/pages/speech-recognition.slint:148
 msgctxt "models.asr.status.open-settings"
 msgid "Open Settings"
 msgstr "打开设置"
 
-#: apps/desktop/ui/pages/speech-recognition.slint
+#: apps/desktop/ui/pages/speech-recognition.slint:151
+msgctxt "models.asr.status.current"
+msgid "Current"
+msgstr "当前"
+
+#: apps/desktop/ui/pages/speech-recognition.slint:152
 msgctxt "models.asr.status.available"
 msgid "Available"
 msgstr "可用"
 
-#: apps/desktop/ui/pages/speech-recognition.slint
-msgctxt "models.provider.saymore-cloud"
-msgid "Saymore Cloud"
-msgstr "Saymore 云"
+#~ msgctxt "models.asr.local.memory-estimate"
+#~ msgid "Estimated when idle"
+#~ msgstr "未运行时显示预估"
 
-#: apps/desktop/ui/pages/speech-recognition.slint
-msgctxt "models.provider.macos-dictation"
-msgid "macOS Dictation"
-msgstr "macOS 听写"
+#~ msgctxt "models.asr.local.desktop-ready"
+#~ msgid "This device"
+#~ msgstr "当前设备"
 
-#: apps/desktop/ui/pages/speech-recognition.slint
-msgctxt "models.provider.windows-speech"
-msgid "Windows Speech Recognition"
-msgstr "Windows 语音识别"
+#~ msgctxt "settings.theme-color.detail"
+#~ msgid "Choose the accent color used by the application"
+#~ msgstr "选择软件界面的主题强调色"
+
+#~ msgctxt "models.speech-service"
+#~ msgid "Speech recognition service"
+#~ msgstr "语音识别服务"
+
+#~ msgctxt "models.polishing-service"
+#~ msgid "Text polishing service"
+#~ msgstr "文本润色服务"
+
+#~ msgctxt "models.api-key.not-configured"
+#~ msgid "API key not configured"
+#~ msgstr "尚未配置 API Key"
+
+#~ msgctxt "models.model.saved-not-enabled"
+#~ msgid "{} · Connection not tested"
+#~ msgstr "{} · 尚未测试连接"
+
+#~ msgctxt "models.model.current-default"
+#~ msgid "{} · Current default"
+#~ msgstr "{} · 当前默认"
+
+#~ msgctxt "models.connection-settings"
+#~ msgid "Connection settings"
+#~ msgstr "连接配置"
+
+#~ msgctxt "models.advanced-settings"
+#~ msgid "Advanced settings"
+#~ msgstr "高级设置"
+
+#~ msgctxt "models.save.testing"
+#~ msgid "Testing…"
+#~ msgstr "正在测试…"
+
+#~ msgctxt "models.save-configuration"
+#~ msgid "Save configuration"
+#~ msgstr "保存配置"
+
+#~ msgctxt "models.test.retry"
+#~ msgid "Test again"
+#~ msgstr "重新测试"
+
+#~ msgctxt "models.test.action"
+#~ msgid "Test connection"
+#~ msgstr "测试连接"
+
+#~ msgctxt "models.api-key.auto-hide"
+#~ msgid "Hides automatically in 5 seconds"
+#~ msgstr "5 秒后自动隐藏"
+
+#~ msgctxt "models.list.load-failed"
+#~ msgid "Could not load models. Check your network connection."
+#~ msgstr "模型列表加载失败，请检查网络"
+
+#~ msgctxt "models.list.not-fetched"
+#~ msgid "Models have not been fetched yet"
+#~ msgstr "尚未获取模型"
+
+#~ msgctxt "settings.launch-at-login.detail"
+#~ msgid "Prepare voice input in the background after you sign in."
+#~ msgstr "开机后在后台准备语音输入。"
+
+#~ msgctxt "settings.show-in-dock.detail"
+#~ msgid "Keep the Dock icon visible for quick access."
+#~ msgstr "保留应用图标，方便随时回到主窗口。"
+
+#~ msgctxt "models.test.succeeded-duration"
+#~ msgid "Recognition succeeded · {} sec"
+#~ msgstr "识别成功 · 耗时 {} 秒"
+
+#~ msgctxt "models.test.failed-duration"
+#~ msgid "Recognition failed · {} sec"
+#~ msgstr "识别失败 · {} 秒"
+
+#~ msgctxt "models.asr.delete-configuration"
+#~ msgid "Delete configuration"
+#~ msgstr "删除配置"
+
+#~ msgctxt "models.asr.save-and-enable"
+#~ msgid "Save and enable"
+#~ msgstr "保存并启用"
 
 #~ msgctxt "onboarding.test.stop"
 #~ msgid "Finish test"
@@ -2949,3 +3324,7 @@ msgstr "Windows 语音识别"
 #~ msgctxt "dictionary.entry-count"
 #~ msgid "Entries: {}"
 #~ msgstr "词条：{}"
+
+#~ msgctxt "models.asr.summary.service-billing"
+#~ msgid "Service billing"
+#~ msgstr "服务计费"
