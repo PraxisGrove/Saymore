@@ -4,7 +4,9 @@ use template_app::{
     TextRevisionEndReason, TextRevisionEvent, TextRevisionObserver, has_text_revision_continuity,
 };
 
-use super::{FocusedTarget, observable_control_text};
+use windows::Win32::UI::Accessibility::{IUIAutomationTextEditPattern, UIA_TextEditPatternId};
+
+use super::{FocusedTarget, current_pattern, observable_control_text};
 
 pub(super) const POLL_INTERVAL: Duration = Duration::from_millis(200);
 const OBSERVATION_TIMEOUT: Duration = Duration::from_secs(2 * 60);
@@ -61,6 +63,15 @@ impl CorrectionObservationTarget {
             .ok()
             .map(|focused| focused.as_bool())
     }
+
+    fn has_active_composition(&self) -> bool {
+        current_pattern::<IUIAutomationTextEditPattern>(&self.focused, UIA_TextEditPatternId)
+            .ok()
+            .flatten()
+            .and_then(|pattern| unsafe { pattern.GetActiveComposition().ok() })
+            .and_then(|range| unsafe { range.GetText(-1).ok() })
+            .is_some_and(|text| !text.is_empty())
+    }
 }
 
 pub(super) struct ActiveCorrectionObservation {
@@ -88,8 +99,10 @@ impl ActiveCorrectionObservation {
             return true;
         }
         let focused = self.target.has_focus();
+        let has_active_composition = self.target.has_active_composition();
         let edited = match self.target.current_text() {
             Some(ObservedControlText::Content(edited)) => Some(edited),
+            Some(ObservedControlText::Reset) if has_active_composition => None,
             Some(ObservedControlText::Reset) => {
                 self.finish(TextRevisionEndReason::ControlReset);
                 return true;
@@ -97,7 +110,9 @@ impl ActiveCorrectionObservation {
             None => None,
         };
 
-        if let Some(edited) = edited {
+        if let Some(edited) = edited
+            && !has_active_composition
+        {
             self.report_if_changed(&edited);
         }
         if focused == Some(false) {
