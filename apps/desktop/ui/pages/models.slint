@@ -105,7 +105,7 @@ export component ModelConsentDialog inherits Rectangle {
                 min-height: 238px;
                 background: transparent;
 
-                Text { x: 0px; y: 0px; width: parent.width; text: @tr("models.polishing.consent.sent-content" => "Saymore sends the current transcript for polishing and may send confirmed dictionary terms or a short local correction fragment. When Vocabulary suggestions are enabled, recent final history text is also sent to this provider."); color: AppColors.text; font-size: 12px; wrap: word-wrap; }
+                Text { x: 0px; y: 0px; width: parent.width; text: @tr("models.polishing.consent.sent-content" => "Saymore sends the current transcript for polishing and may send confirmed dictionary terms or a short local correction fragment. When Word finder is enabled, recent final history text is also sent to this provider."); color: AppColors.text; font-size: 12px; wrap: word-wrap; }
                 Rectangle {
                     x: 0px; y: 42px; width: parent.width; height: 64px; border-radius: 8px; background: AppColors.sidebar;
                     Text { x: 16px; y: 10px; text: @tr("models.polishing.consent.destination" => "Data destination"); color: AppColors.text-muted; font-size: 9px; font-weight: 600; }

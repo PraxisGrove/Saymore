@@ -271,7 +271,7 @@ export component HistoryDialog inherits Rectangle {
             height: history-shell.panel-height;
             padding: 24px;
             spacing: 14px;
-            Text { text: @tr("history.dictionary-assist.consent-title" => "Enable Vocabulary suggestions?"); color: AppColors.ink; font-size: 18px; font-weight: 700; }
+            Text { text: @tr("history.dictionary-assist.consent-title" => "Enable Word finder?"); color: AppColors.ink; font-size: 18px; font-weight: 700; }
             Text { text: @tr("history.dictionary-assist.consent-detail" => "Once a day, final text from the last 24 hours is sent to this provider:"); color: AppColors.text; font-size: 11px; wrap: word-wrap; }
             Text { text: root.dictionary-assist-provider-target; color: AppColors.brand-strong; font-size: 11px; font-weight: 650; overflow: elide; }
             Text { text: @tr("history.dictionary-assist.consent-purpose" => "It is used only to find reusable dictionary terms."); color: AppColors.text-muted; font-size: 10px; wrap: word-wrap; }
@@ -593,7 +593,7 @@ export component HistoryPage inherits Rectangle {
                 background: dictionary-assist-touch.has-hover && (root.dictionary-assist-available || !root.dictionary-assist-provider-configured) ? AppColors.surface-warm : transparent;
                 opacity: root.dictionary-assist-available || !root.dictionary-assist-provider-configured ? 1 : 0.55;
                 accessible-role: checkbox;
-                accessible-label: @tr("history.dictionary-assist" => "Vocabulary suggestions");
+                accessible-label: @tr("history.dictionary-assist" => "Word finder");
                 accessible-enabled: root.dictionary-assist-available || !root.dictionary-assist-provider-configured;
                 accessible-checked: root.dictionary-assist-enabled;
                 accessible-action-default => {
@@ -604,7 +604,7 @@ export component HistoryPage inherits Rectangle {
                     }
                 }
                 Image { x: 8px; y: 9px; width: 16px; height: 16px; source: @image-url("../../icons/lucide/sparkles.svg"); colorize: root.dictionary-assist-enabled ? AppColors.success : AppColors.text-muted; }
-                Text { x: 34px; width: root.dictionary-assist-provider-configured ? parent.width - 82px : parent.width - 104px; text: @tr("history.dictionary-assist" => "Vocabulary suggestions"); color: AppColors.text; font-size: 12px; vertical-alignment: center; overflow: elide; }
+                Text { x: 34px; width: root.dictionary-assist-provider-configured ? parent.width - 82px : parent.width - 104px; text: @tr("history.dictionary-assist" => "Word finder"); color: AppColors.text; font-size: 12px; vertical-alignment: center; overflow: elide; }
                 if !root.dictionary-assist-provider-configured: Text {
                     x: parent.width - 67px; width: 59px; text: @tr("history.dictionary-assist.not-configured" => "Not set"); color: AppColors.text-muted; font-size: 10px; horizontal-alignment: right; vertical-alignment: center;
                 }

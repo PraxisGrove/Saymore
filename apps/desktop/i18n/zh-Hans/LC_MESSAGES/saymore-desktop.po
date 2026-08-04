@@ -982,8 +982,8 @@ msgstr[0] "保存 {} 个词条"
 
 #: ui/pages/history.slint:273
 msgctxt "history.dictionary-assist.consent-title"
-msgid "Enable Vocabulary suggestions?"
-msgstr "启用词汇建议？"
+msgid "Enable Word finder?"
+msgstr "开启辅助词典识别？"
 
 #: ui/pages/history.slint:274
 msgctxt "history.dictionary-assist.consent-detail"
@@ -1217,8 +1217,8 @@ msgstr "刷新历史"
 
 #: ui/pages/history.slint:595 ui/pages/history.slint:606
 msgctxt "history.dictionary-assist"
-msgid "Vocabulary suggestions"
-msgstr "词汇建议"
+msgid "Word finder"
+msgstr "辅助词典识别"
 
 #: ui/pages/history.slint:608
 msgctxt "history.dictionary-assist.not-configured"
@@ -1809,12 +1809,12 @@ msgstr "测试连接前，请确认将发送哪些内容。"
 msgctxt "models.polishing.consent.sent-content"
 msgid ""
 "Saymore sends the current transcript for polishing and may send confirmed "
-"dictionary terms or a short local correction fragment. When Vocabulary "
-"suggestions are enabled, recent final history text is also sent to this "
+"dictionary terms or a short local correction fragment. When Word finder is "
+"enabled, recent final history text is also sent to this "
 "provider."
 msgstr ""
 "Saymore 会发送本次转写文本用于润色，也可能发送已确认的词典条目或一小段局部纠"
-"正文本。启用词汇建议后，近期历史中的最终文本也会发送给此 Provider。"
+"正文本。启用辅助词典识别后，近期历史中的最终文本也会发送给此 Provider。"
 
 #: ui/pages/models.slint:111
 msgctxt "models.polishing.consent.destination"
@@ -3483,14 +3483,6 @@ msgstr "{} 现已可用，立即更新体验新功能"
 msgctxt "update.notification.action"
 msgid "View update"
 msgstr "查看更新"
-
-#~ msgctxt "history.dictionary-assist"
-#~ msgid "Word finder"
-#~ msgstr "辅助词典识别"
-
-#~ msgctxt "history.dictionary-assist.consent-title"
-#~ msgid "Enable Word finder?"
-#~ msgstr "开启辅助词典识别？"
 
 #~ msgctxt "models.provider.coming-soon"
 #~ msgid "Coming soon"

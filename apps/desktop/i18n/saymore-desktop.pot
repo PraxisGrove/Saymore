@@ -1059,7 +1059,7 @@ msgstr[1] ""
 
 #: ui/pages/history.slint:273
 msgctxt "history.dictionary-assist.consent-title"
-msgid "Enable Vocabulary suggestions?"
+msgid "Enable Word finder?"
 msgstr ""
 
 #: ui/pages/history.slint:274
@@ -1294,7 +1294,7 @@ msgstr ""
 
 #: ui/pages/history.slint:595 ui/pages/history.slint:606
 msgctxt "history.dictionary-assist"
-msgid "Vocabulary suggestions"
+msgid "Word finder"
 msgstr ""
 
 #: ui/pages/history.slint:608
@@ -1915,8 +1915,8 @@ msgstr ""
 msgctxt "models.polishing.consent.sent-content"
 msgid ""
 "Saymore sends the current transcript for polishing and may send confirmed "
-"dictionary terms or a short local correction fragment. When Vocabulary "
-"suggestions are enabled, recent final history text is also sent to this "
+"dictionary terms or a short local correction fragment. When Word finder is "
+"enabled, recent final history text is also sent to this "
 "provider."
 msgstr ""
 
