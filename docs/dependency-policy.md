@@ -58,6 +58,20 @@ All workspace crates are private and inherit the project's source-available
 license file. The cargo-deny license check ignores those private workspace
 members while continuing to enforce the allowlist for every external dependency.
 
+## Local Model Archives
+
+The infrastructure model installer uses `tar` and `bzip2` to extract pinned
+model artifacts distributed as tar.bz2 archives. Rust's standard library does
+not provide archive or bzip2 decoding, and invoking a system utility would make
+installation behavior depend on tools outside the packaged application. These
+dependencies remain behind the infrastructure boundary and operate only on
+artifacts whose size and digest are verified by the installer.
+
+`bzip2` 0.6.1 uses the Rust `libbz2-rs-sys` implementation, whose `bzip2-1.0.6`
+license permits source and binary redistribution with attribution and
+preservation of its license terms. That permissive license is explicitly allowed
+in `deny.toml`.
+
 ## Slint License
 
 Saymore uses Slint under the Slint Royalty-free Desktop, Mobile, and Web
