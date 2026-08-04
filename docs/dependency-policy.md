@@ -99,6 +99,14 @@ portable status-item and menu lifecycle; handwritten AppKit menu ownership was
 rejected because it would duplicate Slint's event-loop integration. The `objc2`
 family is actively maintained and dual MIT/Apache-2.0.
 
+The macOS desktop target uses `mach2` 0.6 without optional features to query the
+current task's resident memory before and after loading an in-process local ASR
+model. Rust's standard library does not expose Mach task information, while a
+cross-platform system-inspection dependency would add substantially broader
+process APIs for this single platform measurement. `mach2` is kept at the
+desktop process-lifecycle boundary and is licensed under BSD-2-Clause, MIT, or
+Apache-2.0.
+
 ## JSON Provider Configuration
 
 The infrastructure crate uses `serde_json` to read and atomically write the

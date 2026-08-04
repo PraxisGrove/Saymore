@@ -13,7 +13,8 @@ use std::{
 
 use template_app::{
     AccessibilityAuthorization, CorrectionObservingTextDeliverer, DeliveryTargetPrivacy,
-    TextDeliverer, TextDeliveryError, TextDeliveryOutcome, TextEditObserver,
+    TextDeliverer, TextDeliveryError, TextDeliveryOutcome, TextRevisionEndReason,
+    TextRevisionObserver,
 };
 use windows::{
     Win32::{
@@ -95,13 +96,19 @@ impl CorrectionObservingTextDeliverer for WindowsTextDeliverer {
     fn deliver_and_observe(
         &self,
         text: &str,
-        observer: TextEditObserver,
+        observer: TextRevisionObserver,
     ) -> Result<TextDeliveryOutcome, TextDeliveryError> {
         self.worker.request(|response| DeliveryCommand::Deliver {
             text: text.to_owned(),
             observer: Some(observer),
             response,
         })?
+    }
+
+    fn finish_observation(&self, reason: TextRevisionEndReason) {
+        let _ = self
+            .worker
+            .request(|response| DeliveryCommand::FinishObservation { reason, response });
     }
 }
 
@@ -120,8 +127,12 @@ enum DeliveryCommand {
     },
     Deliver {
         text: String,
-        observer: Option<TextEditObserver>,
+        observer: Option<TextRevisionObserver>,
         response: mpsc::Sender<Result<TextDeliveryOutcome, TextDeliveryError>>,
+    },
+    FinishObservation {
+        reason: TextRevisionEndReason,
+        response: mpsc::Sender<()>,
     },
 }
 
@@ -221,22 +232,40 @@ fn run_worker(
                 text,
                 observer,
                 response,
-            }) => match deliver_once(&runtime, &text) {
-                Ok(attempt) => {
-                    if let Some(observation) = observer.and_then(|observer| {
-                        CorrectionObservationTarget::capture(&attempt.target, &text)
-                            .map(|target| ActiveCorrectionObservation::new(target, observer))
-                    }) {
-                        active_observations.push(observation);
+            }) => {
+                for observation in &mut active_observations {
+                    observation.finish(TextRevisionEndReason::NextDictation);
+                }
+                active_observations.clear();
+                match deliver_once(&runtime, &text) {
+                    Ok(attempt) => {
+                        if let Some(observation) = observer.and_then(|observer| {
+                            CorrectionObservationTarget::capture(&attempt.target, &text)
+                                .map(|target| ActiveCorrectionObservation::new(target, observer))
+                        }) {
+                            active_observations.push(observation);
+                        }
+                        let _ = response.send(Ok(attempt.outcome));
                     }
-                    let _ = response.send(Ok(attempt.outcome));
+                    Err(error) => {
+                        let _ = response.send(Err(error));
+                    }
                 }
-                Err(error) => {
-                    let _ = response.send(Err(error));
+            }
+            Ok(DeliveryCommand::FinishObservation { reason, response }) => {
+                for observation in &mut active_observations {
+                    observation.finish(reason);
                 }
-            },
+                active_observations.clear();
+                let _ = response.send(());
+            }
             Err(mpsc::RecvTimeoutError::Timeout) => {}
-            Err(mpsc::RecvTimeoutError::Disconnected) => break,
+            Err(mpsc::RecvTimeoutError::Disconnected) => {
+                for observation in &mut active_observations {
+                    observation.finish(TextRevisionEndReason::Cancelled);
+                }
+                break;
+            }
         }
         active_observations.retain_mut(|observation| !observation.poll());
     }

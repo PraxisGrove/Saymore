@@ -22,14 +22,6 @@ pub enum TextDeliveryOutcome {
     SecureClipboardAttempted,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ObservedTextEdit {
-    pub original: String,
-    pub edited: String,
-}
-
-pub type TextEditObserver = Box<dyn FnOnce(ObservedTextEdit) + Send + 'static>;
-
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
 pub enum TextDeliveryError {
     #[error("accessibility permission is required")]
@@ -72,14 +64,21 @@ pub trait TextDeliverer: Send + Sync {
     fn deliver(&self, text: &str) -> Result<TextDeliveryOutcome, TextDeliveryError>;
 }
 
-/// Delivers text and, when the target exposes a safe text range, observes one local edit.
+/// Delivers text and, when the target exposes a safe text range, observes local edits.
 ///
 /// Implementations must keep native control handles and surrounding text transient, stop at
-/// sensitive or unsupported controls, and invoke the observer at most once.
+/// sensitive or unsupported controls, ignore control resets and placeholder text, and invoke the
+/// observer with transient snapshots followed by exactly one end event.
 pub trait CorrectionObservingTextDeliverer: TextDeliverer {
     fn deliver_and_observe(
         &self,
         text: &str,
-        observer: TextEditObserver,
+        observer: crate::TextRevisionObserver,
     ) -> Result<TextDeliveryOutcome, TextDeliveryError>;
+
+    /// Ends the currently active correction observation, if any.
+    ///
+    /// Starting a new dictation must call this before recording so the prior
+    /// delivered text is finalized even when the new dictation is cancelled.
+    fn finish_observation(&self, reason: crate::TextRevisionEndReason);
 }

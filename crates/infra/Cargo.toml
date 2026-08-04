@@ -16,9 +16,12 @@ workspace = true
 async-trait = { workspace = true }
 aes-gcm = { workspace = true }
 csv = { workspace = true }
+chrono = { workspace = true }
+bzip2 = { workspace = true }
 template-app = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+sha2 = { workspace = true }
 thiserror = { workspace = true }
 flate2 = { workspace = true }
 fs2 = { workspace = true }
@@ -26,7 +29,10 @@ futures-util = { workspace = true }
 reqwest = { workspace = true }
 rusqlite = { workspace = true }
 rustls = { workspace = true }
+sherpa-onnx = { workspace = true }
+tar = { workspace = true }
 tokio = { workspace = true }
+tokio-util = { workspace = true }
 tokio-tungstenite = { workspace = true }
 tracing = { workspace = true }
 unicode-normalization = { workspace = true }
@@ -35,9 +41,7 @@ cpal = { workspace = true }
 
 [dev-dependencies]
 httpmock = { workspace = true }
-sherpa-onnx = { workspace = true }
 tempfile = { workspace = true }
-tokio-util = { workspace = true }
 
 [target.'cfg(target_os = "windows")'.dependencies]
 keyring = { workspace = true, features = ["windows-native"] }

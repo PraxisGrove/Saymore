@@ -9,7 +9,8 @@ use reqwest::{
 };
 use serde::{Deserialize, Serialize};
 use template_app::{
-    ChatCompletionsLlmSettings, LlmProvider, LlmProviderError, LlmRefinementRequest, RefinementTerm,
+    ChatCompletionsLlmSettings, ChatCompletionsProfile, LlmProvider, LlmProviderError,
+    LlmRefinementRequest, RefinementTerm,
 };
 
 const MAX_REQUEST_BYTES: usize = 256 * 1024;
@@ -24,7 +25,7 @@ pub struct ChatCompletionsLlmProvider {
     api_key: String,
     model: String,
     custom_headers: HeaderMap,
-    request_dialect: ChatCompletionsDialect,
+    profile: ChatCompletionsProfile,
 }
 
 impl ChatCompletionsLlmProvider {
@@ -53,7 +54,7 @@ impl ChatCompletionsLlmProvider {
             client,
             endpoint,
             api_key: settings.api_key,
-            request_dialect: ChatCompletionsDialect::for_model(&settings.model),
+            profile: settings.profile,
             model: settings.model,
             custom_headers,
         })
@@ -82,7 +83,7 @@ impl ChatCompletionsLlmProvider {
                 "LLM refinement request is too large".to_owned(),
             ));
         }
-        let request_options = self.request_dialect.request_options();
+        let request_options = request_options(self.profile);
         let body = ChatCompletionRequest {
             model: &self.model,
             messages: [
@@ -96,10 +97,13 @@ impl ChatCompletionsLlmProvider {
                 },
             ],
             stream: false,
+            reasoning_split: request_options.reasoning_split,
             reasoning_effort: request_options.reasoning_effort,
             thinking: request_options.thinking,
-            max_tokens: completion_token_limit(&request.transcript),
-            temperature: 0.2,
+            max_tokens: request_options
+                .include_completion_limit
+                .then(|| completion_token_limit(&request.transcript)),
+            temperature: request_options.temperature,
         };
         let mut builder = self
             .client
@@ -111,12 +115,27 @@ impl ChatCompletionsLlmProvider {
         }
         let response = builder.send().await.map_err(transport_error)?;
         let status = response.status();
-        if !status.is_success() {
-            return Err(http_error(status));
-        }
         let bytes = read_limited_response(response).await?;
+        if !status.is_success() {
+            return Err(http_error(self.profile, status, &bytes));
+        }
         let completion: ChatCompletionResponse = serde_json::from_slice(&bytes)
             .map_err(|_| protocol_failure("chat completion response is invalid JSON"))?;
+        if self.profile == ChatCompletionsProfile::MiniMax
+            && let Some(status) = completion
+                .base_resp
+                .as_ref()
+                .filter(|status| status.status_code != 0)
+        {
+            return Err(
+                mapped_provider_error(self.profile, &status.status_code.to_string())
+                    .unwrap_or_else(|| {
+                        LlmProviderError::Protocol(
+                            "MiniMax rejected the chat completion request".to_owned(),
+                        )
+                    }),
+            );
+        }
         completion
             .choices
             .into_iter()
@@ -144,46 +163,61 @@ struct ChatCompletionRequest<'a> {
     messages: [ChatMessage<'a>; 2],
     stream: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
+    reasoning_split: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     reasoning_effort: Option<&'static str>,
     #[serde(skip_serializing_if = "Option::is_none")]
     thinking: Option<ThinkingControl>,
-    max_tokens: u32,
-    temperature: f32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    max_tokens: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    temperature: Option<f32>,
 }
 
-#[derive(Debug, Clone, Copy)]
-enum ChatCompletionsDialect {
-    OpenAiCompatible,
-    DeepSeek,
-}
-
-impl ChatCompletionsDialect {
-    fn for_model(model: &str) -> Self {
-        if model.trim().starts_with("deepseek-") {
-            Self::DeepSeek
-        } else {
-            Self::OpenAiCompatible
-        }
-    }
-
-    fn request_options(self) -> ChatCompletionRequestOptions {
-        match self {
-            Self::OpenAiCompatible => ChatCompletionRequestOptions {
-                reasoning_effort: Some("none"),
-                thinking: None,
-            },
-            Self::DeepSeek => ChatCompletionRequestOptions {
-                reasoning_effort: None,
-                thinking: Some(ThinkingControl { mode: "disabled" }),
-            },
-        }
+fn request_options(profile: ChatCompletionsProfile) -> ChatCompletionRequestOptions {
+    match profile {
+        ChatCompletionsProfile::Portable
+        | ChatCompletionsProfile::VolcengineArk
+        | ChatCompletionsProfile::Qwen
+        | ChatCompletionsProfile::ZhipuGlm
+        | ChatCompletionsProfile::OpenRouter => ChatCompletionRequestOptions {
+            reasoning_split: None,
+            reasoning_effort: None,
+            thinking: None,
+            include_completion_limit: false,
+            temperature: None,
+        },
+        ChatCompletionsProfile::DeepSeek => ChatCompletionRequestOptions {
+            reasoning_split: None,
+            reasoning_effort: None,
+            thinking: Some(ThinkingControl { mode: "disabled" }),
+            include_completion_limit: true,
+            temperature: Some(0.2),
+        },
+        ChatCompletionsProfile::Kimi => ChatCompletionRequestOptions {
+            reasoning_split: None,
+            reasoning_effort: None,
+            thinking: Some(ThinkingControl { mode: "disabled" }),
+            include_completion_limit: false,
+            temperature: None,
+        },
+        ChatCompletionsProfile::MiniMax => ChatCompletionRequestOptions {
+            reasoning_split: Some(true),
+            reasoning_effort: None,
+            thinking: Some(ThinkingControl { mode: "disabled" }),
+            include_completion_limit: false,
+            temperature: None,
+        },
     }
 }
 
 #[derive(Debug, Clone, Copy)]
 struct ChatCompletionRequestOptions {
+    reasoning_split: Option<bool>,
     reasoning_effort: Option<&'static str>,
     thinking: Option<ThinkingControl>,
+    include_completion_limit: bool,
+    temperature: Option<f32>,
 }
 
 #[derive(Debug, Clone, Copy, Serialize)]
@@ -200,7 +234,14 @@ struct ChatMessage<'a> {
 
 #[derive(Deserialize)]
 struct ChatCompletionResponse {
+    #[serde(default)]
     choices: Vec<ChatChoice>,
+    base_resp: Option<MiniMaxBaseResponse>,
+}
+
+#[derive(Deserialize)]
+struct MiniMaxBaseResponse {
+    status_code: i64,
 }
 
 #[derive(Deserialize)]
@@ -318,14 +359,25 @@ async fn read_limited_response(response: reqwest::Response) -> Result<Vec<u8>, L
     Ok(bytes)
 }
 
-fn http_error(status: StatusCode) -> LlmProviderError {
+fn http_error(
+    profile: ChatCompletionsProfile,
+    status: StatusCode,
+    response: &[u8],
+) -> LlmProviderError {
+    let code = provider_error_code(response);
+    if let Some(error) = code
+        .as_deref()
+        .and_then(|code| mapped_provider_error(profile, code))
+    {
+        return error;
+    }
     match status {
         StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => LlmProviderError::Authentication,
         StatusCode::BAD_REQUEST | StatusCode::UNPROCESSABLE_ENTITY => {
             LlmProviderError::InvalidConfiguration
         }
         StatusCode::NOT_FOUND => LlmProviderError::ModelUnavailable,
-        StatusCode::TOO_MANY_REQUESTS => LlmProviderError::Quota,
+        StatusCode::TOO_MANY_REQUESTS | StatusCode::PAYMENT_REQUIRED => LlmProviderError::Quota,
         status if status.is_server_error() => {
             LlmProviderError::Transport(format!("LLM endpoint returned HTTP {status}"))
         }
@@ -333,6 +385,47 @@ fn http_error(status: StatusCode) -> LlmProviderError {
             "LLM endpoint rejected the request with HTTP {status}"
         )),
     }
+}
+
+fn mapped_provider_error(profile: ChatCompletionsProfile, code: &str) -> Option<LlmProviderError> {
+    match (profile, code) {
+        (ChatCompletionsProfile::Qwen, "Arrearage" | "AllocationQuota.FreeTierOnly")
+        | (ChatCompletionsProfile::VolcengineArk, "QuotaExceeded")
+        | (ChatCompletionsProfile::MiniMax, "1002" | "1008" | "1041" | "2045" | "2056") => {
+            Some(LlmProviderError::Quota)
+        }
+        (ChatCompletionsProfile::ZhipuGlm, "1211") => Some(LlmProviderError::ModelUnavailable),
+        (ChatCompletionsProfile::MiniMax, "1004" | "2049") => {
+            Some(LlmProviderError::Authentication)
+        }
+        (ChatCompletionsProfile::MiniMax, "1039" | "2013") => {
+            Some(LlmProviderError::InvalidConfiguration)
+        }
+        (ChatCompletionsProfile::MiniMax, "1000" | "1001" | "1024" | "1033") => Some(
+            LlmProviderError::Transport("MiniMax service is temporarily unavailable".to_owned()),
+        ),
+        (ChatCompletionsProfile::MiniMax, "1026" | "1027" | "1042") => Some(
+            LlmProviderError::Protocol("MiniMax rejected the submitted content".to_owned()),
+        ),
+        _ => None,
+    }
+}
+
+fn provider_error_code(response: &[u8]) -> Option<String> {
+    let value: serde_json::Value = serde_json::from_slice(response).ok()?;
+    value
+        .get("code")
+        .or_else(|| value.get("error").and_then(|error| error.get("code")))
+        .or_else(|| {
+            value
+                .get("base_resp")
+                .and_then(|base_resp| base_resp.get("status_code"))
+        })
+        .and_then(|code| match code {
+            serde_json::Value::String(code) => Some(code.clone()),
+            serde_json::Value::Number(code) => Some(code.to_string()),
+            _ => None,
+        })
 }
 
 fn transport_error(_error: impl std::fmt::Display) -> LlmProviderError {
@@ -378,6 +471,7 @@ mod tests {
                 api_key: String::new(),
                 model: "test-model".to_owned(),
                 custom_headers: BTreeMap::new(),
+                profile: ChatCompletionsProfile::Portable,
             },
             Duration::from_millis(5),
         )?;

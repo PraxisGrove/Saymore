@@ -65,12 +65,14 @@ component DictionaryFilterButton inherits Rectangle {
 
 component DictionaryPill inherits Rectangle {
     in property <DictionaryListItem> item;
+    callback edit-word(string, string);
     callback delete-word(string);
     property <bool> automatic: root.item.origin == DictionaryOriginKind.automatic;
+    property <bool> menu-entering: true;
     width: term.preferred-width + 82px;
     height: 42px;
     border-radius: 21px;
-    background: pill-touch.has-hover ? AppColors.surface-subtle : AppColors.surface;
+    background: AppColors.surface;
     accessible-role: button;
     accessible-label: root.item.canonical;
 
@@ -84,7 +86,7 @@ component DictionaryPill inherits Rectangle {
     }
     term := Text {
         x: 36px;
-        width: max(0px, parent.width - 48px - (pill-touch.has-hover ? 30px : 0px));
+        width: max(0px, parent.width - 78px);
         text: root.item.canonical;
         color: AppColors.text;
         font-size: 13px;
@@ -101,33 +103,90 @@ component DictionaryPill inherits Rectangle {
         border-radius: 7px;
         opacity: pill-touch.has-hover || more-touch.has-hover ? 1 : 0;
         animate opacity { duration: 120ms; easing: ease-out; }
-        background: more-touch.has-hover ? AppColors.selected : transparent;
-        Image { x: 5px; y: 7px; width: 14px; height: 14px; source: @image-url("../../icons/lucide/ellipsis.svg"); }
+        background: transparent;
+        Image {
+            x: more-touch.has-hover ? 4px : 5px;
+            y: more-touch.has-hover ? 6px : 7px;
+            width: more-touch.has-hover ? 16px : 14px;
+            height: more-touch.has-hover ? 16px : 14px;
+            source: @image-url("../../icons/lucide/ellipsis.svg");
+            animate x { duration: 140ms; easing: ease-out; }
+            animate y { duration: 140ms; easing: ease-out; }
+            animate width { duration: 140ms; easing: ease-out; }
+            animate height { duration: 140ms; easing: ease-out; }
+        }
         more-touch := TouchArea {
             mouse-cursor: pointer;
-            clicked => { word-menu.show(); }
+            clicked => {
+                root.menu-entering = false;
+                word-menu.show();
+            }
         }
     }
 
+    Timer {
+        interval: 1ms;
+        running: !root.menu-entering;
+        triggered => { root.menu-entering = true; }
+    }
+
     word-menu := PopupWindow {
-        x: root.width - 82px;
-        y: root.height + 4px;
-        width: 82px;
-        height: 38px;
+        x: root.width - self.width - 6px;
+        y: root.height + 8px;
+        width: max(108px, max(edit-label.preferred-width, delete-label.preferred-width) + 56px);
+        height: 63px;
         close-policy: close-on-click-outside;
-        Rectangle {
-            border-radius: 7px;
+
+        menu-surface := Rectangle {
+            y: root.menu-entering ? 0px : -4px;
+            width: parent.width;
+            height: 59px;
+            border-radius: 10px;
+            border-width: 1px;
+            border-color: AppColors.border;
             background: AppColors.surface;
-            drop-shadow-blur: 12px;
-            drop-shadow-offset-y: 3px;
+            opacity: root.menu-entering ? 1 : 0;
+            drop-shadow-blur: 14px;
+            drop-shadow-offset-y: 4px;
             drop-shadow-color: AppColors.shadow;
-            Text { x: 28px; width: 46px; text: @tr("common.delete" => "Delete"); color: AppColors.danger; font-size: 11px; font-weight: 650; vertical-alignment: center; }
-            Image { x: 10px; y: 11px; width: 15px; height: 15px; source: @image-url("../../icons/lucide/trash-2.svg"); }
-            delete-touch := TouchArea {
-                mouse-cursor: pointer;
-                clicked => { word-menu.close(); root.delete-word(root.item.id); }
+            animate y { duration: 140ms; easing: ease-out; }
+            animate opacity { duration: 140ms; easing: ease-out; }
+
+            edit-row := Rectangle {
+                x: 4px;
+                y: 0px;
+                width: parent.width - 8px;
+                height: 29px;
+                border-radius: 7px;
+                background: edit-touch.has-hover ? AppColors.surface-subtle : transparent;
+                Image { x: 12px; y: 6.5px; width: 16px; height: 16px; source: @image-url("../../icons/lucide/pen-line.svg"); colorize: AppColors.text; }
+                edit-label := Text { x: 38px; width: parent.width - 50px; text: @tr("dictionary.edit-entry" => "Edit entry"); color: AppColors.text; font-size: 12px; font-weight: 600; vertical-alignment: center; overflow: elide; }
+                edit-touch := TouchArea {
+                    mouse-cursor: pointer;
+                    clicked => {
+                        word-menu.close();
+                        root.edit-word(root.item.id, root.item.canonical);
+                    }
+                }
             }
-            if delete-touch.has-hover: Rectangle { border-radius: 7px; background: AppColors.danger-soft; }
+            Rectangle { x: 12px; y: 29px; width: parent.width - 24px; height: 1px; background: AppColors.border; }
+            delete-row := Rectangle {
+                x: 4px;
+                y: 30px;
+                width: parent.width - 8px;
+                height: 29px;
+                border-radius: 7px;
+                background: delete-touch.has-hover ? AppColors.danger-soft : transparent;
+                Image { x: 12px; y: 6.5px; width: 16px; height: 16px; source: @image-url("../../icons/lucide/trash-2.svg"); colorize: AppColors.danger; }
+                delete-label := Text { x: 38px; width: parent.width - 50px; text: @tr("dictionary.delete-entry" => "Delete entry"); color: AppColors.danger; font-size: 12px; font-weight: 600; vertical-alignment: center; overflow: elide; }
+                delete-touch := TouchArea {
+                    mouse-cursor: pointer;
+                    clicked => {
+                        word-menu.close();
+                        root.delete-word(root.item.id);
+                    }
+                }
+            }
         }
     }
 }
@@ -176,6 +235,7 @@ export component DictionaryPage inherits Rectangle {
     callback layout-width-changed(length);
     callback open-add();
     callback import-csv();
+    callback edit-word(string, string);
     callback delete-word(string);
 
     property <bool> compact: root.width < 610px;
@@ -311,7 +371,11 @@ export component DictionaryPage inherits Rectangle {
                 height: 42px;
                 spacing: 10px;
                 cross-axis-alignment: center;
-                for item in row.items: DictionaryPill { item: item; delete-word(id) => { root.delete-word(id); } }
+                for item in row.items: DictionaryPill {
+                    item: item;
+                    edit-word(id, canonical) => { root.edit-word(id, canonical); }
+                    delete-word(id) => { root.delete-word(id); }
+                }
                 Rectangle { horizontal-stretch: 1; background: transparent; }
             }
             HorizontalLayout {

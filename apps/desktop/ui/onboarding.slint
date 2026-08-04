@@ -96,6 +96,41 @@ component PermissionStatus inherits Rectangle {
     }
 }
 
+component ShortcutKeycap inherits Rectangle {
+    in property <string> label;
+    in property <bool> ambient-shadow;
+    width: min(200px, shortcut-label.preferred-width + 47px);
+    height: 32px;
+    background: transparent;
+
+    if root.ambient-shadow: Rectangle {
+        width: parent.width;
+        height: parent.height;
+        border-radius: min(8px, parent.height / 4);
+        background: AppColors.surface;
+        drop-shadow-blur: 7px;
+        drop-shadow-offset-y: -4px;
+        drop-shadow-color: AppColors.keycap-ambient-shadow;
+    }
+    Rectangle {
+        y: 2px;
+        width: parent.width;
+        height: parent.height;
+        border-radius: min(8px, parent.height / 4);
+        background: AppColors.keycap-edge;
+    }
+    Rectangle {
+        width: parent.width;
+        height: parent.height;
+        border-radius: min(8px, parent.height / 4);
+        border-width: 1px;
+        border-color: AppColors.border;
+        background: AppColors.surface;
+        Image { x: 12px; y: (parent.height - self.height) / 2; width: 15px; height: 15px; source: @image-url("../icons/lucide/keyboard.svg"); colorize: AppColors.text-muted; }
+        shortcut-label := Text { x: 35px; width: parent.width - 47px; text: root.label; color: AppColors.ink; font-size: 12px; font-weight: 650; vertical-alignment: center; overflow: elide; }
+    }
+}
+
 component MicrophoneWave inherits Rectangle {
     in property <float> level;
     height: 72px;
@@ -222,8 +257,8 @@ export component OnboardingWindow inherits Window {
                 Rectangle { x: 18px; y: 20px; width: 40px; height: 40px; border-radius: 8px; background: AppColors.surface-muted; Image { x: 10px; y: 10px; width: 20px; height: 20px; source: @image-url("../icons/lucide/keyboard.svg"); colorize: AppColors.text; } }
                 Text { x: 74px; y: 18px; text: @tr("onboarding.shortcut.try" => "Try the default shortcut"); color: AppColors.text; font-size: 12px; font-weight: 650; }
                 Text { x: 74px; y: 45px; width: 286px; height: 50px; text: root.microphone-test-complete ? @tr("onboarding.shortcut.success" => "Microphone and shortcut are working.") : root.microphone-test-active ? @tr("onboarding.shortcut.speak" => "Speak now, then press the shortcut again to finish.") : @tr("onboarding.shortcut.waiting" => "Press the shortcut to start the local microphone test."); color: root.microphone-test-complete ? AppColors.success : AppColors.text-muted; font-size: 10px; wrap: word-wrap; }
-                Rectangle { x: 386px; y: 20px; width: 158px; height: 40px; border-radius: 6px; background: AppColors.surface-warm; border-color: AppColors.border; border-width: 1px; Text { text: root.default-shortcut-label; color: AppColors.ink; font-size: 12px; font-weight: 650; horizontal-alignment: center; vertical-alignment: center; } }
-                if root.microphone-authorized: Text { x: 386px; y: 72px; width: 158px; height: 30px; text: root.microphone-test-active ? @tr("onboarding.shortcut.press-again" => "Press again to finish") : @tr("onboarding.shortcut.press-to-start" => "Press shortcut to start"); color: root.microphone-test-active ? AppColors.brand-strong : AppColors.text-muted; font-size: 10px; font-weight: 650; horizontal-alignment: center; vertical-alignment: center; }
+                test-shortcut-keycap := ShortcutKeycap { x: parent.width - self.width - 18px; y: 20px; height: 40px; label: root.default-shortcut-label; ambient-shadow: true; }
+                if root.microphone-authorized: Text { x: test-shortcut-keycap.x; y: 72px; width: test-shortcut-keycap.width; height: 30px; text: root.microphone-test-active ? @tr("onboarding.shortcut.press-again" => "Press again to finish") : @tr("onboarding.shortcut.press-to-start" => "Press shortcut to start"); color: root.microphone-test-active ? AppColors.brand-strong : AppColors.text-muted; font-size: 10px; font-weight: 650; horizontal-alignment: center; vertical-alignment: center; }
             }
         }
 
@@ -249,7 +284,11 @@ export component OnboardingWindow inherits Window {
             Rectangle { x: 0; y: 38px; width: 42px; height: 42px; border-radius: 12px; background: AppColors.success-soft; Image { x: 12px; y: 12px; width: 18px; height: 18px; source: @image-url("../icons/lucide/check.svg"); colorize: AppColors.success; } }
             Text { x: 0; y: 104px; text: @tr("onboarding.complete.title" => "Saymore is ready"); color: AppColors.ink; font-size: 28px; font-weight: 700; }
             Text { x: 0; y: 148px; width: 520px; text: @tr("onboarding.complete.detail" => "Press {} in any text field to start speaking, then press it again to finish.", root.default-shortcut-label); color: AppColors.text-muted; font-size: 12px; wrap: word-wrap; }
-            Rectangle { x: 0; y: 202px; width: 562px; height: 68px; border-radius: 10px; background: AppColors.surface-muted; Text { x: 20px; y: 14px; text: @tr("onboarding.complete.shortcut" => "Your voice input shortcut"); color: AppColors.text-muted; font-size: 10px; } Text { x: 20px; y: 36px; text: root.default-shortcut-label; color: AppColors.ink; font-size: 13px; font-weight: 650; } }
+            Rectangle {
+                x: 0; y: 202px; width: 562px; height: 68px; border-radius: 10px; background: AppColors.surface-muted;
+                Text { x: 20px; y: 12px; text: @tr("onboarding.complete.shortcut" => "Your voice input shortcut"); color: AppColors.text-muted; font-size: 10px; }
+                ShortcutKeycap { x: 20px; y: 33px; height: 28px; label: root.default-shortcut-label; }
+            }
             Rectangle { x: 0; y: 286px; width: 562px; height: 74px; border-radius: 10px; background: AppColors.surface; Text { x: 20px; y: 16px; text: @tr("onboarding.complete.login-title" => "Launch Saymore at login"); color: AppColors.text; font-size: 12px; font-weight: 650; } Text { x: 20px; y: 40px; text: @tr("onboarding.complete.login-detail" => "Keep voice input ready in the background."); color: AppColors.text-muted; font-size: 10px; } OnboardingToggle { x: parent.width - 62px; y: 25px; checked <=> root.launch-at-login; toggled(value) => { root.set-launch-at-login(value); } } }
             if root.action-status != "": Text { x: 0; y: 376px; width: 540px; text: root.action-status == "microphone_test_failed" ? @tr("onboarding.error.microphone-test" => "The microphone test could not start. Check the selected input device and try again.") : @tr("common.save-failed" => "Could not save this change. Try again."); color: AppColors.danger; font-size: 10px; wrap: word-wrap; }
         }

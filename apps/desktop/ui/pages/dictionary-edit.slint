@@ -1,0 +1,85 @@
+import { AppButton, ModalShell, ModalSize } from "../components.slint";
+import { AppColors } from "../color-system.slint";
+
+export component DictionaryEditDialog inherits Rectangle {
+    in property <string> entry-id;
+    in property <string> original-value;
+    in-out property <string> value;
+    in property <bool> saving: false;
+    in property <bool> save-failed: false;
+    in property <string> status-text: "";
+    callback close();
+    callback save(string, string);
+
+    property <bool> can-save: !root.value.is-empty
+        && root.value != root.original-value
+        && !root.saving;
+
+    edit-shell := ModalShell {
+        width: parent.width;
+        height: parent.height;
+        size: ModalSize.compact;
+        close-enabled: !root.saving;
+        dismiss-on-backdrop: true;
+        close-requested => { root.close(); }
+
+        Text {
+            x: 24px;
+            y: 24px;
+            width: edit-shell.panel-width - 88px;
+            text: @tr("dictionary.edit-entry" => "Edit entry");
+            color: AppColors.ink;
+            font-size: 18px;
+            font-weight: 700;
+            overflow: elide;
+        }
+        input-surface := Rectangle {
+            x: 24px;
+            y: 78px;
+            width: edit-shell.panel-width - 48px;
+            height: 46px;
+            border-radius: 9px;
+            border-width: edit-input.has-focus ? 1px : 0px;
+            border-color: AppColors.brand-strong;
+            background: AppColors.sidebar;
+            edit-input := TextInput {
+                x: 14px;
+                width: parent.width - 28px;
+                text <=> root.value;
+                color: AppColors.text;
+                font-size: 13px;
+                vertical-alignment: center;
+                init => { edit-input.focus(); }
+                accepted => { if root.can-save { root.save(root.entry-id, root.value); } }
+            }
+        }
+        if root.save-failed && !root.status-text.is-empty: Text {
+            x: 24px;
+            y: 137px;
+            width: edit-shell.panel-width - 48px;
+            text: root.status-text;
+            color: AppColors.danger;
+            font-size: 10px;
+            overflow: elide;
+        }
+        AppButton {
+            x: edit-shell.panel-width - 220px;
+            y: edit-shell.panel-height - 59px;
+            width: 92px;
+            height: 38px;
+            text: @tr("common.cancel" => "Cancel");
+            enabled: !root.saving;
+            clicked => { root.close(); }
+        }
+        AppButton {
+            x: edit-shell.panel-width - 116px;
+            y: edit-shell.panel-height - 59px;
+            width: 92px;
+            height: 38px;
+            text: root.saving ? @tr("common.saving" => "Saving…") : @tr("dictionary.save-edit" => "Save");
+            enabled: root.can-save;
+            primary: true;
+            clicked => { root.save(root.entry-id, root.value); }
+        }
+    }
+}

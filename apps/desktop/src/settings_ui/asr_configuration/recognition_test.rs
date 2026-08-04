@@ -3,22 +3,23 @@ use std::{
     time::{Duration, Instant},
 };
 
-use template_app::{SpeechRecognitionError, SpeechRecognitionHints, StreamingSpeechRecognizer};
+use template_app::{
+    AsrProviderConfiguration, SpeechRecognitionError, SpeechRecognitionHints,
+    StreamingSpeechRecognizer,
+};
 #[cfg(target_os = "macos")]
 use template_infra::MacOsSpeechRecognizer;
 use template_infra::{OpenAiCompatibleSpeechRecognizer, VolcengineSpeechRecognizer};
 
-use super::AsrCandidate;
-
 const STANDARD_AUDIO: &[u8] = include_bytes!("../../../assets/asr-test/standard-zh.pcm");
 const EXPECTED_SAMPLE_COUNT: usize = 61_744;
 
-pub(super) struct RecognitionTestAttempt {
-    pub(super) elapsed: Duration,
-    pub(super) result: Result<String, SpeechRecognitionError>,
+pub(in crate::settings_ui) struct RecognitionTestAttempt {
+    pub(in crate::settings_ui) elapsed: Duration,
+    pub(in crate::settings_ui) result: Result<String, SpeechRecognitionError>,
 }
 
-pub(super) fn run(candidate: &AsrCandidate) -> RecognitionTestAttempt {
+pub(in crate::settings_ui) fn run(candidate: &AsrProviderConfiguration) -> RecognitionTestAttempt {
     let Ok(samples) = standard_audio_samples() else {
         return RecognitionTestAttempt {
             elapsed: Duration::ZERO,
@@ -36,15 +37,15 @@ pub(super) fn run(candidate: &AsrCandidate) -> RecognitionTestAttempt {
 }
 
 fn recognize(
-    candidate: &AsrCandidate,
+    candidate: &AsrProviderConfiguration,
     samples: Vec<i16>,
 ) -> Result<String, SpeechRecognitionError> {
     match candidate {
-        AsrCandidate::Volcengine(settings) => {
+        AsrProviderConfiguration::Volcengine(settings) => {
             let recognizer = VolcengineSpeechRecognizer::new(settings.clone())?;
             recognize_with(&recognizer, samples)
         }
-        AsrCandidate::Custom(settings) => {
+        AsrProviderConfiguration::OpenAiCompatible(settings) => {
             let recognizer = OpenAiCompatibleSpeechRecognizer::new(settings.clone())?;
             recognize_with(&recognizer, samples)
         }
@@ -69,7 +70,7 @@ pub(super) fn run_macos() -> RecognitionTestAttempt {
     }
 }
 
-fn recognize_with(
+pub(super) fn recognize_with(
     recognizer: &dyn StreamingSpeechRecognizer,
     samples: Vec<i16>,
 ) -> Result<String, SpeechRecognitionError> {
@@ -86,7 +87,7 @@ fn recognize_with(
     Ok(transcript)
 }
 
-fn standard_audio_samples() -> Result<Vec<i16>, SpeechRecognitionError> {
+pub(super) fn standard_audio_samples() -> Result<Vec<i16>, SpeechRecognitionError> {
     if STANDARD_AUDIO.len() != EXPECTED_SAMPLE_COUNT * 2 {
         return Err(SpeechRecognitionError::Protocol(
             "standard recognition audio has an invalid length".to_owned(),

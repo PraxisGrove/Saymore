@@ -18,6 +18,7 @@ async-trait = "0.1"
 aes-gcm = "0.10.3"
 cpal = "0.18.1"
 chrono = { version = "0.4", default-features = false, features = ["clock", "unstable-locales"] }
+bzip2 = "0.6.1"
 csv = "1"
 flate2 = "1.1.9"
 fs2 = "0.4"
@@ -30,15 +31,19 @@ rustls = { version = "0.23.42", default-features = false, features = ["ring", "s
 httpmock = "0.8.3"
 ico = "0.4"
 image = { version = "0.25", default-features = false, features = ["png"] }
+mach2 = "0.6.0"
 num-format = "0.4.4"
 objc2-core-audio = { version = "0.3.2", default-features = false, features = ["AudioHardware", "objc2-core-audio-types"] }
 objc2-speech = "0.3.2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+sha2 = "0.10"
+similar = "2.7.0"
 sherpa-onnx = "1.13.4"
 slint = { version = "1.17.1", default-features = false, features = ["accessibility", "backend-winit", "compat-1-2", "image-default-formats", "raw-window-handle-06", "renderer-femtovg", "std", "system-tray", "unstable-winit-030"] }
 slint-build = "1.17.1"
 sys-locale = "0.3.2"
+tar = "0.4.46"
 rspolib = "0.1.2"
 template-app = { path = "crates/app", version = "0.1.2" }
 template-infra = { path = "crates/infra", version = "0.1.2" }

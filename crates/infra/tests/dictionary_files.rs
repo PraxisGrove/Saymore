@@ -98,7 +98,7 @@ fn csv_import_rejects_legacy_variant_columns() -> Result<(), Box<dyn std::error:
         Arc::new(MemorySecretStore::default()),
     )?);
     let csv = directory.path().join("dictionary.csv");
-    std::fs::write(&csv, "term,language,variants\nSaymore,en,赛摩\n")?;
+    std::fs::write(&csv, "term,language,variants\nSaymore,en，赛摩\n")?;
 
     let result = DictionaryFiles::new(store).import_csv(&csv, "zh-Hans", 1_000);
 

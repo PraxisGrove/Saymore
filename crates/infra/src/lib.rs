@@ -9,7 +9,12 @@ mod cpal_audio_recorder;
 mod dictation_shortcut;
 mod dictionary_files;
 mod model_discovery;
+mod model_installer;
+mod offline_punctuation;
 mod openai_transcriptions_asr;
+mod paraformer_asr;
+mod qwen3_asr;
+mod sense_voice_asr;
 mod storage_usage;
 mod system_clock;
 
@@ -91,6 +96,7 @@ mod macos_shortcut_monitor;
 mod macos_text_delivery;
 
 mod volcengine_asr;
+mod whisper_asr;
 
 #[cfg(target_os = "macos")]
 pub use macos_audio_recorder::MacOsAudioRecorder;
@@ -187,10 +193,21 @@ pub use cpal_audio_recorder::CpalAudioRecorder;
 pub use dictation_shortcut::DictationShortcutAction;
 pub use dictionary_files::{DictionaryFileError, DictionaryFileReport, DictionaryFiles};
 pub use model_discovery::{ModelDiscoveryError, discover_models};
+pub use model_installer::{
+    ModelDownloadProgress, ModelInstallControl, ModelInstallError, ModelInstallInterruption,
+    PARAFORMER_MODEL_ID, PARAFORMER_MODEL_REVISION, PUNCTUATION_MODEL_ID,
+    PUNCTUATION_MODEL_REVISION, QWEN3_ASR_MODEL_ID, QWEN3_ASR_MODEL_REVISION, SENSE_VOICE_MODEL_ID,
+    SENSE_VOICE_MODEL_REVISION, VerifiedModelInstaller, WHISPER_MODEL_ID, WHISPER_MODEL_REVISION,
+};
+pub use offline_punctuation::OfflinePunctuationRestorer;
 pub use openai_transcriptions_asr::OpenAiCompatibleSpeechRecognizer;
+pub use paraformer_asr::ParaformerSpeechRecognizer;
 #[cfg(any(target_os = "macos", target_os = "windows"))]
 pub use platform_secret_store::PlatformSecretStore;
+pub use qwen3_asr::Qwen3AsrSpeechRecognizer;
+pub use sense_voice_asr::SenseVoiceSpeechRecognizer;
 pub use sqlite_storage::{SqliteStorage, read_dictionary_snapshot};
-pub use storage_usage::directory_usage_bytes;
+pub use storage_usage::{directory_usage_bytes, local_storage_usage};
 pub use system_clock::SystemClock;
 pub use volcengine_asr::VolcengineSpeechRecognizer;
+pub use whisper_asr::WhisperSpeechRecognizer;

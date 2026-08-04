@@ -248,3 +248,183 @@ pub(super) fn replace_clear_sky_theme(connection: &mut Connection) -> Result<(),
         .map_err(unavailable)?;
     transaction.commit().map_err(unavailable)
 }
+
+pub(super) fn add_usage_aggregates(connection: &mut Connection) -> Result<(), StorageError> {
+    let transaction = connection.transaction().map_err(unavailable)?;
+    transaction
+        .execute_batch(
+            "CREATE TABLE IF NOT EXISTS usage_daily (
+                local_date TEXT PRIMARY KEY,
+                audio_duration_ms INTEGER NOT NULL CHECK (audio_duration_ms >= 0),
+                character_count INTEGER NOT NULL CHECK (character_count >= 0)
+             );
+             CREATE TABLE IF NOT EXISTS usage_recorded_dictations (
+                dictation_id TEXT PRIMARY KEY CHECK (length(dictation_id) > 0)
+             );
+             CREATE TABLE IF NOT EXISTS usage_aggregation_state (
+                singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
+                history_backfilled INTEGER NOT NULL CHECK (history_backfilled IN (0, 1))
+             );
+             INSERT OR IGNORE INTO usage_aggregation_state(singleton, history_backfilled)
+             VALUES (1, 0);
+             PRAGMA user_version = 20;",
+        )
+        .map_err(unavailable)?;
+    transaction.commit().map_err(unavailable)
+}
+
+pub(super) fn add_dictionary_assist_settings(
+    connection: &mut Connection,
+) -> Result<(), StorageError> {
+    let transaction = connection.transaction().map_err(unavailable)?;
+    if !app_settings_has_column(&transaction, "dictionary_assist_enabled")? {
+        transaction
+            .execute_batch(
+                "ALTER TABLE app_settings
+                 ADD COLUMN dictionary_assist_enabled INTEGER NOT NULL DEFAULT 0
+                 CHECK (dictionary_assist_enabled IN (0, 1));
+                 ALTER TABLE app_settings
+                 ADD COLUMN dictionary_assist_last_success_at_ms INTEGER;",
+            )
+            .map_err(unavailable)?;
+    }
+    transaction
+        .execute_batch("PRAGMA user_version = 21;")
+        .map_err(unavailable)?;
+    transaction.commit().map_err(unavailable)
+}
+
+pub(super) fn separate_dictionary_evidence_kinds(
+    connection: &mut Connection,
+) -> Result<(), StorageError> {
+    let transaction = connection.transaction().map_err(unavailable)?;
+    transaction
+        .execute_batch(
+            "ALTER TABLE term_observations RENAME TO term_observations_without_evidence_kind;
+             ALTER TABLE dictionary_candidates RENAME TO dictionary_candidates_without_evidence_kind;
+             DROP INDEX term_observations_candidate;
+             CREATE TABLE term_observations (
+                dictation_id TEXT NOT NULL,
+                language TEXT NOT NULL,
+                canonical TEXT NOT NULL,
+                canonical_key TEXT NOT NULL,
+                evidence_kind TEXT NOT NULL CHECK (evidence_kind IN (
+                    'user_revision', 'vocabulary_suggestion'
+                )),
+                occurrence_count INTEGER NOT NULL CHECK (occurrence_count > 0),
+                observed_at_ms INTEGER NOT NULL,
+                PRIMARY KEY(dictation_id, language, canonical_key, evidence_kind)
+             );
+             CREATE INDEX term_observations_candidate
+                ON term_observations(
+                    language, canonical_key, evidence_kind, observed_at_ms
+                );
+             INSERT INTO term_observations(
+                dictation_id, language, canonical, canonical_key,
+                evidence_kind, occurrence_count, observed_at_ms
+             )
+             SELECT dictation_id, language, canonical, canonical_key,
+                    'user_revision', occurrence_count, observed_at_ms
+             FROM term_observations_without_evidence_kind;
+             CREATE TABLE dictionary_candidates (
+                language TEXT NOT NULL,
+                canonical_key TEXT NOT NULL,
+                evidence_kind TEXT NOT NULL CHECK (evidence_kind IN (
+                    'user_revision', 'vocabulary_suggestion'
+                )),
+                occurrence_count INTEGER NOT NULL,
+                dictation_count INTEGER NOT NULL,
+                last_observed_at_ms INTEGER NOT NULL,
+                PRIMARY KEY(language, canonical_key, evidence_kind)
+             );
+             INSERT INTO dictionary_candidates(
+                language, canonical_key, evidence_kind, occurrence_count,
+                dictation_count, last_observed_at_ms
+             )
+             SELECT language, canonical_key, 'user_revision', occurrence_count,
+                    dictation_count, last_observed_at_ms
+             FROM dictionary_candidates_without_evidence_kind;
+             DROP TABLE term_observations_without_evidence_kind;
+             DROP TABLE dictionary_candidates_without_evidence_kind;
+             PRAGMA user_version = 22;",
+        )
+        .map_err(unavailable)?;
+    transaction.commit().map_err(unavailable)
+}
+
+pub(super) fn make_dictionary_evidence_idempotent(
+    connection: &mut Connection,
+) -> Result<(), StorageError> {
+    let transaction = connection.transaction().map_err(unavailable)?;
+    transaction
+        .execute_batch(
+            "ALTER TABLE term_observations RENAME TO term_observations_repeated;
+             ALTER TABLE dictionary_candidates RENAME TO dictionary_candidates_by_kind;
+             DROP INDEX term_observations_candidate;
+             CREATE TABLE term_observations (
+                dictation_id TEXT NOT NULL,
+                language TEXT NOT NULL,
+                canonical TEXT NOT NULL,
+                canonical_key TEXT NOT NULL,
+                evidence_kind TEXT NOT NULL CHECK(evidence_kind IN (
+                    'user_revision', 'vocabulary_suggestion'
+                )),
+                decision TEXT NOT NULL CHECK(decision IN ('accept', 'uncertain')),
+                confidence INTEGER NOT NULL CHECK(confidence BETWEEN 60 AND 100),
+                occurrence_count INTEGER NOT NULL DEFAULT 1 CHECK(occurrence_count = 1),
+                observed_at_ms INTEGER NOT NULL,
+                PRIMARY KEY(dictation_id, language, canonical_key)
+             );
+             CREATE INDEX term_observations_candidate
+                ON term_observations(language, canonical_key, observed_at_ms);
+             INSERT INTO term_observations(
+                dictation_id, language, canonical, canonical_key, evidence_kind,
+                decision, confidence, occurrence_count, observed_at_ms
+             )
+             SELECT dictation_id, language, MAX(canonical), canonical_key,
+                    CASE WHEN SUM(evidence_kind = 'user_revision') > 0
+                         THEN 'user_revision' ELSE 'vocabulary_suggestion' END,
+                    'uncertain', 60, 1, MAX(observed_at_ms)
+             FROM term_observations_repeated
+             GROUP BY dictation_id, language, canonical_key;
+             CREATE TABLE dictionary_candidates (
+                language TEXT NOT NULL,
+                canonical_key TEXT NOT NULL,
+                occurrence_count INTEGER NOT NULL,
+                dictation_count INTEGER NOT NULL,
+                last_observed_at_ms INTEGER NOT NULL,
+                PRIMARY KEY(language, canonical_key)
+             );
+             INSERT INTO dictionary_candidates(
+                language, canonical_key, occurrence_count,
+                dictation_count, last_observed_at_ms
+             )
+             SELECT language, canonical_key, COUNT(*),
+                    COUNT(DISTINCT dictation_id), MAX(observed_at_ms)
+             FROM term_observations
+             GROUP BY language, canonical_key;
+             DROP TABLE term_observations_repeated;
+             DROP TABLE dictionary_candidates_by_kind;
+             PRAGMA user_version = 23;",
+        )
+        .map_err(unavailable)?;
+    transaction.commit().map_err(unavailable)
+}
+
+pub(super) fn add_dictionary_assist_consent(
+    connection: &mut Connection,
+) -> Result<(), StorageError> {
+    let transaction = connection.transaction().map_err(unavailable)?;
+    if !app_settings_has_column(&transaction, "dictionary_assist_consent_fingerprint")? {
+        transaction
+            .execute_batch(
+                "ALTER TABLE app_settings
+                 ADD COLUMN dictionary_assist_consent_fingerprint TEXT;",
+            )
+            .map_err(unavailable)?;
+    }
+    transaction
+        .execute_batch("PRAGMA user_version = 24;")
+        .map_err(unavailable)?;
+    transaction.commit().map_err(unavailable)
+}

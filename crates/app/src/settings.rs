@@ -2,10 +2,41 @@ use std::collections::BTreeMap;
 
 use thiserror::Error;
 
+mod llm_provider;
+mod local_asr;
+mod model_catalog;
+pub use llm_provider::{ChatCompletionsProfile, LlmProviderPreset, LlmProviderProfile};
+pub use model_catalog::LlmModelCatalog;
+
 const MACOS_SPEECH_PROVIDER_ID: &str = "macos-speech";
 const MACOS_SPEECH_PROVIDER_TYPE: &str = "macos_speech";
+pub const PARAFORMER_PROVIDER_ID: &str = "local-paraformer";
+pub const PARAFORMER_PROVIDER_TYPE: &str = "local_paraformer";
+pub const WHISPER_PROVIDER_ID: &str = "local-whisper-large-v3-turbo";
+pub const WHISPER_PROVIDER_TYPE: &str = "local_whisper";
+pub const QWEN3_ASR_PROVIDER_ID: &str = "local-qwen3-asr-1.7b";
+pub const QWEN3_ASR_PROVIDER_TYPE: &str = "local_qwen3_asr";
+pub const SENSE_VOICE_PROVIDER_ID: &str = "local-sense-voice-small-int8";
+pub const SENSE_VOICE_PROVIDER_TYPE: &str = "local_sense_voice";
 const OPENAI_TRANSCRIPTIONS_PROVIDER_TYPE: &str = "openai_transcriptions";
 const VOLCENGINE_PROVIDER_TYPE: &str = "volcengine";
+const PARAFORMER_PUNCTUATION_MODE_KEY: &str = "punctuation_mode";
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ParaformerPunctuationMode {
+    #[default]
+    Llm,
+    Local,
+}
+
+impl ParaformerPunctuationMode {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Llm => "llm",
+            Self::Local => "local",
+        }
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct SaymoreSettings {
@@ -47,66 +78,7 @@ pub struct ChatCompletionsLlmSettings {
     pub api_key: String,
     pub model: String,
     pub custom_headers: BTreeMap<String, String>,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum LlmProviderPreset {
-    SenseNova,
-    DeepSeek,
-    Custom,
-}
-
-impl LlmProviderPreset {
-    pub const ALL: [Self; 3] = [Self::SenseNova, Self::DeepSeek, Self::Custom];
-
-    pub const fn label(self) -> &'static str {
-        match self {
-            Self::SenseNova => "商汤 SenseNova",
-            Self::DeepSeek => "DeepSeek",
-            Self::Custom => "Custom compatible API",
-        }
-    }
-
-    pub const fn id(self) -> &'static str {
-        match self {
-            Self::SenseNova => "sensenova",
-            Self::DeepSeek => "deepseek",
-            Self::Custom => "custom",
-        }
-    }
-
-    pub const fn base_url(self) -> &'static str {
-        match self {
-            Self::SenseNova => "https://token.sensenova.cn/v1",
-            Self::DeepSeek => "https://api.deepseek.com",
-            Self::Custom => "",
-        }
-    }
-
-    pub const fn model(self) -> &'static str {
-        match self {
-            Self::SenseNova => "sensenova-6.7-flash-lite",
-            Self::DeepSeek => "deepseek-v4-flash",
-            Self::Custom => "",
-        }
-    }
-
-    pub const fn model_list_url(self) -> &'static str {
-        match self {
-            Self::SenseNova => "https://api.sensenova.cn/v1/llm/models",
-            Self::DeepSeek => "https://api.deepseek.com/models",
-            Self::Custom => "",
-        }
-    }
-
-    pub fn settings(self, api_key: &str) -> ChatCompletionsLlmSettings {
-        ChatCompletionsLlmSettings {
-            base_url: self.base_url().to_owned(),
-            api_key: api_key.trim().to_owned(),
-            model: self.model().to_owned(),
-            custom_headers: BTreeMap::new(),
-        }
-    }
+    pub profile: ChatCompletionsProfile,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -191,6 +163,120 @@ impl ProviderCatalog {
         })
     }
 
+    pub fn select_paraformer_provider(&mut self) {
+        self.ensure_paraformer_provider();
+        self.active.asr = Some(PARAFORMER_PROVIDER_ID.to_owned());
+    }
+
+    pub fn paraformer_punctuation_mode(&self) -> ParaformerPunctuationMode {
+        self.asr_providers
+            .iter()
+            .find(|provider| {
+                provider.id == PARAFORMER_PROVIDER_ID
+                    && provider.provider_type == PARAFORMER_PROVIDER_TYPE
+            })
+            .and_then(|provider| provider.config.get(PARAFORMER_PUNCTUATION_MODE_KEY))
+            .and_then(serde_json::Value::as_str)
+            .filter(|mode| *mode == ParaformerPunctuationMode::Local.as_str())
+            .map(|_| ParaformerPunctuationMode::Local)
+            .unwrap_or_default()
+    }
+
+    pub fn set_paraformer_punctuation_mode(&mut self, mode: ParaformerPunctuationMode) {
+        let provider = self.ensure_paraformer_provider();
+        if !provider.config.is_object() {
+            provider.config = serde_json::json!({});
+        }
+        if let Some(config) = provider.config.as_object_mut() {
+            config.insert(
+                PARAFORMER_PUNCTUATION_MODE_KEY.to_owned(),
+                serde_json::Value::String(mode.as_str().to_owned()),
+            );
+        }
+    }
+
+    pub fn paraformer_is_active(&self) -> bool {
+        self.active.asr.as_deref() == Some(PARAFORMER_PROVIDER_ID)
+            && self.asr_providers.iter().any(|provider| {
+                provider.id == PARAFORMER_PROVIDER_ID
+                    && provider.provider_type == PARAFORMER_PROVIDER_TYPE
+            })
+    }
+
+    pub fn clear_paraformer_selection(&mut self) -> bool {
+        if self.active.asr.as_deref() != Some(PARAFORMER_PROVIDER_ID) {
+            return false;
+        }
+        self.active.asr = None;
+        true
+    }
+
+    pub fn select_whisper_provider(&mut self) {
+        if !self
+            .asr_providers
+            .iter()
+            .any(|provider| provider.id == WHISPER_PROVIDER_ID)
+        {
+            self.asr_providers.push(ProviderInstance {
+                id: WHISPER_PROVIDER_ID.to_owned(),
+                name: "Whisper large-v3-turbo".to_owned(),
+                provider_type: WHISPER_PROVIDER_TYPE.to_owned(),
+                config: serde_json::json!({}),
+                data_consent: None,
+            });
+        }
+        self.active.asr = Some(WHISPER_PROVIDER_ID.to_owned());
+    }
+
+    pub fn whisper_is_active(&self) -> bool {
+        self.active.asr.as_deref() == Some(WHISPER_PROVIDER_ID)
+            && self.asr_providers.iter().any(|provider| {
+                provider.id == WHISPER_PROVIDER_ID
+                    && provider.provider_type == WHISPER_PROVIDER_TYPE
+            })
+    }
+
+    pub fn clear_whisper_selection(&mut self) -> bool {
+        if self.active.asr.as_deref() != Some(WHISPER_PROVIDER_ID) {
+            return false;
+        }
+        self.active.asr = None;
+        true
+    }
+
+    pub fn select_qwen3_asr_provider(&mut self) {
+        if !self
+            .asr_providers
+            .iter()
+            .any(|provider| provider.id == QWEN3_ASR_PROVIDER_ID)
+        {
+            self.asr_providers.push(ProviderInstance {
+                id: QWEN3_ASR_PROVIDER_ID.to_owned(),
+                name: "Qwen3-ASR 1.7B INT8".to_owned(),
+                provider_type: QWEN3_ASR_PROVIDER_TYPE.to_owned(),
+                config: serde_json::json!({}),
+                data_consent: None,
+            });
+        }
+        self.active.asr = Some(QWEN3_ASR_PROVIDER_ID.to_owned());
+    }
+
+    pub fn qwen3_asr_is_active(&self) -> bool {
+        self.active.asr.as_deref() == Some(QWEN3_ASR_PROVIDER_ID)
+            && self.asr_providers.iter().any(|provider| {
+                provider.id == QWEN3_ASR_PROVIDER_ID
+                    && provider.provider_type == QWEN3_ASR_PROVIDER_TYPE
+            })
+    }
+
+    pub fn clear_qwen3_asr_selection(&mut self) -> bool {
+        if self.active.asr.as_deref() != Some(QWEN3_ASR_PROVIDER_ID) {
+            return false;
+        }
+        self.active.asr = None;
+        true
+    }
+
     pub fn select_volcengine_asr_provider(&mut self) -> bool {
         self.select_existing_asr_provider(VOLCENGINE_PROVIDER_TYPE)
     }
@@ -210,6 +296,24 @@ impl ProviderCatalog {
         };
         self.active.asr = Some(provider_id);
         true
+    }
+
+    fn ensure_paraformer_provider(&mut self) -> &mut ProviderInstance {
+        let index = self
+            .asr_providers
+            .iter()
+            .position(|provider| provider.id == PARAFORMER_PROVIDER_ID)
+            .unwrap_or_else(|| {
+                self.asr_providers.push(ProviderInstance {
+                    id: PARAFORMER_PROVIDER_ID.to_owned(),
+                    name: "Paraformer".to_owned(),
+                    provider_type: PARAFORMER_PROVIDER_TYPE.to_owned(),
+                    config: serde_json::json!({}),
+                    data_consent: None,
+                });
+                self.asr_providers.len() - 1
+            });
+        &mut self.asr_providers[index]
     }
 
     fn configure_asr_provider(
@@ -250,6 +354,19 @@ impl ProviderCatalog {
         self.save_llm_provider_settings(preset, settings);
     }
 
+    pub fn save_llm_provider_endpoint_config(
+        &mut self,
+        preset: LlmProviderPreset,
+        base_url: &str,
+        api_key: &str,
+        model: &str,
+    ) {
+        let mut settings = preset.settings(api_key);
+        settings.base_url = base_url.trim().trim_end_matches('/').to_owned();
+        settings.model = model.trim().to_owned();
+        self.save_llm_provider_settings(preset, settings);
+    }
+
     pub fn save_custom_llm_provider_config(&mut self, base_url: &str, api_key: &str, model: &str) {
         self.save_llm_provider_settings(
             LlmProviderPreset::Custom,
@@ -258,6 +375,7 @@ impl ProviderCatalog {
                 api_key: api_key.trim().to_owned(),
                 model: model.trim().to_owned(),
                 custom_headers: BTreeMap::new(),
+                profile: ChatCompletionsProfile::Portable,
             },
         );
     }
@@ -267,13 +385,27 @@ impl ProviderCatalog {
         preset: LlmProviderPreset,
         settings: ChatCompletionsLlmSettings,
     ) {
-        let config = provider_config(&settings);
+        let model_list_url = if preset == LlmProviderPreset::Custom {
+            format!("{}/models", settings.base_url.trim().trim_end_matches('/'))
+        } else {
+            preset.model_list_url().to_owned()
+        };
+        let profile = settings.profile;
+        let selected_model = settings.model.clone();
+        let mut config = provider_config(&settings);
         if let Some(index) = self.llm_provider_index(preset) {
             let provider = &mut self.llm_providers[index];
             let previous_id = provider.id.clone();
             if provider.config.get("base_url") != config.get("base_url") {
                 provider.data_consent = None;
             }
+            model_catalog::preserve_model_catalogs(&provider.config, &mut config);
+            model_catalog::update_cached_selection(
+                &mut config,
+                &model_list_url,
+                profile,
+                &selected_model,
+            );
             provider.id = preset.id().to_owned();
             provider.name = preset.label().to_owned();
             provider.provider_type = "openai_compatible".to_owned();
@@ -295,12 +427,10 @@ impl ProviderCatalog {
     pub fn select_llm_provider(&mut self, preset: LlmProviderPreset) {
         if self.llm_provider_index(preset).is_none() {
             match preset {
-                LlmProviderPreset::SenseNova | LlmProviderPreset::DeepSeek => {
-                    self.save_llm_provider_config(preset, "");
-                }
                 LlmProviderPreset::Custom => {
                     self.save_custom_llm_provider_config("", "", "");
                 }
+                preset => self.save_llm_provider_config(preset, ""),
             }
         }
         self.active.llm = self
@@ -346,12 +476,25 @@ impl ProviderCatalog {
             api_key: provider.config.get("api_key")?.as_str()?.to_owned(),
             model: provider.config.get("model")?.as_str()?.to_owned(),
             custom_headers,
+            profile: LlmProviderPreset::from_id_or_base_url(
+                &provider.id,
+                provider.config.get("base_url")?.as_str()?,
+            )
+            .map(|known| known.profile().chat_completions)
+            .or_else(|| {
+                provider
+                    .config
+                    .get("profile")
+                    .and_then(serde_json::Value::as_str)
+                    .and_then(ChatCompletionsProfile::from_id)
+            })
+            .unwrap_or_default(),
         })
     }
 
     pub fn active_llm_provider(&self) -> Option<LlmProviderPreset> {
         let active = self.active.llm.as_deref()?;
-        [LlmProviderPreset::SenseNova, LlmProviderPreset::DeepSeek]
+        LlmProviderPreset::BUILT_INS
             .into_iter()
             .find(|preset| {
                 self.llm_provider_index(*preset)
@@ -384,15 +527,13 @@ impl ProviderCatalog {
         self.llm_providers.iter().position(|provider| {
             provider.id == active
                 && provider.provider_type == "openai_compatible"
-                && ![LlmProviderPreset::SenseNova, LlmProviderPreset::DeepSeek]
-                    .iter()
-                    .any(|builtin| {
-                        provider
-                            .config
-                            .get("base_url")
-                            .and_then(serde_json::Value::as_str)
-                            == Some(builtin.base_url())
-                    })
+                && !LlmProviderPreset::BUILT_INS.iter().any(|builtin| {
+                    provider
+                        .config
+                        .get("base_url")
+                        .and_then(serde_json::Value::as_str)
+                        == Some(builtin.base_url())
+                })
         })
     }
 }
@@ -403,6 +544,7 @@ fn provider_config(settings: &ChatCompletionsLlmSettings) -> serde_json::Value {
         "api_key": settings.api_key,
         "model": settings.model,
         "custom_headers": settings.custom_headers,
+        "profile": settings.profile.id(),
     })
 }
 
@@ -439,11 +581,227 @@ mod tests {
     use std::collections::BTreeMap;
 
     use super::{
-        ActiveProviders, ChatCompletionsLlmSettings, LlmProviderPreset, MACOS_SPEECH_PROVIDER_ID,
-        MACOS_SPEECH_PROVIDER_TYPE, OPENAI_TRANSCRIPTIONS_PROVIDER_TYPE,
-        OpenAiCompatibleAsrSettings, ProviderCatalog, ProviderDataConsent, ProviderInstance,
-        VOLCENGINE_PROVIDER_TYPE, VolcengineAsrSettings, provider_config,
+        ActiveProviders, ChatCompletionsLlmSettings, ChatCompletionsProfile, LlmProviderPreset,
+        MACOS_SPEECH_PROVIDER_ID, MACOS_SPEECH_PROVIDER_TYPE, OPENAI_TRANSCRIPTIONS_PROVIDER_TYPE,
+        OpenAiCompatibleAsrSettings, PARAFORMER_PROVIDER_ID, PARAFORMER_PROVIDER_TYPE,
+        ParaformerPunctuationMode, ProviderCatalog, ProviderDataConsent, ProviderInstance,
+        QWEN3_ASR_PROVIDER_ID, QWEN3_ASR_PROVIDER_TYPE, SENSE_VOICE_PROVIDER_ID,
+        SENSE_VOICE_PROVIDER_TYPE, VOLCENGINE_PROVIDER_TYPE, VolcengineAsrSettings,
+        WHISPER_PROVIDER_ID, WHISPER_PROVIDER_TYPE, provider_config,
     };
+
+    #[test]
+    fn built_in_provider_configurations_remain_independent_when_switching() {
+        let providers = [
+            LlmProviderPreset::Qwen,
+            LlmProviderPreset::VolcengineArk,
+            LlmProviderPreset::OpenAi,
+            LlmProviderPreset::Kimi,
+            LlmProviderPreset::Gemini,
+            LlmProviderPreset::OpenRouter,
+            LlmProviderPreset::ZhipuGlm,
+            LlmProviderPreset::MiniMax,
+        ];
+        let mut catalog = ProviderCatalog::default();
+
+        for (index, preset) in providers.into_iter().enumerate() {
+            let api_key = format!("key-{index}");
+            let model = format!("model-{index}");
+            catalog.save_llm_provider_model_config(preset, &api_key, &model);
+            catalog.select_llm_provider(preset);
+
+            assert_eq!(Some(preset), catalog.active_llm_provider());
+            assert_eq!(Some(api_key.as_str()), catalog.llm_provider_api_key(preset));
+            assert_eq!(
+                Some(model.as_str()),
+                catalog.configured_llm_provider_model(preset)
+            );
+            let Some(settings) = catalog.llm_provider_settings(preset) else {
+                panic!("saved provider settings should remain available");
+            };
+            assert_eq!(preset.base_url(), settings.base_url);
+            assert_eq!(preset.profile().chat_completions, settings.profile);
+        }
+
+        assert_eq!(providers.len(), catalog.llm_providers.len());
+    }
+
+    #[test]
+    fn qwen_preserves_a_workspace_specific_endpoint() {
+        let mut catalog = ProviderCatalog::default();
+        let endpoint = "https://workspace.cn-beijing.maas.aliyuncs.com/compatible-mode/v1";
+
+        catalog.save_llm_provider_endpoint_config(
+            LlmProviderPreset::Qwen,
+            endpoint,
+            "qwen-key",
+            "qwen-plus",
+        );
+
+        let Some(settings) = catalog.llm_provider_settings(LlmProviderPreset::Qwen) else {
+            panic!("saved Qwen settings should remain available");
+        };
+        assert_eq!(endpoint, settings.base_url);
+        assert_eq!(ChatCompletionsProfile::Qwen, settings.profile);
+    }
+
+    #[test]
+    fn static_catalog_providers_expose_recommended_models_without_a_models_endpoint() {
+        assert_eq!(
+            ["qwen-plus", "qwen-flash"],
+            LlmProviderPreset::Qwen.recommended_models()
+        );
+        assert_eq!(
+            ["doubao-seed-2-0-lite-260215"],
+            LlmProviderPreset::VolcengineArk.recommended_models()
+        );
+        assert_eq!(
+            ["glm-4.7-flash", "glm-5.2"],
+            LlmProviderPreset::ZhipuGlm.recommended_models()
+        );
+        for preset in [
+            LlmProviderPreset::Qwen,
+            LlmProviderPreset::VolcengineArk,
+            LlmProviderPreset::ZhipuGlm,
+        ] {
+            assert!(!preset.supports_remote_model_discovery());
+        }
+    }
+
+    #[test]
+    fn minimax_uses_the_official_openai_compatible_model_catalog() {
+        let preset = LlmProviderPreset::MiniMax;
+
+        assert_eq!("https://api.minimaxi.com/v1", preset.base_url());
+        assert_eq!("MiniMax-M3", preset.model());
+        assert_eq!(["MiniMax-M3", "MiniMax-M2.7"], preset.recommended_models());
+        assert_eq!(
+            "https://api.minimaxi.com/v1/models",
+            preset.model_list_url()
+        );
+        assert!(preset.supports_remote_model_discovery());
+        assert_eq!(
+            ChatCompletionsProfile::MiniMax,
+            preset.profile().chat_completions
+        );
+    }
+
+    #[test]
+    fn legacy_deepseek_config_recovers_protocol_from_provider_identity() {
+        let mut catalog = ProviderCatalog::default();
+        catalog.llm_providers.push(ProviderInstance {
+            id: "deepseek".to_owned(),
+            name: "DeepSeek".to_owned(),
+            provider_type: "openai_compatible".to_owned(),
+            config: serde_json::json!({
+                "base_url": "https://api.deepseek.com",
+                "api_key": "saved",
+                "model": "renamed-model",
+                "custom_headers": {}
+            }),
+            data_consent: None,
+        });
+
+        let settings = catalog.llm_provider_settings(LlmProviderPreset::DeepSeek);
+
+        assert_eq!(
+            Some(ChatCompletionsProfile::DeepSeek),
+            settings.map(|settings| settings.profile)
+        );
+    }
+
+    #[test]
+    fn selecting_paraformer_creates_one_stable_provider() {
+        let mut catalog = ProviderCatalog::default();
+
+        catalog.select_paraformer_provider();
+        catalog.select_paraformer_provider();
+
+        assert!(catalog.paraformer_is_active());
+        assert_eq!(Some(PARAFORMER_PROVIDER_ID), catalog.active.asr.as_deref());
+        assert_eq!(
+            1,
+            catalog
+                .asr_providers
+                .iter()
+                .filter(|provider| provider.provider_type == PARAFORMER_PROVIDER_TYPE)
+                .count()
+        );
+    }
+
+    #[test]
+    fn paraformer_punctuation_mode_defaults_to_llm_and_round_trips_local() {
+        let mut catalog = ProviderCatalog::default();
+
+        assert_eq!(
+            ParaformerPunctuationMode::Llm,
+            catalog.paraformer_punctuation_mode()
+        );
+        catalog.set_paraformer_punctuation_mode(ParaformerPunctuationMode::Local);
+
+        assert_eq!(
+            ParaformerPunctuationMode::Local,
+            catalog.paraformer_punctuation_mode()
+        );
+        assert_eq!(None, catalog.active.asr);
+        assert_eq!(1, catalog.asr_providers.len());
+    }
+
+    #[test]
+    fn selecting_whisper_creates_one_stable_provider() {
+        let mut catalog = ProviderCatalog::default();
+
+        catalog.select_whisper_provider();
+        catalog.select_whisper_provider();
+
+        assert!(catalog.whisper_is_active());
+        assert_eq!(Some(WHISPER_PROVIDER_ID), catalog.active.asr.as_deref());
+        assert_eq!(
+            1,
+            catalog
+                .asr_providers
+                .iter()
+                .filter(|provider| provider.provider_type == WHISPER_PROVIDER_TYPE)
+                .count()
+        );
+    }
+
+    #[test]
+    fn selecting_qwen3_asr_creates_one_stable_provider() {
+        let mut catalog = ProviderCatalog::default();
+        catalog.select_qwen3_asr_provider();
+        catalog.select_qwen3_asr_provider();
+        assert!(catalog.qwen3_asr_is_active());
+        assert_eq!(Some(QWEN3_ASR_PROVIDER_ID), catalog.active.asr.as_deref());
+        assert_eq!(
+            1,
+            catalog
+                .asr_providers
+                .iter()
+                .filter(|provider| provider.provider_type == QWEN3_ASR_PROVIDER_TYPE)
+                .count()
+        );
+    }
+
+    #[test]
+    fn selecting_sense_voice_creates_one_stable_provider() {
+        let mut catalog = ProviderCatalog::default();
+        catalog.select_sense_voice_provider();
+        catalog.select_sense_voice_provider();
+
+        assert!(catalog.sense_voice_is_active());
+        assert_eq!(Some(SENSE_VOICE_PROVIDER_ID), catalog.active.asr.as_deref());
+        assert_eq!(
+            1,
+            catalog
+                .asr_providers
+                .iter()
+                .filter(|provider| provider.provider_type == SENSE_VOICE_PROVIDER_TYPE)
+                .count()
+        );
+        assert!(catalog.clear_sense_voice_selection());
+        assert!(!catalog.sense_voice_is_active());
+    }
 
     #[test]
     fn exposes_a_provider_model_only_after_configuration_is_saved() {
@@ -546,6 +904,7 @@ mod tests {
                     api_key: String::new(),
                     model: "qwen3:8b".to_owned(),
                     custom_headers: BTreeMap::new(),
+                    profile: ChatCompletionsProfile::Portable,
                 }),
                 data_consent: None,
             }],
@@ -599,6 +958,17 @@ mod tests {
 
         assert!(catalog.macos_speech_is_active());
         assert_eq!(1, catalog.asr_providers.len());
+    }
+
+    #[test]
+    fn clearing_paraformer_preserves_its_provider_configuration() {
+        let mut catalog = ProviderCatalog::default();
+        catalog.select_paraformer_provider();
+
+        assert!(catalog.clear_paraformer_selection());
+        assert!(!catalog.paraformer_is_active());
+        assert_eq!(1, catalog.asr_providers.len());
+        assert!(!catalog.clear_paraformer_selection());
     }
 
     #[test]

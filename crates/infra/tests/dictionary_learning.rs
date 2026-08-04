@@ -7,7 +7,7 @@ use template_app::{
     DictionaryCandidateKind, DictionaryCorrection, DictionaryLearningOutcome,
     DictionaryLearningStore, DictionaryOrigin, DictionaryStore, NewDictionaryEntry,
     NewDictionaryObservation, SecretStore, SecretStoreError, assess_dictionary_candidate,
-    correction_from_edit,
+    correction_from_edit, review_dictionary_candidate_locally,
 };
 use template_infra::SqliteStorage;
 
@@ -67,6 +67,93 @@ fn two_high_confidence_corrections_add_an_automatic_entry() -> Result<(), Box<dy
 }
 
 #[test]
+fn the_same_dictation_and_term_only_contribute_once_across_analysis_channels()
+-> Result<(), Box<dyn std::error::Error>> {
+    let directory = tempfile::tempdir()?;
+    let store = SqliteStorage::start(
+        directory.path().join("saymore.sqlite3"),
+        Arc::new(MemorySecretStore::default()),
+    )?;
+    let suggestion = |dictation_id: &str, observed_at_ms| NewDictionaryObservation {
+        dictation_id: dictation_id.to_owned(),
+        language: "en".to_owned(),
+        correction: DictionaryCorrection {
+            canonical: "Saymore".to_owned(),
+        },
+        assessment: DictionaryCandidateAssessment {
+            decision: CandidateDecision::Accept,
+            kind: DictionaryCandidateKind::NamedTerm,
+            confidence: 99,
+            source: CandidateAssessmentSource::VocabularySuggestion,
+        },
+        observed_at_ms,
+    };
+
+    assert_eq!(
+        DictionaryLearningOutcome::Pending {
+            occurrence_count: 1,
+            dictation_count: 1,
+        },
+        store.record_dictionary_observation(suggestion("shared", 1_000))?
+    );
+    let mut revision = observation("shared", 2_000);
+    revision.language = "en".to_owned();
+    revision.assessment.confidence = 99;
+    assert_eq!(
+        DictionaryLearningOutcome::Pending {
+            occurrence_count: 1,
+            dictation_count: 1,
+        },
+        store.record_dictionary_observation(revision)?
+    );
+    assert!(matches!(
+        store.record_dictionary_observation(suggestion("second", 3_000))?,
+        DictionaryLearningOutcome::Added(_)
+    ));
+    Ok(())
+}
+
+#[test]
+fn an_existing_dictionary_entry_is_not_reported_as_newly_added()
+-> Result<(), Box<dyn std::error::Error>> {
+    let directory = tempfile::tempdir()?;
+    let store = SqliteStorage::start(
+        directory.path().join("saymore.sqlite3"),
+        Arc::new(MemorySecretStore::default()),
+    )?;
+    let existing = store.upsert_dictionary(
+        NewDictionaryEntry {
+            canonical: "paraformer".to_owned(),
+            language: "en".to_owned(),
+            origin: DictionaryOrigin::Manual,
+        },
+        500,
+    )?;
+
+    let review = DictionaryCandidateAssessment {
+        decision: CandidateDecision::Accept,
+        kind: DictionaryCandidateKind::NamedTerm,
+        confidence: 95,
+        source: CandidateAssessmentSource::Llm,
+    };
+    assert_eq!(
+        DictionaryLearningOutcome::AlreadyPresent,
+        store.record_dictionary_observation(NewDictionaryObservation {
+            dictation_id: "later-dictation".to_owned(),
+            language: "en".to_owned(),
+            correction: DictionaryCorrection {
+                canonical: "paraformer".to_owned(),
+            },
+            assessment: review,
+            observed_at_ms: 1_000,
+        })?
+    );
+    assert_eq!(vec![existing], store.list_dictionary()?);
+    assert!(store.list_dictionary_candidate_evidence()?.is_empty());
+    Ok(())
+}
+
+#[test]
 fn repeated_edits_in_one_dictation_do_not_satisfy_the_high_confidence_threshold()
 -> Result<(), Box<dyn std::error::Error>> {
     let directory = tempfile::tempdir()?;
@@ -78,12 +165,46 @@ fn repeated_edits_in_one_dictation_do_not_satisfy_the_high_confidence_threshold(
     store.record_dictionary_observation(observation("same", 1_000))?;
     assert_eq!(
         DictionaryLearningOutcome::Pending {
-            occurrence_count: 2,
+            occurrence_count: 1,
             dictation_count: 1,
         },
         store.record_dictionary_observation(observation("same", 2_000))?
     );
     assert!(store.list_dictionary()?.is_empty());
+    Ok(())
+}
+
+#[test]
+fn single_character_and_low_confidence_results_are_diagnostic_only()
+-> Result<(), Box<dyn std::error::Error>> {
+    let directory = tempfile::tempdir()?;
+    let store = SqliteStorage::start(
+        directory.path().join("saymore.sqlite3"),
+        Arc::new(MemorySecretStore::default()),
+    )?;
+    for (canonical, confidence) in [("三", 99), ("SlintUI", 59)] {
+        let outcome = store.record_dictionary_observation(NewDictionaryObservation {
+            dictation_id: format!("dictation-{canonical}"),
+            language: "und".to_owned(),
+            correction: DictionaryCorrection {
+                canonical: canonical.to_owned(),
+            },
+            assessment: DictionaryCandidateAssessment {
+                decision: CandidateDecision::Accept,
+                kind: DictionaryCandidateKind::NamedTerm,
+                confidence,
+                source: CandidateAssessmentSource::Llm,
+            },
+            observed_at_ms: 1_000,
+        })?;
+        assert_eq!(DictionaryLearningOutcome::Rejected, outcome);
+    }
+
+    assert!(store.list_dictionary()?.is_empty());
+    let evidence = store.list_dictionary_candidate_evidence()?;
+    assert_eq!(2, evidence.len());
+    assert!(evidence.iter().all(|item| item.occurrence_count == 0));
+    assert!(evidence.iter().all(|item| item.dictation_count == 0));
     Ok(())
 }
 
@@ -97,7 +218,7 @@ fn different_recognized_forms_save_only_the_canonical_entry()
     )?;
     for (dictation_id, original, observed_at_ms) in [
         ("first", "我们使用 CMO 开发", 1_000),
-        ("second", "我们使用 C末 开发", 2_000),
+        ("second", "我们使用 C 末 开发", 2_000),
     ] {
         let correction = correction_from_edit(original, "我们使用 Saymore 开发")
             .ok_or("the local correction was not recognized")?;
@@ -117,6 +238,38 @@ fn different_recognized_forms_save_only_the_canonical_entry()
     let entries = store.list_dictionary()?;
     assert_eq!(1, entries.len());
     assert_eq!("Saymore", entries[0].canonical);
+    Ok(())
+}
+
+#[test]
+fn local_mixed_fragments_accumulate_as_one_reusable_term_without_an_llm()
+-> Result<(), Box<dyn std::error::Error>> {
+    let directory = tempfile::tempdir()?;
+    let store = SqliteStorage::start(
+        directory.path().join("saymore.sqlite3"),
+        Arc::new(MemorySecretStore::default()),
+    )?;
+    for (dictation_id, candidate, observed_at_ms) in
+        [("first", "ui 落实", 1_000), ("second", "ui", 2_000)]
+    {
+        let review = review_dictionary_candidate_locally(candidate);
+        let outcome = store.record_dictionary_observation(NewDictionaryObservation {
+            dictation_id: dictation_id.to_owned(),
+            language: "en".to_owned(),
+            correction: review.correction,
+            assessment: review.assessment,
+            observed_at_ms,
+        })?;
+        if dictation_id == "first" {
+            assert!(matches!(outcome, DictionaryLearningOutcome::Pending { .. }));
+        } else {
+            assert!(matches!(outcome, DictionaryLearningOutcome::Added(_)));
+        }
+    }
+
+    let entries = store.list_dictionary()?;
+    assert_eq!(1, entries.len());
+    assert_eq!("UI", entries[0].canonical);
     Ok(())
 }
 
@@ -172,7 +325,7 @@ fn professional_chinese_terms_need_more_local_evidence_and_keep_an_audit_record(
     let terms = ["地理编码", "逆地理编码"];
     for term in terms {
         let mut outcome = DictionaryLearningOutcome::Rejected;
-        for (index, dictation) in ["one", "two", "three", "three", "three"].iter().enumerate() {
+        for (index, dictation) in ["one", "two", "three"].iter().enumerate() {
             outcome = store.record_dictionary_observation(NewDictionaryObservation {
                 dictation_id: format!("{term}-{dictation}"),
                 language: "zh-Hans".to_owned(),
@@ -187,7 +340,7 @@ fn professional_chinese_terms_need_more_local_evidence_and_keep_an_audit_record(
     }
     let evidence = store.list_dictionary_candidate_evidence()?;
     assert_eq!(2, evidence.len());
-    assert!(evidence.iter().all(|item| item.occurrence_count == 5));
+    assert!(evidence.iter().all(|item| item.occurrence_count == 3));
     assert!(evidence.iter().all(|item| item.dictation_count == 3));
     Ok(())
 }
@@ -278,7 +431,11 @@ fn an_ordinary_sentence_fragment_is_never_accumulated() -> Result<(), Box<dyn st
             observed_at_ms: 1_000,
         })?
     );
-    assert!(store.list_dictionary_candidate_evidence()?.is_empty());
+    let evidence = store.list_dictionary_candidate_evidence()?;
+    assert_eq!(1, evidence.len());
+    assert_eq!(CandidateDecision::Reject, evidence[0].assessment.decision);
+    assert_eq!(0, evidence[0].occurrence_count);
+    assert_eq!(0, evidence[0].dictation_count);
     Ok(())
 }
 

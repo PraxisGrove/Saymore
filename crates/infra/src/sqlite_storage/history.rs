@@ -11,7 +11,25 @@ use template_app::{
     HistoryRetention, NewHistoryRecord, SecretStore, StorageError,
 };
 
-use super::{Database, invalid, settings, unavailable};
+use super::{Database, invalid, settings, unavailable, usage};
+
+mod update;
+
+pub(super) fn update_final_text(
+    database: &mut Database,
+    id: &str,
+    final_text: &str,
+) -> Result<(), StorageError> {
+    update::update_final_text(database, id, final_text)
+}
+
+pub(super) fn update_delivery(
+    database: &mut Database,
+    id: &str,
+    delivery: HistoryDelivery,
+) -> Result<(), StorageError> {
+    update::update_delivery(database, id, delivery)
+}
 
 const CRYPTO_VERSION: u32 = 1;
 const PAYLOAD_VERSION: u32 = 1;
@@ -104,7 +122,7 @@ pub(super) fn insert(
     let aad = history_aad(&record.id, record.created_at_ms, PAYLOAD_VERSION);
     let (nonce, ciphertext) = encrypt(&key, &plaintext, &aad)?;
     let transaction = database.connection.transaction().map_err(unavailable)?;
-    transaction
+    let inserted = transaction
         .execute(
             "INSERT OR IGNORE INTO transcript_history(
                 id, created_at_ms, crypto_version, payload_version, nonce, ciphertext
@@ -119,6 +137,9 @@ pub(super) fn insert(
             ],
         )
         .map_err(unavailable)?;
+    if inserted > 0 {
+        usage::record(&transaction, &record)?;
+    }
     cleanup_in_transaction(
         &transaction,
         record.created_at_ms,
@@ -177,49 +198,6 @@ pub(super) fn delete(connection: &mut Connection, id: &str) -> Result<(), Storag
         .execute("DELETE FROM transcript_history WHERE id = ?1", [id])
         .map_err(unavailable)?;
     checkpoint(connection)
-}
-
-pub(super) fn update_delivery(
-    database: &mut Database,
-    id: &str,
-    delivery: HistoryDelivery,
-) -> Result<(), StorageError> {
-    let key = *ensure_key(database)?;
-    let row = database
-        .connection
-        .query_row(
-            "SELECT id, created_at_ms, crypto_version, payload_version, nonce, ciphertext
-             FROM transcript_history WHERE id = ?1",
-            [id],
-            |row| {
-                Ok(EncryptedRow {
-                    id: row.get(0)?,
-                    created_at_ms: row.get(1)?,
-                    crypto_version: row.get(2)?,
-                    payload_version: row.get(3)?,
-                    nonce: row.get(4)?,
-                    ciphertext: row.get(5)?,
-                })
-            },
-        )
-        .optional()
-        .map_err(unavailable)?
-        .ok_or_else(|| StorageError::Invalid("history record is missing".to_owned()))?;
-    validate_encrypted_row_versions(&row)?;
-    let aad = history_aad(&row.id, row.created_at_ms, row.payload_version);
-    let plaintext = decrypt(&key, &row.nonce, &row.ciphertext, &aad)?;
-    let mut payload: HistoryPayload = serde_json::from_slice(&plaintext).map_err(invalid)?;
-    payload.delivery = delivery_name(delivery).to_owned();
-    let plaintext = serde_json::to_vec(&payload).map_err(invalid)?;
-    let (nonce, ciphertext) = encrypt(&key, &plaintext, &aad)?;
-    database
-        .connection
-        .execute(
-            "UPDATE transcript_history SET nonce = ?2, ciphertext = ?3 WHERE id = ?1",
-            params![id, nonce, ciphertext],
-        )
-        .map_err(unavailable)?;
-    Ok(())
 }
 
 pub(super) fn clear(connection: &mut Connection) -> Result<(), StorageError> {

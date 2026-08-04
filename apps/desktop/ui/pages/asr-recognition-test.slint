@@ -14,7 +14,7 @@ export component RecognitionTestPanel inherits Rectangle {
     private property <string> action-label: root.testing ? @tr("models.test.testing" => "Testing…")
         : root.succeeded ? @tr("models.test.again" => "Test again")
         : root.failed ? @tr("models.test.retry" => "Retry test")
-        : @tr("models.test.action" => "Run test");
+        : @tr("models.test.action" => "Run");
 
     height: root.has-result ? 92px : 64px;
     border-radius: 8px;
@@ -23,7 +23,7 @@ export component RecognitionTestPanel inherits Rectangle {
     Text {
         x: 16px;
         y: 9px;
-        text: @tr("models.test.title" => "Recognition test");
+        text: @tr("models.test.title" => "Test");
         color: AppColors.text;
         font-size: 11px;
         font-weight: 700;
@@ -31,7 +31,7 @@ export component RecognitionTestPanel inherits Rectangle {
     Text {
         x: 16px;
         y: 29px;
-        text: @tr("models.test.fixed-audio" => "Fixed test audio 3.9 sec");
+        text: @tr("models.test.fixed-audio" => "3.9-sec sample");
         color: AppColors.text-muted;
         font-size: 9px;
     }
@@ -82,16 +82,15 @@ export component RecognitionTestPanel inherits Rectangle {
     }
 
     Rectangle {
-        x: parent.width - 120px;
-        y: root.has-result ? 43px : 14px;
-        width: 104px;
-        height: 36px;
+        x: parent.width - 106px;
+        y: root.has-result ? 45px : 16px;
+        width: 90px;
+        height: 32px;
         border-radius: 7px;
-        border-width: root.succeeded ? 0px : 1px;
-        border-color: root.action-emphasized ? AppColors.brand-strong : AppColors.border;
-        background: root.succeeded ? (action-touch.has-hover ? AppColors.surface : transparent)
-            : !root.ready || root.testing ? AppColors.surface-muted
-            : action-touch.has-hover ? AppColors.surface : AppColors.surface-subtle;
+        border-width: 0px;
+        background: !root.ready || root.testing ? AppColors.surface-muted
+            : root.succeeded ? (action-touch.has-hover ? AppColors.selected : AppColors.surface-muted)
+            : action-touch.has-hover ? AppColors.selected : AppColors.brand-soft;
         opacity: root.ready ? 1 : 0.55;
         accessible-role: button;
         accessible-label: root.action-label;
@@ -101,19 +100,9 @@ export component RecognitionTestPanel inherits Rectangle {
         HorizontalLayout {
             width: parent.width;
             height: parent.height;
-            spacing: 6px;
             alignment: center;
             cross-axis-alignment: center;
 
-            Image {
-                width: 14px;
-                height: 14px;
-                source: root.testing || root.has-result
-                    ? @image-url("../../icons/lucide/refresh-cw.svg")
-                    : @image-url("../../icons/lucide/audio-lines.svg");
-                colorize: !root.ready || root.testing ? AppColors.text-muted
-                    : root.action-emphasized ? AppColors.brand-strong : AppColors.text;
-            }
             Text {
                 text: root.action-label;
                 color: !root.ready || root.testing ? AppColors.text-muted

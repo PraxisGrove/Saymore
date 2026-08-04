@@ -10,6 +10,8 @@ pub(super) fn load(connection: &Connection) -> Result<LocalSettings, StorageErro
     let row = connection
         .query_row(
             "SELECT history_enabled, history_retention_days,
+                    dictionary_assist_enabled, dictionary_assist_consent_fingerprint,
+                    dictionary_assist_last_success_at_ms,
                     preferred_microphone_id, preferred_microphone_name,
                     diagnostics_logging_enabled, ui_language,
                     theme_id, color_scheme,
@@ -30,6 +32,9 @@ pub(super) fn load(connection: &Connection) -> Result<LocalSettings, StorageErro
 struct StoredSettingsRow {
     history_enabled: bool,
     retention_days: Option<u16>,
+    dictionary_assist_enabled: bool,
+    dictionary_assist_consent_fingerprint: Option<String>,
+    dictionary_assist_last_success_at_ms: Option<i64>,
     microphone_id: Option<String>,
     microphone_name: Option<String>,
     diagnostics_logging_enabled: bool,
@@ -52,21 +57,24 @@ impl StoredSettingsRow {
         Ok(Self {
             history_enabled: row.get(0)?,
             retention_days: row.get(1)?,
-            microphone_id: row.get(2)?,
-            microphone_name: row.get(3)?,
-            diagnostics_logging_enabled: row.get(4)?,
-            ui_language: row.get(5)?,
-            theme_id: row.get(6)?,
-            color_scheme: row.get(7)?,
-            automatic_update_checks: row.get(8)?,
-            feedback_sounds_enabled: row.get(9)?,
-            mute_system_audio_enabled: row.get(10)?,
-            copy_to_clipboard: row.get(11)?,
-            show_in_dock: row.get(12)?,
-            dictation_paused: row.get(13)?,
-            dictation_shortcuts: row.get(14)?,
-            onboarding_status: row.get(15)?,
-            onboarding_step: row.get(16)?,
+            dictionary_assist_enabled: row.get(2)?,
+            dictionary_assist_consent_fingerprint: row.get(3)?,
+            dictionary_assist_last_success_at_ms: row.get(4)?,
+            microphone_id: row.get(5)?,
+            microphone_name: row.get(6)?,
+            diagnostics_logging_enabled: row.get(7)?,
+            ui_language: row.get(8)?,
+            theme_id: row.get(9)?,
+            color_scheme: row.get(10)?,
+            automatic_update_checks: row.get(11)?,
+            feedback_sounds_enabled: row.get(12)?,
+            mute_system_audio_enabled: row.get(13)?,
+            copy_to_clipboard: row.get(14)?,
+            show_in_dock: row.get(15)?,
+            dictation_paused: row.get(16)?,
+            dictation_shortcuts: row.get(17)?,
+            onboarding_status: row.get(18)?,
+            onboarding_step: row.get(19)?,
         })
     }
 
@@ -74,6 +82,9 @@ impl StoredSettingsRow {
         Ok(LocalSettings {
             history_enabled: self.history_enabled,
             history_retention: retention_from_days(self.retention_days)?,
+            dictionary_assist_enabled: self.dictionary_assist_enabled,
+            dictionary_assist_consent_fingerprint: self.dictionary_assist_consent_fingerprint,
+            dictionary_assist_last_success_at_ms: self.dictionary_assist_last_success_at_ms,
             preferred_microphone_id: self.microphone_id,
             preferred_microphone_name: self.microphone_name,
             diagnostics_logging_enabled: self.diagnostics_logging_enabled,
@@ -128,25 +139,31 @@ pub(super) fn save(
             "UPDATE app_settings SET
                 history_enabled = ?1,
                 history_retention_days = ?2,
-                preferred_microphone_id = ?3,
-                preferred_microphone_name = ?4,
-                diagnostics_logging_enabled = ?5,
-                ui_language = ?6,
-                theme_id = ?7,
-                color_scheme = ?8,
-                automatic_update_checks = ?9,
-                feedback_sounds_enabled = ?10,
-                mute_system_audio_enabled = ?11,
-                copy_to_clipboard = ?12,
-                show_in_dock = ?13,
-                dictation_paused = ?14,
-                dictation_shortcuts = ?15,
-                onboarding_status = ?16,
-                onboarding_step = ?17
+                dictionary_assist_enabled = ?3,
+                dictionary_assist_consent_fingerprint = ?4,
+                dictionary_assist_last_success_at_ms = ?5,
+                preferred_microphone_id = ?6,
+                preferred_microphone_name = ?7,
+                diagnostics_logging_enabled = ?8,
+                ui_language = ?9,
+                theme_id = ?10,
+                color_scheme = ?11,
+                automatic_update_checks = ?12,
+                feedback_sounds_enabled = ?13,
+                mute_system_audio_enabled = ?14,
+                copy_to_clipboard = ?15,
+                show_in_dock = ?16,
+                dictation_paused = ?17,
+                dictation_shortcuts = ?18,
+                onboarding_status = ?19,
+                onboarding_step = ?20
              WHERE singleton = 1",
             params![
                 settings.history_enabled,
                 settings.history_retention.days(),
+                settings.dictionary_assist_enabled,
+                settings.dictionary_assist_consent_fingerprint,
+                settings.dictionary_assist_last_success_at_ms,
                 settings.preferred_microphone_id,
                 settings.preferred_microphone_name,
                 settings.diagnostics_logging_enabled,
@@ -166,6 +183,25 @@ pub(super) fn save(
         )
         .map_err(unavailable)?;
     Ok(())
+}
+
+pub(super) fn record_vocabulary_suggestion_success(
+    connection: &Connection,
+    consent_fingerprint: &str,
+    completed_at_ms: i64,
+) -> Result<bool, StorageError> {
+    connection
+        .execute(
+            "UPDATE app_settings
+             SET dictionary_assist_last_success_at_ms = ?1
+             WHERE singleton = 1
+               AND history_enabled = 1
+               AND dictionary_assist_enabled = 1
+               AND dictionary_assist_consent_fingerprint = ?2",
+            params![completed_at_ms, consent_fingerprint],
+        )
+        .map(|updated| updated == 1)
+        .map_err(unavailable)
 }
 
 fn encode_shortcuts(shortcuts: &[String]) -> String {

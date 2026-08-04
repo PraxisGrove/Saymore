@@ -20,6 +20,8 @@ pub enum LocalSettingsChange {
         enabled: bool,
         retention: HistoryRetention,
     },
+    SetVocabularySuggestionsEnabled(bool),
+    AuthorizeVocabularySuggestions(String),
     SelectMicrophone(MicrophoneSelection),
     SetUiLanguage(UiLanguagePreference),
     SetTheme(ThemeId),
@@ -46,6 +48,8 @@ pub enum LocalSettingsValidationError {
     BlankMicrophoneName,
     #[error("the microphone identifier and display name must be present together")]
     IncompleteMicrophoneSelection,
+    #[error("the vocabulary suggestion consent fingerprint must not be blank")]
+    BlankVocabularySuggestionConsent,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
@@ -119,6 +123,11 @@ fn validate_change(change: &LocalSettingsChange) -> Result<(), LocalSettingsVali
         {
             Err(LocalSettingsValidationError::BlankMicrophoneName)
         }
+        LocalSettingsChange::AuthorizeVocabularySuggestions(fingerprint)
+            if fingerprint.trim().is_empty() =>
+        {
+            Err(LocalSettingsValidationError::BlankVocabularySuggestionConsent)
+        }
         _ => Ok(()),
     }
 }
@@ -129,6 +138,13 @@ fn apply_change(settings: &mut LocalSettings, change: LocalSettingsChange) {
         LocalSettingsChange::SetHistoryPolicy { enabled, retention } => {
             settings.history_enabled = enabled;
             settings.history_retention = retention;
+        }
+        LocalSettingsChange::SetVocabularySuggestionsEnabled(enabled) => {
+            settings.dictionary_assist_enabled = enabled;
+        }
+        LocalSettingsChange::AuthorizeVocabularySuggestions(fingerprint) => {
+            settings.dictionary_assist_enabled = true;
+            settings.dictionary_assist_consent_fingerprint = Some(fingerprint);
         }
         LocalSettingsChange::SelectMicrophone(MicrophoneSelection::Automatic) => {
             settings.preferred_microphone_id = None;

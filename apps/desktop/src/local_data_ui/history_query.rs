@@ -2,14 +2,43 @@ use std::sync::{Arc, Mutex};
 
 use chrono::{DateTime, Local, TimeZone};
 use slint::{ComponentHandle, ModelRc, SharedString, VecModel};
-use template_app::{HistoryDelivery, HistoryRecord, HistoryRefinement, HistoryStore};
-use template_infra::SqliteStorage;
+use template_app::{
+    HistoryDelivery, HistoryRecord, HistoryRefinement, HistoryStore, PARAFORMER_PROVIDER_ID,
+    QWEN3_ASR_PROVIDER_ID, SENSE_VOICE_PROVIDER_ID, WHISPER_PROVIDER_ID,
+};
+use template_infra::{
+    PARAFORMER_MODEL_ID, QWEN3_ASR_MODEL_ID, SENSE_VOICE_MODEL_ID, SqliteStorage, WHISPER_MODEL_ID,
+};
 
 use super::{UiDataState, spawn_named};
 use crate::{
     regional_format,
     ui::{AppWindow, HistoryGroup, HistoryListItem, Translations},
 };
+
+const MACOS_SPEECH_PROVIDER_ID: &str = "macos-speech";
+const MACOS_DICTATION_MODEL_ID: &str = "macos-dictation";
+const PARAFORMER_LABEL: &str = "Paraformer";
+const QWEN3_ASR_LABEL: &str = "Qwen3-ASR 1.7B";
+const SENSE_VOICE_LABEL: &str = "SenseVoiceSmall";
+const WHISPER_FULL_LABEL: &str = "Whisper large-v3-turbo";
+const VOLCENGINE_ASR_1_MODEL: &str = "volc.bigasr.sauc.duration";
+const VOLCENGINE_ASR_2_MODEL: &str = "volc.seedasr.sauc.duration";
+const VOLCENGINE_LEGACY_MODEL: &str = "bigmodel_async";
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum HistoryAsrModel<'a> {
+    Named(&'a str),
+    MacOsDictation,
+    Whisper,
+    VolcengineV1,
+    VolcengineV2,
+}
+
+struct LocalizedHistoryAsrModel {
+    short: SharedString,
+    full: SharedString,
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum HistoryGroupKind {
@@ -180,9 +209,33 @@ fn history_item(ui: &AppWindow, record: &HistoryRecord, locale: chrono::Locale) 
         | HistoryRefinement::ProviderUnavailable
         | HistoryRefinement::OutputRejected => translations.get_history_not_polished(),
     };
+    let asr_model = localized_history_asr_model(
+        &translations,
+        record.asr_provider_id.as_deref(),
+        record.asr_model.as_deref(),
+    );
+    let missing_asr_model = translations.get_history_model_not_recorded();
+    let (asr_model, asr_model_full) = asr_model
+        .map(|model| (model.short, model.full))
+        .unwrap_or_else(|| (missing_asr_model.clone(), missing_asr_model));
+    let llm_model = record
+        .llm_model
+        .as_deref()
+        .map(SharedString::from)
+        .unwrap_or_else(|| translations.get_history_model_not_used());
     HistoryListItem {
         id: SharedString::from(&record.id),
         text: SharedString::from(&record.final_text),
+        raw_text: record
+            .raw_asr_text
+            .as_deref()
+            .map(SharedString::from)
+            .unwrap_or_default(),
+        llm_text: record
+            .llm_refined_text
+            .as_deref()
+            .map(SharedString::from)
+            .unwrap_or_default(),
         preview_text: SharedString::from(history_preview(&record.final_text)),
         time: SharedString::from(history_time(record.created_at_ms, locale)),
         duration: translations.invoke_history_duration(
@@ -190,16 +243,69 @@ fn history_item(ui: &AppWindow, record: &HistoryRecord, locale: chrono::Locale) 
         ),
         input_status: delivery,
         polish_status: refinement,
-        asr_model: record
-            .asr_model
-            .as_deref()
-            .map(SharedString::from)
-            .unwrap_or_else(|| translations.get_history_model_not_recorded()),
-        llm_model: record
-            .llm_model
-            .as_deref()
-            .map(SharedString::from)
-            .unwrap_or_else(|| translations.get_history_model_not_used()),
+        asr_model,
+        asr_model_full,
+        llm_model: llm_model.clone(),
+        llm_model_full: llm_model,
+    }
+}
+
+fn localized_history_asr_model(
+    translations: &Translations,
+    provider_id: Option<&str>,
+    model: Option<&str>,
+) -> Option<LocalizedHistoryAsrModel> {
+    match history_asr_model(provider_id, model)? {
+        HistoryAsrModel::Named(name) => Some(same_history_asr_model(name)),
+        HistoryAsrModel::MacOsDictation => Some(same_history_asr_model(
+            translations.get_history_model_macos_dictation(),
+        )),
+        HistoryAsrModel::Whisper => Some(LocalizedHistoryAsrModel {
+            short: translations.get_history_model_whisper_turbo(),
+            full: SharedString::from(WHISPER_FULL_LABEL),
+        }),
+        HistoryAsrModel::VolcengineV1 => Some(LocalizedHistoryAsrModel {
+            short: translations.get_history_model_volcengine_v1_short(),
+            full: translations.get_history_model_volcengine_v1(),
+        }),
+        HistoryAsrModel::VolcengineV2 => Some(LocalizedHistoryAsrModel {
+            short: translations.get_history_model_volcengine_v2_short(),
+            full: translations.get_history_model_volcengine_v2(),
+        }),
+    }
+}
+
+fn same_history_asr_model(value: impl Into<SharedString>) -> LocalizedHistoryAsrModel {
+    let value = value.into();
+    LocalizedHistoryAsrModel {
+        short: value.clone(),
+        full: value,
+    }
+}
+
+fn history_asr_model<'a>(
+    provider_id: Option<&str>,
+    model: Option<&'a str>,
+) -> Option<HistoryAsrModel<'a>> {
+    match model {
+        Some(MACOS_DICTATION_MODEL_ID) => Some(HistoryAsrModel::MacOsDictation),
+        Some(PARAFORMER_MODEL_ID) => Some(HistoryAsrModel::Named(PARAFORMER_LABEL)),
+        Some(QWEN3_ASR_MODEL_ID) => Some(HistoryAsrModel::Named(QWEN3_ASR_LABEL)),
+        Some(SENSE_VOICE_MODEL_ID) => Some(HistoryAsrModel::Named(SENSE_VOICE_LABEL)),
+        Some(WHISPER_MODEL_ID) => Some(HistoryAsrModel::Whisper),
+        Some(VOLCENGINE_ASR_1_MODEL) => Some(HistoryAsrModel::VolcengineV1),
+        Some(VOLCENGINE_ASR_2_MODEL | VOLCENGINE_LEGACY_MODEL) => {
+            Some(HistoryAsrModel::VolcengineV2)
+        }
+        Some(model) => Some(HistoryAsrModel::Named(model)),
+        None => match provider_id {
+            Some(MACOS_SPEECH_PROVIDER_ID) => Some(HistoryAsrModel::MacOsDictation),
+            Some(PARAFORMER_PROVIDER_ID) => Some(HistoryAsrModel::Named(PARAFORMER_LABEL)),
+            Some(QWEN3_ASR_PROVIDER_ID) => Some(HistoryAsrModel::Named(QWEN3_ASR_LABEL)),
+            Some(SENSE_VOICE_PROVIDER_ID) => Some(HistoryAsrModel::Named(SENSE_VOICE_LABEL)),
+            Some(WHISPER_PROVIDER_ID) => Some(HistoryAsrModel::Whisper),
+            _ => None,
+        },
     }
 }
 
@@ -328,6 +434,77 @@ mod tests {
         assert_eq!(
             "I want three things: 1. Large. 2. Small. 3. Long.",
             history_preview("I want three things:\n\n1. Large.\n2. Small.\r\n3. Long.")
+        );
+    }
+
+    #[test]
+    fn history_asr_model_uses_known_provider_names_when_no_model_exists() {
+        assert_eq!(
+            Some(HistoryAsrModel::MacOsDictation),
+            history_asr_model(Some(MACOS_SPEECH_PROVIDER_ID), None)
+        );
+        assert_eq!(
+            Some(HistoryAsrModel::Named(PARAFORMER_LABEL)),
+            history_asr_model(Some(PARAFORMER_PROVIDER_ID), None)
+        );
+        assert_eq!(
+            Some(HistoryAsrModel::Whisper),
+            history_asr_model(Some(WHISPER_PROVIDER_ID), None)
+        );
+        assert_eq!(
+            Some(HistoryAsrModel::Named(QWEN3_ASR_LABEL)),
+            history_asr_model(Some(QWEN3_ASR_PROVIDER_ID), None)
+        );
+        assert_eq!(
+            Some(HistoryAsrModel::Named(SENSE_VOICE_LABEL)),
+            history_asr_model(Some(SENSE_VOICE_PROVIDER_ID), None)
+        );
+        assert_eq!(None, history_asr_model(None, None));
+    }
+
+    #[test]
+    fn history_asr_model_converts_built_in_model_ids_to_product_names() {
+        assert_eq!(
+            Some(HistoryAsrModel::MacOsDictation),
+            history_asr_model(None, Some(MACOS_DICTATION_MODEL_ID))
+        );
+        assert_eq!(
+            Some(HistoryAsrModel::Named(PARAFORMER_LABEL)),
+            history_asr_model(None, Some(PARAFORMER_MODEL_ID))
+        );
+        assert_eq!(
+            Some(HistoryAsrModel::Whisper),
+            history_asr_model(None, Some(WHISPER_MODEL_ID))
+        );
+        assert_eq!(
+            Some(HistoryAsrModel::Named(QWEN3_ASR_LABEL)),
+            history_asr_model(None, Some(QWEN3_ASR_MODEL_ID))
+        );
+        assert_eq!(
+            Some(HistoryAsrModel::Named(SENSE_VOICE_LABEL)),
+            history_asr_model(None, Some(SENSE_VOICE_MODEL_ID))
+        );
+    }
+
+    #[test]
+    fn history_asr_model_converts_volcengine_resource_ids_to_product_names() {
+        assert_eq!(
+            Some(HistoryAsrModel::VolcengineV1),
+            history_asr_model(Some("volcengine"), Some(VOLCENGINE_ASR_1_MODEL))
+        );
+        for model in [VOLCENGINE_ASR_2_MODEL, VOLCENGINE_LEGACY_MODEL] {
+            assert_eq!(
+                Some(HistoryAsrModel::VolcengineV2),
+                history_asr_model(Some("volcengine"), Some(model))
+            );
+        }
+    }
+
+    #[test]
+    fn history_asr_model_preserves_custom_model_names() {
+        assert_eq!(
+            Some(HistoryAsrModel::Named("custom-asr-model")),
+            history_asr_model(Some("custom-asr"), Some("custom-asr-model"))
         );
     }
 }

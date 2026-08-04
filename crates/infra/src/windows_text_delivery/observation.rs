@@ -1,19 +1,26 @@
 use std::time::{Duration, Instant};
 
-use template_app::{ObservedTextEdit, TextEditObserver};
+use template_app::{
+    TextRevisionEndReason, TextRevisionEvent, TextRevisionObserver, has_text_revision_continuity,
+};
 
 use super::{FocusedTarget, observable_control_text};
 
 pub(super) const POLL_INTERVAL: Duration = Duration::from_millis(200);
-const STABLE_DELAY: Duration = Duration::from_millis(1_200);
-const OBSERVATION_TIMEOUT: Duration = Duration::from_secs(30);
+const OBSERVATION_TIMEOUT: Duration = Duration::from_secs(2 * 60);
 const ANCHOR_CHARACTERS: usize = 24;
+
+enum ObservedControlText {
+    Content(String),
+    Reset,
+}
 
 pub(super) struct CorrectionObservationTarget {
     focused: windows::Win32::UI::Accessibility::IUIAutomationElement,
     original: String,
     prefix: String,
     suffix: String,
+    reset_text: String,
 }
 
 impl CorrectionObservationTarget {
@@ -29,12 +36,24 @@ impl CorrectionObservationTarget {
             original: original.to_owned(),
             prefix,
             suffix,
+            reset_text: before.to_owned(),
         })
     }
 
-    fn current_text(&self) -> Option<String> {
+    fn current_text(&self) -> Option<ObservedControlText> {
         let current = observable_control_text(&self.focused)?;
-        text_between_anchors(&current, &self.prefix, &self.suffix)
+        if current.trim().is_empty() || current == self.reset_text {
+            return Some(ObservedControlText::Reset);
+        }
+        let edited = text_between_anchors(&current, &self.prefix, &self.suffix)?;
+        let anchored = !self.prefix.is_empty() || !self.suffix.is_empty();
+        if edited.trim().is_empty()
+            || (!anchored && !has_text_revision_continuity(&self.original, &edited))
+        {
+            Some(ObservedControlText::Reset)
+        } else {
+            Some(ObservedControlText::Content(edited))
+        }
     }
 
     fn has_focus(&self) -> Option<bool> {
@@ -46,60 +65,63 @@ impl CorrectionObservationTarget {
 
 pub(super) struct ActiveCorrectionObservation {
     target: CorrectionObservationTarget,
-    observer: Option<TextEditObserver>,
+    observer: TextRevisionObserver,
     deadline: Instant,
-    last_edit: Option<(String, Instant)>,
+    last_reported: String,
+    ended: bool,
 }
 
 impl ActiveCorrectionObservation {
-    pub(super) fn new(target: CorrectionObservationTarget, observer: TextEditObserver) -> Self {
+    pub(super) fn new(target: CorrectionObservationTarget, observer: TextRevisionObserver) -> Self {
         Self {
+            last_reported: target.original.clone(),
             target,
-            observer: Some(observer),
+            observer,
             deadline: Instant::now() + OBSERVATION_TIMEOUT,
-            last_edit: None,
+            ended: false,
         }
     }
 
     /// Returns true once this observation no longer needs polling.
     pub(super) fn poll(&mut self) -> bool {
+        if self.ended {
+            return true;
+        }
         let focused = self.target.has_focus();
-        let edited = self
-            .target
-            .current_text()
-            .filter(|edited| edited != &self.target.original);
-
-        if let Some(edited) = edited {
-            if focused == Some(false) {
-                self.report(edited);
+        let edited = match self.target.current_text() {
+            Some(ObservedControlText::Content(edited)) => Some(edited),
+            Some(ObservedControlText::Reset) => {
+                self.finish(TextRevisionEndReason::ControlReset);
                 return true;
             }
-            match &mut self.last_edit {
-                Some((previous, changed_at)) if previous == &edited => {
-                    if changed_at.elapsed() >= STABLE_DELAY {
-                        self.report(edited);
-                        return true;
-                    }
-                }
-                Some((previous, changed_at)) => {
-                    *previous = edited;
-                    *changed_at = Instant::now();
-                }
-                None => self.last_edit = Some((edited, Instant::now())),
-            }
-        } else {
-            self.last_edit = None;
-        }
+            None => None,
+        };
 
-        focused == Some(false) || Instant::now() >= self.deadline
+        if let Some(edited) = edited {
+            self.report_if_changed(&edited);
+        }
+        if focused == Some(false) {
+            self.finish(TextRevisionEndReason::FocusLost);
+            return true;
+        }
+        if Instant::now() >= self.deadline {
+            self.finish(TextRevisionEndReason::TimedOut);
+            return true;
+        }
+        false
     }
 
-    fn report(&mut self, edited: String) {
-        if let Some(observer) = self.observer.take() {
-            observer(ObservedTextEdit {
-                original: self.target.original.clone(),
-                edited,
-            });
+    fn report_if_changed(&mut self, edited: &str) {
+        if edited != self.last_reported {
+            (self.observer)(TextRevisionEvent::Snapshot(edited.to_owned()));
+            edited.clone_into(&mut self.last_reported);
+        }
+    }
+
+    pub(super) fn finish(&mut self, reason: TextRevisionEndReason) {
+        if !self.ended {
+            self.ended = true;
+            (self.observer)(TextRevisionEvent::Ended(reason));
         }
     }
 }
@@ -148,10 +170,10 @@ fn text_between_anchors(text: &str, prefix: &str, suffix: &str) -> Option<String
     };
     let after_prefix = text.get(start..)?;
     if suffix.is_empty() {
-        return Some(after_prefix.to_owned());
+        return Some(after_prefix.trim().to_owned());
     }
     let suffix_start = after_prefix.rfind(suffix)?;
-    Some(after_prefix.get(..suffix_start)?.to_owned())
+    Some(after_prefix.get(..suffix_start)?.trim().to_owned())
 }
 
 #[cfg(test)]

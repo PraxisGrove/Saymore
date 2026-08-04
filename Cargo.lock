@@ -795,6 +795,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "bzip2"
+version = "0.6.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f3a53fac24f34a81bc9954b5d6cfce0c21e18ec6959f44f56e8e90e4bb7c346c"
+dependencies = [
+ "libbz2-rs-sys",
+]
+
+[[package]]
 name = "bzip2-sys"
 version = "0.1.13+1.0.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3185,6 +3194,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7a79a3332a6609480d7d0c9eab957bca6b455b91bb84e66d19f5ff66294b85b8"
 
 [[package]]
+name = "libbz2-rs-sys"
+version = "0.2.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "34b357333733e8260735ba5894eb928c02ecc69c78715f01a8019e7fa7f2db4c"
+
+[[package]]
 name = "libc"
 version = "0.2.186"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5195,6 +5210,7 @@ version = "0.1.2"
 dependencies = [
  "chrono",
  "httpmock",
+ "mach2",
  "num-format",
  "raw-window-handle",
  "reqwest",
@@ -5395,6 +5411,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "sha2"
+version = "0.10.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a7507d819769d01a365ab707794a4084392c824f54a7a6a7862f8c3d0892b283"
+dependencies = [
+ "cfg-if",
+ "cpufeatures 0.2.17",
+ "digest 0.10.7",
+]
+
+[[package]]
 name = "sharded-slab"
 version = "0.1.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5420,7 +5447,7 @@ version = "1.13.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ffc951af03dc0653c0622158ca8a585a6f2bc43b7b06048cf0e5b5020005c227"
 dependencies = [
- "bzip2",
+ "bzip2 0.4.4",
  "tar",
  "ureq",
 ]
@@ -5937,7 +5964,9 @@ version = "0.1.2"
 dependencies = [
  "async-trait",
  "chrono",
+ "serde",
  "serde_json",
+ "similar",
  "thiserror 2.0.18",
  "tokio",
  "tokio-util",
@@ -5953,6 +5982,8 @@ dependencies = [
  "aes-gcm",
  "async-trait",
  "block2 0.6.2",
+ "bzip2 0.6.1",
+ "chrono",
  "core-foundation 0.10.1",
  "core-foundation-sys",
  "core-graphics 0.25.0",
@@ -5976,7 +6007,9 @@ dependencies = [
  "rustls",
  "serde",
  "serde_json",
+ "sha2",
  "sherpa-onnx",
+ "tar",
  "tempfile",
  "template-app",
  "thiserror 2.0.18",

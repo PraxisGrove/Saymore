@@ -12,6 +12,62 @@ use template_app::{ActiveProviders, ChatCompletionsLlmSettings, LlmProviderPrese
 static TEST_ID: AtomicUsize = AtomicUsize::new(0);
 
 #[test]
+fn provider_configuration_store_saves_asr_without_changing_the_active_provider() {
+    let directory = test_directory();
+    let store = JsonSettingsStore::at_path(directory.join("config.json"));
+    let mut catalog = ProviderCatalog::default();
+    catalog.select_macos_speech_provider();
+    assert!(store.save_catalog(&catalog).is_ok());
+    let candidate = AsrProviderConfiguration::Volcengine(VolcengineAsrSettings {
+        enabled: true,
+        api_key: "candidate-key".to_owned(),
+        model: "candidate-model".to_owned(),
+    });
+
+    assert!(store.save_asr_configuration(&candidate).is_ok());
+    let Ok(saved) = store.load_catalog() else {
+        panic!("saved Provider catalog should remain readable");
+    };
+    assert!(saved.macos_speech_is_active());
+    assert_eq!(
+        Some("candidate-key"),
+        saved
+            .asr_providers
+            .iter()
+            .find(|provider| provider.provider_type == "volcengine")
+            .and_then(|provider| provider.config.get("api_key"))
+            .and_then(serde_json::Value::as_str)
+    );
+    let _ = fs::remove_dir_all(directory);
+}
+
+#[test]
+fn provider_configuration_store_atomically_saves_selects_and_enables_llm() {
+    let directory = test_directory();
+    let store = JsonSettingsStore::at_path(directory.join("config.json"));
+    let candidate = LlmProviderConfiguration::new(
+        LlmProviderPreset::DeepSeek,
+        ChatCompletionsLlmSettings {
+            model: "deepseek-chat".to_owned(),
+            ..LlmProviderPreset::DeepSeek.settings("candidate-key")
+        },
+    );
+
+    assert!(store.save_and_enable_llm_configuration(&candidate).is_ok());
+    let Ok(settings) = store.load() else {
+        panic!("saved LLM configuration should remain readable");
+    };
+    assert!(settings.llm.enabled);
+    assert_eq!(
+        LlmProviderPreset::DeepSeek.base_url(),
+        settings.llm.confirmed_base_url
+    );
+    assert_eq!("candidate-key", settings.llm.chat_completions.api_key);
+    assert_eq!("deepseek-chat", settings.llm.chat_completions.model);
+    let _ = fs::remove_dir_all(directory);
+}
+
+#[test]
 fn saves_and_loads_volcengine_settings_with_private_permissions() {
     let directory = test_directory();
     let path = directory.join("config.json");
@@ -33,6 +89,7 @@ fn saves_and_loads_volcengine_settings_with_private_permissions() {
                 api_key: "llm-test-key".to_owned(),
                 model: "test-llm".to_owned(),
                 custom_headers: BTreeMap::from([("X-Tenant".to_owned(), "tenant-a".to_owned())]),
+                profile: Default::default(),
             },
         },
     };
@@ -70,6 +127,200 @@ fn a_second_save_atomically_replaces_the_complete_document() {
     assert!(document.contains("second-key"));
     assert!(!document.contains("first-key"));
     assert_eq!(Ok(catalog), store.load_catalog());
+    let _ = fs::remove_dir_all(directory);
+}
+
+#[test]
+fn model_catalog_round_trips_with_selection_timestamp_and_scope() {
+    let directory = test_directory();
+    let store = JsonSettingsStore::at_path(directory.join("config.json"));
+    let mut catalog = ProviderCatalog::default();
+    catalog.select_llm_provider(LlmProviderPreset::DeepSeek);
+    assert_eq!(Ok(()), store.save_catalog(&catalog));
+
+    assert_eq!(
+        Ok(true),
+        store.cache_llm_model_catalog(
+            LlmProviderPreset::DeepSeek,
+            LlmProviderPreset::DeepSeek.model_list_url(),
+            ChatCompletionsProfile::DeepSeek,
+            vec!["deepseek-chat".to_owned(), "deepseek-reasoner".to_owned()],
+            "deepseek-reasoner",
+            1_234,
+        )
+    );
+
+    let cached = store.load_catalog().ok().and_then(|catalog| {
+        catalog.llm_model_catalog(
+            LlmProviderPreset::DeepSeek,
+            LlmProviderPreset::DeepSeek.model_list_url(),
+            ChatCompletionsProfile::DeepSeek,
+        )
+    });
+    assert_eq!(
+        Some(vec![
+            "deepseek-chat".to_owned(),
+            "deepseek-reasoner".to_owned()
+        ]),
+        cached.as_ref().map(|catalog| catalog.models.clone())
+    );
+    assert_eq!(
+        Some("deepseek-reasoner"),
+        cached
+            .as_ref()
+            .map(|catalog| catalog.selected_model.as_str())
+    );
+    assert_eq!(Some(1_234), cached.map(|catalog| catalog.refreshed_at_ms));
+    let _ = fs::remove_dir_all(directory);
+}
+
+#[test]
+fn failed_model_catalog_refresh_preserves_the_persisted_catalog() {
+    let directory = test_directory();
+    let store = JsonSettingsStore::at_path(directory.join("config.json"));
+    let mut catalog = ProviderCatalog::default();
+    catalog.select_llm_provider(LlmProviderPreset::DeepSeek);
+    assert_eq!(Ok(()), store.save_catalog(&catalog));
+    assert_eq!(
+        Ok(true),
+        store.cache_llm_model_catalog(
+            LlmProviderPreset::DeepSeek,
+            LlmProviderPreset::DeepSeek.model_list_url(),
+            ChatCompletionsProfile::DeepSeek,
+            vec!["deepseek-chat".to_owned(), "deepseek-reasoner".to_owned()],
+            "deepseek-reasoner",
+            1_234,
+        )
+    );
+
+    assert_eq!(
+        Ok(false),
+        store.cache_llm_model_catalog(
+            LlmProviderPreset::DeepSeek,
+            LlmProviderPreset::DeepSeek.model_list_url(),
+            ChatCompletionsProfile::DeepSeek,
+            Vec::new(),
+            "",
+            9_999,
+        )
+    );
+
+    let cached = store.load_catalog().ok().and_then(|catalog| {
+        catalog.llm_model_catalog(
+            LlmProviderPreset::DeepSeek,
+            LlmProviderPreset::DeepSeek.model_list_url(),
+            ChatCompletionsProfile::DeepSeek,
+        )
+    });
+    assert_eq!(
+        Some(vec![
+            "deepseek-chat".to_owned(),
+            "deepseek-reasoner".to_owned()
+        ]),
+        cached.as_ref().map(|catalog| catalog.models.clone())
+    );
+    assert_eq!(
+        Some("deepseek-reasoner"),
+        cached
+            .as_ref()
+            .map(|catalog| catalog.selected_model.as_str())
+    );
+    assert_eq!(Some(1_234), cached.map(|catalog| catalog.refreshed_at_ms));
+    let _ = fs::remove_dir_all(directory);
+}
+
+#[test]
+fn cached_model_selection_updates_provider_without_losing_enablement() {
+    let directory = test_directory();
+    let store = JsonSettingsStore::at_path(directory.join("config.json"));
+    let mut catalog = ProviderCatalog::default();
+    catalog.save_llm_provider_model_config(LlmProviderPreset::Kimi, "kimi-key", "kimi-k2.5");
+    catalog.select_llm_provider(LlmProviderPreset::Kimi);
+    assert!(catalog.cache_llm_model_catalog(
+        LlmProviderPreset::Kimi,
+        LlmProviderPreset::Kimi.model_list_url(),
+        ChatCompletionsProfile::Kimi,
+        vec!["kimi-k2.5".to_owned(), "kimi-k2.6".to_owned()],
+        "kimi-k2.5",
+        1_234,
+    ));
+    assert_eq!(Ok(()), store.save_catalog(&catalog));
+    assert_eq!(
+        Ok(true),
+        store.enable_llm_provider_if_unchanged(
+            LlmProviderPreset::Kimi.id(),
+            LlmProviderPreset::Kimi.base_url(),
+            "kimi-key",
+        )
+    );
+
+    assert_eq!(
+        Ok(true),
+        store.select_cached_llm_model(
+            LlmProviderPreset::Kimi,
+            LlmProviderPreset::Kimi.model_list_url(),
+            ChatCompletionsProfile::Kimi,
+            "kimi-k2.6",
+        )
+    );
+    let Ok(settings) = store.load() else {
+        panic!("updated Kimi settings should remain readable");
+    };
+    assert!(settings.llm.enabled);
+    assert_eq!("kimi-k2.6", settings.llm.chat_completions.model);
+    let cached = store.load_catalog().ok().and_then(|catalog| {
+        catalog.llm_model_catalog(
+            LlmProviderPreset::Kimi,
+            LlmProviderPreset::Kimi.model_list_url(),
+            ChatCompletionsProfile::Kimi,
+        )
+    });
+    assert_eq!(
+        Some("kimi-k2.6"),
+        cached
+            .as_ref()
+            .map(|catalog| catalog.selected_model.as_str())
+    );
+    let _ = fs::remove_dir_all(directory);
+}
+
+#[test]
+fn saving_llm_enablement_preserves_the_cached_model_catalog() {
+    let directory = test_directory();
+    let store = JsonSettingsStore::at_path(directory.join("config.json"));
+    let mut catalog = ProviderCatalog::default();
+    catalog.save_llm_provider_config(LlmProviderPreset::DeepSeek, "saved-key");
+    catalog.select_llm_provider(LlmProviderPreset::DeepSeek);
+    assert!(catalog.cache_llm_model_catalog(
+        LlmProviderPreset::DeepSeek,
+        LlmProviderPreset::DeepSeek.model_list_url(),
+        ChatCompletionsProfile::DeepSeek,
+        vec!["deepseek-chat".to_owned(), "deepseek-reasoner".to_owned()],
+        "deepseek-reasoner",
+        5_678,
+    ));
+    assert_eq!(Ok(()), store.save_catalog(&catalog));
+
+    let Ok(mut settings) = store.load() else {
+        panic!("LLM settings should remain readable");
+    };
+    settings.llm.enabled = false;
+    assert_eq!(Ok(()), store.save(&settings));
+
+    let cached = store.load_catalog().ok().and_then(|catalog| {
+        catalog.llm_model_catalog(
+            LlmProviderPreset::DeepSeek,
+            LlmProviderPreset::DeepSeek.model_list_url(),
+            ChatCompletionsProfile::DeepSeek,
+        )
+    });
+    assert_eq!(
+        Some("deepseek-reasoner"),
+        cached
+            .as_ref()
+            .map(|catalog| catalog.selected_model.as_str())
+    );
+    assert_eq!(Some(5_678), cached.map(|catalog| catalog.refreshed_at_ms));
     let _ = fs::remove_dir_all(directory);
 }
 
@@ -264,6 +515,113 @@ fn enables_only_the_provider_that_remains_selected_and_unchanged() {
 }
 
 #[test]
+fn disabling_llm_keeps_the_current_provider_available_for_reenable() {
+    let directory = test_directory();
+    let store = JsonSettingsStore::at_path(directory.join("config.json"));
+    let mut catalog = ProviderCatalog::default();
+    catalog.configure_volcengine_asr_provider(&VolcengineAsrSettings {
+        enabled: true,
+        api_key: "volcengine-key".to_owned(),
+        model: "volc.seedasr.sauc.duration".to_owned(),
+    });
+    assert!(catalog.select_volcengine_asr_provider());
+    let expected_asr = catalog.active.asr.clone();
+    catalog.save_llm_provider_config(LlmProviderPreset::DeepSeek, "deepseek-key");
+    catalog.select_llm_provider(LlmProviderPreset::DeepSeek);
+    assert_eq!(Ok(()), store.save_catalog(&catalog));
+    assert_eq!(
+        Ok(true),
+        store.enable_llm_provider_if_unchanged(
+            LlmProviderPreset::DeepSeek.id(),
+            LlmProviderPreset::DeepSeek.base_url(),
+            "deepseek-key"
+        )
+    );
+
+    let Ok(mut settings) = store.load() else {
+        panic!("enabled DeepSeek settings should be readable");
+    };
+    settings.llm.enabled = false;
+    assert_eq!(Ok(()), store.save(&settings));
+
+    let Ok(catalog) = store.load_catalog() else {
+        panic!("disabled provider catalog should be readable");
+    };
+    assert_eq!(
+        Some(LlmProviderPreset::DeepSeek),
+        catalog.active_llm_provider()
+    );
+    assert_eq!(expected_asr, catalog.active.asr);
+    let Ok(settings) = store.load() else {
+        panic!("disabled DeepSeek settings should remain readable");
+    };
+    assert!(settings.asr.volcengine.enabled);
+    assert_eq!("volcengine-key", settings.asr.volcengine.api_key);
+    assert_eq!("volc.seedasr.sauc.duration", settings.asr.volcengine.model);
+    assert!(!settings.llm.enabled);
+    assert_eq!(
+        LlmProviderPreset::DeepSeek.base_url(),
+        settings.llm.chat_completions.base_url
+    );
+    assert_eq!(
+        LlmProviderPreset::DeepSeek.base_url(),
+        settings.llm.confirmed_base_url
+    );
+
+    assert_eq!(
+        Ok(true),
+        store.enable_llm_provider_if_unchanged(
+            LlmProviderPreset::DeepSeek.id(),
+            LlmProviderPreset::DeepSeek.base_url(),
+            "deepseek-key"
+        )
+    );
+    assert!(store.load().is_ok_and(|settings| settings.llm.enabled));
+    let _ = fs::remove_dir_all(directory);
+}
+
+#[test]
+fn disabling_llm_preserves_the_selected_local_asr_provider() {
+    let directory = test_directory();
+    let store = JsonSettingsStore::at_path(directory.join("config.json"));
+    let mut catalog = ProviderCatalog::default();
+    catalog.configure_volcengine_asr_provider(&VolcengineAsrSettings {
+        enabled: false,
+        api_key: "volcengine-key".to_owned(),
+        model: "volc.seedasr.sauc.duration".to_owned(),
+    });
+    catalog.select_paraformer_provider();
+    catalog.save_llm_provider_config(LlmProviderPreset::DeepSeek, "deepseek-key");
+    catalog.select_llm_provider(LlmProviderPreset::DeepSeek);
+    assert_eq!(Ok(()), store.save_catalog(&catalog));
+    assert_eq!(
+        Ok(true),
+        store.enable_llm_provider_if_unchanged(
+            LlmProviderPreset::DeepSeek.id(),
+            LlmProviderPreset::DeepSeek.base_url(),
+            "deepseek-key"
+        )
+    );
+
+    let Ok(mut settings) = store.load() else {
+        panic!("enabled settings should be readable");
+    };
+    settings.llm.enabled = false;
+    assert_eq!(Ok(()), store.save(&settings));
+
+    let Ok(catalog) = store.load_catalog() else {
+        panic!("disabled provider catalog should be readable");
+    };
+    assert!(catalog.paraformer_is_active());
+    assert!(
+        store
+            .load()
+            .is_ok_and(|settings| { !settings.llm.enabled && !settings.asr.volcengine.enabled })
+    );
+    let _ = fs::remove_dir_all(directory);
+}
+
+#[test]
 fn custom_llm_provider_round_trips_and_can_enable_without_a_local_api_key() {
     let directory = test_directory();
     let store = JsonSettingsStore::at_path(directory.join("config.json"));
@@ -368,6 +726,71 @@ fn persists_macos_speech_selection_without_removing_cloud_configuration() {
     };
     assert!(!cloud_catalog.macos_speech_is_active());
     assert_eq!(2, cloud_catalog.asr_providers.len());
+    let _ = fs::remove_dir_all(directory);
+}
+
+#[test]
+fn persists_paraformer_selection_without_removing_cloud_configuration() {
+    let directory = test_directory();
+    let store = JsonSettingsStore::at_path(directory.join("config.json"));
+    let mut catalog = ProviderCatalog::default();
+    catalog.configure_volcengine_asr_provider(&VolcengineAsrSettings {
+        enabled: false,
+        api_key: "saved-key".to_owned(),
+        model: "saved-model".to_owned(),
+    });
+    catalog.select_paraformer_provider();
+
+    assert_eq!(Ok(()), store.save_catalog(&catalog));
+    let Ok(reloaded) = store.load_catalog() else {
+        panic!("Paraformer provider catalog should be readable");
+    };
+
+    assert!(reloaded.paraformer_is_active());
+    assert_eq!(2, reloaded.asr_providers.len());
+    assert_eq!(
+        Some("saved-key"),
+        reloaded.asr_providers[0]
+            .config
+            .get("api_key")
+            .and_then(serde_json::Value::as_str)
+    );
+    let _ = fs::remove_dir_all(directory);
+}
+
+#[test]
+fn changing_only_llm_settings_preserves_macos_speech_selection() {
+    let directory = test_directory();
+    let store = JsonSettingsStore::at_path(directory.join("config.json"));
+    let mut catalog = ProviderCatalog::default();
+    catalog.configure_volcengine_asr_provider(&VolcengineAsrSettings {
+        enabled: false,
+        api_key: "saved-key".to_owned(),
+        model: "volc.seedasr.sauc.duration".to_owned(),
+    });
+    catalog.select_macos_speech_provider();
+    catalog.save_llm_provider_config(LlmProviderPreset::DeepSeek, "deepseek-key");
+    catalog.select_llm_provider(LlmProviderPreset::DeepSeek);
+    assert_eq!(Ok(()), store.save_catalog(&catalog));
+    assert_eq!(
+        Ok(true),
+        store.enable_llm_provider_if_unchanged(
+            LlmProviderPreset::DeepSeek.id(),
+            LlmProviderPreset::DeepSeek.base_url(),
+            "deepseek-key"
+        )
+    );
+
+    let Ok(mut settings) = store.load() else {
+        panic!("settings should be readable before disabling the LLM");
+    };
+    settings.llm.enabled = false;
+    assert_eq!(Ok(()), store.save(&settings));
+
+    let Ok(catalog) = store.load_catalog() else {
+        panic!("provider catalog should be readable after disabling the LLM");
+    };
+    assert!(catalog.macos_speech_is_active());
     let _ = fs::remove_dir_all(directory);
 }
 

@@ -118,6 +118,14 @@ impl OwnedAxElement {
         }
     }
 
+    pub(super) fn has_attribute_value(&self, name: &str) -> Result<bool, TextDeliveryError> {
+        let Some(value) = self.copy_attribute(name)? else {
+            return Ok(false);
+        };
+        unsafe { CFRelease(value) };
+        Ok(true)
+    }
+
     fn copy_attribute(&self, name: &str) -> Result<Option<CFTypeRef>, TextDeliveryError> {
         let attribute = CFString::new(name);
         let mut value: CFTypeRef = ptr::null();
@@ -167,7 +175,14 @@ impl OwnedAxElement {
     }
 
     pub(super) fn selected_text_range(&self) -> Result<Option<TextRange>, TextDeliveryError> {
-        let attribute = CFString::new(kAXSelectedTextRangeAttribute);
+        self.attribute_text_range(kAXSelectedTextRangeAttribute)
+    }
+
+    pub(super) fn attribute_text_range(
+        &self,
+        name: &str,
+    ) -> Result<Option<TextRange>, TextDeliveryError> {
+        let attribute = CFString::new(name);
         let mut value: CFTypeRef = ptr::null();
         let error = unsafe {
             AXUIElementCopyAttributeValue(self.0, attribute.as_concrete_TypeRef(), &mut value)
@@ -177,7 +192,7 @@ impl OwnedAxElement {
             return Ok(None);
         }
         if error != kAXErrorSuccess {
-            return Err(system_error("read selected text range", error));
+            return Err(system_error("read text range attribute", error));
         }
 
         let range = read_cf_range(value);

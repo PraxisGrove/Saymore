@@ -7,13 +7,17 @@ export enum HistoryRetentionOption { never, one-day, seven-days, thirty-days, fo
 export struct HistoryListItem {
     id: string,
     text: string,
+    raw-text: string,
+    llm-text: string,
     preview-text: string,
     time: string,
     duration: string,
     input-status: string,
     polish-status: string,
     asr-model: string,
+    asr-model-full: string,
     llm-model: string,
+    llm-model-full: string,
 }
 
 export struct HistoryGroup {
@@ -104,24 +108,144 @@ component StateIcon inherits Rectangle {
     Image { x: (parent.width - self.width) / 2; y: (parent.height - self.height) / 2; width: root.size; height: root.size; source: root.source; }
 }
 
+component HistoryTextSection inherits Rectangle {
+    in property <string> label;
+    in property <string> content;
+    in property <bool> polished: false;
+    in property <bool> emphasized: false;
+    height: section-surface.y + section-surface.height;
+    background: transparent;
+
+    Text {
+        x: 0px;
+        y: 0px;
+        width: parent.width;
+        height: 18px;
+        text: root.label;
+        color: root.emphasized ? AppColors.text : AppColors.text-muted;
+        font-size: 11px;
+        font-weight: 650;
+        vertical-alignment: center;
+    }
+    section-surface := Rectangle {
+        y: 24px;
+        width: parent.width;
+        height: max(76px, section-copy.preferred-height + 28px);
+        border-radius: 7px;
+        border-width: 1px;
+        border-color: root.emphasized ? AppColors.brand
+            : root.polished ? AppColors.info-soft
+            : AppColors.border;
+        background: root.emphasized || root.polished ? AppColors.brand-soft : AppColors.surface-warm;
+        section-copy := Text {
+            x: 16px;
+            y: 14px;
+            width: parent.width - 32px;
+            height: self.preferred-height;
+            text: root.content;
+            color: AppColors.text;
+            font-size: 12px;
+            wrap: word-wrap;
+        }
+    }
+}
+
+component HistoryInfoItem inherits Rectangle {
+    in property <image> icon;
+    in property <string> label;
+    in property <string> full-label: root.label;
+    in property <bool> emphasized: false;
+    in property <length> item-maximum-width: 1000px;
+    in property <bool> tooltip-align-right: false;
+    property <bool> label-truncated: info-label.preferred-width > info-label.width;
+    width: min(info-label.preferred-width + 20px, root.item-maximum-width);
+    height: 32px;
+    background: transparent;
+    accessible-role: text;
+    accessible-label: root.full-label;
+
+    Image {
+        x: 0px;
+        y: (parent.height - self.height) / 2;
+        width: 14px;
+        height: 14px;
+        source: root.icon;
+        colorize: AppColors.text-muted;
+    }
+    info-label := Text {
+        x: 20px;
+        height: parent.height;
+        width: parent.width - self.x;
+        text: root.label;
+        color: AppColors.text;
+        font-size: 10px;
+        font-weight: root.emphasized ? 650 : 500;
+        vertical-alignment: center;
+        overflow: elide;
+    }
+    if item-touch.has-hover && (root.label-truncated || root.label != root.full-label): tooltip := Rectangle {
+        x: root.tooltip-align-right ? parent.width - self.width : (parent.width - self.width) / 2;
+        y: -self.height - 6px;
+        width: min(260px, tooltip-copy.preferred-width + 16px);
+        height: tooltip-copy.preferred-height + 12px;
+        border-radius: 6px;
+        background: AppColors.inverse-surface;
+        drop-shadow-blur: 8px;
+        drop-shadow-offset-y: 2px;
+        drop-shadow-color: AppColors.shadow;
+        z: 20;
+        tooltip-copy := Text {
+            x: 8px;
+            y: 6px;
+            width: parent.width - 16px;
+            height: self.preferred-height;
+            text: root.full-label;
+            color: AppColors.inverse-text;
+            font-size: 10px;
+            wrap: word-wrap;
+        }
+    }
+    item-touch := TouchArea { }
+}
+
+component HistoryRecordInfo inherits Rectangle {
+    in property <string> duration;
+    in property <string> input-status;
+    in property <string> asr-model;
+    in property <string> asr-model-full;
+    in property <string> llm-model;
+    in property <string> llm-model-full;
+    in property <bool> show-llm-model: false;
+    height: 32px;
+    border-radius: 16px;
+    background: AppColors.surface-warm;
+
+    HorizontalLayout {
+        padding-left: 14px;
+        padding-right: 14px;
+        alignment: space-between;
+        cross-axis-alignment: center;
+        HistoryInfoItem { icon: @image-url("../../icons/lucide/clock-3.svg"); label: root.duration; }
+        HistoryInfoItem { icon: @image-url("../../icons/lucide/keyboard.svg"); label: root.input-status; }
+        HistoryInfoItem { icon: @image-url("../../icons/lucide/mic.svg"); label: root.asr-model; full-label: root.asr-model-full; emphasized: true; item-maximum-width: 150px; }
+        if root.show-llm-model: HistoryInfoItem { icon: @image-url("../../icons/lucide/sparkles.svg"); label: root.llm-model; full-label: root.llm-model-full; emphasized: true; item-maximum-width: 170px; tooltip-align-right: true; }
+    }
+}
+
 export component HistoryDialog inherits Rectangle {
     in-out property <bool> detail-visible: false;
     in-out property <bool> clear-confirmation-visible: false;
     in-out property <bool> reset-confirmation-visible: false;
-    in property <string> selected-id: "";
-    in property <string> selected-text: "";
-    in property <string> selected-time: "";
-    in property <string> selected-duration: "";
-    in property <string> selected-input: "";
-    in property <string> selected-polish: "";
-    in property <string> selected-asr: "";
-    in property <string> selected-llm: "";
+    in-out property <bool> dictionary-assist-consent-visible: false;
+    in property <string> dictionary-assist-provider-target: "";
+    in property <HistoryListItem> selected-item;
     callback copy(string);
     callback delete-record(string);
     callback clear-all();
     callback reset();
+    callback confirm-dictionary-assist();
 
-    property <bool> active: root.detail-visible || root.clear-confirmation-visible || root.reset-confirmation-visible;
+    property <bool> active: root.detail-visible || root.clear-confirmation-visible || root.reset-confirmation-visible || root.dictionary-assist-consent-visible;
     property <bool> detail-copied: false;
     background: transparent;
     z: 100;
@@ -131,13 +255,32 @@ export component HistoryDialog inherits Rectangle {
     if root.active: history-shell := ModalShell {
         width: parent.width;
         height: parent.height;
-        size: root.detail-visible ? ModalSize.standard : ModalSize.compact;
+        size: root.detail-visible ? ModalSize.tall : ModalSize.compact;
+        panel-height-override: root.dictionary-assist-consent-visible ? 286px : 0px;
         show-close: root.detail-visible;
         dismiss-on-backdrop: true;
         close-requested => {
             root.detail-visible = false;
             root.clear-confirmation-visible = false;
             root.reset-confirmation-visible = false;
+            root.dictionary-assist-consent-visible = false;
+        }
+
+        if root.dictionary-assist-consent-visible: VerticalLayout {
+            width: history-shell.panel-width;
+            height: history-shell.panel-height;
+            padding: 24px;
+            spacing: 14px;
+            Text { text: @tr("history.dictionary-assist.consent-title" => "Enable Vocabulary suggestions?"); color: AppColors.ink; font-size: 18px; font-weight: 700; }
+            Text { text: @tr("history.dictionary-assist.consent-detail" => "Once a day, final text from the last 24 hours is sent to this provider:"); color: AppColors.text; font-size: 11px; wrap: word-wrap; }
+            Text { text: root.dictionary-assist-provider-target; color: AppColors.brand-strong; font-size: 11px; font-weight: 650; overflow: elide; }
+            Text { text: @tr("history.dictionary-assist.consent-purpose" => "It is used only to find reusable dictionary terms."); color: AppColors.text-muted; font-size: 10px; wrap: word-wrap; }
+            HorizontalLayout {
+                alignment: end;
+                spacing: 10px;
+                QuietButton { width: 78px; label: @tr("common.cancel" => "Cancel"); activated => { root.dictionary-assist-consent-visible = false; } }
+                QuietButton { width: 92px; label: @tr("common.enable" => "Enable"); primary: true; activated => { root.dictionary-assist-consent-visible = false; root.confirm-dictionary-assist(); } }
+            }
         }
 
         if root.clear-confirmation-visible: VerticalLayout {
@@ -177,47 +320,46 @@ export component HistoryDialog inherits Rectangle {
             width: history-shell.panel-width - 48px;
             height: history-shell.panel-height - 40px;
             Text { x: 0px; y: 0px; text: @tr("history.detail.title" => "Record details"); color: AppColors.ink; font-size: 18px; font-weight: 700; }
-            Text { x: 0px; y: 36px; text: root.selected-time; color: AppColors.text-muted; font-size: 10px; }
-            Text { x: 0px; y: 68px; text: @tr("history.detail.content" => "Content"); color: AppColors.text; font-size: 11px; font-weight: 650; }
-            Rectangle {
+            Text { x: 0px; y: 36px; text: root.selected-item.time; color: AppColors.text-muted; font-size: 10px; }
+            detail-scroll := ScrollView {
                 x: 0px;
-                y: 90px;
+                y: 64px;
                 width: parent.width;
-                height: 105px;
-                border-radius: 7px;
-                background: AppColors.surface-warm;
-                detail-scroll := ScrollView {
-                    x: 16px;
-                    y: 14px;
-                    width: parent.width - 32px;
-                    height: parent.height - 28px;
-                    viewport-width: self.width;
-                    viewport-height: max(self.height, detail-copy.preferred-height);
-                    vertical-scrollbar-policy: ScrollBarPolicy.as-needed;
-                    horizontal-scrollbar-policy: ScrollBarPolicy.always-off;
-                    detail-copy := Text {
-                        width: detail-scroll.viewport-width;
-                        height: self.preferred-height;
-                        text: root.selected-text;
-                        color: AppColors.text;
-                        font-size: 13px;
-                        wrap: word-wrap;
+                height: detail-info.y - self.y - 36px;
+                viewport-width: self.width;
+                viewport-height: max(self.height, detail-body.preferred-height);
+                vertical-scrollbar-policy: ScrollBarPolicy.always-off;
+                horizontal-scrollbar-policy: ScrollBarPolicy.always-off;
+                detail-body := VerticalLayout {
+                    width: detail-scroll.viewport-width;
+                    spacing: 14px;
+                    if !root.selected-item.raw-text.is-empty: HistoryTextSection {
+                        label: @tr("history.detail.recognized-text" => "Recognized text");
+                        content: root.selected-item.raw-text;
+                    }
+                    if !root.selected-item.llm-text.is-empty: HistoryTextSection {
+                        label: @tr("history.detail.ai-polished" => "AI polished");
+                        content: root.selected-item.llm-text;
+                        polished: true;
+                    }
+                    HistoryTextSection {
+                        label: @tr("history.detail.final-text" => "Final text");
+                        content: root.selected-item.text;
+                        emphasized: true;
                     }
                 }
             }
-            Text { x: 0px; y: 216px; text: @tr("history.detail.record-info" => "Record information"); color: AppColors.text; font-size: 11px; font-weight: 650; }
-            Rectangle {
+            detail-info := HistoryRecordInfo {
                 x: 0px;
-                y: 238px;
-                width: parent.width;
-                height: 96px;
-                border-radius: 7px;
-                background: AppColors.surface-warm;
-                Text { x: 16px; y: 13px; text: @tr("history.detail.summary" => "{}  ·  {}  ·  {}", root.selected-duration, root.selected-input, root.selected-polish); color: AppColors.text; font-size: 10px; }
-                Text { x: 16px; y: 40px; text: @tr("history.detail.asr-model" => "Speech model"); color: AppColors.text-muted; font-size: 10px; }
-                Text { x: 100px; y: 40px; width: parent.width - 116px; text: root.selected-asr; color: AppColors.text; font-size: 10px; overflow: elide; }
-                Text { x: 16px; y: 66px; text: @tr("history.detail.llm-model" => "Polishing model"); color: AppColors.text-muted; font-size: 10px; }
-                Text { x: 100px; y: 66px; width: parent.width - 116px; text: root.selected-llm; color: AppColors.text; font-size: 10px; overflow: elide; }
+                y: parent.height - 108px;
+                width: parent.width - 8px;
+                duration: root.selected-item.duration;
+                input-status: root.selected-item.input-status;
+                asr-model: root.selected-item.asr-model;
+                asr-model-full: root.selected-item.asr-model-full;
+                llm-model: root.selected-item.llm-model;
+                llm-model-full: root.selected-item.llm-model-full;
+                show-llm-model: !root.selected-item.llm-text.is-empty;
             }
             Rectangle {
                 x: 0px;
@@ -227,9 +369,9 @@ export component HistoryDialog inherits Rectangle {
                 background: detail-delete-touch.has-hover ? AppColors.danger-soft : transparent;
                 border-radius: 7px;
                 Text { text: @tr("history.delete-record" => "Delete record"); color: AppColors.danger; font-size: 11px; font-weight: 650; horizontal-alignment: center; vertical-alignment: center; }
-                detail-delete-touch := TouchArea { mouse-cursor: pointer; clicked => { root.detail-visible = false; root.delete-record(root.selected-id); } }
+                detail-delete-touch := TouchArea { mouse-cursor: pointer; clicked => { root.detail-visible = false; root.delete-record(root.selected-item.id); } }
             }
-            QuietButton { x: parent.width - 110px; y: parent.height - 36px; width: 110px; label: root.detail-copied ? @tr("common.copied" => "Copied") : @tr("history.copy-content" => "Copy content"); primary: true; success: root.detail-copied; activated => { root.detail-copied = true; root.copy(root.selected-id); } }
+            QuietButton { x: parent.width - 110px; y: parent.height - 36px; width: 110px; label: root.detail-copied ? @tr("common.copied" => "Copied") : @tr("history.copy-content" => "Copy content"); primary: true; success: root.detail-copied; activated => { root.detail-copied = true; root.copy(root.selected-item.id); } }
         }
     }
 }
@@ -242,6 +384,9 @@ export component HistoryPage inherits Rectangle {
     in property <bool> locked: false;
     in property <bool> loading: false;
     in property <bool> load-failed: false;
+    in property <bool> dictionary-assist-enabled: false;
+    in property <bool> dictionary-assist-available: false;
+    in property <bool> dictionary-assist-provider-configured: false;
     in property <HistoryRetentionOption> retention: HistoryRetentionOption.seven-days;
     callback refresh();
     callback search(string);
@@ -253,6 +398,8 @@ export component HistoryPage inherits Rectangle {
     callback show-detail(HistoryListItem);
     callback show-clear-confirmation();
     callback show-reset-confirmation();
+    callback dictionary-assist-toggled(bool);
+    callback dictionary-assist-setup-requested();
 
     property <bool> compact: root.width < 650px;
     property <length> controls-y: root.compact ? 66px : 43px;
@@ -436,10 +583,53 @@ export component HistoryPage inherits Rectangle {
     }
 
     if root.more-open: Rectangle {
-        x: root.width - 160px; y: root.controls-y + 46px; width: 160px; height: 86px; border-radius: 8px; background: AppColors.surface; z: 40;
+        x: root.width - 188px; y: root.controls-y + 46px; width: 188px; height: 121px; border-radius: 8px; background: AppColors.surface; z: 40;
         drop-shadow-blur: 18px; drop-shadow-offset-y: 5px; drop-shadow-color: AppColors.shadow;
         VerticalLayout { padding: 8px; spacing: 0px;
             Rectangle { height: 35px; border-radius: 6px; background: refresh-touch.has-hover ? AppColors.surface-warm : transparent; accessible-role: button; accessible-label: @tr("history.refresh" => "Refresh history"); accessible-action-default => { root.more-open = false; root.refresh(); } Image { x: 8px; y: 9px; width: 16px; height: 16px; source: @image-url("../../icons/lucide/refresh-cw.svg"); } Text { x: 34px; text: @tr("history.refresh" => "Refresh history"); color: AppColors.text; font-size: 12px; vertical-alignment: center; } refresh-touch := TouchArea { mouse-cursor: pointer; clicked => { root.more-open = false; root.refresh(); } } }
+            Rectangle {
+                height: 35px;
+                border-radius: 6px;
+                background: dictionary-assist-touch.has-hover && (root.dictionary-assist-available || !root.dictionary-assist-provider-configured) ? AppColors.surface-warm : transparent;
+                opacity: root.dictionary-assist-available || !root.dictionary-assist-provider-configured ? 1 : 0.55;
+                accessible-role: checkbox;
+                accessible-label: @tr("history.dictionary-assist" => "Vocabulary suggestions");
+                accessible-enabled: root.dictionary-assist-available || !root.dictionary-assist-provider-configured;
+                accessible-checked: root.dictionary-assist-enabled;
+                accessible-action-default => {
+                    if !root.dictionary-assist-provider-configured {
+                        root.dictionary-assist-setup-requested();
+                    } else if root.dictionary-assist-available {
+                        root.dictionary-assist-toggled(!root.dictionary-assist-enabled);
+                    }
+                }
+                Image { x: 8px; y: 9px; width: 16px; height: 16px; source: @image-url("../../icons/lucide/sparkles.svg"); colorize: root.dictionary-assist-enabled ? AppColors.success : AppColors.text-muted; }
+                Text { x: 34px; width: root.dictionary-assist-provider-configured ? parent.width - 82px : parent.width - 104px; text: @tr("history.dictionary-assist" => "Vocabulary suggestions"); color: AppColors.text; font-size: 12px; vertical-alignment: center; overflow: elide; }
+                if !root.dictionary-assist-provider-configured: Text {
+                    x: parent.width - 67px; width: 59px; text: @tr("history.dictionary-assist.not-configured" => "Not set"); color: AppColors.text-muted; font-size: 10px; horizontal-alignment: right; vertical-alignment: center;
+                }
+                if root.dictionary-assist-provider-configured: Rectangle {
+                    x: parent.width - 38px; y: 9px; width: 30px; height: 17px; border-radius: 9px;
+                    background: root.dictionary-assist-enabled ? AppColors.brand : AppColors.border;
+                    animate background { duration: 140ms; easing: ease-out; }
+                    Rectangle {
+                        x: root.dictionary-assist-enabled ? 15px : 2px; y: 2px; width: 13px; height: 13px; border-radius: 7px; background: AppColors.surface;
+                        drop-shadow-blur: 3px; drop-shadow-offset-y: 1px; drop-shadow-color: AppColors.shadow;
+                        animate x { duration: 160ms; easing: ease-out; }
+                    }
+                }
+                dictionary-assist-touch := TouchArea {
+                    enabled: root.dictionary-assist-available || !root.dictionary-assist-provider-configured;
+                    mouse-cursor: self.enabled ? pointer : default;
+                    clicked => {
+                        if !root.dictionary-assist-provider-configured {
+                            root.dictionary-assist-setup-requested();
+                        } else {
+                            root.dictionary-assist-toggled(!root.dictionary-assist-enabled);
+                        }
+                    }
+                }
+            }
             Rectangle { height: 35px; border-radius: 6px; background: clear-touch.has-hover ? AppColors.danger-soft : transparent; accessible-role: button; accessible-label: @tr("history.clear-all" => "Clear all history"); accessible-action-default => { root.more-open = false; root.show-clear-confirmation(); } Image { x: 8px; y: 9px; width: 16px; height: 16px; source: @image-url("../../icons/lucide/trash-2.svg"); } Text { x: 34px; text: @tr("history.clear-all" => "Clear all history"); color: AppColors.danger; font-size: 12px; vertical-alignment: center; } clear-touch := TouchArea { mouse-cursor: pointer; clicked => { root.more-open = false; root.show-clear-confirmation(); } } }
         }
     }

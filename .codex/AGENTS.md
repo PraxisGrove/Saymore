@@ -36,14 +36,14 @@ AI coding agents. Keep guidance concise, verifiable, and traceable.
 
 Immediately before any `git push`, run the project gates:
 
-   ```bash
-   cargo fmt --all --check
-   cargo check --workspace --all-targets
-   cargo test --workspace --all-targets
-   cargo clippy --workspace --all-targets -- -D warnings
-   cargo build --workspace --all-targets --release
-   cargo run -p xtask -- size
-   ```
+```bash
+cargo fmt --all --check
+cargo check --workspace --all-targets
+cargo test --workspace --all-targets
+cargo clippy --workspace --all-targets -- -D warnings
+cargo build --workspace --all-targets --release
+cargo run -p xtask -- size
+```
 
 Then run a two-axis review of the complete change being pushed: Standards checks
 the repository's documented rules, while Spec checks the originating request,

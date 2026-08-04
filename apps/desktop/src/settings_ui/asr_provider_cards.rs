@@ -34,12 +34,35 @@ impl DesktopPlatform {
     fn system_card_available(self) -> bool {
         match self {
             #[cfg(any(target_os = "macos", test))]
+            Self::MacOs => cfg!(debug_assertions),
+            #[cfg(any(target_os = "windows", test))]
+            Self::Windows => false,
+            #[cfg(any(not(any(target_os = "macos", target_os = "windows")), test))]
+            Self::Other => false,
+        }
+    }
+
+    fn paraformer_available(self) -> bool {
+        match self {
+            #[cfg(any(target_os = "macos", test))]
             Self::MacOs => true,
             #[cfg(any(target_os = "windows", test))]
             Self::Windows => false,
             #[cfg(any(not(any(target_os = "macos", target_os = "windows")), test))]
             Self::Other => false,
         }
+    }
+
+    fn whisper_available(self) -> bool {
+        self.paraformer_available()
+    }
+
+    fn qwen3_available(self) -> bool {
+        self.paraformer_available()
+    }
+
+    fn sense_voice_available(self) -> bool {
+        self.paraformer_available()
     }
 }
 
@@ -59,12 +82,29 @@ fn provider_cards(platform: DesktopPlatform) -> Vec<AsrProviderCardSpec> {
         });
     }
     cards.extend([
-        unavailable(AsrProviderCardKind::Qwen3Asr),
-        unavailable(AsrProviderCardKind::WhisperLargeV3Turbo),
+        if platform.paraformer_available() {
+            available(AsrProviderCardKind::Paraformer)
+        } else {
+            unavailable(AsrProviderCardKind::Paraformer)
+        },
+        if platform.whisper_available() {
+            available(AsrProviderCardKind::WhisperLargeV3Turbo)
+        } else {
+            unavailable(AsrProviderCardKind::WhisperLargeV3Turbo)
+        },
+        if platform.qwen3_available() {
+            available(AsrProviderCardKind::Qwen3Asr)
+        } else {
+            unavailable(AsrProviderCardKind::Qwen3Asr)
+        },
+        if platform.sense_voice_available() {
+            available(AsrProviderCardKind::SenseVoiceSmall)
+        } else {
+            unavailable(AsrProviderCardKind::SenseVoiceSmall)
+        },
         available(AsrProviderCardKind::Volcengine),
-        unavailable(AsrProviderCardKind::Paraformer),
+        available(AsrProviderCardKind::Custom),
     ]);
-    cards.push(available(AsrProviderCardKind::Custom));
     cards
 }
 
@@ -87,36 +127,34 @@ mod tests {
     use super::*;
 
     #[test]
-    fn custom_provider_is_always_last() {
+    fn unavailable_cards_are_visible_as_non_selectable_placeholders() {
         for platform in [DesktopPlatform::MacOs, DesktopPlatform::Windows] {
             let cards = provider_cards(platform);
+            assert_eq!(8, cards.len());
+            let expected_unavailable = if matches!(platform, DesktopPlatform::MacOs) {
+                1
+            } else {
+                6
+            };
             assert_eq!(
-                Some(AsrProviderCardKind::Custom),
-                cards.last().map(|card| card.kind)
+                expected_unavailable,
+                cards.iter().filter(|card| !card.available).count()
             );
         }
     }
 
     #[test]
-    fn unavailable_cards_are_visible_as_non_selectable_placeholders() {
-        for platform in [DesktopPlatform::MacOs, DesktopPlatform::Windows] {
-            let cards = provider_cards(platform);
-            assert_eq!(7, cards.len());
-            assert!(cards.iter().filter(|card| !card.available).count() >= 4);
-        }
-    }
-
-    #[test]
-    fn development_uses_only_the_current_platform_system_card() {
+    fn providers_follow_the_requested_order_for_each_platform() {
         let macos = provider_cards(DesktopPlatform::MacOs);
         assert_eq!(
             vec![
                 AsrProviderCardKind::SaymoreCloud,
                 AsrProviderCardKind::MacosDictation,
-                AsrProviderCardKind::Qwen3Asr,
-                AsrProviderCardKind::WhisperLargeV3Turbo,
-                AsrProviderCardKind::Volcengine,
                 AsrProviderCardKind::Paraformer,
+                AsrProviderCardKind::WhisperLargeV3Turbo,
+                AsrProviderCardKind::Qwen3Asr,
+                AsrProviderCardKind::SenseVoiceSmall,
+                AsrProviderCardKind::Volcengine,
                 AsrProviderCardKind::Custom,
             ],
             macos.iter().map(|card| card.kind).collect::<Vec<_>>()
@@ -127,10 +165,11 @@ mod tests {
             vec![
                 AsrProviderCardKind::SaymoreCloud,
                 AsrProviderCardKind::WindowsSpeech,
-                AsrProviderCardKind::Qwen3Asr,
-                AsrProviderCardKind::WhisperLargeV3Turbo,
-                AsrProviderCardKind::Volcengine,
                 AsrProviderCardKind::Paraformer,
+                AsrProviderCardKind::WhisperLargeV3Turbo,
+                AsrProviderCardKind::Qwen3Asr,
+                AsrProviderCardKind::SenseVoiceSmall,
+                AsrProviderCardKind::Volcengine,
                 AsrProviderCardKind::Custom,
             ],
             windows.iter().map(|card| card.kind).collect::<Vec<_>>()
@@ -138,26 +177,67 @@ mod tests {
     }
 
     #[test]
-    fn development_placeholders_cannot_be_selected() {
-        for platform in [
-            DesktopPlatform::MacOs,
-            DesktopPlatform::Windows,
-            DesktopPlatform::Other,
-        ] {
-            let development = provider_cards(platform);
-            assert!(
-                development
-                    .iter()
-                    .filter(|card| {
-                        !matches!(
-                            card.kind,
-                            AsrProviderCardKind::MacosDictation
-                                | AsrProviderCardKind::Volcengine
-                                | AsrProviderCardKind::Custom
-                        )
-                    })
-                    .all(|card| !card.available)
+    fn sense_voice_is_the_last_local_model_before_cloud_apis() {
+        for platform in [DesktopPlatform::MacOs, DesktopPlatform::Windows] {
+            let cards = provider_cards(platform);
+            let sense_voice_index = cards
+                .iter()
+                .position(|card| card.kind == AsrProviderCardKind::SenseVoiceSmall);
+            let volcengine_index = cards
+                .iter()
+                .position(|card| card.kind == AsrProviderCardKind::Volcengine);
+            assert_eq!(
+                sense_voice_index.and_then(|index| index.checked_add(1)),
+                volcengine_index
             );
+            assert!(
+                sense_voice_index.is_some_and(|index| {
+                    cards[index].available == platform.sense_voice_available()
+                }),
+                "SenseVoice availability must match the local sherpa runtime"
+            );
+        }
+    }
+
+    #[test]
+    fn paraformer_is_available_only_on_macos() {
+        for (platform, expected) in [
+            (DesktopPlatform::MacOs, true),
+            (DesktopPlatform::Windows, false),
+            (DesktopPlatform::Other, false),
+        ] {
+            let paraformer = provider_cards(platform)
+                .into_iter()
+                .find(|card| card.kind == AsrProviderCardKind::Paraformer);
+            assert_eq!(expected, paraformer.is_some_and(|card| card.available));
+        }
+    }
+
+    #[test]
+    fn whisper_is_available_only_on_macos() {
+        for (platform, expected) in [
+            (DesktopPlatform::MacOs, true),
+            (DesktopPlatform::Windows, false),
+            (DesktopPlatform::Other, false),
+        ] {
+            let whisper = provider_cards(platform)
+                .into_iter()
+                .find(|card| card.kind == AsrProviderCardKind::WhisperLargeV3Turbo);
+            assert_eq!(expected, whisper.is_some_and(|card| card.available));
+        }
+    }
+
+    #[test]
+    fn qwen3_is_available_only_on_macos() {
+        for (platform, expected) in [
+            (DesktopPlatform::MacOs, true),
+            (DesktopPlatform::Windows, false),
+            (DesktopPlatform::Other, false),
+        ] {
+            let qwen3 = provider_cards(platform)
+                .into_iter()
+                .find(|card| card.kind == AsrProviderCardKind::Qwen3Asr);
+            assert_eq!(expected, qwen3.is_some_and(|card| card.available));
         }
     }
 }

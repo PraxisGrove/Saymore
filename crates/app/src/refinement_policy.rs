@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use crate::final_text_processing::RefinementTerm;
+use crate::final_text_processing::{RefinementOutputRejectionReason, RefinementTerm};
 use crate::refinement_terms::{normalize_spaced_standard_spellings, normalize_standard_spellings};
 
 const OUTPUT_GROWTH_MULTIPLIER: usize = 2;
@@ -18,19 +18,28 @@ const WRAPPER_PREFIXES: [&str; 10] = [
     "Output:",
 ];
 
-pub(crate) fn accepts_refinement(
+pub(crate) fn validate_refinement(
     source: &str,
     candidate: &str,
     relevant_terms: &[RefinementTerm],
-) -> bool {
+) -> Result<(), RefinementOutputRejectionReason> {
     let candidate = candidate.trim();
-    !candidate.is_empty()
-        && !is_abnormally_large(source, candidate)
-        && !adds_non_refinement_wrapper(source, candidate)
-        && numeric_fragments_are_safe(source, candidate, relevant_terms)
-        && negations_are_preserved(source, candidate)
-        && question_intent_is_preserved(source, candidate)
-        && technical_fragments_are_safe(source, candidate, relevant_terms)
+    if candidate.is_empty() {
+        return Err(RefinementOutputRejectionReason::EmptyOutput);
+    }
+    if is_abnormally_large(source, candidate) {
+        return Err(RefinementOutputRejectionReason::AbnormalGrowth);
+    }
+    if adds_non_refinement_wrapper(source, candidate) {
+        return Err(RefinementOutputRejectionReason::NonRefinementWrapper);
+    }
+    if !technical_fragments_are_safe(source, candidate, relevant_terms) {
+        return Err(RefinementOutputRejectionReason::ProtectedFragmentChanged);
+    }
+    if !numeric_fragments_are_safe(source, candidate, relevant_terms) {
+        return Err(RefinementOutputRejectionReason::NumericFactsChanged);
+    }
+    Ok(())
 }
 
 fn technical_fragments_are_safe(
@@ -38,9 +47,29 @@ fn technical_fragments_are_safe(
     candidate: &str,
     relevant_terms: &[RefinementTerm],
 ) -> bool {
-    immutable_technical_fragments(source) == immutable_technical_fragments(candidate)
-        && technical_fragments(&normalize_spaced_standard_spellings(source, relevant_terms))
-            == technical_fragments(&normalize_standard_spellings(candidate, relevant_terms))
+    if immutable_technical_fragments(source) != immutable_technical_fragments(candidate) {
+        return false;
+    }
+
+    let source_fragments =
+        technical_fragments(&normalize_spaced_standard_spellings(source, relevant_terms));
+    let candidate_fragments =
+        technical_fragments(&normalize_standard_spellings(candidate, relevant_terms));
+    let trusted_fragments = technical_fragments(
+        &relevant_terms
+            .iter()
+            .map(|term| term.canonical.as_str())
+            .collect::<Vec<_>>()
+            .join(" "),
+    );
+
+    source_fragments
+        .iter()
+        .all(|(fragment, count)| candidate_fragments.get(fragment).unwrap_or(&0) >= count)
+        && candidate_fragments.iter().all(|(fragment, count)| {
+            source_fragments.get(fragment).unwrap_or(&0) >= count
+                || trusted_fragments.contains_key(fragment)
+        })
 }
 
 fn is_abnormally_large(source: &str, candidate: &str) -> bool {
@@ -70,6 +99,9 @@ fn numeric_fragments_are_safe(
     let candidate = normalize_standard_spellings(candidate, relevant_terms);
     let source_facts = numeric_facts(&source);
     let candidate_facts = numeric_facts(&candidate);
+    if source_facts.is_empty() {
+        return true;
+    }
     if source_facts == candidate_facts {
         return true;
     }
@@ -117,11 +149,7 @@ fn explicitly_corrected_numeric_facts(text: &str) -> BTreeMap<String, usize> {
 }
 
 fn numeric_facts(text: &str) -> BTreeMap<String, usize> {
-    fragment_counts(
-        numeric_fragments(text)
-            .into_iter()
-            .chain(chinese_numeric_fragments(text)),
-    )
+    fragment_counts(numeric_fragments(text))
 }
 
 fn numeric_fragments(text: &str) -> Vec<String> {
@@ -140,221 +168,6 @@ fn numeric_fragments(text: &str) -> Vec<String> {
     }
     fragments.retain(|fragment| !fragment.is_empty());
     fragments
-}
-
-fn chinese_numeric_fragments(text: &str) -> Vec<String> {
-    let mut fragments = Vec::new();
-    let characters = text.chars().collect::<Vec<_>>();
-    let mut start = 0;
-    while start < characters.len() {
-        if chinese_digit(characters[start]).is_none() && chinese_unit(characters[start]).is_none() {
-            start += 1;
-            continue;
-        }
-        let mut end = start + 1;
-        while end < characters.len()
-            && (chinese_digit(characters[end]).is_some() || chinese_unit(characters[end]).is_some())
-        {
-            end += 1;
-        }
-        if chinese_number_has_explicit_context(&characters, start, end) {
-            let current = characters[start..end].iter().collect::<String>();
-            if let Some(value) = parse_chinese_number(&current) {
-                fragments.push(value.to_string());
-            }
-        }
-        start = end;
-    }
-    fragments
-}
-
-fn chinese_number_has_explicit_context(characters: &[char], start: usize, end: usize) -> bool {
-    let previous = start.checked_sub(1).and_then(|index| characters.get(index));
-    let next = characters.get(end);
-    if previous == Some(&'第') || numeric_unit_follows(characters, end) {
-        return true;
-    }
-    let prefix = characters[..start].iter().collect::<String>();
-    if prefix.ends_with("版本") {
-        return true;
-    }
-    if next != Some(&'点') {
-        return false;
-    }
-    let ambiguous_one = end == start + 1 && characters[start] == '一';
-    !ambiguous_one
-        || [
-            "上午",
-            "下午",
-            "中午",
-            "凌晨",
-            "早上",
-            "晚上",
-            "在",
-            "提醒",
-            "定在",
-            "改到",
-            "截止到",
-        ]
-        .iter()
-        .any(|marker| prefix.ends_with(marker))
-}
-
-fn numeric_unit_follows(characters: &[char], end: usize) -> bool {
-    const UNITS: [&str; 30] = [
-        "年", "月", "日", "号", "个", "条", "项", "步", "次", "元", "块", "岁", "度", "秒", "分钟",
-        "小时", "天", "毫米", "厘米", "米", "千米", "公里", "毫克", "克", "千克", "公斤", "页",
-        "章", "节", "份",
-    ];
-    let suffix = characters[end..].iter().collect::<String>();
-    UNITS.iter().any(|unit| suffix.starts_with(unit))
-}
-
-fn parse_chinese_number(value: &str) -> Option<u64> {
-    if value.is_empty() {
-        return None;
-    }
-    if !value
-        .chars()
-        .any(|character| chinese_unit(character).is_some())
-    {
-        return value.chars().try_fold(0u64, |number, character| {
-            number
-                .checked_mul(10)?
-                .checked_add(chinese_digit(character)?)
-        });
-    }
-
-    let mut total = 0u64;
-    let mut section = 0u64;
-    let mut number = 0u64;
-    for character in value.chars() {
-        if let Some(digit) = chinese_digit(character) {
-            number = digit;
-            continue;
-        }
-        let unit = chinese_unit(character)?;
-        if unit == 10_000 {
-            let value = section.checked_add(number)?;
-            total = total.checked_add(value.checked_mul(unit)?)?;
-            section = 0;
-        } else {
-            let coefficient = if number == 0 { 1 } else { number };
-            section = section.checked_add(coefficient.checked_mul(unit)?)?;
-        }
-        number = 0;
-    }
-    total.checked_add(section)?.checked_add(number)
-}
-
-fn chinese_digit(character: char) -> Option<u64> {
-    match character {
-        '零' | '〇' => Some(0),
-        '一' => Some(1),
-        '二' | '两' => Some(2),
-        '三' => Some(3),
-        '四' => Some(4),
-        '五' => Some(5),
-        '六' => Some(6),
-        '七' => Some(7),
-        '八' => Some(8),
-        '九' => Some(9),
-        _ => None,
-    }
-}
-
-fn chinese_unit(character: char) -> Option<u64> {
-    match character {
-        '十' => Some(10),
-        '百' => Some(100),
-        '千' => Some(1_000),
-        '万' => Some(10_000),
-        _ => None,
-    }
-}
-
-fn negations_are_preserved(source: &str, candidate: &str) -> bool {
-    const NEGATIONS: [&str; 9] = [
-        "不", "没", "无", "未", "别", "not", "no", "never", "without",
-    ];
-    NEGATIONS.iter().all(|negation| {
-        let source_count = negation_count(source, negation);
-        let candidate_count = negation_count(candidate, negation);
-        let allowed_removals = if *negation == "不" {
-            correction_negation_allowance(source)
-        } else {
-            0
-        };
-        candidate_count <= source_count
-            && candidate_count >= source_count.saturating_sub(allowed_removals)
-    })
-}
-
-fn correction_negation_allowance(source: &str) -> usize {
-    let explicit_restarts = source.matches("，不对，").count()
-        + source.matches(",不对,").count()
-        + usize::from(source.starts_with("不对，"));
-    let explicit_replacements = source
-        .match_indices("不是")
-        .filter(|(index, _)| is_adjacent_replacement(source, *index))
-        .count();
-    let explicit_commands = usize::from(
-        source.contains("不要") && (source.contains("改成") || source.contains("改为")),
-    );
-    explicit_restarts
-        .saturating_add(explicit_replacements)
-        .saturating_add(explicit_commands)
-}
-
-fn is_adjacent_replacement(source: &str, index: usize) -> bool {
-    let starts_sentence_segment = index == 0
-        || source[..index]
-            .chars()
-            .next_back()
-            .is_some_and(|character| matches!(character, '，' | ',' | '。' | '；' | ';'));
-    if !starts_sentence_segment {
-        return false;
-    }
-    let after = &source[index + "不是".len()..];
-    let delimiter = after.find(['，', ',', '。', '；', ';', '！', '!', '？', '?']);
-    delimiter.is_some_and(|delimiter| {
-        after[delimiter..].starts_with("，是") || after[delimiter..].starts_with(",是")
-    })
-}
-
-fn question_intent_is_preserved(source: &str, candidate: &str) -> bool {
-    const QUESTION_MARKERS: [&str; 11] = [
-        "?",
-        "？",
-        "吗",
-        "呢",
-        "能不能",
-        "是不是",
-        "是否",
-        "为什么",
-        "怎么",
-        "谁",
-        "哪",
-    ];
-    let source = source.to_lowercase();
-    let candidate = candidate.to_lowercase();
-    let source_is_question = QUESTION_MARKERS
-        .iter()
-        .any(|marker| source.contains(marker));
-    !source_is_question
-        || QUESTION_MARKERS
-            .iter()
-            .any(|marker| candidate.contains(marker))
-}
-
-fn negation_count(text: &str, negation: &str) -> usize {
-    if negation.is_ascii() {
-        text.split(|character: char| !character.is_ascii_alphanumeric())
-            .filter(|word| word.eq_ignore_ascii_case(negation))
-            .count()
-    } else {
-        text.matches(negation).count()
-    }
 }
 
 fn technical_fragments(text: &str) -> BTreeMap<String, usize> {

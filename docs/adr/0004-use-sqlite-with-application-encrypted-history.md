@@ -80,16 +80,13 @@ The 32-byte random data key is stored in macOS Keychain or Windows Credential
 Manager through the `SecretStore` port. Never store it in SQLite or silently
 fall back to plaintext.
 
-In normal release builds, the encrypted payload contains only the final best
-text and essential metadata: audio duration, language when known, delivery
-status, refinement status, and Provider instance IDs. It excludes audio, raw ASR
-text, intermediate text, LLM responses, API keys, and complete error responses.
-
-Debug builds, or release builds compiled with the explicit `history-experiments`
-feature, may additionally include the raw ASR text and the accepted LLM-refined
-text in the same encrypted payload for local ASR-versus-LLM-versus-final
-comparison. Both fields are optional and omitted from normal release builds;
-they are never stored in plaintext columns or uploaded.
+The encrypted payload contains the final best text, the raw ASR text, the
+accepted LLM-refined text when refinement completed, and essential metadata:
+audio duration, language when known, delivery status, refinement status, and
+Provider instance IDs. The three text stages support local comparison in
+History; optional stages are omitted when they did not run. The payload excludes
+audio, complete Provider responses, API keys, and complete error responses. Its
+contents are never stored in plaintext columns or uploaded.
 
 Use the history UUID, UTC creation time, and payload version as authenticated
 additional data. Store `crypto_version`, `payload_version`, nonce, and
@@ -137,6 +134,15 @@ Read newest first in batches of at most 50 with the keyset cursor
 delayed for the three-second UI undo window; clear-all requires confirmation.
 After actual deletion, checkpoint and truncate WAL data.
 
+Each history record initially stores the exact normalized text passed to the
+delivery adapter as its final text. Text snapshots from that delivered range
+remain in memory until focus loss, control reset, or the next dictation ends the
+observation. Only the last snapshot replaces the history final text and creates
+one A/B analysis task; intermediate edits never create evidence. The observer
+runs for at most two minutes. A timeout may update the final history text but
+must not create dictionary evidence. The recognized and LLM-refined fields
+remain unchanged.
+
 ### Dictionary files and learning
 
 CSV is import-only and accepts at most two columns: canonical spelling and
@@ -152,11 +158,11 @@ suppressions, or variants.
 
 Automatic dictionary addition is an active core product capability. The retired
 ASR-versus-LLM/final diff mechanism remains disabled because a model rewrite is
-not a user correction signal. The active signal is a stable local edit made by
-the user to the range Saymore just delivered in the same editable control. The
-runtime may persist the resulting canonical candidate, evidence counts, decision
-metadata, and timestamps, but not the complete input field or surrounding
-document.
+not a user correction signal. The active signal is the final A/B revision made
+by the user to the range Saymore just delivered in the same editable control.
+The runtime may persist the resulting canonical candidate, evidence counts,
+decision metadata, and timestamps, but not the complete input field or
+surrounding document.
 
 Automatic promotion uses confidence bands rather than treating every short edit
 as a term. Local privacy and attribution checks run first. A dedicated
@@ -172,10 +178,30 @@ sentence edits are rejected.
 
 Cloud classification requires an explicit Provider data confirmation for the
 minimal correction fragment and bounded local context. The classifier never
-receives the full input control by default. Deleting an automatic entry creates
-suppression, and manually adding the same term clears that suppression. No
-implicit observation creates a deterministic error-form-to-canonical replacement
-rule.
+receives the full input control by default. One finalized revision can yield
+zero or more terms from all non-contiguous Unicode-aware diffs. Shared context
+is included so a local diff such as `万 -> 问` may be classified as the complete
+final term `千问`, but the client accepts only terms that occur contiguously in
+final text. Without an LLM, ambiguous Chinese context is not guessed. Deleting
+an automatic entry creates suppression, and manually adding the same term clears
+that suppression. No implicit observation creates a deterministic
+error-form-to-canonical replacement rule.
+
+Evidence identity is `(dictation_id, language, canonical_key)` across direct
+revision and daily suggestion channels. Replays and duplicate source IDs update
+at most the stronger assessment and never increase usage. Single-character and
+sub-60 assessments remain diagnostic only. Promotion requires either two
+different dictations at confidence 80 or above, or three different dictations at
+confidence 60 or above.
+
+Daily vocabulary suggestions are a separate opt-in use case. Its consent
+fingerprint covers Provider ID, Base URL, and the versioned scope "complete
+final text from the most recent 24 hours". All non-empty final text in that
+rolling window is paged and size-batched without semantic prefiltering;
+oversized records are split on Unicode boundaries with overlap while retaining
+the parent history identity. Every batch must succeed before the checkpoint
+advances, and the app rechecks history, feature state, and consent before
+persisting each response.
 
 The current runtime only supplies confirmed entries whose canonical spelling
 occurs in the transcript in a case- or width-equivalent form, with a maximum of

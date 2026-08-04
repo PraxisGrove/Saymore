@@ -4,6 +4,7 @@ import {
     AsrProviderCardKind,
     AsrProviderCardSpec,
     LlmProvider,
+    LlmProviderConfigurationState,
     ModalShell,
     ModalSize,
     SystemSpeechStatus,
@@ -104,7 +105,7 @@ export component ModelConsentDialog inherits Rectangle {
                 min-height: 238px;
                 background: transparent;
 
-                Text { x: 0px; y: 0px; width: parent.width; text: @tr("models.polishing.consent.sent-content" => "Saymore sends the current transcript for polishing and may send a short local correction fragment to judge dictionary candidates."); color: AppColors.text; font-size: 12px; wrap: word-wrap; }
+                Text { x: 0px; y: 0px; width: parent.width; text: @tr("models.polishing.consent.sent-content" => "Saymore sends the current transcript for polishing and may send confirmed dictionary terms or a short local correction fragment. When Vocabulary suggestions are enabled, recent final history text is also sent to this provider."); color: AppColors.text; font-size: 12px; wrap: word-wrap; }
                 Rectangle {
                     x: 0px; y: 42px; width: parent.width; height: 64px; border-radius: 8px; background: AppColors.sidebar;
                     Text { x: 16px; y: 10px; text: @tr("models.polishing.consent.destination" => "Data destination"); color: AppColors.text-muted; font-size: 9px; font-weight: 600; }
@@ -147,9 +148,22 @@ export component ModelsPage inherits Rectangle {
     in-out property <string> asr-model: "volc.seedasr.sauc.duration";
     in-out property <AsrProvider> asr-provider: AsrProvider.volcengine;
     in property <AsrProvider> active-asr-provider: AsrProvider.volcengine;
+    in property <bool> cloud-asr-selected: false;
     in property <[AsrProviderCardSpec]> asr-provider-cards;
     in property <bool> macos-speech-selected: false;
     in property <SystemSpeechStatus> macos-speech-status: SystemSpeechStatus.unavailable;
+    in property <bool> paraformer-downloaded: false;
+    in property <string> paraformer-installed-size;
+    in property <bool> paraformer-selected: false;
+    in property <bool> whisper-downloaded: false;
+    in property <string> whisper-installed-size;
+    in property <bool> whisper-selected: false;
+    in property <bool> qwen3-downloaded: false;
+    in property <string> qwen3-installed-size;
+    in property <bool> qwen3-selected: false;
+    in property <bool> sense-voice-downloaded: false;
+    in property <string> sense-voice-installed-size;
+    in property <bool> sense-voice-selected: false;
     in property <bool> volcengine-asr-configured;
     in-out property <string> custom-asr-api-key;
     in-out property <string> custom-asr-base-url;
@@ -166,16 +180,7 @@ export component ModelsPage inherits Rectangle {
     in-out property <bool> llm-enabled;
     in-out property <LlmProvider> llm-provider: LlmProvider.sensenova;
     in property <LlmProvider> active-llm-provider: LlmProvider.sensenova;
-    in-out property <string> sensenova-api-key;
-    in-out property <string> deepseek-api-key;
-    in property <bool> sensenova-configured;
-    in property <bool> deepseek-configured;
-    in-out property <string> sensenova-model;
-    in-out property <string> deepseek-model;
-    in-out property <string> custom-llm-api-key;
-    in-out property <string> custom-llm-base-url;
-    in-out property <string> custom-llm-model;
-    in property <bool> custom-llm-configured;
+    in property <LlmProviderConfigurationState> llm-provider-configured;
     in property <string> llm-provider-target;
     in property <bool> llm-provider-local;
     in property <string> llm-config-status;
@@ -213,25 +218,10 @@ export component ModelsPage inherits Rectangle {
     private property <bool> third-service-selected: root.active-tab == 1 && root.llm-provider == LlmProvider.custom;
     private property <bool> manual-model-selected: root.manual-model;
     private property <string> asr-model-label: root.asr-model == "volc.bigasr.sauc.duration" ? @tr("models.volcengine.model-v1" => "Doubao Streaming Speech Recognition 1.0") : @tr("models.volcengine.model-v2" => "Doubao Streaming Speech Recognition 2.0");
-    private property <string> active-api-key: root.active-tab == 0 ? root.asr-provider == AsrProvider.custom ? root.custom-asr-api-key : root.asr-api-key : root.llm-provider == LlmProvider.custom ? root.custom-llm-api-key : root.llm-provider == LlmProvider.deepseek ? root.deepseek-api-key : root.sensenova-api-key;
-    private property <string> active-base-url: root.active-tab == 0 ? root.asr-provider == AsrProvider.custom ? root.custom-asr-base-url : "https://openspeech.bytedance.com" : root.llm-provider == LlmProvider.custom ? root.custom-llm-base-url : root.llm-provider == LlmProvider.deepseek ? "https://api.deepseek.com" : "https://token.sensenova.cn/v1";
-    private property <string> service-name: root.active-tab == 0 ? root.asr-provider == AsrProvider.custom ? @tr("models.provider.custom-compatible" => "Custom compatible API") : @tr("models.provider.volcengine" => "Volcengine") : root.llm-provider == LlmProvider.custom ? @tr("models.provider.custom-compatible" => "Custom compatible API") : root.llm-provider == LlmProvider.deepseek ? "DeepSeek" : "SenseNova";
-    private property <string> model-name: root.active-tab == 0 ? root.asr-provider == AsrProvider.custom ? root.custom-asr-model : root.asr-model : root.llm-provider == LlmProvider.custom ? root.custom-llm-model : root.llm-provider == LlmProvider.deepseek ? root.deepseek-model : root.sensenova-model;
-    private property <string> configured-model-name: root.active-tab == 0 ? root.asr-provider == AsrProvider.custom ? root.custom-asr-configured ? root.custom-asr-model : "" : root.asr-configured ? root.asr-model-label : "" : root.llm-provider == LlmProvider.custom ? root.custom-llm-configured ? root.custom-llm-model : "" : root.llm-provider == LlmProvider.deepseek ? root.deepseek-configured ? root.deepseek-model : "" : root.sensenova-configured ? root.sensenova-model : "";
-    private property <string> first-service-model: root.active-tab == 0 ? root.asr-api-key.is-empty ? "" : root.asr-model-label : root.sensenova-configured ? root.sensenova-model : "";
-    private property <string> second-service-model: root.active-tab == 0 ? root.custom-asr-configured ? root.custom-asr-model : "" : root.deepseek-configured ? root.deepseek-model : "";
-    private property <string> third-service-model: root.custom-llm-configured ? root.custom-llm-model : "";
     private property <bool> active-config-dirty: root.active-tab == 0 ? root.asr-config-dirty : root.llm-config-dirty;
     private property <bool> active-testing: root.active-tab == 0 ? root.asr-testing : root.llm-testing;
     private property <bool> active-draft-error: root.active-tab == 0 ? root.asr-draft-error : root.llm-draft-error;
-    private property <bool> active-config-saved: !root.configured-model-name.is-empty && !root.active-config-dirty;
-    private property <bool> custom-llm-ready: root.llm-provider == LlmProvider.custom && !root.custom-llm-base-url.is-empty && !root.custom-llm-model.is-empty;
-    private property <bool> configuration-ready: root.custom-llm-ready || !root.active-api-key.is-empty;
-    private property <bool> model-fetch-enabled: (root.active-tab == 0 && root.asr-provider == AsrProvider.volcengine) || (root.active-tab == 1 && !root.active-api-key.is-empty && (root.llm-provider != LlmProvider.custom || !root.custom-llm-base-url.is-empty));
-    private property <string> model-fetch-disabled-reason: root.model-fetch-enabled ? "" : root.active-tab == 1 && root.llm-provider == LlmProvider.custom && root.custom-llm-base-url.is-empty ? @tr("models.fetch.enter-service-url" => "Enter a service URL first") : @tr("models.fetch.enter-api-key" => "Enter an API key first");
     private property <bool> service-healthy: root.active-tab == 0 ? root.asr-configured && !root.asr-config-error && !root.asr-pending-test && !root.asr-testing : root.llm-enabled;
-    private property <string> llm-service-status: root.llm-testing ? @tr("models.test.testing" => "Testing…") : root.llm-draft-error ? @tr("models.status.connection-failed.plain" => "Connection issue") : root.llm-config-dirty ? @tr("models.status.unsaved.plain" => "Unsaved changes") : root.llm-enabled ? @tr("models.status.connected.plain" => "Connected") : root.active-config-saved ? @tr("models.status.not-enabled" => "Not enabled") : @tr("models.status.not-configured.plain" => "Not configured");
-    private property <string> service-status: root.active-tab == 1 ? root.llm-service-status : root.active-testing ? @tr("models.status.testing" => "●  Testing") : root.active-config-dirty ? root.active-draft-error ? @tr("models.status.connection-failed" => "●  Connection issue") : @tr("models.status.unsaved" => "●  Unsaved changes") : root.asr-config-error ? @tr("models.status.connection-failed" => "●  Connection issue") : root.asr-pending-test ? @tr("models.status.awaiting-connection-test" => "●  Awaiting connection test") : root.service-healthy ? @tr("models.status.connected" => "●  Connected") : @tr("models.status.not-configured" => "●  Not configured");
     private property <length> config-height: root.advanced-visible ? 270px : 228px;
     private property <length> action-y: root.advanced-visible ? 560px : 525px;
     changed model-discovery-error => { if root.model-discovery-error { root.model-menu-open = true; } }
@@ -240,13 +230,6 @@ export component ModelsPage inherits Rectangle {
     changed custom-asr-api-key => { root.asr-config-dirty = true; root.asr-draft-error = false; root.asr-error-field = AsrConfigurationField.none; }
     changed custom-asr-base-url => { root.asr-config-dirty = true; root.asr-draft-error = false; root.asr-error-field = AsrConfigurationField.none; }
     changed custom-asr-model => { root.asr-config-dirty = true; root.asr-draft-error = false; root.asr-error-field = AsrConfigurationField.none; }
-    changed sensenova-api-key => { root.llm-config-dirty = true; root.llm-draft-error = false; }
-    changed sensenova-model => { root.llm-config-dirty = true; root.llm-draft-error = false; }
-    changed deepseek-api-key => { root.llm-config-dirty = true; root.llm-draft-error = false; }
-    changed deepseek-model => { root.llm-config-dirty = true; root.llm-draft-error = false; }
-    changed custom-llm-api-key => { root.llm-config-dirty = true; root.llm-draft-error = false; }
-    changed custom-llm-base-url => { root.llm-config-dirty = true; root.llm-draft-error = false; }
-    changed custom-llm-model => { root.llm-config-dirty = true; root.llm-draft-error = false; }
     Timer { interval: 5s; running: root.api-key-visible; triggered => { root.api-key-visible = false; } }
     background: transparent;
 
@@ -263,8 +246,21 @@ export component ModelsPage inherits Rectangle {
         provider-cards: root.asr-provider-cards;
         macos-speech-selected: root.macos-speech-selected;
         macos-speech-status: root.macos-speech-status;
+        paraformer-downloaded: root.paraformer-downloaded;
+        paraformer-installed-size: root.paraformer-installed-size;
+        paraformer-selected: root.paraformer-selected;
+        whisper-downloaded: root.whisper-downloaded;
+        whisper-installed-size: root.whisper-installed-size;
+        whisper-selected: root.whisper-selected;
+        qwen3-downloaded: root.qwen3-downloaded;
+        qwen3-installed-size: root.qwen3-installed-size;
+        qwen3-selected: root.qwen3-selected;
+        sense-voice-downloaded: root.sense-voice-downloaded;
+        sense-voice-installed-size: root.sense-voice-installed-size;
+        sense-voice-selected: root.sense-voice-selected;
         provider <=> root.asr-provider;
         active-provider: root.active-asr-provider;
+        cloud-provider-selected: root.cloud-asr-selected;
         volcengine-api-key <=> root.asr-api-key;
         volcengine-model <=> root.asr-model;
         volcengine-configured: root.volcengine-asr-configured;
@@ -272,7 +268,6 @@ export component ModelsPage inherits Rectangle {
         custom-base-url <=> root.custom-asr-base-url;
         custom-model <=> root.custom-asr-model;
         custom-configured: root.custom-asr-configured;
-        active-configured: root.asr-configured;
         config-error: root.asr-config-error;
         draft-error <=> root.asr-draft-error;
         config-status: root.asr-config-status;
@@ -294,9 +289,7 @@ export component ModelsPage inherits Rectangle {
         llm-enabled: root.llm-enabled;
         testing: root.llm-testing;
         current-provider: root.active-llm-provider;
-        sensenova-configured: root.sensenova-configured;
-        deepseek-configured: root.deepseek-configured;
-        custom-configured: root.custom-llm-configured;
+        configured: root.llm-provider-configured;
         toggle-enabled => {
             if root.llm-enabled { root.set-llm-enabled(false, root.llm-provider-target); }
             else { root.request-llm-enable(); }

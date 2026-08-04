@@ -29,29 +29,98 @@ Desktop appearance has two application-owned persisted values: a six-option
 theme identifier and a follow-system/light/dark preference. The desktop maps
 those values to Slint's `AppColors` semantic roles; pages never select raw
 colors themselves. Independent recording, permission, and result overlays use
-the fixed `OverlayColors` palette and intentionally do not follow the
-main-window theme. `xtask ui-colors` enforces this ownership boundary.
+`OverlayColors`. Their neutral surfaces remain fixed while their accent roles
+follow the main-window theme. `xtask ui-colors` enforces this ownership
+boundary.
+
+Dictionary edits cross the application-owned `DictionaryStore` port by stable
+entry identity. Storage adapters preserve an entry's language, origin, and
+creation time, while rejecting empty spellings, unknown identities, and
+normalized duplicates. Each dictation snapshots those canonical spellings as
+vocabulary hints for recognizers that support them and as trusted candidates for
+final LLM refinement. A non-empty personal dictionary also allows short
+transcripts through refinement so phonetic ASR substitutions can be corrected,
+while the output guard permits only listed canonical technical terms and
+continues to protect existing URLs, commands, versions, and technical fragments.
+
+Home-page usage totals cross the application-owned `UsageStore` port as
+privacy-safe duration and character-count aggregates. SQLite records each saved
+dictation identity once, increments a local-calendar daily bucket in the same
+transaction as the first encrypted history insert, and never stores recognized
+text in the usage tables. Deleting, expiring, clearing, or cryptographically
+resetting transcript history does not subtract prior usage. Databases upgraded
+from the history-derived implementation backfill retained history once before a
+clear, delete, retention cleanup, or the first usage read.
 
 Main-window modal dialogs share the Slint `ModalShell` component. The shell owns
-the scrim, Pencil-aligned viewport positioning, standard and compact sizes,
-surface border, corner radius, shadow, and close control. Standard dialogs use
-the design's 36 px horizontal offset from the viewport center; compact
-confirmations remain centered. Dialog components own only their header,
-scrollable body, and fixed footer actions. Independent recording, permission,
-and result windows remain outside this modal system.
+the scrim, Pencil-aligned viewport positioning, standard, compact, and tall
+sizes, surface border, corner radius, shadow, and close control. Standard
+dialogs use the design's 36 px horizontal offset from the viewport center; tall
+dialogs use the same offset, while compact confirmations remain centered. Dialog
+components own only their header, scrollable body, and fixed footer actions.
+Independent recording, permission, and result windows remain outside this modal
+system.
 
 Desktop startup is shared across macOS and Windows. It resolves application
 paths, opens provider settings and local storage, loads local settings, and
 wires the shared Slint settings, history, dictionary, statistics, ASR, and
 dictation completion modules before platform-specific capabilities are attached.
-When automatic update checks are enabled, startup also queries the latest stable
-GitHub Release. A newer version is presented as a dismissible in-window notice;
-manual checks continue to report their result only in Settings. Concrete audio
-capture, permissions, global shortcuts, text delivery, window behavior, and
-system settings actions remain narrow adapters rather than one aggregate
-platform service. A platform that does not yet implement one of those adapters
-must return an explicit unavailable error; it must not replace the shared UI or
-bootstrap with a platform-specific application flow.
+LLM model discovery results live inside the owning Provider instance in that
+same Provider catalog. Each cached directory is scoped by its model-list
+endpoint and chat-completions profile, and stores the selected model and refresh
+timestamp. The JSON adapter updates the catalog under one lock and atomically
+replaces the file only after a successful refresh; failed refreshes leave both
+the persisted directory and the currently displayed list intact. Provider
+configuration saves and LLM enablement changes preserve this cache, while
+endpoint or profile changes make an unrelated cache ineligible for restoration.
+Selecting a model from a successfully loaded directory atomically updates both
+the Provider model and the directory selection so reopening that Provider
+restores the user's last choice. Provider configuration ordering is
+application-owned. The `ProviderConfigurator` tests an ASR or LLM candidate
+through `ProviderConnectionTester` and only then commits it through
+`ProviderConfigurationStore`; connection failures therefore cannot overwrite the
+saved candidate. The JSON adapter commits ASR changes under one settings lock
+and commits an LLM candidate, selection, enablement, and data consent together.
+Desktop settings callbacks collect draft fields, present remote data-consent
+confirmation and errors, and provide the concrete connection-test adapter
+without reproducing the test-before-save rule. When automatic update checks are
+enabled, startup also queries the latest stable GitHub Release. A newer version
+is presented as a dismissible in-window notice; manual checks continue to report
+their result only in Settings. Concrete audio capture, permissions, global
+shortcuts, text delivery, window behavior, and system settings actions remain
+narrow adapters rather than one aggregate platform service. A platform that does
+not yet implement one of those adapters must return an explicit unavailable
+error; it must not replace the shared UI or bootstrap with a platform-specific
+application flow.
+
+Streaming ASR remains an application-owned port. The Paraformer implementation
+in `infra` loads its pinned INT8 files once, then creates an isolated online
+sherpa-onnx stream for each dictation session. Audio pushes emit only changed
+non-empty partials; finishing drains final decoding and rejects an empty result.
+The Whisper large-v3-turbo and Qwen3-ASR 1.7B implementations instead buffer
+session PCM and use pinned sherpa-onnx offline recognizers at finish, with
+ordered segmentation and no fabricated partial results. Qwen3-ASR uses a
+one-second overlap plus conservative transcript-boundary deduplication for audio
+longer than 30 seconds so hard cuts do not repeat or truncate words.
+Cancellation drops any local-model session without finalizing it. The macOS
+desktop Provider lifecycle selects an adapter only after its pinned model has
+downloaded, passed size and SHA-256 validation, loaded successfully, and been
+recorded in local storage. The manifest-driven infrastructure installer keeps
+resumable partial files in a stable model-specific staging directory, supports
+cooperative pause and cancel, and atomically renames that directory only after
+every artifact validates. The desktop owns per-model UI progress and removes
+staging files after an explicit cancel. A non-Slint desktop lifecycle module
+owns installed-model metadata reconciliation, guarded Provider activation,
+previous-runtime release, and active-model deletion protection through
+application ports and infrastructure adapters. Slint callbacks submit lifecycle
+actions and present their results; they do not reproduce the ordering or
+recovery rules. Installation remains separate from Provider selection: a
+completed download never loads or selects the model until the user explicitly
+chooses it. The desktop also owns failure presentation and runtime memory
+sampling. An installed model also carries a verification marker containing its
+pinned identity and file metadata. Unchanged installations use that marker for a
+fast startup check; missing or changed metadata falls back to full SHA-256
+validation.
 
 macOS text delivery is an incremental main-thread state machine. Focus settling,
 accessibility verification, and clipboard restoration waits are represented as

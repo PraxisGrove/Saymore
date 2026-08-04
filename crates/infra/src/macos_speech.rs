@@ -17,7 +17,7 @@ use objc2_avf_audio::{AVAudioCommonFormat, AVAudioFormat, AVAudioPCMBuffer};
 use objc2_foundation::{NSArray, NSError, NSLocale, NSOperationQueue, NSString};
 use objc2_speech::{
     SFSpeechAudioBufferRecognitionRequest, SFSpeechRecognitionResult, SFSpeechRecognitionTask,
-    SFSpeechRecognizer, SFSpeechRecognizerAuthorizationStatus,
+    SFSpeechRecognitionTaskHint, SFSpeechRecognizer, SFSpeechRecognizerAuthorizationStatus,
 };
 use template_app::{
     SpeechRecognitionError, SpeechRecognitionHints, StreamingRecognitionSession,
@@ -331,6 +331,7 @@ fn configure_request(
     unsafe {
         request.setShouldReportPartialResults(true);
         request.setAddsPunctuation(true);
+        request.setTaskHint(SFSpeechRecognitionTaskHint::Dictation);
     }
     let terms = hints
         .terms()
@@ -619,6 +620,17 @@ mod tests {
             MacOsSpeechRecognizer::for_locale("  "),
             Err(SpeechRecognitionError::Protocol(_))
         ));
+    }
+
+    #[test]
+    fn recognition_requests_use_the_dictation_task_hint() {
+        let request = unsafe { SFSpeechAudioBufferRecognitionRequest::new() };
+
+        configure_request(&request, &SpeechRecognitionHints::default());
+
+        assert_eq!(SFSpeechRecognitionTaskHint::Dictation, unsafe {
+            request.taskHint()
+        });
     }
 
     #[test]

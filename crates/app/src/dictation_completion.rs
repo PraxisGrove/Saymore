@@ -359,8 +359,8 @@ impl DictationCompletion {
             id: id.to_string(),
             created_at_ms: self.adapters.clock.now_ms(),
             final_text: processed.text.clone(),
-            raw_asr_text: experimental_asr_text(raw_asr_text),
-            llm_refined_text: experimental_llm_refined_text(llm_refined_text),
+            raw_asr_text: Some(raw_asr_text.to_owned()),
+            llm_refined_text: llm_refined_text.map(str::to_owned),
             audio_duration_ms: recording.duration_ms,
             language: None,
             delivery: history_delivery,
@@ -456,7 +456,7 @@ fn history_refinement(status: &RefinementStatus) -> HistoryRefinement {
         RefinementStatus::FellBack(RefinementFallbackReason::Timeout) => {
             HistoryRefinement::TimedOut
         }
-        RefinementStatus::FellBack(RefinementFallbackReason::OutputRejected) => {
+        RefinementStatus::FellBack(RefinementFallbackReason::OutputRejected(_)) => {
             HistoryRefinement::OutputRejected
         }
         RefinementStatus::FellBack(
@@ -469,29 +469,5 @@ fn history_refinement(status: &RefinementStatus) -> HistoryRefinement {
             | RefinementFallbackReason::Protocol
             | RefinementFallbackReason::TemporarilyUnavailable,
         ) => HistoryRefinement::ProviderUnavailable,
-    }
-}
-
-fn experimental_asr_text(raw_asr_text: &str) -> Option<String> {
-    #[cfg(any(debug_assertions, feature = "history-experiments"))]
-    {
-        Some(raw_asr_text.to_owned())
-    }
-    #[cfg(not(any(debug_assertions, feature = "history-experiments")))]
-    {
-        let _ = raw_asr_text;
-        None
-    }
-}
-
-fn experimental_llm_refined_text(llm_refined_text: Option<&str>) -> Option<String> {
-    #[cfg(any(debug_assertions, feature = "history-experiments"))]
-    {
-        llm_refined_text.map(str::to_owned)
-    }
-    #[cfg(not(any(debug_assertions, feature = "history-experiments")))]
-    {
-        let _ = llm_refined_text;
-        None
     }
 }

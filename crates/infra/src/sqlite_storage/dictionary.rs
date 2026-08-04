@@ -21,6 +21,23 @@ pub(super) fn list(connection: &Connection) -> Result<Vec<DictionaryEntry>, Stor
         .map_err(unavailable)
 }
 
+pub(super) fn contains_identity(
+    transaction: &rusqlite::Transaction<'_>,
+    language: &str,
+    canonical_key: &str,
+) -> Result<bool, StorageError> {
+    transaction
+        .query_row(
+            "SELECT 1 FROM dictionary_entries
+             WHERE language = ?1 AND canonical_key = ?2",
+            params![language, canonical_key],
+            |_| Ok(()),
+        )
+        .optional()
+        .map(|entry| entry.is_some())
+        .map_err(unavailable)
+}
+
 pub(super) fn upsert(
     connection: &mut Connection,
     entry: NewDictionaryEntry,
@@ -32,6 +49,51 @@ pub(super) fn upsert(
     find_by_id(connection, &id)?.ok_or_else(|| {
         StorageError::Invalid("dictionary upsert did not create an entry".to_owned())
     })
+}
+
+pub(super) fn update(
+    connection: &mut Connection,
+    id: &str,
+    canonical: &str,
+    now_ms: i64,
+) -> Result<DictionaryEntry, StorageError> {
+    let (canonical, canonical_key) = normalize_canonical(canonical)?;
+    let transaction = connection.transaction().map_err(unavailable)?;
+    let language = transaction
+        .query_row(
+            "SELECT language FROM dictionary_entries WHERE id = ?1",
+            [id],
+            |row| row.get::<_, String>(0),
+        )
+        .optional()
+        .map_err(unavailable)?
+        .ok_or_else(|| StorageError::Invalid("dictionary entry is missing".to_owned()))?;
+    let duplicate_exists = transaction
+        .query_row(
+            "SELECT 1 FROM dictionary_entries
+             WHERE language = ?1 AND canonical_key = ?2 AND id <> ?3",
+            params![language, canonical_key, id],
+            |_| Ok(()),
+        )
+        .optional()
+        .map_err(unavailable)?
+        .is_some();
+    if duplicate_exists {
+        return Err(StorageError::Invalid(
+            "dictionary entry already exists".to_owned(),
+        ));
+    }
+    transaction
+        .execute(
+            "UPDATE dictionary_entries
+             SET canonical = ?1, canonical_key = ?2, updated_at_ms = ?3
+             WHERE id = ?4",
+            params![canonical, canonical_key, now_ms, id],
+        )
+        .map_err(unavailable)?;
+    transaction.commit().map_err(unavailable)?;
+    find_by_id(connection, id)?
+        .ok_or_else(|| StorageError::Invalid("dictionary entry is missing".to_owned()))
 }
 
 pub(super) fn delete(connection: &mut Connection, id: &str) -> Result<(), StorageError> {
@@ -78,13 +140,7 @@ struct NormalizedEntry {
 
 impl NormalizedEntry {
     fn new(entry: NewDictionaryEntry) -> Result<Self, StorageError> {
-        let canonical = entry.canonical.trim().to_owned();
-        let canonical_key = dictionary_comparison_key(&canonical);
-        if canonical_key.is_empty() {
-            return Err(StorageError::Invalid(
-                "dictionary canonical spelling must not be empty".to_owned(),
-            ));
-        }
+        let (canonical, canonical_key) = normalize_canonical(&entry.canonical)?;
         let language = normalize_language_tag(&entry.language)?;
         Ok(Self {
             canonical,
@@ -93,6 +149,17 @@ impl NormalizedEntry {
             origin: entry.origin,
         })
     }
+}
+
+fn normalize_canonical(value: &str) -> Result<(String, String), StorageError> {
+    let canonical = value.trim().to_owned();
+    let canonical_key = dictionary_comparison_key(&canonical);
+    if canonical_key.is_empty() {
+        return Err(StorageError::Invalid(
+            "dictionary canonical spelling must not be empty".to_owned(),
+        ));
+    }
+    Ok((canonical, canonical_key))
 }
 
 pub(super) fn upsert_in_transaction(

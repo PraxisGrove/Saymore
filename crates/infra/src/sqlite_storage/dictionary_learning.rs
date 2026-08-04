@@ -15,24 +15,40 @@ pub(super) fn record(
     observation: NewDictionaryObservation,
 ) -> Result<DictionaryLearningOutcome, StorageError> {
     let normalized = NormalizedObservation::new(observation)?;
-    let Some((required_occurrences, required_dictations)) =
-        normalized.assessment.required_evidence()
-    else {
+    if normalized.canonical.chars().count() < 2
+        || normalized.assessment.required_evidence().is_none()
+    {
+        let transaction = connection.transaction().map_err(unavailable)?;
+        upsert_diagnostic(&transaction, &normalized)?;
+        transaction.commit().map_err(unavailable)?;
         return Ok(DictionaryLearningOutcome::Rejected);
-    };
+    }
     let transaction = connection.transaction().map_err(unavailable)?;
+    if dictionary::contains_identity(
+        &transaction,
+        &normalized.language,
+        &normalized.canonical_key,
+    )? {
+        transaction.commit().map_err(unavailable)?;
+        return Ok(DictionaryLearningOutcome::AlreadyPresent);
+    }
     if is_suppressed(&transaction, &normalized)? {
         return Ok(DictionaryLearningOutcome::Suppressed);
     }
-    let (occurrence_count, dictation_count) = record_evidence(&transaction, &normalized)?;
-    if occurrence_count < required_occurrences || dictation_count < required_dictations {
+    let evidence = record_evidence(&transaction, &normalized)?;
+    if evidence.high_confidence_dictations < 2 && evidence.dictation_count < 3 {
         transaction.commit().map_err(unavailable)?;
         return Ok(DictionaryLearningOutcome::Pending {
-            occurrence_count,
-            dictation_count,
+            occurrence_count: evidence.occurrence_count,
+            dictation_count: evidence.dictation_count,
         });
     }
-    let id = promote_candidate(&transaction, &normalized, occurrence_count, dictation_count)?;
+    let id = promote_candidate(
+        &transaction,
+        &normalized,
+        evidence.occurrence_count,
+        evidence.dictation_count,
+    )?;
     transaction.commit().map_err(unavailable)?;
     dictionary::find_by_id(connection, &id)?
         .map(DictionaryLearningOutcome::Added)
@@ -44,7 +60,7 @@ pub(super) fn record(
 fn record_evidence(
     transaction: &Transaction<'_>,
     normalized: &NormalizedObservation,
-) -> Result<(u32, u32), StorageError> {
+) -> Result<AggregatedEvidence, StorageError> {
     transaction
         .execute(
             "DELETE FROM term_observations WHERE observed_at_ms < ?1",
@@ -57,21 +73,31 @@ fn record_evidence(
         .execute(
             "INSERT INTO term_observations(
                 dictation_id, language, canonical, canonical_key,
-                occurrence_count, observed_at_ms
-             ) VALUES (?1, ?2, ?3, ?4, 1, ?5)
+                evidence_kind, decision, confidence, occurrence_count, observed_at_ms
+             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 1, ?8)
              ON CONFLICT(dictation_id, language, canonical_key) DO UPDATE SET
-                occurrence_count = term_observations.occurrence_count + 1,
-                observed_at_ms = excluded.observed_at_ms",
+                canonical = excluded.canonical,
+                evidence_kind = CASE
+                    WHEN term_observations.evidence_kind = 'user_revision'
+                    THEN term_observations.evidence_kind ELSE excluded.evidence_kind END,
+                decision = CASE WHEN excluded.confidence > term_observations.confidence
+                    THEN excluded.decision ELSE term_observations.decision END,
+                confidence = MAX(term_observations.confidence, excluded.confidence),
+                occurrence_count = 1,
+                observed_at_ms = MAX(term_observations.observed_at_ms, excluded.observed_at_ms)",
             params![
                 normalized.dictation_id,
                 normalized.language,
                 normalized.canonical,
                 normalized.canonical_key,
+                evidence_kind(normalized.assessment.source),
+                decision_name(normalized.assessment.decision),
+                normalized.assessment.confidence,
                 normalized.observed_at_ms,
             ],
         )
         .map_err(unavailable)?;
-    let (occurrence_count, dictation_count) = aggregate(transaction, normalized)?;
+    let evidence = aggregate(transaction, normalized)?;
     transaction
         .execute(
             "INSERT INTO dictionary_candidates(
@@ -85,8 +111,8 @@ fn record_evidence(
             params![
                 normalized.language,
                 normalized.canonical_key,
-                occurrence_count,
-                dictation_count,
+                evidence.occurrence_count,
+                evidence.dictation_count,
                 normalized.observed_at_ms,
             ],
         )
@@ -94,11 +120,11 @@ fn record_evidence(
     upsert_evidence(
         transaction,
         normalized,
-        occurrence_count,
-        dictation_count,
+        evidence.occurrence_count,
+        evidence.dictation_count,
         DictionaryCandidateState::Pending,
     )?;
-    Ok((occurrence_count, dictation_count))
+    Ok(evidence)
 }
 
 fn promote_candidate(
@@ -215,10 +241,13 @@ fn upsert_evidence(
              ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)
              ON CONFLICT(language, canonical_key) DO UPDATE SET
                 canonical = excluded.canonical,
-                decision = excluded.decision,
-                candidate_kind = excluded.candidate_kind,
-                confidence = excluded.confidence,
-                assessment_source = excluded.assessment_source,
+                decision = CASE WHEN excluded.confidence > dictionary_candidate_evidence.confidence
+                    THEN excluded.decision ELSE dictionary_candidate_evidence.decision END,
+                candidate_kind = CASE WHEN excluded.confidence > dictionary_candidate_evidence.confidence
+                    THEN excluded.candidate_kind ELSE dictionary_candidate_evidence.candidate_kind END,
+                confidence = MAX(dictionary_candidate_evidence.confidence, excluded.confidence),
+                assessment_source = CASE WHEN excluded.confidence > dictionary_candidate_evidence.confidence
+                    THEN excluded.assessment_source ELSE dictionary_candidate_evidence.assessment_source END,
                 occurrence_count = excluded.occurrence_count,
                 dictation_count = excluded.dictation_count,
                 state = excluded.state,
@@ -241,17 +270,71 @@ fn upsert_evidence(
         .map_err(unavailable)
 }
 
+fn upsert_diagnostic(
+    transaction: &rusqlite::Transaction<'_>,
+    observation: &NormalizedObservation,
+) -> Result<(), StorageError> {
+    transaction
+        .execute(
+            "INSERT INTO dictionary_candidate_evidence(
+                language, canonical_key, canonical, decision, candidate_kind,
+                confidence, assessment_source, occurrence_count, dictation_count,
+                state, last_observed_at_ms
+             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 0, 0, 'pending', ?8)
+             ON CONFLICT(language, canonical_key) DO UPDATE SET
+                canonical = CASE WHEN excluded.confidence > dictionary_candidate_evidence.confidence
+                    THEN excluded.canonical ELSE dictionary_candidate_evidence.canonical END,
+                decision = CASE WHEN excluded.confidence > dictionary_candidate_evidence.confidence
+                    THEN excluded.decision ELSE dictionary_candidate_evidence.decision END,
+                candidate_kind = CASE WHEN excluded.confidence > dictionary_candidate_evidence.confidence
+                    THEN excluded.candidate_kind ELSE dictionary_candidate_evidence.candidate_kind END,
+                confidence = MAX(dictionary_candidate_evidence.confidence, excluded.confidence),
+                assessment_source = CASE WHEN excluded.confidence > dictionary_candidate_evidence.confidence
+                    THEN excluded.assessment_source ELSE dictionary_candidate_evidence.assessment_source END,
+                last_observed_at_ms = MAX(
+                    dictionary_candidate_evidence.last_observed_at_ms,
+                    excluded.last_observed_at_ms
+                )",
+            params![
+                observation.language,
+                observation.canonical_key,
+                observation.canonical,
+                decision_name(observation.assessment.decision),
+                kind_name(observation.assessment.kind),
+                observation.assessment.confidence,
+                source_name(observation.assessment.source),
+                observation.observed_at_ms,
+            ],
+        )
+        .map(|_| ())
+        .map_err(unavailable)
+}
+
+struct AggregatedEvidence {
+    occurrence_count: u32,
+    dictation_count: u32,
+    high_confidence_dictations: u32,
+}
+
 fn aggregate(
     transaction: &rusqlite::Transaction<'_>,
     observation: &NormalizedObservation,
-) -> Result<(u32, u32), StorageError> {
+) -> Result<AggregatedEvidence, StorageError> {
     transaction
         .query_row(
-            "SELECT COALESCE(SUM(occurrence_count), 0), COUNT(DISTINCT dictation_id)
+            "SELECT COUNT(*), COUNT(DISTINCT dictation_id),
+                    COUNT(DISTINCT CASE
+                        WHEN decision = 'accept' AND confidence >= 80 THEN dictation_id END)
              FROM term_observations
              WHERE language = ?1 AND canonical_key = ?2",
             params![observation.language, observation.canonical_key],
-            |row| Ok((row.get(0)?, row.get(1)?)),
+            |row| {
+                Ok(AggregatedEvidence {
+                    occurrence_count: row.get(0)?,
+                    dictation_count: row.get(1)?,
+                    high_confidence_dictations: row.get(2)?,
+                })
+            },
         )
         .map_err(unavailable)
 }
@@ -324,6 +407,14 @@ fn source_name(value: CandidateAssessmentSource) -> &'static str {
     match value {
         CandidateAssessmentSource::Local => "local",
         CandidateAssessmentSource::Llm => "llm",
+        CandidateAssessmentSource::VocabularySuggestion => "vocabulary_suggestion",
+    }
+}
+
+fn evidence_kind(value: CandidateAssessmentSource) -> &'static str {
+    match value {
+        CandidateAssessmentSource::Local | CandidateAssessmentSource::Llm => "user_revision",
+        CandidateAssessmentSource::VocabularySuggestion => "vocabulary_suggestion",
     }
 }
 
@@ -363,6 +454,7 @@ fn parse_source(value: &str) -> Result<CandidateAssessmentSource, StorageError> 
     match value {
         "local" => Ok(CandidateAssessmentSource::Local),
         "llm" => Ok(CandidateAssessmentSource::Llm),
+        "vocabulary_suggestion" => Ok(CandidateAssessmentSource::VocabularySuggestion),
         _ => Err(invalid_evidence("source")),
     }
 }

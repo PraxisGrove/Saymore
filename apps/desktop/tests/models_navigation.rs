@@ -23,9 +23,9 @@ fn main() {
     ui.set_focus_asr_config(true);
     ui.set_current_page(AppPage::Models);
 
-    let consumed_after_switches = Rc::new(Cell::new((false, false)));
+    let observed_state = Rc::new(Cell::new((false, false, false)));
     let first_switch = ui.as_weak();
-    let first_result = Rc::clone(&consumed_after_switches);
+    let first_result = Rc::clone(&observed_state);
     Timer::single_shot(Duration::ZERO, move || {
         let Some(ui) = first_switch.upgrade() else {
             fail("app window was dropped before the first tab switch");
@@ -41,13 +41,21 @@ fn main() {
             let consumed_after_first_switch = !ui.get_focus_asr_config();
             ui.set_model_tab(1);
             ui.set_model_tab(0);
-            second_result.set((consumed_after_first_switch, !ui.get_focus_asr_config()));
+            ui.set_paraformer_selected(true);
+            ui.set_paraformer_runtime_memory_live(true);
+            ui.set_paraformer_runtime_memory_usage("474 MB".into());
+            ui.set_paraformer_selected(false);
+            second_result.set((
+                consumed_after_first_switch,
+                !ui.get_focus_asr_config(),
+                !ui.get_paraformer_runtime_memory_active(),
+            ));
             let _ = slint::quit_event_loop();
         });
     });
 
     require(slint::run_event_loop(), "run event loop");
-    assert_eq!((true, true), consumed_after_switches.get());
+    assert_eq!((true, true, true), observed_state.get());
 }
 
 fn require<T, E: std::fmt::Display>(result: Result<T, E>, action: &str) -> T {

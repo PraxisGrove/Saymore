@@ -11,12 +11,11 @@ During implementation, run focused tests and checks for the code being changed.
 ### UI color ownership
 
 All main-window Slint components must consume semantic roles from
-`apps/desktop/ui/color-system.slint`. Independent overlays consume the fixed
-roles in `apps/desktop/ui/overlay-color-system.slint`, so changing the app theme
-does not recolor permission prompts, recording controls, or result
-notifications. The theme picker may declare its five color swatches and the
-Saymore default-theme mark directly; no other Slint component may contain a
-color literal.
+`apps/desktop/ui/color-system.slint`. Independent overlays consume roles from
+`apps/desktop/ui/overlay-color-system.slint`; their neutral surfaces stay fixed
+while accent roles follow the selected app theme. The theme picker may declare
+its five color swatches and the Saymore default-theme mark directly; no other
+Slint component may contain a color literal.
 
 Run the color boundary check with:
 

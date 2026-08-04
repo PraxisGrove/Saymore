@@ -1,0 +1,335 @@
+import { AsrProviderCardKind } from "../components.slint";
+import { AppColors } from "../color-system.slint";
+
+component CompactActionButton inherits Rectangle {
+    in property <string> label;
+    in property <image> icon;
+    in property <bool> enabled: true;
+    in property <string> state: "default";
+    callback activated();
+
+    private property <length> content-width: 24px + action-label.preferred-width;
+
+    width: max(112px, action-label.preferred-width + 48px);
+    height: 34px;
+    border-radius: 7px;
+    background: !root.enabled ? AppColors.surface-muted
+        : root.state == "success" ? AppColors.success-soft
+        : root.state == "failure" ? AppColors.danger-soft
+        : action-touch.has-hover ? AppColors.surface-subtle : AppColors.surface-muted;
+    opacity: root.enabled ? (action-touch.pressed ? 0.82 : 1) : 0.6;
+    accessible-role: button;
+    accessible-label: root.label;
+    accessible-enabled: root.enabled;
+    accessible-action-default => { if root.enabled { root.activated(); } }
+    Image { x: (parent.width - root.content-width) / 2; y: 9px; width: 16px; height: 16px; source: root.icon; colorize: root.state == "failure" ? AppColors.danger : AppColors.text; }
+    action-label := Text { x: (parent.width - root.content-width) / 2 + 24px; width: root.content-width - 24px; text: root.label; color: root.state == "failure" ? AppColors.danger : AppColors.text; font-size: 11px; font-weight: 600; vertical-alignment: center; }
+    action-touch := TouchArea { enabled: root.enabled; mouse-cursor: root.enabled ? pointer : default; clicked => { root.activated(); } }
+}
+
+component StorageLegendRow inherits Rectangle {
+    in property <color> marker-color;
+    in property <string> label;
+    in property <string> usage;
+    in property <string> percent;
+    in property <bool> interactive: false;
+    callback activated();
+
+    background: row-touch.has-hover && root.interactive ? AppColors.surface-subtle : transparent;
+    border-radius: 6px;
+    accessible-role: button;
+    accessible-label: root.label;
+    accessible-enabled: root.interactive;
+    accessible-action-default => { if root.interactive { root.activated(); } }
+    Rectangle { x: 10px; y: 14px; width: 8px; height: 8px; border-radius: 4px; background: root.marker-color; }
+    Text { x: 30px; width: parent.width - 188px; text: root.label; color: AppColors.text; font-size: 11px; font-weight: 550; vertical-alignment: center; overflow: elide; }
+    Text { x: parent.width - 178px; width: 82px; text: root.usage; color: AppColors.ink; font-family: "Geist Mono"; font-size: 10px; font-weight: 600; horizontal-alignment: right; vertical-alignment: center; }
+    Text { x: parent.width - 84px; width: 56px; text: root.percent; color: AppColors.text-muted; font-family: "Geist Mono"; font-size: 10px; horizontal-alignment: right; vertical-alignment: center; }
+    if root.interactive: Image { x: parent.width - 17px; y: 11px; width: 14px; height: 14px; source: @image-url("../../icons/lucide/chevron-right.svg"); colorize: AppColors.text-muted; }
+    row-touch := TouchArea { enabled: root.interactive; mouse-cursor: root.interactive ? pointer : default; clicked => { root.activated(); } }
+}
+
+component StorageDonut inherits Rectangle {
+    in property <string> total;
+    in property <string> model-path;
+    in property <string> recognition-path;
+    in property <string> diagnostics-path;
+    in property <string> other-path;
+    in property <float> model-share;
+    in property <float> recognition-share;
+    in property <float> diagnostics-share;
+    in property <float> other-share;
+
+    background: transparent;
+    if root.model-share > 0: Path { width: 200px; height: 200px; viewbox-width: 200; viewbox-height: 200; commands: root.model-path; fill: AppColors.storage-model; }
+    if root.recognition-share > 0: Path { width: 200px; height: 200px; viewbox-width: 200; viewbox-height: 200; commands: root.recognition-path; fill: AppColors.storage-recognition; }
+    if root.diagnostics-share > 0: Path { width: 200px; height: 200px; viewbox-width: 200; viewbox-height: 200; commands: root.diagnostics-path; fill: AppColors.storage-diagnostics; }
+    if root.other-share > 0: Path { width: 200px; height: 200px; viewbox-width: 200; viewbox-height: 200; commands: root.other-path; fill: AppColors.storage-other; }
+    Text { x: 40px; y: 72px; width: 120px; height: 22px; text: @tr("settings.storage.total" => "Total"); color: AppColors.text-muted; font-size: 11px; font-weight: 500; horizontal-alignment: center; vertical-alignment: center; }
+    Text { x: 23px; y: 96px; width: 154px; height: 38px; text: root.total; color: AppColors.ink; font-family: "Geist Mono"; font-size: 19px; font-weight: 450; horizontal-alignment: center; vertical-alignment: center; overflow: elide; }
+}
+
+component StorageOverviewCard inherits Rectangle {
+    in property <string> total;
+    in property <string> local-models-usage;
+    in property <string> recognition-usage;
+    in property <string> diagnostics-usage;
+    in property <string> other-usage;
+    in property <string> local-models-percent;
+    in property <string> recognition-percent;
+    in property <string> diagnostics-percent;
+    in property <string> other-percent;
+    in property <string> local-models-path;
+    in property <string> recognition-path;
+    in property <string> diagnostics-path;
+    in property <string> other-path;
+    in property <float> local-models-share;
+    in property <float> recognition-share;
+    in property <float> diagnostics-share;
+    in property <float> other-share;
+    callback open-folder();
+    callback open-local-models();
+
+    height: 254px;
+    border-radius: 10px;
+    background: AppColors.surface;
+    Text { x: 12px; y: 11px; text: @tr("settings.local-data.title" => "Local data"); color: AppColors.text; font-size: 14px; font-weight: 650; }
+    CompactActionButton { x: parent.width - self.width - 20px; y: 14px; width: 147px; label: @tr("settings.local-data.open-folder" => "Open data folder"); icon: @image-url("../../icons/lucide/folder-open.svg"); activated => { root.open-folder(); } }
+    StorageDonut { x: 40px; y: 48px; width: 200px; height: 200px; total: root.total; model-path: root.local-models-path; recognition-path: root.recognition-path; diagnostics-path: root.diagnostics-path; other-path: root.other-path; model-share: root.local-models-share; recognition-share: root.recognition-share; diagnostics-share: root.diagnostics-share; other-share: root.other-share; }
+    StorageLegendRow { x: 290px; y: 68px; width: parent.width - 307px; height: 36px; marker-color: AppColors.storage-model; label: @tr("settings.storage.local-models" => "Local speech models"); usage: root.local-models-usage; percent: root.local-models-percent; interactive: true; activated => { root.open-local-models(); } }
+    StorageLegendRow { x: 290px; y: 108px; width: parent.width - 307px; height: 36px; marker-color: AppColors.storage-recognition; label: @tr("settings.storage.recognition" => "Recognition & personalization"); usage: root.recognition-usage; percent: root.recognition-percent; }
+    StorageLegendRow { x: 290px; y: 148px; width: parent.width - 307px; height: 36px; marker-color: AppColors.storage-diagnostics; label: @tr("settings.storage.diagnostics" => "Diagnostic logs"); usage: root.diagnostics-usage; percent: root.diagnostics-percent; }
+    StorageLegendRow { x: 290px; y: 188px; width: parent.width - 307px; height: 36px; marker-color: AppColors.storage-other; label: @tr("settings.storage.other" => "Configuration & other"); usage: root.other-usage; percent: root.other-percent; }
+}
+
+component DiagnosticCard inherits Rectangle {
+    in property <image> icon;
+    in property <string> title;
+    in property <string> status;
+    in property <string> detail;
+    in property <bool> switch-visible: false;
+    in-out property <bool> checked: false;
+    in property <string> action-label;
+    in property <image> action-icon;
+    in property <bool> action-enabled: true;
+    in property <string> action-state: "default";
+    callback toggled(bool);
+    callback action();
+
+    border-radius: 10px;
+    background: AppColors.surface;
+    Image { x: 25px; y: 25px; width: 16px; height: 16px; source: root.icon; colorize: AppColors.text; }
+    Text { x: 62px; y: 15px; width: parent.width - 166px; text: root.title; color: AppColors.text; font-size: 13px; font-weight: 650; overflow: elide; }
+    Text { x: 62px; y: 36px; width: parent.width - 166px; text: root.status; color: root.action-state == "failure" ? AppColors.danger : AppColors.text-muted; font-size: 9px; overflow: elide; }
+    if root.switch-visible: Rectangle {
+        x: parent.width - 58px; y: 18px; width: 42px; height: 24px; border-radius: 12px; background: root.checked ? AppColors.brand : AppColors.border;
+        Rectangle { x: root.checked ? 21px : 3px; y: 3px; width: 18px; height: 18px; border-radius: 9px; background: AppColors.surface; animate x { duration: 160ms; easing: ease-out; } }
+        switch-touch := TouchArea { mouse-cursor: pointer; clicked => { root.checked = !root.checked; root.toggled(root.checked); } }
+    }
+    if !root.switch-visible: CompactActionButton { x: parent.width - self.width - 16px; y: 16px; width: 111px; height: 32px; label: root.action-label; icon: root.action-icon; enabled: root.action-enabled; state: root.action-state; activated => { root.action(); } }
+    Text { x: 16px; y: 72px; width: parent.width - 32px; text: root.detail; color: AppColors.text-muted; font-size: 10px; overflow: elide; }
+}
+
+component PrivacyPolicyRow inherits Rectangle {
+    callback activated();
+    border-radius: 10px;
+    background: policy-touch.has-hover ? AppColors.surface-subtle : AppColors.surface;
+    accessible-role: button;
+    accessible-label: @tr("settings.privacy-policy.title" => "Privacy Policy");
+    accessible-action-default => { root.activated(); }
+    Image { x: 24px; y: 17px; width: 18px; height: 18px; source: @image-url("../../icons/lucide/lock-keyhole.svg"); colorize: AppColors.text-muted; }
+    Text { x: 54px; y: 8px; text: @tr("settings.privacy-policy.title" => "Privacy Policy"); color: AppColors.text; font-size: 13px; font-weight: 650; }
+    Text { x: 54px; y: 28px; text: @tr("settings.privacy-policy.detail" => "Learn how Saymore handles and protects your data."); color: AppColors.text-muted; font-size: 10px; }
+    Image { x: parent.width - 34px; y: 19px; width: 14px; height: 14px; source: @image-url("../../icons/lucide/chevron-right.svg"); colorize: AppColors.text-muted; }
+    policy-touch := TouchArea { mouse-cursor: pointer; clicked => { root.activated(); } }
+}
+
+component ModelDeleteButton inherits Rectangle {
+    in property <bool> enabled: true;
+    callback activated();
+    width: 36px; height: 32px; border-radius: 7px;
+    background: delete-touch.has-hover && root.enabled ? AppColors.danger-soft : AppColors.surface-muted;
+    opacity: root.enabled ? 1 : 0.5;
+    accessible-role: button;
+    accessible-label: @tr("settings.storage.remove-model" => "Remove model");
+    accessible-enabled: root.enabled;
+    accessible-action-default => { if root.enabled { root.activated(); } }
+    Image { x: 10px; y: 8px; width: 16px; height: 16px; source: @image-url("../../icons/lucide/trash-2.svg"); colorize: AppColors.danger; }
+    delete-touch := TouchArea { enabled: root.enabled; mouse-cursor: root.enabled ? pointer : default; clicked => { root.activated(); } }
+}
+
+component InstalledModelRow inherits Rectangle {
+    in property <image> logo;
+    in property <color> marker-color;
+    in property <string> title;
+    in property <string> detail;
+    in property <string> size;
+    in property <bool> active: false;
+    in property <bool> pending: false;
+    callback delete-requested();
+
+    height: 84px;
+    background: AppColors.surface;
+    Image { x: 20px; y: 20px; width: 44px; height: 44px; source: root.logo; image-fit: contain; }
+    Rectangle { x: 80px; y: 25px; width: 8px; height: 8px; border-radius: 4px; background: root.marker-color; }
+    Text { x: 94px; y: 17px; width: parent.width - 300px; text: root.title; color: AppColors.text; font-size: 13px; font-weight: 500; overflow: elide; }
+    Text { x: 94px; y: 42px; width: parent.width - 300px; text: root.detail; color: root.active ? AppColors.success : AppColors.text-muted; font-size: 9px; overflow: elide; }
+    Text { x: parent.width - 210px; y: 29px; width: 100px; height: 22px; text: root.size; color: AppColors.ink; font-family: "Geist Mono"; font-size: 11px; font-weight: 600; horizontal-alignment: right; vertical-alignment: center; }
+    if root.active: Rectangle { x: parent.width - 92px; y: 25px; width: 66px; height: 30px; border-radius: 8px; background: AppColors.success-soft; Text { text: @tr("settings.storage.in-use" => "In use"); color: AppColors.success; font-size: 10px; font-weight: 600; horizontal-alignment: center; vertical-alignment: center; } }
+    if !root.active: ModelDeleteButton { x: parent.width - 62px; y: 26px; enabled: !root.pending; activated => { root.delete-requested(); } }
+}
+
+component ModelUsageBar inherits Rectangle {
+    in property <float> qwen-share;
+    in property <float> sense-voice-share;
+    in property <float> whisper-share;
+    in property <float> paraformer-share;
+    in property <float> punctuation-share;
+    border-radius: 5px;
+    background: AppColors.progress-track;
+    clip: true;
+    Rectangle { x: 0px; width: parent.width * root.qwen-share; background: AppColors.model-qwen; }
+    Rectangle { x: parent.width * root.qwen-share; width: parent.width * root.sense-voice-share; background: AppColors.model-sense-voice; }
+    Rectangle { x: parent.width * (root.qwen-share + root.sense-voice-share); width: parent.width * root.whisper-share; background: AppColors.model-whisper; }
+    Rectangle { x: parent.width * (root.qwen-share + root.sense-voice-share + root.whisper-share); width: parent.width * root.paraformer-share; background: AppColors.model-paraformer; }
+    Rectangle { x: parent.width * (root.qwen-share + root.sense-voice-share + root.whisper-share + root.paraformer-share); width: parent.width * root.punctuation-share; background: AppColors.model-punctuation; }
+}
+
+component LocalModelsPage inherits Rectangle {
+    in property <string> total-usage;
+    in property <bool> paraformer-installed;
+    in property <string> paraformer-size;
+    in property <bool> paraformer-active;
+    in property <bool> paraformer-pending;
+    in property <bool> whisper-installed;
+    in property <string> whisper-size;
+    in property <bool> whisper-active;
+    in property <bool> whisper-pending;
+    in property <bool> qwen-installed;
+    in property <string> qwen-size;
+    in property <bool> qwen-active;
+    in property <bool> qwen-pending;
+    in property <bool> sense-voice-installed;
+    in property <string> sense-voice-size;
+    in property <bool> sense-voice-active;
+    in property <bool> sense-voice-pending;
+    in property <bool> punctuation-installed;
+    in property <string> punctuation-size;
+    in property <bool> punctuation-pending;
+    in property <float> qwen-share;
+    in property <float> sense-voice-share;
+    in property <float> whisper-share;
+    in property <float> paraformer-share;
+    in property <float> punctuation-share;
+    callback back();
+    callback delete-model(AsrProviderCardKind);
+    callback delete-punctuation();
+
+    private property <int> installed-count: (root.paraformer-installed ? 1 : 0) + (root.whisper-installed ? 1 : 0) + (root.qwen-installed ? 1 : 0) + (root.sense-voice-installed ? 1 : 0);
+    background: transparent;
+    Rectangle { x: 0px; y: 0px; width: 112px; height: 24px; border-radius: 6px; background: back-touch.has-hover ? AppColors.surface-subtle : transparent; Image { x: 0px; y: 5px; width: 14px; height: 14px; source: @image-url("../../icons/lucide/chevron-right.svg"); colorize: AppColors.text-muted; transform-rotation: 180deg; } Text { x: 20px; y: 3px; text: @tr("settings.section.privacy-data" => "Privacy & Data"); color: AppColors.text-muted; font-size: 11px; font-weight: 500; } back-touch := TouchArea { mouse-cursor: pointer; clicked => { root.back(); } } }
+    Rectangle {
+        x: 0px; y: 38px; width: parent.width; height: 112px; border-radius: 10px; background: AppColors.surface;
+        Rectangle { x: 20px; y: 18px; width: 38px; height: 38px; border-radius: 9px; background: AppColors.brand-soft; Image { x: 10px; y: 10px; width: 18px; height: 18px; source: @image-url("../../icons/lucide/memory-stick.svg"); colorize: AppColors.brand; } }
+        Text { x: 72px; y: 17px; text: @tr("settings.storage.model-summary" => "{} speech models + {} auxiliary model" | "{} speech models + {} auxiliary models" % (root.punctuation-installed ? 1 : 0), root.installed-count, root.punctuation-installed ? 1 : 0); color: AppColors.text; font-size: 14px; font-weight: 650; }
+        Text { x: 72px; y: 43px; text: @tr("settings.storage.models-local" => "Speech and auxiliary models are stored on this device."); color: AppColors.text-muted; font-size: 10px; }
+        Text { x: parent.width - 138px; y: 18px; text: @tr("settings.storage.total-usage" => "Total usage"); color: AppColors.text-muted; font-size: 9px; }
+        Text { x: parent.width - 138px; y: 36px; width: 118px; text: root.total-usage; color: AppColors.ink; font-family: "Geist Mono"; font-size: 18px; font-weight: 650; horizontal-alignment: left; }
+        ModelUsageBar { x: 20px; y: 78px; width: parent.width - 40px; height: 10px; qwen-share: root.qwen-share; sense-voice-share: root.sense-voice-share; whisper-share: root.whisper-share; paraformer-share: root.paraformer-share; punctuation-share: root.punctuation-share; }
+        Text { x: 20px; y: 94px; text: @tr("settings.storage.model-realtime" => "Measured from model files in real time, including auxiliary models."); color: AppColors.text-muted; font-size: 8px; }
+    }
+    Text { x: 0px; y: 170px; text: @tr("settings.storage.installed-speech-models" => "Installed speech models"); color: AppColors.text; font-size: 13px; font-weight: 650; }
+    Rectangle {
+        x: 0px; y: 198px; width: parent.width; height: max(70px, root.installed-count * 84px); border-radius: 10px; background: AppColors.surface; clip: true;
+        VerticalLayout {
+            if root.paraformer-installed: InstalledModelRow { logo: @image-url("../../icons/providers/funasr.png"); marker-color: AppColors.model-paraformer; title: "Paraformer 中英双语"; detail: root.paraformer-active ? @tr("settings.storage.paraformer-active" => "Streaming recognition · Current") : @tr("settings.storage.offline-recognition" => "Bilingual · Offline recognition"); size: root.paraformer-size; active: root.paraformer-active; pending: root.paraformer-pending; delete-requested => { root.delete-model(AsrProviderCardKind.paraformer); } }
+            if root.whisper-installed: InstalledModelRow { logo: @image-url("../../icons/providers/openai.png"); marker-color: AppColors.model-whisper; title: "Whisper large-v3-turbo"; detail: @tr("settings.storage.multilingual-offline" => "Multilingual · Offline recognition"); size: root.whisper-size; active: root.whisper-active; pending: root.whisper-pending; delete-requested => { root.delete-model(AsrProviderCardKind.whisper-large-v3-turbo); } }
+            if root.qwen-installed: InstalledModelRow { logo: @image-url("../../icons/providers/qwen.png"); marker-color: AppColors.model-qwen; title: "Qwen3-ASR 1.7B"; detail: @tr("settings.storage.multilingual-offline" => "Multilingual · Offline recognition"); size: root.qwen-size; active: root.qwen-active; pending: root.qwen-pending; delete-requested => { root.delete-model(AsrProviderCardKind.qwen3-asr); } }
+            if root.sense-voice-installed: InstalledModelRow { logo: @image-url("../../icons/providers/funasr.png"); marker-color: AppColors.model-sense-voice; title: "SenseVoiceSmall"; detail: @tr("models.asr.summary.five-languages" => "ZH · EN · JA · KO · YUE"); size: root.sense-voice-size; active: root.sense-voice-active; pending: root.sense-voice-pending; delete-requested => { root.delete-model(AsrProviderCardKind.sense-voice-small); } }
+        }
+        if root.installed-count == 0: Text { text: @tr("settings.storage.no-models" => "No local speech models installed"); color: AppColors.text-muted; font-size: 11px; horizontal-alignment: center; vertical-alignment: center; }
+    }
+    Text { x: 0px; y: 206px + root.installed-count * 84px; text: @tr("settings.storage.auxiliary-model" => "Auxiliary model"); color: AppColors.text; font-size: 13px; font-weight: 650; }
+    if root.punctuation-installed: Rectangle {
+        x: 0px; y: 230px + root.installed-count * 84px; width: parent.width; height: 70px; border-radius: 10px; background: AppColors.surface;
+        Image { x: 20px; y: 13px; width: 44px; height: 44px; source: @image-url("../../icons/providers/funasr.png"); image-fit: contain; }
+        Rectangle { x: 80px; y: 23px; width: 8px; height: 8px; border-radius: 4px; background: AppColors.model-punctuation; }
+        Text { x: 94px; y: 17px; width: parent.width - 300px; text: "CT-Transformer 中英标点 INT8"; color: AppColors.text; font-size: 13px; font-weight: 500; overflow: elide; }
+        Text { x: 94px; y: 38px; width: parent.width - 300px; text: @tr("settings.storage.punctuation-detail" => "For Paraformer · Local punctuation restoration"); color: AppColors.text-muted; font-size: 9px; overflow: elide; }
+        Text { x: parent.width - 210px; y: 28px; width: 100px; height: 22px; text: root.punctuation-size; color: AppColors.ink; font-family: "Geist Mono"; font-size: 11px; font-weight: 600; horizontal-alignment: right; vertical-alignment: center; }
+        ModelDeleteButton { x: parent.width - 62px; y: 19px; enabled: !root.punctuation-pending; activated => { root.delete-punctuation(); } }
+    }
+    if !root.punctuation-installed: Rectangle { x: 0px; y: 230px + root.installed-count * 84px; width: parent.width; height: 70px; border-radius: 10px; background: AppColors.surface; Text { text: @tr("settings.storage.no-auxiliary-model" => "No auxiliary model installed"); color: AppColors.text-muted; font-size: 11px; horizontal-alignment: center; vertical-alignment: center; } }
+}
+
+export component PrivacyDataPage inherits Rectangle {
+    in property <bool> local-models-visible: false;
+    in-out property <bool> diagnostics-enabled;
+    in property <string> diagnostics-status;
+    in property <string> diagnostics-export-status;
+    in property <string> diagnostics-export-detail;
+    in property <string> storage-total;
+    in property <string> storage-local-models;
+    in property <string> storage-recognition;
+    in property <string> storage-diagnostics;
+    in property <string> storage-other;
+    in property <string> storage-local-models-percent;
+    in property <string> storage-recognition-percent;
+    in property <string> storage-diagnostics-percent;
+    in property <string> storage-other-percent;
+    in property <string> storage-local-models-path;
+    in property <string> storage-recognition-path;
+    in property <string> storage-diagnostics-path;
+    in property <string> storage-other-path;
+    in property <float> storage-local-models-share;
+    in property <float> storage-recognition-share;
+    in property <float> storage-diagnostics-share;
+    in property <float> storage-other-share;
+    in property <string> local-models-total;
+    in property <bool> paraformer-installed;
+    in property <string> paraformer-size;
+    in property <bool> paraformer-active;
+    in property <bool> paraformer-pending;
+    in property <bool> whisper-installed;
+    in property <string> whisper-size;
+    in property <bool> whisper-active;
+    in property <bool> whisper-pending;
+    in property <bool> qwen-installed;
+    in property <string> qwen-size;
+    in property <bool> qwen-active;
+    in property <bool> qwen-pending;
+    in property <bool> sense-voice-installed;
+    in property <string> sense-voice-size;
+    in property <bool> sense-voice-active;
+    in property <bool> sense-voice-pending;
+    in property <bool> punctuation-installed;
+    in property <string> punctuation-size;
+    in property <bool> punctuation-pending;
+    in property <float> qwen-share;
+    in property <float> sense-voice-share;
+    in property <float> whisper-share;
+    in property <float> paraformer-share;
+    in property <float> punctuation-share;
+    callback show-local-models();
+    callback hide-local-models();
+    callback open-data-directory();
+    callback set-diagnostics-enabled(bool);
+    callback export-diagnostics-report();
+    callback open-privacy();
+    callback delete-model(AsrProviderCardKind);
+    callback delete-punctuation();
+
+    private property <string> export-label: root.diagnostics-export-status == "exporting" ? @tr("settings.diagnostics.exporting" => "Exporting…") : root.diagnostics-export-status == "success" ? @tr("settings.diagnostics.exported" => "Exported") : root.diagnostics-export-status == "failed" ? @tr("settings.diagnostics.export-again" => "Export again") : @tr("settings.diagnostics.export-report" => "Export report");
+    background: transparent;
+
+    if !root.local-models-visible: Rectangle {
+        StorageOverviewCard { x: 0px; y: 4px; width: parent.width; total: root.storage-total; local-models-usage: root.storage-local-models; recognition-usage: root.storage-recognition; diagnostics-usage: root.storage-diagnostics; other-usage: root.storage-other; local-models-percent: root.storage-local-models-percent; recognition-percent: root.storage-recognition-percent; diagnostics-percent: root.storage-diagnostics-percent; other-percent: root.storage-other-percent; local-models-path: root.storage-local-models-path; recognition-path: root.storage-recognition-path; diagnostics-path: root.storage-diagnostics-path; other-path: root.storage-other-path; local-models-share: root.storage-local-models-share; recognition-share: root.storage-recognition-share; diagnostics-share: root.storage-diagnostics-share; other-share: root.storage-other-share; open-folder => { root.open-data-directory(); } open-local-models => { root.show-local-models(); } }
+        Text { x: 0px; y: 270px; text: @tr("settings.diagnostics.title" => "Diagnostics & Support"); color: AppColors.text; font-size: 13px; font-weight: 650; }
+        DiagnosticCard { x: 0px; y: 294px; width: (parent.width - 16px) / 2; height: 108px; icon: @image-url("../../icons/lucide/settings.svg"); title: @tr("settings.diagnostics.logging.title" => "Diagnostic logging"); status: root.diagnostics-status.is-empty ? @tr("settings.diagnostics.current-usage" => "Current usage {}", root.storage-diagnostics) : root.diagnostics-status; detail: @tr("settings.diagnostics.logging.detail" => "Records runtime status and errors, never recognized text."); switch-visible: true; checked <=> root.diagnostics-enabled; toggled(value) => { root.set-diagnostics-enabled(value); } }
+        DiagnosticCard { x: (parent.width + 16px) / 2; y: 294px; width: (parent.width - 16px) / 2; height: 108px; icon: @image-url("../../icons/lucide/file-text.svg"); title: @tr("settings.diagnostics.report.title" => "Diagnostic report"); status: root.diagnostics-export-detail.is-empty ? @tr("settings.diagnostics.download-hint" => "Download diagnostic information") : root.diagnostics-export-detail; detail: @tr("settings.diagnostics.report.detail" => "Export a report without sensitive content when you need support."); action-label: root.export-label; action-icon: root.diagnostics-export-status == "success" ? @image-url("../../icons/lucide/check.svg") : root.diagnostics-export-status == "failed" ? @image-url("../../icons/lucide/circle-alert.svg") : @image-url("../../icons/lucide/download.svg"); action-enabled: root.diagnostics-export-status != "exporting"; action-state: root.diagnostics-export-status == "success" ? "success" : root.diagnostics-export-status == "failed" ? "failure" : "default"; action => { root.export-diagnostics-report(); } }
+        Text { x: 0px; y: 414px; text: @tr("settings.policy.title" => "Policy"); color: AppColors.text; font-size: 13px; font-weight: 650; }
+        PrivacyPolicyRow { x: 0px; y: 438px; width: parent.width; height: 52px; activated => { root.open-privacy(); } }
+    }
+
+    if root.local-models-visible: LocalModelsPage { width: parent.width; height: parent.height; total-usage: root.local-models-total; paraformer-installed: root.paraformer-installed; paraformer-size: root.paraformer-size; paraformer-active: root.paraformer-active; paraformer-pending: root.paraformer-pending; whisper-installed: root.whisper-installed; whisper-size: root.whisper-size; whisper-active: root.whisper-active; whisper-pending: root.whisper-pending; qwen-installed: root.qwen-installed; qwen-size: root.qwen-size; qwen-active: root.qwen-active; qwen-pending: root.qwen-pending; sense-voice-installed: root.sense-voice-installed; sense-voice-size: root.sense-voice-size; sense-voice-active: root.sense-voice-active; sense-voice-pending: root.sense-voice-pending; punctuation-installed: root.punctuation-installed; punctuation-size: root.punctuation-size; punctuation-pending: root.punctuation-pending; qwen-share: root.qwen-share; sense-voice-share: root.sense-voice-share; whisper-share: root.whisper-share; paraformer-share: root.paraformer-share; punctuation-share: root.punctuation-share; back => { root.hide-local-models(); } delete-model(kind) => { root.delete-model(kind); } delete-punctuation => { root.delete-punctuation(); } }
+}

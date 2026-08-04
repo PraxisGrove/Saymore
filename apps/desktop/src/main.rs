@@ -17,6 +17,7 @@ use template_app::{AudioRecorder, LocalSettingsStore};
 use template_app::{
     CancelledRecordingStore, DictationSession, DictationSessionId, DictationToggleAction,
     FeedbackSound, PcmChunk, RecordingError, RecordingMetrics, RecordingStarted,
+    TextRevisionEndReason,
 };
 #[cfg(target_os = "macos")]
 use template_app::{CorrectionObservingTextDeliverer, MicrophonePermissionProvider};
@@ -74,6 +75,8 @@ mod feedback_runtime;
 mod home_stats;
 mod i18n;
 mod local_data_ui;
+#[cfg(target_os = "macos")]
+mod local_model_runtime;
 mod local_settings_runtime;
 #[cfg(all(target_os = "macos", debug_assertions))]
 mod macos_speech_probe_cli;
@@ -102,6 +105,7 @@ mod settings_links;
 mod settings_ui;
 #[cfg(any(target_os = "macos", target_os = "windows"))]
 mod status_tray;
+mod storage_usage_ui;
 #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 mod ui_status;
 mod update_check;

@@ -3,26 +3,23 @@ use std::{
     error::Error,
     io,
     path::{Path, PathBuf},
+    sync::Arc,
     time::{Duration, Instant},
 };
 
-use sherpa_onnx::{OnlineRecognizer, OnlineRecognizerConfig, Wave};
+use sherpa_onnx::Wave;
+use template_app::{SpeechRecognitionHints, StreamingSpeechRecognizer};
+use template_infra::ParaformerSpeechRecognizer;
 
 const SAMPLE_RATE: i32 = 16_000;
 const CHUNK_SAMPLES: usize = 9_600;
-const TAIL_PADDING_SAMPLES: usize = 4_800;
-const EXPECTED_TEXT: &str = "欢迎大家来体验达摩院推出的语音识别模型";
 
 fn main() -> Result<(), Box<dyn Error>> {
-    let model_dir = env::args_os()
-        .nth(1)
-        .map(PathBuf::from)
-        .unwrap_or_else(|| PathBuf::from("models/paraformer-zh-streaming"));
-    let wave_path = model_dir.join("example/asr_example.wav");
-    let wave = Wave::read(path_text(&wave_path)?).ok_or_else(|| {
+    let arguments = Arguments::parse()?;
+    let wave = Wave::read(path_text(&arguments.wave)?).ok_or_else(|| {
         io::Error::new(
             io::ErrorKind::InvalidData,
-            format!("failed to read {}", wave_path.display()),
+            format!("failed to read {}", arguments.wave.display()),
         )
     })?;
     if wave.sample_rate() != SAMPLE_RATE {
@@ -35,27 +32,36 @@ fn main() -> Result<(), Box<dyn Error>> {
         )
         .into());
     }
+    let samples = pcm_i16(wave.samples());
 
-    println!("Model: {}", model_dir.display());
-    println!("Loading Q8 Paraformer once on CPU...");
+    println!("Model: {}", arguments.model.display());
+    println!("Audio: {}", arguments.wave.display());
+    println!("Loading the pinned Q8 Paraformer through the production adapter...");
     let load_started = Instant::now();
-    let recognizer = create_recognizer(&model_dir)?;
+    let recognizer = ParaformerSpeechRecognizer::load(&arguments.model)?;
     let load_elapsed = load_started.elapsed();
     println!("Load time: {:.2}s", load_elapsed.as_secs_f64());
 
-    let first = transcribe_once(&recognizer, &wave, 1)?;
-    let second = transcribe_once(&recognizer, &wave, 2)?;
-    for (run_number, result) in [(1, &first), (2, &second)] {
-        if compact(&result.text) != EXPECTED_TEXT {
-            return Err(io::Error::other(format!(
-                "run {run_number} returned unexpected text: {}",
-                result.text
-            ))
-            .into());
-        }
+    let first = transcribe_once(&recognizer, &samples, 1)?;
+    let second = transcribe_once(&recognizer, &samples, 2)?;
+    if compact(&first.text) != compact(&second.text) {
+        return Err(io::Error::other(format!(
+            "consecutive sessions disagreed: {:?} / {:?}",
+            first.text, second.text
+        ))
+        .into());
+    }
+    if let Some(expected) = arguments.expected
+        && compact(&first.text) != compact(&expected)
+    {
+        return Err(io::Error::other(format!(
+            "unexpected transcript: expected {expected:?}, received {:?}",
+            first.text
+        ))
+        .into());
     }
 
-    println!("\nPASS: one native model load completed two streaming transcriptions");
+    println!("\nPASS: one model load completed two production-adapter sessions");
     println!(
         "Summary: load {:.2}s, inference {:.2}s / {:.2}s",
         load_elapsed.as_secs_f64(),
@@ -65,19 +71,30 @@ fn main() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn create_recognizer(model_dir: &Path) -> Result<OnlineRecognizer, Box<dyn Error>> {
-    let mut config = OnlineRecognizerConfig::default();
-    config.model_config.paraformer.encoder =
-        Some(path_owned(&model_dir.join("encoder.int8.onnx"))?);
-    config.model_config.paraformer.decoder =
-        Some(path_owned(&model_dir.join("decoder.int8.onnx"))?);
-    config.model_config.tokens = Some(path_owned(&model_dir.join("tokens.txt"))?);
-    config.model_config.num_threads = 4;
-    config.model_config.provider = Some("cpu".to_owned());
-    config.decoding_method = Some("greedy_search".to_owned());
+struct Arguments {
+    model: PathBuf,
+    wave: PathBuf,
+    expected: Option<String>,
+}
 
-    OnlineRecognizer::create(&config)
-        .ok_or_else(|| io::Error::other("failed to create native Paraformer recognizer").into())
+impl Arguments {
+    fn parse() -> Result<Self, io::Error> {
+        let mut arguments = env::args_os().skip(1);
+        let model = arguments.next().map(PathBuf::from).ok_or_else(usage)?;
+        let wave = arguments.next().map(PathBuf::from).ok_or_else(usage)?;
+        let expected = arguments
+            .next()
+            .map(|value| value.into_string().map_err(|_| usage()))
+            .transpose()?;
+        if arguments.next().is_some() {
+            return Err(usage());
+        }
+        Ok(Self {
+            model,
+            wave,
+            expected,
+        })
+    }
 }
 
 struct Transcription {
@@ -86,58 +103,33 @@ struct Transcription {
 }
 
 fn transcribe_once(
-    recognizer: &OnlineRecognizer,
-    wave: &Wave,
+    recognizer: &ParaformerSpeechRecognizer,
+    samples: &[i16],
     run_number: usize,
 ) -> Result<Transcription, Box<dyn Error>> {
-    let stream = recognizer.create_stream();
-    let started = Instant::now();
-    let mut last_partial = String::new();
-
     println!(
         "\nRun {run_number}: {:.2}s, {} chunks",
-        wave.samples().len() as f64 / f64::from(wave.sample_rate()),
-        wave.samples().len().div_ceil(CHUNK_SAMPLES)
+        samples.len() as f64 / f64::from(SAMPLE_RATE),
+        samples.len().div_ceil(CHUNK_SAMPLES)
     );
-    for chunk in wave.samples().chunks(CHUNK_SAMPLES) {
-        stream.accept_waveform(wave.sample_rate(), chunk);
-        decode_ready(recognizer, &stream);
-        print_changed_partial(recognizer, &stream, &mut last_partial);
+    let partial = Arc::new(|text: String| println!("  partial: {text}"));
+    let session = recognizer.start(SpeechRecognitionHints::default(), partial)?;
+    let started = Instant::now();
+    for chunk in samples.chunks(CHUNK_SAMPLES) {
+        session.push_audio(chunk.to_vec())?;
     }
-
-    stream.accept_waveform(wave.sample_rate(), &vec![0.0; TAIL_PADDING_SAMPLES]);
-    stream.set_option("is_final", "1");
-    stream.input_finished();
-    decode_ready(recognizer, &stream);
-    let text = recognizer
-        .get_result(&stream)
-        .ok_or_else(|| io::Error::other("native runtime did not return a final result"))?
-        .text;
+    let text = session.finish()?;
     let elapsed = started.elapsed();
-    println!("  final: {}", text.trim());
+    println!("  final: {text}");
     println!("  inference: {:.2}s", elapsed.as_secs_f64());
-
     Ok(Transcription { text, elapsed })
 }
 
-fn decode_ready(recognizer: &OnlineRecognizer, stream: &sherpa_onnx::OnlineStream) {
-    while recognizer.is_ready(stream) {
-        recognizer.decode(stream);
-    }
-}
-
-fn print_changed_partial(
-    recognizer: &OnlineRecognizer,
-    stream: &sherpa_onnx::OnlineStream,
-    last_partial: &mut String,
-) {
-    if let Some(result) = recognizer.get_result(stream)
-        && !result.text.is_empty()
-        && result.text != *last_partial
-    {
-        println!("  partial: {}", result.text.trim());
-        *last_partial = result.text;
-    }
+fn pcm_i16(samples: &[f32]) -> Vec<i16> {
+    samples
+        .iter()
+        .map(|sample| (sample.clamp(-1.0, 1.0) * f32::from(i16::MAX)).round() as i16)
+        .collect()
 }
 
 fn compact(text: &str) -> String {
@@ -148,11 +140,14 @@ fn path_text(path: &Path) -> Result<&str, io::Error> {
     path.to_str().ok_or_else(|| {
         io::Error::new(
             io::ErrorKind::InvalidInput,
-            format!("path is not valid UTF-8: {}", path.display()),
+            format!("path is not valid Unicode: {}", path.display()),
         )
     })
 }
 
-fn path_owned(path: &Path) -> Result<String, io::Error> {
-    path_text(path).map(ToOwned::to_owned)
+fn usage() -> io::Error {
+    io::Error::new(
+        io::ErrorKind::InvalidInput,
+        "usage: paraformer_onnx_probe MODEL_DIR WAVE_PATH [EXPECTED_TEXT]",
+    )
 }

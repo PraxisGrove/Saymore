@@ -138,6 +138,9 @@ fn begin_recording(
         let _ = runtime.session.request_cancel();
         return;
     }
+    runtime
+        .dictation
+        .finish_text_revision_observation(TextRevisionEndReason::NextDictation);
     if let Some(result_overlay) = overlays.result.upgrade() {
         let _ = result_overlay.hide();
     }

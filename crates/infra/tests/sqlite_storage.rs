@@ -10,7 +10,7 @@ use template_app::{
     HistoryDelivery, HistoryRecord, HistoryRefinement, HistoryRetention, HistoryStore,
     InstalledModel, InstalledModelStore, LocalSettings, LocalSettingsStore, NewDictionaryEntry,
     NewHistoryRecord, OnboardingStatus, OnboardingStep, SecretStore, SecretStoreError,
-    StorageError, ThemeId, UiLanguagePreference,
+    StorageError, ThemeId, UiLanguagePreference, UsageStore, VocabularySuggestionSettingsStore,
 };
 use template_infra::SqliteStorage;
 #[cfg(target_os = "windows")]
@@ -144,6 +144,9 @@ fn settings_are_typed_and_persisted_across_restarts() -> Result<(), Box<dyn std:
     let mut changed = LocalSettings {
         history_enabled: false,
         history_retention: HistoryRetention::ThirtyDays,
+        dictionary_assist_enabled: true,
+        dictionary_assist_consent_fingerprint: Some("provider-consent-v1".to_owned()),
+        dictionary_assist_last_success_at_ms: Some(1_722_000_000_000),
         preferred_microphone_id: Some("coreaudio:BuiltInMicrophoneDevice".to_owned()),
         preferred_microphone_name: Some("MacBook 麦克风".to_owned()),
         diagnostics_logging_enabled: true,
@@ -171,6 +174,94 @@ fn settings_are_typed_and_persisted_across_restarts() -> Result<(), Box<dyn std:
 
     let reopened_with_default_theme = SqliteStorage::start(path, secrets)?;
     assert_eq!(changed, reopened_with_default_theme.load_settings()?);
+    Ok(())
+}
+
+#[test]
+fn vocabulary_checkpoint_advances_only_for_the_active_consent()
+-> Result<(), Box<dyn std::error::Error>> {
+    let directory = tempfile::tempdir()?;
+    let store = SqliteStorage::start(
+        directory.path().join("saymore.sqlite3"),
+        Arc::new(MemorySecretStore::default()),
+    )?;
+    let mut settings = store.load_settings()?;
+    settings.dictionary_assist_enabled = true;
+    settings.dictionary_assist_consent_fingerprint = Some("active-consent".to_owned());
+    store.save_settings(settings)?;
+
+    assert!(!store.record_vocabulary_suggestion_success("stale-consent", 40)?);
+    assert_eq!(
+        None,
+        store.load_settings()?.dictionary_assist_last_success_at_ms
+    );
+    assert!(store.record_vocabulary_suggestion_success("active-consent", 42)?);
+    assert_eq!(
+        Some(42),
+        store.load_settings()?.dictionary_assist_last_success_at_ms
+    );
+    Ok(())
+}
+
+#[test]
+fn v22_duplicate_dictionary_channels_migrate_to_one_dictation_term_evidence()
+-> Result<(), Box<dyn std::error::Error>> {
+    let directory = tempfile::tempdir()?;
+    let path = directory.path().join("saymore.sqlite3");
+    let secrets = Arc::new(MemorySecretStore::default());
+    drop(SqliteStorage::start(path.clone(), secrets.clone())?);
+    let connection = rusqlite::Connection::open(&path)?;
+    connection.execute_batch(
+        "DROP INDEX term_observations_candidate;
+         DROP TABLE term_observations;
+         DROP TABLE dictionary_candidates;
+         CREATE TABLE term_observations (
+            dictation_id TEXT NOT NULL,
+            language TEXT NOT NULL,
+            canonical TEXT NOT NULL,
+            canonical_key TEXT NOT NULL,
+            evidence_kind TEXT NOT NULL,
+            occurrence_count INTEGER NOT NULL,
+            observed_at_ms INTEGER NOT NULL,
+            PRIMARY KEY(dictation_id, language, canonical_key, evidence_kind)
+         );
+         CREATE INDEX term_observations_candidate
+            ON term_observations(language, canonical_key, evidence_kind, observed_at_ms);
+         CREATE TABLE dictionary_candidates (
+            language TEXT NOT NULL,
+            canonical_key TEXT NOT NULL,
+            evidence_kind TEXT NOT NULL,
+            occurrence_count INTEGER NOT NULL,
+            dictation_count INTEGER NOT NULL,
+            last_observed_at_ms INTEGER NOT NULL,
+            PRIMARY KEY(language, canonical_key, evidence_kind)
+         );
+         INSERT INTO term_observations VALUES
+            ('dictation', 'zh-CN', '千问', '千问', 'user_revision', 2, 10),
+            ('dictation', 'zh-CN', '千问', '千问', 'vocabulary_suggestion', 3, 20);
+         INSERT INTO dictionary_candidates VALUES
+            ('zh-CN', '千问', 'user_revision', 2, 1, 10),
+            ('zh-CN', '千问', 'vocabulary_suggestion', 3, 1, 20);
+         PRAGMA user_version = 22;",
+    )?;
+    drop(connection);
+
+    drop(SqliteStorage::start(path.clone(), secrets)?);
+    let connection = rusqlite::Connection::open(path)?;
+    let observation: (u32, u32, String) = connection.query_row(
+        "SELECT COUNT(*), SUM(occurrence_count), evidence_kind
+         FROM term_observations WHERE canonical_key = '千问'",
+        [],
+        |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+    )?;
+    assert_eq!((1, 1, "user_revision".to_owned()), observation);
+    let candidate: (u32, u32) = connection.query_row(
+        "SELECT occurrence_count, dictation_count
+         FROM dictionary_candidates WHERE canonical_key = '千问'",
+        [],
+        |row| Ok((row.get(0)?, row.get(1)?)),
+    )?;
+    assert_eq!((1, 1), candidate);
     Ok(())
 }
 
@@ -211,7 +302,7 @@ fn clear_sky_settings_migrate_to_sunlit_gold() -> Result<(), Box<dyn std::error:
     )?;
     let version: u32 = connection.query_row("PRAGMA user_version", [], |row| row.get(0))?;
     assert_eq!("sunlit-gold", stored_theme);
-    assert_eq!(19, version);
+    assert_eq!(24, version);
     Ok(())
 }
 
@@ -263,6 +354,25 @@ fn existing_installations_do_not_receive_first_run_onboarding()
             singleton, history_enabled, history_retention_days,
             automatic_dictionary_learning
         ) VALUES (1, 1, 7, 1);
+        CREATE TABLE term_observations (
+            dictation_id TEXT NOT NULL,
+            language TEXT NOT NULL,
+            canonical TEXT NOT NULL,
+            canonical_key TEXT NOT NULL,
+            occurrence_count INTEGER NOT NULL,
+            observed_at_ms INTEGER NOT NULL,
+            PRIMARY KEY(dictation_id, language, canonical_key)
+        );
+        CREATE INDEX term_observations_candidate
+            ON term_observations(language, canonical_key, observed_at_ms);
+        CREATE TABLE dictionary_candidates (
+            language TEXT NOT NULL,
+            canonical_key TEXT NOT NULL,
+            occurrence_count INTEGER NOT NULL,
+            dictation_count INTEGER NOT NULL,
+            last_observed_at_ms INTEGER NOT NULL,
+            PRIMARY KEY(language, canonical_key)
+        );
         PRAGMA user_version = 12;",
     )?;
     drop(connection);
@@ -362,6 +472,14 @@ fn history_is_encrypted_and_uses_stable_keyset_pagination() -> Result<(), Box<dy
         },
         first.records[0]
     );
+    store.update_history_final_text("newer", "用户纠正后的最终文本")?;
+    assert_eq!(
+        HistoryRecord {
+            final_text: "用户纠正后的最终文本".to_owned(),
+            ..first.records[0].clone()
+        },
+        store.history_page(None, 1)?.records[0]
+    );
     let second = store.history_page(first.next_cursor, 1)?;
     assert_eq!(
         vec!["older"],
@@ -399,6 +517,82 @@ fn history_is_encrypted_and_uses_stable_keyset_pagination() -> Result<(), Box<dy
             .windows("第二条 LLM 润色结果".len())
             .any(|bytes| bytes == "第二条 LLM 润色结果".as_bytes())
     );
+    assert!(
+        !database
+            .windows("用户纠正后的最终文本".len())
+            .any(|bytes| bytes == "用户纠正后的最终文本".as_bytes())
+    );
+    Ok(())
+}
+
+#[test]
+fn usage_survives_history_clear_and_duplicate_inserts_count_once()
+-> Result<(), Box<dyn std::error::Error>> {
+    use chrono::{Local, TimeZone};
+
+    let directory = tempfile::tempdir()?;
+    let store = SqliteStorage::start(
+        directory.path().join("saymore.sqlite3"),
+        Arc::new(MemorySecretStore::default()),
+    )?;
+    let completed_at = Local
+        .with_ymd_and_hms(2026, 8, 3, 10, 0, 0)
+        .single()
+        .ok_or("local test date is unavailable")?;
+    let record = history_record("usage-id", completed_at.timestamp_millis(), "你好 Saymore");
+    store.insert_history(record.clone())?;
+    store.insert_history(record)?;
+
+    let before_clear =
+        store.usage_snapshot(completed_at.date_naive(), completed_at.date_naive())?;
+    assert_eq!(1_500, before_clear.total_duration_ms);
+    assert_eq!(9, before_clear.total_characters);
+    assert_eq!(1, before_clear.days.len());
+
+    store.clear_history()?;
+
+    assert!(store.history_page(None, 50)?.records.is_empty());
+    assert_eq!(
+        before_clear,
+        store.usage_snapshot(completed_at.date_naive(), completed_at.date_naive())?
+    );
+    Ok(())
+}
+
+#[test]
+fn v19_history_backfills_usage_once() -> Result<(), Box<dyn std::error::Error>> {
+    use chrono::{Local, TimeZone};
+
+    let directory = tempfile::tempdir()?;
+    let path = directory.path().join("saymore.sqlite3");
+    let secrets = Arc::new(MemorySecretStore::default());
+    let completed_at = Local
+        .with_ymd_and_hms(2026, 8, 2, 10, 0, 0)
+        .single()
+        .ok_or("local test date is unavailable")?;
+    let store = SqliteStorage::start(path.clone(), secrets.clone())?;
+    store.insert_history(history_record(
+        "legacy-usage",
+        completed_at.timestamp_millis(),
+        "旧数据",
+    ))?;
+    drop(store);
+
+    let connection = rusqlite::Connection::open(&path)?;
+    connection.execute_batch(
+        "DROP TABLE usage_daily;
+         DROP TABLE usage_recorded_dictations;
+         DROP TABLE usage_aggregation_state;
+         PRAGMA user_version = 19;",
+    )?;
+    drop(connection);
+
+    let reopened = SqliteStorage::start(path, secrets)?;
+    let first = reopened.usage_snapshot(completed_at.date_naive(), completed_at.date_naive())?;
+    let second = reopened.usage_snapshot(completed_at.date_naive(), completed_at.date_naive())?;
+    assert_eq!(1_500, first.total_duration_ms);
+    assert_eq!(3, first.total_characters);
+    assert_eq!(first, second);
     Ok(())
 }
 
@@ -539,6 +733,8 @@ fn existing_history_is_locked_when_its_key_is_missing() -> Result<(), Box<dyn st
 #[test]
 fn explicit_history_reset_rotates_the_key_without_removing_dictionary_entries()
 -> Result<(), Box<dyn std::error::Error>> {
+    use chrono::{Local, TimeZone};
+
     let directory = tempfile::tempdir()?;
     let secrets = Arc::new(MemorySecretStore::default());
     let store = SqliteStorage::start(directory.path().join("saymore.sqlite3"), secrets.clone())?;
@@ -552,6 +748,12 @@ fn explicit_history_reset_rotates_the_key_without_removing_dictionary_entries()
         },
         1_000,
     )?;
+    let usage_date = Local
+        .timestamp_millis_opt(1_000)
+        .single()
+        .ok_or("usage date is unavailable")?
+        .date_naive();
+    let usage_before_reset = store.usage_snapshot(usage_date, usage_date)?;
 
     store.reset_history()?;
 
@@ -559,6 +761,10 @@ fn explicit_history_reset_rotates_the_key_without_removing_dictionary_entries()
     assert_ne!(old_key, new_key);
     assert!(store.history_page(None, 50)?.records.is_empty());
     assert_eq!(vec![dictionary_entry], store.list_dictionary()?);
+    assert_eq!(
+        usage_before_reset,
+        store.usage_snapshot(usage_date, usage_date)?
+    );
     Ok(())
 }
 
@@ -602,6 +808,8 @@ fn failed_key_rotation_does_not_leave_old_history_with_an_overwritten_key()
 #[test]
 fn shortening_retention_removes_expired_history_immediately()
 -> Result<(), Box<dyn std::error::Error>> {
+    use chrono::{Duration, Local, TimeZone};
+
     const DAY_MS: i64 = 86_400_000;
     let now_ms = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)?
@@ -627,6 +835,14 @@ fn shortening_retention_removes_expired_history_immediately()
             .map(|item| item.id.as_str())
             .collect::<Vec<_>>()
     );
+    let today = Local
+        .timestamp_millis_opt(now_ms)
+        .single()
+        .ok_or("usage date is unavailable")?
+        .date_naive();
+    let usage = store.usage_snapshot(today - Duration::days(3), today)?;
+    assert_eq!(3_000, usage.total_duration_ms);
+    assert_eq!(4, usage.total_characters);
     Ok(())
 }
 
@@ -658,6 +874,72 @@ fn manual_dictionary_entries_merge_normalized_duplicates() -> Result<(), Box<dyn
     assert_eq!("OpenAI", updated.canonical);
     assert_eq!(DictionaryOrigin::Manual, updated.origin);
     assert_eq!(vec![updated], store.list_dictionary()?);
+    Ok(())
+}
+
+#[test]
+fn dictionary_spelling_updates_preserve_entry_identity_and_provenance()
+-> Result<(), Box<dyn std::error::Error>> {
+    let directory = tempfile::tempdir()?;
+    let store = SqliteStorage::start(
+        directory.path().join("saymore.sqlite3"),
+        Arc::new(MemorySecretStore::default()),
+    )?;
+    let original = store.upsert_dictionary(
+        NewDictionaryEntry {
+            canonical: "paraformer".to_owned(),
+            language: "en".to_owned(),
+            origin: DictionaryOrigin::Automatic,
+        },
+        1_000,
+    )?;
+
+    let updated = store.update_dictionary(&original.id, "  ParaFormer  ", 2_000)?;
+
+    assert_eq!(original.id, updated.id);
+    assert_eq!("ParaFormer", updated.canonical);
+    assert_eq!(original.language, updated.language);
+    assert_eq!(original.origin, updated.origin);
+    assert_eq!(original.created_at_ms, updated.created_at_ms);
+    assert_eq!(2_000, updated.updated_at_ms);
+    assert_eq!(vec![updated], store.list_dictionary()?);
+    Ok(())
+}
+
+#[test]
+fn dictionary_spelling_updates_reject_conflicts_and_unknown_entries()
+-> Result<(), Box<dyn std::error::Error>> {
+    let directory = tempfile::tempdir()?;
+    let store = SqliteStorage::start(
+        directory.path().join("saymore.sqlite3"),
+        Arc::new(MemorySecretStore::default()),
+    )?;
+    let first = store.upsert_dictionary(
+        NewDictionaryEntry {
+            canonical: "Paraformer".to_owned(),
+            language: "en".to_owned(),
+            origin: DictionaryOrigin::Manual,
+        },
+        1_000,
+    )?;
+    let second = store.upsert_dictionary(
+        NewDictionaryEntry {
+            canonical: "OpenAI".to_owned(),
+            language: "en".to_owned(),
+            origin: DictionaryOrigin::Manual,
+        },
+        1_000,
+    )?;
+
+    assert!(matches!(
+        store.update_dictionary(&first.id, "openai", 2_000),
+        Err(StorageError::Invalid(_))
+    ));
+    assert!(matches!(
+        store.update_dictionary("missing", "Other", 2_000),
+        Err(StorageError::Invalid(_))
+    ));
+    assert_eq!(vec![second, first], store.list_dictionary()?);
     Ok(())
 }
 
@@ -703,7 +985,7 @@ fn dictionary_identity_preserves_token_boundaries_across_v3_migration()
 
     let connection = rusqlite::Connection::open(path)?;
     let version: u32 = connection.query_row("PRAGMA user_version", [], |row| row.get(0))?;
-    assert_eq!(19, version);
+    assert_eq!(24, version);
     let spaced_key: String = connection.query_row(
         "SELECT canonical_key FROM dictionary_entries WHERE canonical = 'Open AI'",
         [],
@@ -807,7 +1089,8 @@ fn v4_dictionary_learning_data_is_migrated_without_mappings()
 }
 
 #[test]
-fn installed_model_metadata_is_upserted_by_stable_id() -> Result<(), Box<dyn std::error::Error>> {
+fn installed_model_metadata_is_upserted_and_deleted_by_stable_id()
+-> Result<(), Box<dyn std::error::Error>> {
     let directory = tempfile::tempdir()?;
     let store = SqliteStorage::start(
         directory.path().join("saymore.sqlite3"),
@@ -827,5 +1110,7 @@ fn installed_model_metadata_is_upserted_by_stable_id() -> Result<(), Box<dyn std
     store.save_installed_model(model.clone())?;
 
     assert_eq!(vec![model], store.list_installed_models()?);
+    store.delete_installed_model("model-id")?;
+    assert!(store.list_installed_models()?.is_empty());
     Ok(())
 }

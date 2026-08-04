@@ -1,0 +1,191 @@
+import { AppColors } from "color-system.slint";
+
+export component AboutProductCard inherits Rectangle {
+    in property <string> app-version;
+    in property <string> status-label;
+    in property <string> action-label;
+    in property <string> release-notes-label;
+    in property <string> update-status: "idle";
+    in property <bool> action-enabled: true;
+    callback check-for-updates();
+    callback download-update();
+    callback open-release-notes();
+
+    private property <bool> compact: root.width < 620px;
+    private property <color> product-ink: AppColors.ink;
+    private property <color> product-text: AppColors.text;
+    private property <color> product-muted: AppColors.text-muted;
+    private property <color> status-color: root.update-status == "latest" ? AppColors.success
+        : root.update-status == "available" ? AppColors.warning
+        : root.update-status == "failed" ? AppColors.danger
+        : AppColors.text-muted;
+    private property <bool> update-available: root.update-status == "available";
+
+    height: root.compact ? 176px : 128px;
+    border-radius: 10px;
+    background: AppColors.surface;
+
+    Image {
+        x: 20px;
+        y: root.compact ? 20px : 28px;
+        width: root.compact ? 40px : 46px;
+        height: root.compact ? 40px : 46px;
+        source: @image-url("../icons/saymore-mark-3d-136.png");
+        colorize: AppColors.dark-mode ? AppColors.ink : transparent;
+        image-fit: contain;
+    }
+    Text {
+        x: root.compact ? 76px : 86px;
+        y: 20px;
+        width: root.compact ? parent.width - 96px : 300px;
+        height: 32px;
+        text: "Saymore";
+        color: root.product-ink;
+        font-family: "Noto Sans SC";
+        font-size: 22px;
+        font-weight: 700;
+        vertical-alignment: center;
+    }
+    Text {
+        x: root.compact ? 76px : 86px;
+        y: 55px;
+        width: root.compact ? parent.width - 96px : 300px;
+        text: @tr("settings.product.tagline" => "Speak your mind, hands-free.");
+        color: root.product-muted;
+        font-family: "Noto Sans SC";
+        font-size: 12px;
+        overflow: elide;
+    }
+
+    release-notes := Rectangle {
+        x: root.compact ? 20px : 86px;
+        y: root.compact ? 132px : 76px;
+        width: max(112px, release-notes-text.preferred-width + 52px);
+        height: 32px;
+        border-radius: 8px;
+        background: transparent;
+        opacity: release-notes-touch.pressed ? 0.72 : 1;
+        animate opacity { duration: 70ms; easing: ease-out; }
+        accessible-role: button;
+        accessible-label: root.release-notes-label;
+        accessible-action-default => { root.open-release-notes(); }
+
+        Image {
+            x: 0px;
+            y: 10px;
+            width: 12px;
+            height: 12px;
+            source: @image-url("../icons/lucide/folder-open.svg");
+            colorize: release-notes-touch.has-hover ? root.product-text : root.product-muted;
+        }
+        release-notes-text := Text {
+            x: 22px;
+            width: self.preferred-width;
+            text: root.release-notes-label;
+            color: release-notes-touch.has-hover ? root.product-ink : root.product-text;
+            font-family: "Noto Sans SC";
+            font-size: 11px;
+            font-weight: 600;
+            vertical-alignment: center;
+        }
+        Image {
+            x: release-notes-text.x + release-notes-text.width + 8px;
+            y: 10px;
+            width: 12px;
+            height: 12px;
+            source: @image-url("../icons/lucide/arrow-up-right.svg");
+            colorize: release-notes-touch.has-hover ? root.product-text : root.product-muted;
+        }
+        release-notes-touch := TouchArea {
+            mouse-cursor: pointer;
+            clicked => { root.open-release-notes(); }
+        }
+    }
+
+    Text {
+        x: root.compact ? 20px : parent.width - 204px;
+        y: root.compact ? 88px : 20px;
+        width: 62px;
+        height: 32px;
+        text: root.app-version;
+        color: root.product-ink;
+        font-family: "Menlo";
+        font-size: 14px;
+        font-weight: 500;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+    Rectangle {
+        x: root.compact ? 98px : parent.width - 119px;
+        y: root.compact ? 100px : 32px;
+        width: 7px;
+        height: 7px;
+        border-radius: 4px;
+        background: root.status-color;
+    }
+    Text {
+        x: root.compact ? 112px : parent.width - 118px;
+        y: root.compact ? 88px : 20px;
+        width: root.compact ? parent.width - 132px : 90px;
+        height: 32px;
+        text: root.status-label;
+        color: root.status-color;
+        font-family: "Noto Sans SC";
+        font-size: 10px;
+        font-weight: 600;
+        horizontal-alignment: right;
+        vertical-alignment: center;
+        overflow: elide;
+    }
+
+    action := Rectangle {
+        x: parent.width - self.width - (root.compact ? 20px : 28px);
+        y: root.compact ? 132px : 76px;
+        width: root.update-available ? max(124px, action-text.preferred-width + 38px) : max(91px, action-text.preferred-width + 35px);
+        height: 32px;
+        border-radius: 8px;
+        background: !root.action-enabled ? AppColors.surface-muted
+            : root.update-available ? (action-touch.has-hover ? AppColors.brand-hover : AppColors.brand)
+            : action-touch.has-hover ? AppColors.surface-muted
+            : AppColors.surface-subtle;
+        opacity: root.action-enabled ? (action-touch.pressed ? 0.84 : 1) : 0.62;
+        animate background { duration: 120ms; easing: ease-out; }
+        animate opacity { duration: 70ms; easing: ease-out; }
+        accessible-role: button;
+        accessible-label: root.action-label;
+        accessible-enabled: root.action-enabled;
+        accessible-action-default => {
+            if root.action-enabled {
+                if root.update-available { root.download-update(); } else { root.check-for-updates(); }
+            }
+        }
+
+        action-text := Text {
+            x: 10px;
+            width: parent.width - 35px;
+            text: root.action-label;
+            color: root.update-available ? AppColors.on-brand : root.product-text;
+            font-family: "Noto Sans SC";
+            font-size: 11px;
+            font-weight: 600;
+            horizontal-alignment: right;
+            vertical-alignment: center;
+            overflow: elide;
+        }
+        Image {
+            x: parent.width - 22px;
+            y: 10px;
+            width: 12px;
+            height: 12px;
+            source: root.update-available ? @image-url("../icons/lucide/arrow-up-right.svg") : @image-url("../icons/lucide/refresh-cw.svg");
+            colorize: root.update-available ? AppColors.on-brand : root.product-muted;
+        }
+        action-touch := TouchArea {
+            enabled: root.action-enabled;
+            mouse-cursor: root.action-enabled ? pointer : default;
+            clicked => {
+                if root.update-available { root.download-update(); } else { root.check-for-updates(); }
+            }
+        }
+    }
+}

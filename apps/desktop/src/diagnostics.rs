@@ -530,13 +530,21 @@ mod tests {
 
         tracing::subscriber::with_default(subscriber, || {
             tracing::warn!(event = "settings.save_failed", reason = "private detail");
+            let rejection_event = "llm.fallback.output_rejected.numeric_facts_changed";
+            tracing::warn!(event = rejection_event, reason = "private candidate detail");
             tracing::warn!(reason = "missing event");
         });
 
         let log = fs::read_to_string(directory.join("diagnostics.log")).unwrap_or_default();
-        assert_eq!("event=settings.save_failed\n", log);
         assert_eq!(
-            vec!["settings.save_failed".to_owned()],
+            "event=settings.save_failed\nevent=llm.fallback.output_rejected.numeric_facts_changed\n",
+            log
+        );
+        assert_eq!(
+            vec![
+                "settings.save_failed".to_owned(),
+                "llm.fallback.output_rejected.numeric_facts_changed".to_owned(),
+            ],
             store.diagnostic_events(10).unwrap_or_default()
         );
         assert!(fs::remove_dir_all(directory).is_ok());

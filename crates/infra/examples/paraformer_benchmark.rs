@@ -408,7 +408,9 @@ mod tests {
 
     #[test]
     fn normalizes_case_spacing_and_punctuation() {
-        assert_eq!("你好saymore2026", normalize("你好， SayMore 2026！"));
+        // autocorrect-disable
+        assert_eq!("你好saymore2026", normalize("你好，SayMore 2026！"));
+        // autocorrect-enable
     }
 
     #[test]

@@ -1,4 +1,5 @@
 use crate::{LlmProvider, LlmProviderError, LlmRefinementRequest, StorageError};
+use unicode_normalization::UnicodeNormalization;
 
 const MAX_CORRECTION_CHARS: usize = 64;
 const MAX_CJK_CORRECTION_CHARS: usize = 8;
@@ -6,7 +7,7 @@ const MAX_CORRECTION_WORDS: usize = 3;
 const MAX_WHOLE_REPLACEMENT_CHARS: usize = 32;
 const HIGH_CONFIDENCE_THRESHOLD: u8 = 80;
 
-pub const DICTIONARY_CANDIDATE_INSTRUCTIONS: &str = r#"You classify whether a user's local text correction should become a personal voice-input dictionary entry. Prefer names, brands, products, projects, acronyms, technical or professional terms, and code identifiers in any language. Reject single-character ASCII letter candidates because they are too ambiguous for automatic learning. Also reject ordinary sentence fragments, actions, grammar edits, punctuation edits, and generic prose. Return only one JSON object with: decision (accept, reject, or uncertain), type (named_term, acronym, code_identifier, professional_phrase, ordinary_fragment, or unknown), and confidence (a number from 0 to 1)."#;
+pub const DICTIONARY_CANDIDATE_INSTRUCTIONS: &str = r#"You extract and classify whether a user's local text correction should become a personal voice-input dictionary entry. The canonical value must be the smallest reusable term. It must be an exact contiguous substring of the supplied candidate or differ from one only by ASCII letter casing or full-width/half-width alphanumeric formatting. Use the conventional capitalization when confident; for example, extract "UI" from "ui落实". Never join separate tokens such as "open ai" into "OpenAI". Prefer names, brands, products, projects, acronyms, technical or professional terms, and code identifiers in any language. Reject every single-character candidate because it is too ambiguous for automatic learning. Also reject ordinary sentence fragments, actions, grammar edits, punctuation edits, and generic prose. Return only one JSON object with: canonical (the extracted standard spelling), decision (accept, reject, or uncertain), type (named_term, acronym, code_identifier, professional_phrase, ordinary_fragment, or unknown), and confidence (a number from 0 to 1)."#;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CandidateDecision {
@@ -29,6 +30,7 @@ pub enum DictionaryCandidateKind {
 pub enum CandidateAssessmentSource {
     Local,
     Llm,
+    VocabularySuggestion,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -39,14 +41,22 @@ pub struct DictionaryCandidateAssessment {
     pub source: CandidateAssessmentSource,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DictionaryCandidateReview {
+    pub correction: DictionaryCorrection,
+    pub assessment: DictionaryCandidateAssessment,
+}
+
 impl DictionaryCandidateAssessment {
     pub fn required_evidence(self) -> Option<(u32, u32)> {
         match self.decision {
             CandidateDecision::Accept if self.confidence >= HIGH_CONFIDENCE_THRESHOLD => {
                 Some((2, 2))
             }
-            CandidateDecision::Accept => Some((5, 3)),
-            CandidateDecision::Uncertain => Some((5, 3)),
+            CandidateDecision::Accept | CandidateDecision::Uncertain if self.confidence >= 60 => {
+                Some((3, 3))
+            }
+            CandidateDecision::Accept | CandidateDecision::Uncertain => None,
             CandidateDecision::Reject => None,
         }
     }
@@ -85,7 +95,7 @@ pub struct DictionaryCandidateEvidence {
 
 pub fn assess_dictionary_candidate(canonical: &str) -> DictionaryCandidateAssessment {
     let canonical = canonical.trim();
-    if let Some(assessment) = single_ascii_letter_assessment(canonical) {
+    if let Some(assessment) = single_character_assessment(canonical) {
         return assessment;
     }
     let chars = canonical.chars().collect::<Vec<_>>();
@@ -163,12 +173,25 @@ pub fn assess_dictionary_candidate(canonical: &str) -> DictionaryCandidateAssess
     }
 }
 
-fn single_ascii_letter_assessment(canonical: &str) -> Option<DictionaryCandidateAssessment> {
-    let [character] = canonical.as_bytes() else {
-        return None;
+pub fn review_dictionary_candidate_locally(candidate: &str) -> DictionaryCandidateReview {
+    let candidate = candidate.trim();
+    let ranges = standard_spelling_token_ranges(candidate);
+    let canonical = match ranges.as_slice() {
+        [(start, end)] => conventional_dictionary_spelling(&candidate[*start..*end]),
+        _ => candidate.to_owned(),
     };
-    character
-        .is_ascii_alphabetic()
+    DictionaryCandidateReview {
+        assessment: assess_dictionary_candidate(&canonical),
+        correction: DictionaryCorrection { canonical },
+    }
+}
+
+fn single_character_assessment(canonical: &str) -> Option<DictionaryCandidateAssessment> {
+    let mut characters = canonical.chars();
+    let _ = characters.next()?;
+    characters
+        .next()
+        .is_none()
         .then_some(DictionaryCandidateAssessment {
             decision: CandidateDecision::Reject,
             kind: DictionaryCandidateKind::Unknown,
@@ -183,7 +206,7 @@ pub async fn review_dictionary_candidate(
     original_fragment: &str,
     edited_fragment: &str,
     language: &str,
-) -> Result<DictionaryCandidateAssessment, LlmProviderError> {
+) -> Result<DictionaryCandidateReview, LlmProviderError> {
     let transcript = serde_json::json!({
         "candidate": canonical,
         "before": original_fragment,
@@ -198,13 +221,14 @@ pub async fn review_dictionary_candidate(
             relevant_terms: Vec::new(),
         })
         .await?;
-    parse_dictionary_candidate_review(&response)
+    parse_dictionary_candidate_review(&response, canonical)
         .map_err(|reason| LlmProviderError::Protocol(reason.to_owned()))
 }
 
 pub fn parse_dictionary_candidate_review(
     response: &str,
-) -> Result<DictionaryCandidateAssessment, &'static str> {
+    candidate: &str,
+) -> Result<DictionaryCandidateReview, &'static str> {
     let trimmed = response.trim();
     let json = trimmed
         .strip_prefix("```json")
@@ -235,12 +259,104 @@ pub fn parse_dictionary_candidate_review(
         .and_then(serde_json::Value::as_f64)
         .filter(|confidence| (0.0..=1.0).contains(confidence))
         .ok_or("dictionary review has an invalid confidence")?;
-    Ok(DictionaryCandidateAssessment {
-        decision,
-        kind,
-        confidence: (confidence * 100.0).round() as u8,
-        source: CandidateAssessmentSource::Llm,
+    let canonical = value
+        .get("canonical")
+        .and_then(serde_json::Value::as_str)
+        .map(str::trim)
+        .filter(|canonical| {
+            eligible_fragment(canonical) && canonical_matches_candidate(candidate, canonical)
+        })
+        .ok_or("dictionary review has an invalid canonical term")?;
+    let canonical = conventional_dictionary_spelling(canonical);
+    Ok(DictionaryCandidateReview {
+        correction: DictionaryCorrection { canonical },
+        assessment: DictionaryCandidateAssessment {
+            decision,
+            kind,
+            confidence: (confidence * 100.0).round() as u8,
+            source: CandidateAssessmentSource::Llm,
+        },
     })
+}
+
+fn canonical_matches_candidate(candidate: &str, canonical: &str) -> bool {
+    if candidate.contains(canonical) {
+        return true;
+    }
+    let Some(canonical_key) = standard_spelling_key(canonical) else {
+        return false;
+    };
+    standard_spelling_token_ranges(candidate)
+        .into_iter()
+        .any(|(start, end)| {
+            standard_spelling_key(&candidate[start..end]).as_deref() == Some(canonical_key.as_str())
+        })
+}
+
+fn standard_spelling_key(value: &str) -> Option<String> {
+    let normalized = value.trim().nfkc().collect::<String>();
+    (normalized.chars().count() >= 2
+        && normalized
+            .chars()
+            .all(|character| character.is_ascii_alphanumeric()))
+    .then(|| normalized.to_ascii_lowercase())
+}
+
+fn is_standard_spelling_character(character: char) -> bool {
+    character.is_ascii_alphanumeric()
+        || matches!(character as u32, 0xFF10..=0xFF19 | 0xFF21..=0xFF3A | 0xFF41..=0xFF5A)
+}
+
+fn standard_spelling_token_ranges(value: &str) -> Vec<(usize, usize)> {
+    let mut ranges = Vec::new();
+    let mut token_start = None;
+    for (index, character) in value.char_indices() {
+        if is_standard_spelling_character(character) {
+            token_start.get_or_insert(index);
+        } else if let Some(start) = token_start.take() {
+            ranges.push((start, index));
+        }
+    }
+    if let Some(start) = token_start {
+        ranges.push((start, value.len()));
+    }
+    ranges
+}
+
+fn conventional_dictionary_spelling(value: &str) -> String {
+    let normalized = value.trim().nfkc().collect::<String>();
+    let Some(key) = standard_spelling_key(&normalized) else {
+        return normalized;
+    };
+    match key.as_str() {
+        "ai" => "AI",
+        "api" => "API",
+        "asr" => "ASR",
+        "cli" => "CLI",
+        "cpu" => "CPU",
+        "css" => "CSS",
+        "github" => "GitHub",
+        "gpu" => "GPU",
+        "gui" => "GUI",
+        "html" => "HTML",
+        "http" => "HTTP",
+        "https" => "HTTPS",
+        "ide" => "IDE",
+        "json" => "JSON",
+        "llm" => "LLM",
+        "openai" => "OpenAI",
+        "ram" => "RAM",
+        "sdk" => "SDK",
+        "sql" => "SQL",
+        "ui" => "UI",
+        "uri" => "URI",
+        "url" => "URL",
+        "uuid" => "UUID",
+        "ux" => "UX",
+        "xml" => "XML",
+        _ => return normalized,
+    }
+    .to_owned()
 }
 
 fn looks_like_ordinary_fragment(value: &str) -> bool {
@@ -263,6 +379,7 @@ pub enum DictionaryLearningOutcome {
         dictation_count: u32,
     },
     Added(crate::DictionaryEntry),
+    AlreadyPresent,
     Rejected,
     Suppressed,
 }
@@ -407,7 +524,7 @@ mod tests {
     }
 
     #[test]
-    fn rejects_single_ascii_letters_from_automatic_learning() {
+    fn rejects_every_single_character_from_automatic_learning() {
         let expected = DictionaryCandidateAssessment {
             decision: CandidateDecision::Reject,
             kind: DictionaryCandidateKind::Unknown,
@@ -415,7 +532,7 @@ mod tests {
             source: CandidateAssessmentSource::Local,
         };
 
-        for candidate in ["n", "N"] {
+        for candidate in ["n", "N", "三", "问"] {
             assert_eq!(expected, assess_dictionary_candidate(candidate));
         }
     }
@@ -428,7 +545,7 @@ mod tests {
     }
 
     #[test]
-    fn low_confidence_acceptance_still_needs_repeated_evidence() {
+    fn medium_confidence_candidates_need_three_independent_dictations() {
         let assessment = DictionaryCandidateAssessment {
             decision: CandidateDecision::Accept,
             kind: DictionaryCandidateKind::Unknown,
@@ -436,7 +553,19 @@ mod tests {
             source: CandidateAssessmentSource::Llm,
         };
 
-        assert_eq!(Some((5, 3)), assessment.required_evidence());
+        assert_eq!(Some((3, 3)), assessment.required_evidence());
+    }
+
+    #[test]
+    fn high_confidence_vocabulary_suggestions_need_two_independent_dictations() {
+        let assessment = DictionaryCandidateAssessment {
+            decision: CandidateDecision::Accept,
+            kind: DictionaryCandidateKind::NamedTerm,
+            confidence: 99,
+            source: CandidateAssessmentSource::VocabularySuggestion,
+        };
+
+        assert_eq!(Some((2, 2)), assessment.required_evidence());
     }
 
     #[test]
@@ -454,23 +583,108 @@ mod tests {
     #[test]
     fn parses_structured_llm_candidate_reviews() {
         assert_eq!(
-            Ok(DictionaryCandidateAssessment {
-                decision: CandidateDecision::Accept,
-                kind: DictionaryCandidateKind::ProfessionalPhrase,
-                confidence: 93,
-                source: CandidateAssessmentSource::Llm,
+            Ok(DictionaryCandidateReview {
+                correction: DictionaryCorrection {
+                    canonical: "逆地理编码".to_owned(),
+                },
+                assessment: DictionaryCandidateAssessment {
+                    decision: CandidateDecision::Accept,
+                    kind: DictionaryCandidateKind::ProfessionalPhrase,
+                    confidence: 93,
+                    source: CandidateAssessmentSource::Llm,
+                },
             }),
             parse_dictionary_candidate_review(
-                r#"{"decision":"accept","type":"professional_phrase","confidence":0.93}"#
+                r#"{"canonical":"逆地理编码","decision":"accept","type":"professional_phrase","confidence":0.93}"#,
+                "逆地理编码"
             )
         );
-        assert!(parse_dictionary_candidate_review("not json").is_err());
+        assert!(parse_dictionary_candidate_review("not json", "逆地理编码").is_err());
         assert!(
             parse_dictionary_candidate_review(
-                r#"{"decision":"accept","type":"professional_phrase","confidence":2}"#
+                r#"{"canonical":"逆地理编码","decision":"accept","type":"professional_phrase","confidence":2}"#,
+                "逆地理编码"
             )
             .is_err()
         );
+    }
+
+    #[test]
+    fn llm_review_standardizes_a_reusable_term_from_a_mixed_edit_fragment() {
+        let expected = Ok(DictionaryCandidateReview {
+            correction: DictionaryCorrection {
+                canonical: "UI".to_owned(),
+            },
+            assessment: DictionaryCandidateAssessment {
+                decision: CandidateDecision::Accept,
+                kind: DictionaryCandidateKind::Acronym,
+                confidence: 90,
+                source: CandidateAssessmentSource::Llm,
+            },
+        });
+        let response =
+            r#"{"canonical":"UI","decision":"accept","type":"acronym","confidence":0.9}"#;
+
+        for candidate in ["ui 落实", "UI 落实"] {
+            assert_eq!(
+                expected,
+                parse_dictionary_candidate_review(response, candidate)
+            );
+        }
+    }
+
+    #[test]
+    fn llm_review_rejects_a_canonical_term_absent_from_the_edit_fragment() {
+        assert_eq!(
+            Err("dictionary review has an invalid canonical term"),
+            parse_dictionary_candidate_review(
+                r#"{"canonical":"OpenAI","decision":"accept","type":"named_term","confidence":0.9}"#,
+                "ui 落实",
+            )
+        );
+        assert!(
+            parse_dictionary_candidate_review(
+                r#"{"canonical":"OpenAI","decision":"accept","type":"named_term","confidence":0.9}"#,
+                "open ai",
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn local_review_extracts_and_standardizes_one_mixed_script_term() {
+        let cases = [
+            ("ui 落实", "UI", DictionaryCandidateKind::Acronym, 90),
+            ("UI 落实", "UI", DictionaryCandidateKind::Acronym, 90),
+            ("API 接口", "API", DictionaryCandidateKind::Acronym, 90),
+            (
+                "使用 OpenAI 模型",
+                "OpenAI",
+                DictionaryCandidateKind::NamedTerm,
+                86,
+            ),
+            ("wiki 百科", "wiki", DictionaryCandidateKind::Unknown, 45),
+        ];
+
+        for (candidate, canonical, kind, confidence) in cases {
+            let review = review_dictionary_candidate_locally(candidate);
+            assert_eq!(canonical, review.correction.canonical);
+            assert_eq!(kind, review.assessment.kind);
+            assert_eq!(confidence, review.assessment.confidence);
+            assert_eq!(CandidateAssessmentSource::Local, review.assessment.source);
+        }
+    }
+
+    #[test]
+    fn local_review_keeps_multiple_tokens_and_chinese_phrases_intact() {
+        for candidate in ["open ai 落实", "UI 和 UX", "路径渲染"] {
+            assert_eq!(
+                candidate,
+                review_dictionary_candidate_locally(candidate)
+                    .correction
+                    .canonical
+            );
+        }
     }
 
     #[test]

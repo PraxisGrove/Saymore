@@ -26,6 +26,7 @@ Organization rules:
 
 Text rules:
 - Correct punctuation, capitalization, spacing, and unambiguous number/date/time/unit formatting.
+- Treat the Chinese word "块" as a classifier unless the transcript itself provides unambiguous monetary context. Never introduce a currency symbol or currency name from "块" alone, including phrases such as "三块地方", "三块文字", or "三块区域". Currency formatting is allowed only when the transcript explicitly says "块钱", "元", "人民币", another currency name or symbol, or clearly describes a price, cost, budget, payment, or other monetary amount.
 - Add terminal punctuation only when the final semantic unit is complete. Do not complete unfinished content or add punctuation after an unfinished clause, condition, reason, action, enumeration, or self-correction.
 - Preserve URLs, emails, paths, commands, flags, versions, numeric values, and code identifiers exactly.
 - The input was produced by speech recognition and may contain homophone substitutions, phonetic approximations, transliterations, incorrect word boundaries, or capitalization errors. relevant_terms contains trusted canonical spellings from the user's personal dictionary. When both pronunciation and surrounding context strongly indicate one of these terms, replace the corresponding misrecognized span with its canonical spelling. Do not use a term merely because it appears in relevant_terms, force an uncertain match, insert a term that was not spoken, or perform an unconditional global replacement.

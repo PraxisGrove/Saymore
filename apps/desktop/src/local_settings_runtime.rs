@@ -134,6 +134,12 @@ fn settings_change_event(change: &LocalSettingsChange) -> &'static str {
     match change {
         LocalSettingsChange::SetHistoryEnabled(_) => "settings.history_enabled_changed",
         LocalSettingsChange::SetHistoryPolicy { .. } => "settings.history_policy_changed",
+        LocalSettingsChange::SetVocabularySuggestionsEnabled(_) => {
+            "settings.vocabulary_suggestions_enabled_changed"
+        }
+        LocalSettingsChange::AuthorizeVocabularySuggestions(_) => {
+            "settings.vocabulary_suggestions_authorized"
+        }
         LocalSettingsChange::SelectMicrophone(_) => "settings.microphone_changed",
         LocalSettingsChange::SetUiLanguage(_) => "settings.language_changed",
         LocalSettingsChange::SetTheme(_) => "settings.theme_changed",

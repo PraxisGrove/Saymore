@@ -15,7 +15,7 @@ export component ProviderStatusBadge inherits Rectangle {
     in property <bool> current: false;
     in property <bool> available: false;
 
-    width: 56px;
+    width: max(56px, status-label.preferred-width + (root.current || root.available ? 27px : 8px));
     height: 16px;
     border-radius: 6px;
     background: root.current ? AppColors.success
@@ -38,7 +38,7 @@ export component ProviderStatusBadge inherits Rectangle {
             colorize: AppColors.on-brand;
         }
     }
-    Text {
+    status-label := Text {
         x: root.current || root.available ? 22px : 4px;
         width: root.current || root.available ? parent.width - 25px : parent.width - 8px;
         text: root.label;
@@ -51,7 +51,6 @@ export component ProviderStatusBadge inherits Rectangle {
         font-weight: root.current ? 700 : 650;
         horizontal-alignment: center;
         vertical-alignment: center;
-        overflow: elide;
     }
 }
 
@@ -65,14 +64,15 @@ export component AsrProviderCard inherits Rectangle {
     in property <string> summary;
     in property <string> status;
     in property <ProviderStatusTone> status-tone: ProviderStatusTone.neutral;
+    in property <bool> recommended: false;
     in property <bool> selected: false;
     in property <bool> available: false;
     in property <bool> enabled: true;
     callback activated();
 
-    private property <length> provider-row-y: 24px;
+    private property <length> provider-row-y: 29px;
     private property <length> provider-row-height: 44px;
-    height: 108px;
+    height: 96px;
     border-radius: 10px;
     background: !root.enabled ? AppColors.surface
         : card-touch.pressed ? AppColors.selected
@@ -83,13 +83,15 @@ export component AsrProviderCard inherits Rectangle {
 
     Text {
         x: 4px;
-        y: 8px;
+        y: 4px;
         width: 68px;
+        height: 20px;
         text: root.source-type;
         color: root.selected ? AppColors.brand-strong : AppColors.text-muted;
-        font-size: 9px;
+        font-size: 8px;
         font-weight: 650;
         horizontal-alignment: center;
+        vertical-alignment: center;
         overflow: elide;
     }
 
@@ -115,33 +117,43 @@ export component AsrProviderCard inherits Rectangle {
 
     provider-copy := Rectangle {
         x: 74px;
-        y: root.provider-row-y;
+        y: 4px;
         width: parent.width - 122px;
         height: root.provider-row-height;
         background: transparent;
 
-        Text {
+        provider-name-label := Text {
             x: 0px;
             y: 0px;
-            width: parent.width;
+            width: parent.width - (root.recommended ? 14px : 0px);
             height: 20px;
             text: root.provider-name;
             color: root.enabled ? AppColors.ink : AppColors.text;
-            font-size: 12px;
+            font-size: 11px;
             font-weight: 700;
             vertical-alignment: center;
             overflow: elide;
         }
+        if root.recommended: Image {
+            x: min(provider-name-label.preferred-width + 4px, parent.width - 10px);
+            y: 5px;
+            width: 10px;
+            height: 10px;
+            source: @image-url("../../icons/phosphor/star-fill.svg");
+            colorize: AppColors.brand;
+            image-fit: contain;
+            image-rendering: smooth;
+        }
         Rectangle {
             x: 0px;
-            y: 22px;
+            y: 26px;
             width: parent.width;
-            height: 22px;
+            height: 18px;
             background: transparent;
 
             Image {
                 x: 0px;
-                y: 4px;
+                y: 2px;
                 width: 14px;
                 height: 14px;
                 source: root.summary-icon;
@@ -162,7 +174,7 @@ export component AsrProviderCard inherits Rectangle {
     }
     ProviderStatusBadge {
         x: 74px;
-        y: 78px;
+        y: 61px;
         label: root.status;
         tone: root.status-tone;
         current: root.selected;
@@ -170,10 +182,10 @@ export component AsrProviderCard inherits Rectangle {
     }
 
     Image {
-        x: parent.width - 30px;
-        y: 82px;
-        width: 16px;
-        height: 16px;
+        x: parent.width - 34px;
+        y: 39px;
+        width: 18px;
+        height: 18px;
         source: @image-url("../../icons/lucide/chevron-right.svg");
         colorize: root.enabled ? AppColors.text-muted : AppColors.chart-neutral;
     }
@@ -265,8 +277,8 @@ export component ProviderSelectionControl inherits Rectangle {
     background: transparent;
     accessible-role: switch;
     accessible-label: root.selected
-        ? @tr("models.asr.selection.current" => "Current provider")
-        : @tr("models.asr.selection.set-current" => "Set as current");
+        ? @tr("models.asr.selection.current-accessible" => "Current provider")
+        : @tr("models.asr.selection.set-current-accessible" => "Use as current provider");
     accessible-enabled: root.enabled;
     accessible-checked: root.selected;
     accessible-action-default => { if root.enabled { root.activated(); } }
@@ -297,8 +309,8 @@ export component ProviderSelectionControl inherits Rectangle {
         x: 36px;
         width: parent.width - 36px;
         text: root.selected
-            ? @tr("models.asr.selection.current" => "Current provider")
-            : @tr("models.asr.selection.set-current" => "Set as current");
+            ? @tr("models.asr.selection.current" => "Current")
+            : @tr("models.asr.selection.set-current" => "Use");
         color: root.selected ? AppColors.success
             : root.enabled ? AppColors.text : AppColors.text-muted;
         font-size: 10px;
@@ -382,23 +394,51 @@ component ModalSecretField inherits Rectangle {
             vertical-alignment: center;
         }
     }
-    Image {
-        x: parent.width - 28px;
-        y: 11px;
-        width: 16px;
-        height: 16px;
-        source: @image-url("../../icons/lucide/eye.svg");
-        colorize: AppColors.text-muted;
-    }
-    Rectangle {
+    reveal-button := Rectangle {
         x: parent.width - 40px;
         width: 40px;
         height: 38px;
-        background: reveal-touch.has-hover ? AppColors.surface-subtle : transparent;
-        accessible-role: button;
-        accessible-label: root.reveal ? @tr("models.asr.hide-api-key" => "Hide API key") : @tr("models.asr.show-api-key" => "Show API key");
-        accessible-action-default => { root.reveal = !root.reveal; }
-        reveal-touch := TouchArea { mouse-cursor: pointer; clicked => { root.reveal = !root.reveal; } }
+        background: transparent;
+
+        Rectangle {
+            x: 5px;
+            y: 4px;
+            width: 30px;
+            height: 30px;
+            border-radius: 6px;
+            background: reveal-touch.pressed ? AppColors.selected
+                : reveal-touch.has-hover ? AppColors.surface-subtle : transparent;
+
+            Image {
+                x: 7px;
+                y: 7px;
+                width: 16px;
+                height: 16px;
+                source: root.reveal
+                    ? @image-url("../../icons/lucide/eye-off.svg")
+                    : @image-url("../../icons/lucide/eye.svg");
+                colorize: AppColors.text-muted;
+            }
+        }
+        reveal-focus := FocusScope {
+            accessible-role: button;
+            accessible-label: root.reveal ? @tr("models.asr.hide-api-key" => "Hide API key") : @tr("models.asr.show-api-key" => "Show API key");
+            accessible-action-default => { root.reveal = !root.reveal; }
+            key-pressed(event) => {
+                if event.text == "\n" || event.text == " " {
+                    root.reveal = !root.reveal;
+                    return accept;
+                }
+                return reject;
+            }
+        }
+        reveal-touch := TouchArea {
+            mouse-cursor: pointer;
+            clicked => {
+                reveal-focus.focus();
+                root.reveal = !root.reveal;
+            }
+        }
     }
 }
 
@@ -921,12 +961,12 @@ export component UnavailableAsrProviderModal inherits Rectangle {
     private property <string> subtitle: root.cloud
         ? @tr("models.asr.placeholder.cloud-subtitle" => "First-party speech service placeholder")
         : @tr("models.asr.placeholder.local-subtitle" => "Local model adapter is not yet connected");
-    private property <string> download-size: root.kind == AsrProviderCardKind.qwen3-asr ? "2.1 GB"
-        : root.kind == AsrProviderCardKind.paraformer ? "889 MB"
-        : root.kind == AsrProviderCardKind.whisper-large-v3-turbo ? "3.1 GB" : "—";
-    private property <string> memory: root.kind == AsrProviderCardKind.qwen3-asr ? "~3.8 GB"
-        : root.kind == AsrProviderCardKind.paraformer ? "~2.0 GB"
-        : root.kind == AsrProviderCardKind.whisper-large-v3-turbo ? "~5.4 GB" : "—";
+    private property <string> download-size: root.kind == AsrProviderCardKind.qwen3-asr ? "2.24 GB"
+        : root.kind == AsrProviderCardKind.paraformer ? "226.21 MB"
+        : root.kind == AsrProviderCardKind.whisper-large-v3-turbo ? "988.59 MB" : "—";
+    private property <string> memory: root.kind == AsrProviderCardKind.qwen3-asr ? "~4.3 GB"
+        : root.kind == AsrProviderCardKind.paraformer ? "~503 MB"
+        : root.kind == AsrProviderCardKind.whisper-large-v3-turbo ? "~2.15 GB" : "—";
 
     modal-focus := FocusScope {
         width: parent.width;
@@ -976,7 +1016,7 @@ export component UnavailableAsrProviderModal inherits Rectangle {
                     width: parent.width / 3;
                     height: parent.height;
                     icon: @image-url("../../icons/lucide/download.svg");
-                    label: @tr("models.asr.local.download-size" => "Download size");
+                    label: @tr("models.asr.local.download-size" => "Download");
                     value: root.download-size;
                 }
                 LocalModelMetric {
@@ -984,7 +1024,7 @@ export component UnavailableAsrProviderModal inherits Rectangle {
                     width: parent.width / 3;
                     height: parent.height;
                     icon: @image-url("../../icons/lucide/memory-stick.svg");
-                    label: @tr("models.asr.local.memory" => "Runtime memory");
+                    label: @tr("models.asr.local.memory" => "Memory");
                     value: root.memory;
                     alignment: MetricAlignment.center;
                 }
@@ -993,7 +1033,7 @@ export component UnavailableAsrProviderModal inherits Rectangle {
                     width: parent.width / 3;
                     height: parent.height;
                     icon: @image-url("../../icons/lucide/badge-check.svg");
-                    label: @tr("models.asr.local.compatibility" => "Compatibility");
+                    label: @tr("models.asr.local.compatibility" => "Device");
                     value: @tr("models.asr.placeholder.unverified" => "Unverified");
                     alignment: MetricAlignment.right;
                     muted-value: true;
@@ -1001,20 +1041,20 @@ export component UnavailableAsrProviderModal inherits Rectangle {
             }
             if root.cloud: Rectangle {
                 x: 28px; y: 230px; width: 486px; height: 92px; border-radius: 8px; background: AppColors.surface-subtle;
-                Text { x: 16px; y: 12px; text: @tr("models.test.title" => "Recognition test"); color: AppColors.text; font-size: 11px; font-weight: 700; }
+                Text { x: 16px; y: 12px; text: @tr("models.test.title" => "Test"); color: AppColors.text; font-size: 11px; font-weight: 700; }
                 Text { x: 16px; y: 34px; width: parent.width - 32px; text: @tr("models.asr.placeholder.test-disabled" => "No production adapter is available. Recognition testing is disabled."); color: AppColors.text-muted; font-size: 9px; wrap: word-wrap; }
             }
             if !root.cloud: Rectangle {
                 x: 28px; y: 224px; width: 486px; height: 78px; background: transparent;
                 Image { x: 0px; y: 10px; width: 15px; height: 15px; source: @image-url("../../icons/lucide/package-check.svg"); colorize: AppColors.text-muted; }
-                Text { x: 23px; y: 9px; text: @tr("models.asr.local.model-files" => "Model files"); color: AppColors.text; font-size: 11px; font-weight: 700; }
+                Text { x: 23px; y: 9px; text: @tr("models.asr.local.model-files" => "Files"); color: AppColors.text; font-size: 11px; font-weight: 700; }
                 Text { x: 23px; y: 31px; width: parent.width - 23px; text: @tr("models.asr.placeholder.download-disabled" => "No verified download source or production adapter is available."); color: AppColors.text-muted; font-size: 9px; wrap: word-wrap; }
             }
             if !root.cloud: Rectangle {
                 x: 28px; y: 314px; width: 486px; height: 96px; border-radius: 8px; background: AppColors.surface-subtle;
-                Text { x: 16px; y: 12px; text: @tr("models.test.title" => "Recognition test"); color: AppColors.text; font-size: 11px; font-weight: 700; }
-                Text { x: 16px; y: 34px; text: @tr("models.test.fixed-audio" => "Fixed test audio 3.9 sec"); color: AppColors.text-muted; font-size: 9px; }
-                ModalButton { x: parent.width - 106px; y: 12px; width: 90px; height: 32px; label: @tr("models.test.action" => "Run test"); enabled: false; }
+                Text { x: 16px; y: 12px; text: @tr("models.test.title" => "Test"); color: AppColors.text; font-size: 11px; font-weight: 700; }
+                Text { x: 16px; y: 34px; text: @tr("models.test.fixed-audio" => "3.9-sec sample"); color: AppColors.text-muted; font-size: 9px; }
+                ModalButton { x: parent.width - 106px; y: 12px; width: 90px; height: 32px; label: @tr("models.test.action" => "Run"); enabled: false; }
             }
         }
     }

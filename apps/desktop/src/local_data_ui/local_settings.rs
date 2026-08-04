@@ -7,9 +7,59 @@ pub(super) fn wire_local_settings(
     state: Arc<Mutex<UiDataState>>,
     settings: LocalSettingsHandle,
     recorder: RecorderHandle,
+    dictionary_assist: dictionary_assist::VocabularySuggestionTrigger,
 ) {
     wire_history_settings(ui, Arc::clone(&storage), state, settings.clone());
+    wire_dictionary_assist_setting(ui, settings.clone(), dictionary_assist);
     wire_microphone_settings(ui, storage, settings, recorder);
+}
+
+fn wire_dictionary_assist_setting(
+    ui: &AppWindow,
+    settings: LocalSettingsHandle,
+    dictionary_assist: dictionary_assist::VocabularySuggestionTrigger,
+) {
+    let setting_ui = ui.as_weak();
+    ui.on_set_dictionary_assist_enabled(move |enabled| {
+        let Some(current_ui) = setting_ui.upgrade() else {
+            return;
+        };
+        let current_fingerprint = current_ui
+            .get_dictionary_assist_consent_fingerprint()
+            .to_string();
+        let stored_fingerprint = current_ui
+            .get_dictionary_assist_stored_consent_fingerprint()
+            .to_string();
+        let change = if enabled && current_fingerprint != stored_fingerprint {
+            LocalSettingsChange::AuthorizeVocabularySuggestions(current_fingerprint)
+        } else {
+            LocalSettingsChange::SetVocabularySuggestionsEnabled(enabled)
+        };
+        let completion_ui = setting_ui.clone();
+        let failure_ui = setting_ui.clone();
+        let completion_dictionary_assist = dictionary_assist.clone();
+        let result = settings.submit(change, move |result| match result {
+            Ok(committed) => {
+                if let Some(ui) = completion_ui.upgrade() {
+                    ui.set_dictionary_assist_enabled(committed.dictionary_assist_enabled);
+                    ui.set_dictionary_assist_stored_consent_fingerprint(
+                        committed
+                            .dictionary_assist_consent_fingerprint
+                            .clone()
+                            .unwrap_or_default()
+                            .into(),
+                    );
+                }
+                if committed.dictionary_assist_enabled {
+                    completion_dictionary_assist.run_if_due();
+                }
+            }
+            Err(error) => apply_settings_save_error(&completion_ui, "dictionary.assist", error),
+        });
+        if let Err(error) = result {
+            apply_settings_submit_error(&failure_ui, "dictionary.assist", error);
+        }
+    });
 }
 
 fn wire_history_settings(
@@ -256,6 +306,14 @@ fn refresh_history_after_cleanup(
 
 pub(super) fn apply_settings(ui: &AppWindow, settings: &template_app::LocalSettings) {
     ui.set_history_enabled(settings.history_enabled);
+    ui.set_dictionary_assist_enabled(settings.dictionary_assist_enabled);
+    ui.set_dictionary_assist_stored_consent_fingerprint(
+        settings
+            .dictionary_assist_consent_fingerprint
+            .clone()
+            .unwrap_or_default()
+            .into(),
+    );
     ui.set_history_retention(if !settings.history_enabled {
         UiHistoryRetention::Never
     } else {

@@ -14,7 +14,7 @@ use template_app::{
     DictionaryLearningOutcome, DictionaryLearningStore, DictionaryStore, HistoryCursor,
     HistoryPage, HistoryStore, InstalledModel, InstalledModelStore, LocalSettings,
     LocalSettingsStore, NewDictionaryEntry, NewDictionaryObservation, NewHistoryRecord,
-    SecretStore, StorageError,
+    SecretStore, StorageError, UsageSnapshot,
 };
 
 mod diagnostics;
@@ -25,6 +25,7 @@ mod history_search;
 mod migrations;
 mod models;
 mod settings;
+mod usage;
 
 const QUEUE_CAPACITY: usize = 64;
 
@@ -90,6 +91,20 @@ impl LocalSettingsStore for SqliteStorage {
     }
 }
 
+impl template_app::VocabularySuggestionSettingsStore for SqliteStorage {
+    fn record_vocabulary_suggestion_success(
+        &self,
+        consent_fingerprint: &str,
+        completed_at_ms: i64,
+    ) -> Result<bool, StorageError> {
+        self.request(|response| Command::RecordVocabularySuggestionSuccess {
+            consent_fingerprint: consent_fingerprint.to_owned(),
+            completed_at_ms,
+            response,
+        })
+    }
+}
+
 impl DiagnosticEventStore for SqliteStorage {
     fn record_diagnostic_event(&self, event: &str) -> Result<(), StorageError> {
         self.request(|response| Command::RecordDiagnosticEvent {
@@ -105,7 +120,17 @@ impl DiagnosticEventStore for SqliteStorage {
 
 impl HistoryStore for SqliteStorage {
     fn insert_history(&self, record: NewHistoryRecord) -> Result<(), StorageError> {
-        self.request(|response| Command::InsertHistory { record, response })
+        self.request(|response| Command::History(HistoryCommand::Insert { record, response }))
+    }
+
+    fn update_history_final_text(&self, id: &str, final_text: &str) -> Result<(), StorageError> {
+        self.request(|response| {
+            Command::History(HistoryCommand::UpdateFinalText {
+                id: id.to_owned(),
+                final_text: final_text.to_owned(),
+                response,
+            })
+        })
     }
 
     fn history_page(
@@ -113,10 +138,12 @@ impl HistoryStore for SqliteStorage {
         cursor: Option<HistoryCursor>,
         limit: u16,
     ) -> Result<HistoryPage, StorageError> {
-        self.request(|response| Command::HistoryPage {
-            cursor,
-            limit,
-            response,
+        self.request(|response| {
+            Command::History(HistoryCommand::Page {
+                cursor,
+                limit,
+                response,
+            })
         })
     }
 
@@ -126,18 +153,22 @@ impl HistoryStore for SqliteStorage {
         limit: u16,
         query: &str,
     ) -> Result<HistoryPage, StorageError> {
-        self.request(|response| Command::SearchHistoryPage {
-            cursor,
-            limit,
-            query: query.to_owned(),
-            response,
+        self.request(|response| {
+            Command::History(HistoryCommand::SearchPage {
+                cursor,
+                limit,
+                query: query.to_owned(),
+                response,
+            })
         })
     }
 
     fn delete_history(&self, id: &str) -> Result<(), StorageError> {
-        self.request(|response| Command::DeleteHistory {
-            id: id.to_owned(),
-            response,
+        self.request(|response| {
+            Command::History(HistoryCommand::Delete {
+                id: id.to_owned(),
+                response,
+            })
         })
     }
 
@@ -146,23 +177,25 @@ impl HistoryStore for SqliteStorage {
         id: &str,
         delivery: template_app::HistoryDelivery,
     ) -> Result<(), StorageError> {
-        self.request(|response| Command::UpdateHistoryDelivery {
-            id: id.to_owned(),
-            delivery,
-            response,
+        self.request(|response| {
+            Command::History(HistoryCommand::UpdateDelivery {
+                id: id.to_owned(),
+                delivery,
+                response,
+            })
         })
     }
 
     fn clear_history(&self) -> Result<(), StorageError> {
-        self.request(Command::ClearHistory)
+        self.request(|response| Command::History(HistoryCommand::Clear(response)))
     }
 
     fn reset_history(&self) -> Result<(), StorageError> {
-        self.request(Command::ResetHistory)
+        self.request(|response| Command::History(HistoryCommand::Reset(response)))
     }
 
     fn cleanup_history(&self, now_ms: i64) -> Result<u64, StorageError> {
-        self.request(|response| Command::CleanupHistory { now_ms, response })
+        self.request(|response| Command::History(HistoryCommand::Cleanup { now_ms, response }))
     }
 }
 
@@ -184,6 +217,20 @@ impl DictionaryStore for SqliteStorage {
     ) -> Result<DictionaryEntry, StorageError> {
         self.request(|response| Command::UpsertDictionary {
             entry,
+            now_ms,
+            response,
+        })
+    }
+
+    fn update_dictionary(
+        &self,
+        id: &str,
+        canonical: &str,
+        now_ms: i64,
+    ) -> Result<DictionaryEntry, StorageError> {
+        self.request(|response| Command::UpdateDictionary {
+            id: id.to_owned(),
+            canonical: canonical.to_owned(),
             now_ms,
             response,
         })
@@ -223,6 +270,13 @@ impl InstalledModelStore for SqliteStorage {
     fn save_installed_model(&self, model: InstalledModel) -> Result<(), StorageError> {
         self.request(|response| Command::SaveInstalledModel { model, response })
     }
+
+    fn delete_installed_model(&self, id: &str) -> Result<(), StorageError> {
+        self.request(|response| Command::DeleteInstalledModel {
+            id: id.to_owned(),
+            response,
+        })
+    }
 }
 
 impl Drop for SqliteStorage {
@@ -242,6 +296,11 @@ enum Command {
         settings: LocalSettings,
         response: SyncSender<Result<(), StorageError>>,
     },
+    RecordVocabularySuggestionSuccess {
+        consent_fingerprint: String,
+        completed_at_ms: i64,
+        response: SyncSender<Result<bool, StorageError>>,
+    },
     RecordDiagnosticEvent {
         event: String,
         response: SyncSender<Result<(), StorageError>>,
@@ -250,39 +309,21 @@ enum Command {
         limit: u32,
         response: SyncSender<Result<Vec<String>, StorageError>>,
     },
-    InsertHistory {
-        record: NewHistoryRecord,
-        response: SyncSender<Result<(), StorageError>>,
+    UsageSnapshot {
+        period_start: chrono::NaiveDate,
+        period_end: chrono::NaiveDate,
+        response: SyncSender<Result<UsageSnapshot, StorageError>>,
     },
-    HistoryPage {
-        cursor: Option<HistoryCursor>,
-        limit: u16,
-        response: SyncSender<Result<HistoryPage, StorageError>>,
-    },
-    SearchHistoryPage {
-        cursor: Option<HistoryCursor>,
-        limit: u16,
-        query: String,
-        response: SyncSender<Result<HistoryPage, StorageError>>,
-    },
-    DeleteHistory {
-        id: String,
-        response: SyncSender<Result<(), StorageError>>,
-    },
-    UpdateHistoryDelivery {
-        id: String,
-        delivery: template_app::HistoryDelivery,
-        response: SyncSender<Result<(), StorageError>>,
-    },
-    ClearHistory(SyncSender<Result<(), StorageError>>),
-    ResetHistory(SyncSender<Result<(), StorageError>>),
-    CleanupHistory {
-        now_ms: i64,
-        response: SyncSender<Result<u64, StorageError>>,
-    },
+    History(HistoryCommand),
     ListDictionary(SyncSender<Result<Vec<DictionaryEntry>, StorageError>>),
     UpsertDictionary {
         entry: NewDictionaryEntry,
+        now_ms: i64,
+        response: SyncSender<Result<DictionaryEntry, StorageError>>,
+    },
+    UpdateDictionary {
+        id: String,
+        canonical: String,
         now_ms: i64,
         response: SyncSender<Result<DictionaryEntry, StorageError>>,
     },
@@ -302,7 +343,49 @@ enum Command {
         model: InstalledModel,
         response: SyncSender<Result<(), StorageError>>,
     },
+    DeleteInstalledModel {
+        id: String,
+        response: SyncSender<Result<(), StorageError>>,
+    },
     Shutdown,
+}
+
+enum HistoryCommand {
+    Insert {
+        record: NewHistoryRecord,
+        response: SyncSender<Result<(), StorageError>>,
+    },
+    Page {
+        cursor: Option<HistoryCursor>,
+        limit: u16,
+        response: SyncSender<Result<HistoryPage, StorageError>>,
+    },
+    SearchPage {
+        cursor: Option<HistoryCursor>,
+        limit: u16,
+        query: String,
+        response: SyncSender<Result<HistoryPage, StorageError>>,
+    },
+    Delete {
+        id: String,
+        response: SyncSender<Result<(), StorageError>>,
+    },
+    UpdateDelivery {
+        id: String,
+        delivery: template_app::HistoryDelivery,
+        response: SyncSender<Result<(), StorageError>>,
+    },
+    UpdateFinalText {
+        id: String,
+        final_text: String,
+        response: SyncSender<Result<(), StorageError>>,
+    },
+    Clear(SyncSender<Result<(), StorageError>>),
+    Reset(SyncSender<Result<(), StorageError>>),
+    Cleanup {
+        now_ms: i64,
+        response: SyncSender<Result<u64, StorageError>>,
+    },
 }
 
 pub(super) struct Database {
@@ -343,42 +426,30 @@ fn process_command(database: &mut Database, command: Command) -> bool {
         Command::SaveSettings { settings, response } => {
             send_result(response, save_settings(database, &settings))
         }
+        Command::RecordVocabularySuggestionSuccess {
+            consent_fingerprint,
+            completed_at_ms,
+            response,
+        } => send_result(
+            response,
+            settings::record_vocabulary_suggestion_success(
+                &database.connection,
+                &consent_fingerprint,
+                completed_at_ms,
+            ),
+        ),
         Command::RecordDiagnosticEvent { event, response } => {
             record_event(database, &event, response)
         }
         Command::DiagnosticEvents { limit, response } => list_events(database, limit, response),
-        Command::InsertHistory { record, response } => {
-            send_result(response, history::insert(database, record))
-        }
-        Command::HistoryPage {
-            cursor,
-            limit,
-            response,
-        } => send_result(response, history::page(database, cursor, limit)),
-        Command::SearchHistoryPage {
-            cursor,
-            limit,
-            query,
+        Command::UsageSnapshot {
+            period_start,
+            period_end,
             response,
         } => send_result(
             response,
-            history_search::page(database, cursor, limit, &query),
+            usage::snapshot(database, period_start, period_end),
         ),
-        Command::DeleteHistory { id, response } => {
-            send_result(response, history::delete(&mut database.connection, &id))
-        }
-        Command::UpdateHistoryDelivery {
-            id,
-            delivery,
-            response,
-        } => send_result(response, history::update_delivery(database, &id, delivery)),
-        Command::ClearHistory(response) => {
-            send_result(response, history::clear(&mut database.connection))
-        }
-        Command::ResetHistory(response) => send_result(response, history::reset(database)),
-        Command::CleanupHistory { now_ms, response } => {
-            send_result(response, history::cleanup(&mut database.connection, now_ms))
-        }
         Command::ListDictionary(response) => {
             send_result(response, dictionary::list(&database.connection))
         }
@@ -389,6 +460,15 @@ fn process_command(database: &mut Database, command: Command) -> bool {
         } => send_result(
             response,
             dictionary::upsert(&mut database.connection, entry, now_ms),
+        ),
+        Command::UpdateDictionary {
+            id,
+            canonical,
+            now_ms,
+            response,
+        } => send_result(
+            response,
+            dictionary::update(&mut database.connection, &id, &canonical, now_ms),
         ),
         Command::DeleteDictionary { id, response } => {
             send_result(response, dictionary::delete(&mut database.connection, &id))
@@ -410,9 +490,64 @@ fn process_command(database: &mut Database, command: Command) -> bool {
         Command::SaveInstalledModel { model, response } => {
             send_result(response, models::save(&mut database.connection, model))
         }
+        Command::DeleteInstalledModel { id, response } => {
+            send_result(response, models::delete(&database.connection, &id))
+        }
+        Command::History(command) => process_history_command(database, command),
         Command::Shutdown => return false,
     }
     true
+}
+
+fn process_history_command(database: &mut Database, command: HistoryCommand) {
+    match command {
+        HistoryCommand::Insert { record, response } => {
+            send_result(response, history::insert(database, record))
+        }
+        HistoryCommand::Page {
+            cursor,
+            limit,
+            response,
+        } => send_result(response, history::page(database, cursor, limit)),
+        HistoryCommand::SearchPage {
+            cursor,
+            limit,
+            query,
+            response,
+        } => send_result(
+            response,
+            history_search::page(database, cursor, limit, &query),
+        ),
+        HistoryCommand::Delete { id, response } => {
+            let result = usage::backfill_history(database)
+                .and_then(|()| history::delete(&mut database.connection, &id));
+            send_result(response, result)
+        }
+        HistoryCommand::UpdateDelivery {
+            id,
+            delivery,
+            response,
+        } => send_result(response, history::update_delivery(database, &id, delivery)),
+        HistoryCommand::UpdateFinalText {
+            id,
+            final_text,
+            response,
+        } => send_result(
+            response,
+            history::update_final_text(database, &id, &final_text),
+        ),
+        HistoryCommand::Clear(response) => {
+            let result = usage::backfill_history(database)
+                .and_then(|()| history::clear(&mut database.connection));
+            send_result(response, result)
+        }
+        HistoryCommand::Reset(response) => send_result(response, history::reset(database)),
+        HistoryCommand::Cleanup { now_ms, response } => {
+            let result = usage::backfill_history(database)
+                .and_then(|()| history::cleanup(&mut database.connection, now_ms));
+            send_result(response, result)
+        }
+    }
 }
 
 fn record_event(
@@ -435,6 +570,7 @@ fn list_events(
 }
 
 fn save_settings(database: &mut Database, settings: &LocalSettings) -> Result<(), StorageError> {
+    usage::backfill_history(database)?;
     settings::save(&mut database.connection, settings)
         .and_then(|()| history::cleanup(&mut database.connection, history::now_ms()).map(|_| ()))
 }

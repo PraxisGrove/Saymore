@@ -13,8 +13,8 @@ implement safely.
 
 The main application window should react to theme choices. Recording controls,
 permission prompts, and compact result notifications are independent overlays
-whose visual identity and legibility must remain stable while the application
-theme changes.
+whose neutral surfaces and legibility must remain stable while their accents
+follow the selected theme.
 
 ## Decision
 
@@ -45,12 +45,14 @@ and dialog titles, key values, and other high-priority information; ordinary
 content uses `text`, while subtitles, descriptions, and helper information use
 `text-muted`. Windows title-bar colors use the resolved canvas and ink roles.
 
-Independent overlays consume the fixed roles in
-`apps/desktop/ui/overlay-color-system.slint`. They do not read the selected
-theme or color scheme. The theme picker may declare five literal swatch samples
-and use the monochrome Saymore mark for the default theme; all other Slint
-components must use one of the two color systems. The `xtask ui-colors` gate
-enforces that boundary.
+Independent overlays consume roles in
+`apps/desktop/ui/overlay-color-system.slint`. Their surfaces, borders, text,
+shadows, and recording-control neutrals remain fixed across theme and color
+scheme changes. Accent, strong accent, soft accent, on-accent foreground, and
+recording activity accents resolve from the selected theme. The theme picker may
+declare five literal swatch samples and use the monochrome Saymore mark for the
+default theme; all other Slint components must use one of the two color systems.
+The `xtask ui-colors` gate enforces that boundary.
 
 ## Consequences
 
@@ -58,7 +60,8 @@ enforces that boundary.
   edits.
 - Dark mode is explicit and testable; following the system is a separate stored
   preference rather than a one-time color copy.
-- Overlay appearance remains stable across theme switches.
+- Overlay structure and neutral surfaces remain stable across theme switches;
+  emphasis follows the selected theme.
 - SQLite migration and translation coverage are required when theme identifiers
   or user-facing names change.
 - Visual verification must cover all six light themes and representative dark
@@ -68,7 +71,8 @@ enforces that boundary.
 
 - Keep hard-coded component colors: simplest initially, but cannot produce a
   coherent dark system or reliably apply future themes.
-- Theme every window, including overlays: visually uniform, but makes transient
-  system-facing controls less predictable and broadens the regression surface.
+- Theme every overlay role: visually uniform, but recoloring transient surfaces
+  and text makes system-facing controls less predictable and broadens the
+  regression surface.
 - Store a custom user color: flexible, but cannot guarantee contrast for every
   semantic role and is outside the current product scope.

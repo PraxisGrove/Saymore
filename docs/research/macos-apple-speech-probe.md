@@ -57,9 +57,11 @@ behavior by OS, locale, and service availability.
 
 `MacOsSpeechRecognizer` implements the existing provider-independent streaming
 port in `crates/infra`. It owns Apple objects on a dedicated worker, accepts
-Saymore's existing 16 kHz mono `i16` chunks, applies up to 100 dictionary hints
-as contextual strings, and maps authorization, availability, timeout, Apple
-callback errors, and invalid final results into `SpeechRecognitionError`.
+Saymore's existing 16 kHz mono `i16` chunks, marks production requests as
+dictation, applies up to 100 dictionary hints as contextual strings, and maps
+authorization, availability, timeout, Apple callback errors, and invalid final
+results into `SpeechRecognitionError`. The task hint guides recognition but does
+not guarantee a particular inverse text normalization result.
 
 The Models page exposes this adapter as macOS Dictation. Selection is persisted
 as the active ASR Provider without deleting saved Volcengine or

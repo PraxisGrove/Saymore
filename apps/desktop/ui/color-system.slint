@@ -53,6 +53,7 @@ export global AppColors {
         : theme-id == ThemeId.sunlit-gold ? #292824
         : #2d2a26;
     out property <color> surface-muted: surface-subtle;
+    out property <color> surface-faint: !dark ? canvas : surface-subtle;
     out property <color> selected: !dark ? brand-soft
         : theme-id == ThemeId.saymore ? #303030
         : theme-id == ThemeId.lime-pulse ? #32382f
@@ -81,6 +82,15 @@ export global AppColors {
         : theme-id == ThemeId.iris-mist ? #625674
         : theme-id == ThemeId.sunlit-gold ? #686353
         : #5c554b;
+    out property <color> storage-model: dark ? #ff795c : #ff6542;
+    out property <color> storage-recognition: dark ? #ffbc5e : #ffad3b;
+    out property <color> storage-diagnostics: dark ? #45d39e : #28c58b;
+    out property <color> storage-other: dark ? #6598f5 : #3d7ff2;
+    out property <color> model-qwen: dark ? #6598f5 : #2e68eb;
+    out property <color> model-sense-voice: dark ? #3fb8bb : #168b8d;
+    out property <color> model-whisper: dark ? #9a7be0 : #7b5bd0;
+    out property <color> model-paraformer: dark ? #45b879 : #15894b;
+    out property <color> model-punctuation: storage-recognition;
 
     out property <color> ink: !dark ? (theme-id == ThemeId.saymore ? #171717 : theme-id == ThemeId.sunlit-gold ? #1e1d1a : #24211e)
         : theme-id == ThemeId.saymore ? #f5f5f5
@@ -157,4 +167,6 @@ export global AppColors {
 
     out property <color> scrim: dark ? #00000080 : #1f1f1c66;
     out property <color> shadow: dark ? #00000066 : #1f1f1c1f;
+    out property <color> keycap-edge: !dark && theme-id == ThemeId.saymore ? #c7c7c1 : chart-neutral;
+    out property <color> keycap-ambient-shadow: dark ? #0000002e : #16161612;
 }

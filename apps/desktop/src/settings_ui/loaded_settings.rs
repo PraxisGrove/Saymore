@@ -1,17 +1,19 @@
 use slint::{ComponentHandle, SharedString};
 use template_app::{
     LlmProviderPreset, ProviderCatalog, ProviderConfigStore, SaymoreSettings, SettingsStore,
+    vocabulary_suggestion_consent_fingerprint,
 };
 use template_infra::JsonSettingsStore;
 
 use crate::ui::{
     AppWindow, AsrConfigurationField as UiAsrConfigurationField, AsrProvider as UiAsrProvider,
-    Translations,
+    LlmProviderConfigurationState, Translations,
 };
 
 use super::{
     VOLCENGINE_ASR_2_MODEL, apply_pending_test, apply_status, llm_configuration_ready,
-    provider_is_local, ui_provider, volcengine_api_key_is_valid, volcengine_model_id,
+    model_discovery::restore_llm_model_catalog, provider_is_local, ui_provider,
+    volcengine_api_key_is_valid, volcengine_model_id,
 };
 
 pub(super) fn apply_loaded_settings(ui: &AppWindow, store: &JsonSettingsStore) {
@@ -19,6 +21,7 @@ pub(super) fn apply_loaded_settings(ui: &AppWindow, store: &JsonSettingsStore) {
         (Ok(settings), Ok(catalog)) => {
             apply_loaded_llm(ui, &settings, &catalog);
             let configured = apply_loaded_asr(ui, settings, &catalog);
+            ui.invoke_asr_provider_selection_applied();
             ui.set_asr_testing(false);
             ui.set_asr_test_succeeded(false);
             ui.set_asr_test_elapsed(SharedString::default());
@@ -42,39 +45,11 @@ pub(super) fn apply_loaded_settings(ui: &AppWindow, store: &JsonSettingsStore) {
 }
 
 fn apply_loaded_llm(ui: &AppWindow, settings: &SaymoreSettings, catalog: &ProviderCatalog) {
-    let selected = catalog
-        .active_llm_provider()
-        .unwrap_or(LlmProviderPreset::SenseNova);
+    let selected = selected_llm_provider(catalog);
     ui.set_llm_provider(ui_provider(selected));
     ui.set_active_llm_provider(ui_provider(selected));
-    ui.set_sensenova_api_key(SharedString::from(
-        catalog
-            .llm_provider_api_key(LlmProviderPreset::SenseNova)
-            .unwrap_or_default(),
-    ));
-    ui.set_deepseek_api_key(SharedString::from(
-        catalog
-            .llm_provider_api_key(LlmProviderPreset::DeepSeek)
-            .unwrap_or_default(),
-    ));
-    let sensenova_model = catalog.configured_llm_provider_model(LlmProviderPreset::SenseNova);
-    let deepseek_model = catalog.configured_llm_provider_model(LlmProviderPreset::DeepSeek);
-    let custom_settings = catalog
-        .llm_provider_settings(LlmProviderPreset::Custom)
-        .unwrap_or_default();
-    let custom_model = catalog.configured_llm_provider_model(LlmProviderPreset::Custom);
-    ui.set_sensenova_configured(sensenova_model.is_some());
-    ui.set_deepseek_configured(deepseek_model.is_some());
-    ui.set_sensenova_model(SharedString::from(
-        sensenova_model.unwrap_or_else(|| LlmProviderPreset::SenseNova.model()),
-    ));
-    ui.set_deepseek_model(SharedString::from(
-        deepseek_model.unwrap_or_else(|| LlmProviderPreset::DeepSeek.model()),
-    ));
-    ui.set_custom_llm_api_key(SharedString::from(&custom_settings.api_key));
-    ui.set_custom_llm_base_url(SharedString::from(&custom_settings.base_url));
-    ui.set_custom_llm_model(SharedString::from(&custom_settings.model));
-    ui.set_custom_llm_configured(custom_model.is_some());
+    ui.set_llm_provider_configured(provider_configuration_state(catalog));
+    apply_llm_draft(ui, catalog, selected);
     let selected_settings = catalog
         .llm_provider_settings(selected)
         .unwrap_or_else(|| selected.settings(""));
@@ -86,6 +61,19 @@ fn apply_loaded_llm(ui: &AppWindow, settings: &SaymoreSettings, catalog: &Provid
     ui.set_llm_enabled(llm_enabled);
     ui.set_llm_provider_target(SharedString::from(&llm_base_url));
     ui.set_llm_provider_local(provider_is_local(&llm_base_url));
+    let assist_provider_id = catalog
+        .active
+        .llm
+        .as_deref()
+        .unwrap_or_else(|| selected.id());
+    let assist_configured = catalog.active_llm_provider().is_some() && llm_configured;
+    ui.set_dictionary_assist_provider_configured(assist_configured);
+    ui.set_dictionary_assist_provider_target(SharedString::from(&llm_base_url));
+    ui.set_dictionary_assist_consent_fingerprint(SharedString::from(if assist_configured {
+        vocabulary_suggestion_consent_fingerprint(assist_provider_id, &llm_base_url)
+    } else {
+        String::new()
+    }));
     let translations = ui.global::<Translations>();
     ui.set_llm_config_status(if llm_enabled {
         translations.get_models_enabled()
@@ -94,6 +82,59 @@ fn apply_loaded_llm(ui: &AppWindow, settings: &SaymoreSettings, catalog: &Provid
     } else {
         translations.get_models_save_current_provider_key()
     });
+}
+
+pub(super) fn apply_llm_draft(
+    ui: &AppWindow,
+    catalog: &ProviderCatalog,
+    provider: LlmProviderPreset,
+) {
+    let settings = catalog
+        .llm_provider_settings(provider)
+        .unwrap_or_else(|| provider.settings(""));
+    ui.set_llm_saved_api_key(SharedString::from(&settings.api_key));
+    ui.set_llm_saved_base_url(SharedString::from(&settings.base_url));
+    ui.set_llm_saved_model(SharedString::from(&settings.model));
+    ui.set_llm_draft_api_key(SharedString::from(settings.api_key));
+    ui.set_llm_draft_base_url(SharedString::from(settings.base_url));
+    ui.set_llm_draft_model(SharedString::from(settings.model));
+    restore_llm_model_catalog(ui, catalog, provider);
+    ui.set_llm_config_dirty(
+        ui.get_llm_draft_api_key() != ui.get_llm_saved_api_key()
+            || ui.get_llm_draft_base_url() != ui.get_llm_saved_base_url()
+            || ui.get_llm_draft_model() != ui.get_llm_saved_model(),
+    );
+    ui.set_llm_draft_error(false);
+}
+
+fn provider_configuration_state(catalog: &ProviderCatalog) -> LlmProviderConfigurationState {
+    let configured = |provider| catalog.configured_llm_provider_model(provider).is_some();
+    LlmProviderConfigurationState {
+        sensenova: configured(LlmProviderPreset::SenseNova),
+        deepseek: configured(LlmProviderPreset::DeepSeek),
+        qwen: configured(LlmProviderPreset::Qwen),
+        volcengine_ark: configured(LlmProviderPreset::VolcengineArk),
+        openai: configured(LlmProviderPreset::OpenAi),
+        kimi: configured(LlmProviderPreset::Kimi),
+        gemini: configured(LlmProviderPreset::Gemini),
+        openrouter: configured(LlmProviderPreset::OpenRouter),
+        zhipu_glm: configured(LlmProviderPreset::ZhipuGlm),
+        minimax: configured(LlmProviderPreset::MiniMax),
+        siliconflow: configured(LlmProviderPreset::SiliconFlow),
+        stepfun: configured(LlmProviderPreset::StepFun),
+        custom: configured(LlmProviderPreset::Custom),
+    }
+}
+
+fn selected_llm_provider(catalog: &ProviderCatalog) -> LlmProviderPreset {
+    catalog
+        .active_llm_provider()
+        .or_else(|| {
+            LlmProviderPreset::ALL
+                .into_iter()
+                .find(|provider| catalog.configured_llm_provider_model(*provider).is_some())
+        })
+        .unwrap_or(LlmProviderPreset::SenseNova)
 }
 
 fn apply_loaded_asr(ui: &AppWindow, settings: SaymoreSettings, catalog: &ProviderCatalog) -> bool {
@@ -109,20 +150,28 @@ fn apply_loaded_asr(ui: &AppWindow, settings: SaymoreSettings, catalog: &Provide
         && !custom.base_url.trim().is_empty()
         && !custom.model.trim().is_empty();
     let custom_active = custom.enabled;
+    let paraformer_active = catalog.paraformer_is_active();
+    let whisper_active = catalog.whisper_is_active();
+    let qwen3_active = catalog.qwen3_asr_is_active();
+    let sense_voice_active = catalog.sense_voice_is_active();
+    ui.set_paraformer_selected(paraformer_active);
+    ui.set_whisper_selected(whisper_active);
+    ui.set_qwen3_asr_selected(qwen3_active);
+    ui.set_sense_voice_selected(sense_voice_active);
     let macos_speech_active = catalog.macos_speech_is_active();
     let macos_speech_ready = super::apply_macos_speech_state(ui, macos_speech_active);
-    let configured = if macos_speech_active {
+    let configured = if sense_voice_active || qwen3_active || whisper_active || paraformer_active {
+        true
+    } else if macos_speech_active {
         macos_speech_ready
     } else if custom_active {
         custom_configured
     } else {
         volcengine.enabled && volcengine_configured
     };
-    let active_cloud_provider = if custom_active {
-        UiAsrProvider::Custom
-    } else {
-        UiAsrProvider::Volcengine
-    };
+    let selected_cloud_provider = selected_cloud_asr_provider(volcengine.enabled, custom_active);
+    let active_cloud_provider = selected_cloud_provider.unwrap_or(UiAsrProvider::Volcengine);
+    ui.set_cloud_asr_selected(selected_cloud_provider.is_some());
     ui.set_asr_provider(active_cloud_provider);
     ui.set_active_asr_provider(active_cloud_provider);
     ui.set_asr_api_key(SharedString::from(volcengine.api_key));
@@ -140,8 +189,17 @@ fn apply_loaded_asr(ui: &AppWindow, settings: SaymoreSettings, catalog: &Provide
     apply_status(
         ui,
         configured,
-        !macos_speech_active && !custom_active && invalid_api_key,
-        if !macos_speech_active && !custom_active && invalid_api_key {
+        !whisper_active
+            && !paraformer_active
+            && !macos_speech_active
+            && !custom_active
+            && invalid_api_key,
+        if !whisper_active
+            && !paraformer_active
+            && !macos_speech_active
+            && !custom_active
+            && invalid_api_key
+        {
             translations.get_models_invalid_api_key()
         } else if configured {
             translations.get_models_configured()
@@ -150,4 +208,53 @@ fn apply_loaded_asr(ui: &AppWindow, settings: SaymoreSettings, catalog: &Provide
         },
     );
     configured
+}
+
+fn selected_cloud_asr_provider(
+    volcengine_enabled: bool,
+    custom_enabled: bool,
+) -> Option<UiAsrProvider> {
+    if custom_enabled {
+        Some(UiAsrProvider::Custom)
+    } else if volcengine_enabled {
+        Some(UiAsrProvider::Volcengine)
+    } else {
+        None
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn restores_a_configured_provider_when_legacy_disabled_state_has_no_active_provider() {
+        let mut catalog = ProviderCatalog::default();
+        catalog.save_llm_provider_config(LlmProviderPreset::DeepSeek, "deepseek-key");
+
+        assert_eq!(LlmProviderPreset::DeepSeek, selected_llm_provider(&catalog));
+    }
+
+    #[test]
+    fn keeps_the_active_provider_when_multiple_providers_are_configured() {
+        let mut catalog = ProviderCatalog::default();
+        catalog.save_llm_provider_config(LlmProviderPreset::SenseNova, "sense-key");
+        catalog.save_llm_provider_config(LlmProviderPreset::DeepSeek, "deepseek-key");
+        catalog.select_llm_provider(LlmProviderPreset::DeepSeek);
+
+        assert_eq!(LlmProviderPreset::DeepSeek, selected_llm_provider(&catalog));
+    }
+
+    #[test]
+    fn configured_but_inactive_cloud_asr_is_not_selected() {
+        assert_eq!(None, selected_cloud_asr_provider(false, false));
+        assert_eq!(
+            Some(UiAsrProvider::Volcengine),
+            selected_cloud_asr_provider(true, false)
+        );
+        assert_eq!(
+            Some(UiAsrProvider::Custom),
+            selected_cloud_asr_provider(false, true)
+        );
+    }
 }

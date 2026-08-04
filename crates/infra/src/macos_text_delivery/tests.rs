@@ -240,11 +240,11 @@ fn rejects_unchanged_or_unrelated_cursor_ranges() {
 fn extracts_only_text_between_delivery_anchors() {
     assert_eq!(
         Some("我们使用 Saymore".to_owned()),
-        text_between_anchors("前文我们使用 Saymore后文", "前文", "后文")
+        text_between_anchors("前文我们使用 Saymore 后文", "前文", "后文")
     );
     assert_eq!(
         Some("Saymore".to_owned()),
-        text_between_anchors("前文Saymore", "前文", "")
+        text_between_anchors("前文 Saymore", "前文", "")
     );
 }
 
@@ -252,10 +252,10 @@ fn extracts_only_text_between_delivery_anchors() {
 fn rejects_windows_that_no_longer_contain_the_original_anchors() {
     assert_eq!(
         None,
-        text_between_anchors("其他Saymore后文", "前文", "后文")
+        text_between_anchors("其他 Saymore 后文", "前文", "后文")
     );
     assert_eq!(
         None,
-        text_between_anchors("前文Saymore其他", "前文", "后文")
+        text_between_anchors("前文 Saymore 其他", "前文", "后文")
     );
 }

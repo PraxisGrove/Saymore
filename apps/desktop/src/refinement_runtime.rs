@@ -4,11 +4,17 @@ use std::{
     time::Instant,
 };
 
+#[cfg(test)]
 use template_app::{
-    CandidateDecision, ChatCompletionsLlmSettings, DictationSessionId,
-    DictionaryCandidateAssessment, FinalTextProcessingError, FinalTextProcessor, FinalTextRequest,
-    RefinementEvaluation, RefinementMode, RefinementStatus, SaymoreSettings, SettingsStore,
-    assess_dictionary_candidate, review_dictionary_candidate,
+    CandidateDecision, DictionaryCandidateAssessment, review_dictionary_candidate,
+    review_dictionary_candidate_locally,
+};
+use template_app::{
+    ChatCompletionsLlmSettings, DictationSessionId, DictionaryCandidateReview,
+    FinalTextProcessingError, FinalTextProcessor, FinalTextRequest, RefinementEvaluation,
+    RefinementFallbackReason, RefinementMode, RefinementOutputRejectionReason, RefinementStatus,
+    SaymoreSettings, SettingsStore, local_dictionary_revision_candidates,
+    review_final_text_revision, text_revision_diffs,
 };
 #[cfg(test)]
 use template_infra::AppEnvironment;
@@ -109,24 +115,38 @@ impl RefinementRuntime {
         })
     }
 
-    pub fn assess_dictionary_correction(
+    pub fn assess_dictionary_revision(
         &self,
         id: DictationSessionId,
-        canonical: &str,
-        original_fragment: &str,
-        edited_fragment: &str,
+        original: &str,
+        final_text: &str,
         language: &str,
-    ) -> DictionaryCandidateAssessment {
-        self.assess_dictionary_correction_with_plan(
-            id,
-            canonical,
-            original_fragment,
-            edited_fragment,
-            language,
-            self.plan(),
-        )
+    ) -> Vec<DictionaryCandidateReview> {
+        let diffs = text_revision_diffs(original, final_text);
+        let fallback = local_dictionary_revision_candidates(&diffs);
+        let Some(settings) = self.plan().provider else {
+            return fallback;
+        };
+        let Ok(provider) = ChatCompletionsLlmProvider::new(settings) else {
+            return fallback;
+        };
+        match self.runtime.block_on(review_final_text_revision(
+            &provider, &diffs, final_text, language,
+        )) {
+            Ok(reviews) => reviews,
+            Err(error) => {
+                tracing::warn!(
+                    target: "saymore::diagnostics",
+                    event = "dictionary.revision_classification_fallback",
+                    dictation_id = %id,
+                    reason = %error
+                );
+                fallback
+            }
+        }
     }
 
+    #[cfg(test)]
     fn assess_dictionary_correction_with_plan(
         &self,
         id: DictationSessionId,
@@ -135,9 +155,9 @@ impl RefinementRuntime {
         edited_fragment: &str,
         language: &str,
         plan: RefinementPlan,
-    ) -> DictionaryCandidateAssessment {
-        let fallback = assess_dictionary_candidate(canonical);
-        if fallback.decision == CandidateDecision::Reject {
+    ) -> DictionaryCandidateReview {
+        let fallback = review_dictionary_candidate_locally(canonical);
+        if fallback.assessment.decision == CandidateDecision::Reject {
             return fallback;
         }
         let Some(settings) = plan.provider else {
@@ -150,7 +170,7 @@ impl RefinementRuntime {
             bounded_edit_fragments(original_fragment, edited_fragment);
         match self.runtime.block_on(review_dictionary_candidate(
             &provider,
-            canonical,
+            &fallback.correction.canonical,
             &original_fragment,
             &edited_fragment,
             language,
@@ -200,6 +220,7 @@ impl RefinementPlan {
     }
 }
 
+#[cfg(test)]
 fn bounded_edit_fragments(original: &str, edited: &str) -> (String, String) {
     const MAX_CONTEXT_CHARS: usize = 300;
     const LEADING_CONTEXT_CHARS: usize = 150;
@@ -237,8 +258,29 @@ fn log_refinement_result(id: DictationSessionId, status: &RefinementStatus, dura
         RefinementStatus::Completed => {
             tracing::info!(target: "saymore::diagnostics", event = "llm.completed", dictation_id = %id, duration_ms);
         }
+        RefinementStatus::FellBack(RefinementFallbackReason::OutputRejected(reason)) => {
+            tracing::warn!(target: "saymore::diagnostics", event = output_rejection_event(*reason), dictation_id = %id, duration_ms);
+        }
         RefinementStatus::FellBack(reason) => {
             tracing::warn!(target: "saymore::diagnostics", event = "llm.fallback", dictation_id = %id, reason = ?reason, duration_ms);
+        }
+    }
+}
+
+fn output_rejection_event(reason: RefinementOutputRejectionReason) -> &'static str {
+    match reason {
+        RefinementOutputRejectionReason::EmptyOutput => "llm.fallback.output_rejected.empty_output",
+        RefinementOutputRejectionReason::AbnormalGrowth => {
+            "llm.fallback.output_rejected.abnormal_growth"
+        }
+        RefinementOutputRejectionReason::NonRefinementWrapper => {
+            "llm.fallback.output_rejected.non_refinement_wrapper"
+        }
+        RefinementOutputRejectionReason::NumericFactsChanged => {
+            "llm.fallback.output_rejected.numeric_facts_changed"
+        }
+        RefinementOutputRejectionReason::ProtectedFragmentChanged => {
+            "llm.fallback.output_rejected.protected_fragment_changed"
         }
     }
 }
@@ -258,9 +300,21 @@ mod tests {
     };
 
     use httpmock::{Method::POST, MockServer};
-    use template_app::{RefinementFallbackReason, RefinementTerm};
+    use template_app::RefinementTerm;
 
     use super::*;
+
+    #[test]
+    fn output_rejection_events_are_specific_and_content_free() {
+        assert_eq!(
+            "llm.fallback.output_rejected.numeric_facts_changed",
+            output_rejection_event(RefinementOutputRejectionReason::NumericFactsChanged)
+        );
+        assert_eq!(
+            "llm.fallback.output_rejected.protected_fragment_changed",
+            output_rejection_event(RefinementOutputRejectionReason::ProtectedFragmentChanged)
+        );
+    }
 
     #[test]
     fn dictionary_context_is_bounded_around_the_edit() {
@@ -327,14 +381,14 @@ mod tests {
     }
 
     #[test]
-    fn configured_provider_reviews_a_dictionary_candidate_with_structured_json() {
+    fn configured_provider_extracts_the_reusable_dictionary_term() {
         let server = MockServer::start();
         let completion = server.mock(|when, then| {
             when.method(POST).path("/v1/chat/completions");
             then.status(200)
                 .header("content-type", "application/json")
                 .body(
-                    r#"{"choices":[{"message":{"content":"{\"decision\":\"accept\",\"type\":\"professional_phrase\",\"confidence\":0.97}"}}]}"#,
+                    r#"{"choices":[{"message":{"content":"{\"canonical\":\"UI\",\"decision\":\"accept\",\"type\":\"acronym\",\"confidence\":0.90}"}}]}"#,
                 );
         });
         let runtime = test_runtime();
@@ -343,22 +397,45 @@ mod tests {
             provider: Some(provider_settings(server.url("/v1"))),
         };
 
-        let assessment = runtime.assess_dictionary_correction_with_plan(
+        let review = runtime.assess_dictionary_correction_with_plan(
             DictationSessionId::generate(),
-            "逆地理编码",
-            "我们使用逆地里编码处理地址",
-            "我们使用逆地理编码处理地址",
+            "ui 落实",
+            "这里需要落实",
+            "这里需要 ui 落实",
             "zh-Hans",
             plan,
         );
 
-        assert_eq!(template_app::CandidateDecision::Accept, assessment.decision);
+        assert_eq!("UI", review.correction.canonical);
+        assert_eq!(
+            template_app::CandidateDecision::Accept,
+            review.assessment.decision
+        );
         assert_eq!(
             template_app::CandidateAssessmentSource::Llm,
-            assessment.source
+            review.assessment.source
         );
-        assert_eq!(97, assessment.confidence);
+        assert_eq!(90, review.assessment.confidence);
         completion.assert();
+    }
+
+    #[test]
+    fn disabled_provider_uses_the_local_dictionary_review() {
+        let review = test_runtime().assess_dictionary_correction_with_plan(
+            DictationSessionId::generate(),
+            "ui 落实",
+            "这里需要落实",
+            "这里需要 ui 落实",
+            "zh-Hans",
+            disabled_plan(),
+        );
+
+        assert_eq!("UI", review.correction.canonical);
+        assert_eq!(
+            template_app::CandidateAssessmentSource::Local,
+            review.assessment.source
+        );
+        assert_eq!(90, review.assessment.confidence);
     }
 
     #[test]
@@ -378,7 +455,7 @@ mod tests {
             provider: Some(provider_settings(server.url("/v1"))),
         };
 
-        let assessment = runtime.assess_dictionary_correction_with_plan(
+        let review = runtime.assess_dictionary_correction_with_plan(
             DictationSessionId::generate(),
             "n",
             "use m here",
@@ -394,8 +471,9 @@ mod tests {
                 confidence: 100,
                 source: template_app::CandidateAssessmentSource::Local,
             },
-            assessment
+            review.assessment
         );
+        assert_eq!("n", review.correction.canonical);
         completion.assert_calls(0);
     }
 
@@ -410,7 +488,7 @@ mod tests {
 
         let Ok(processed) = runtime.refine_final_transcript(
             DictationSessionId::generate(),
-            refinement_request("好的，谢谢。"),
+            FinalTextRequest::new("好的，谢谢。", RefinementMode::Enabled),
             plan,
             || attempted.store(true, Ordering::Relaxed),
         ) else {
@@ -496,6 +574,7 @@ mod tests {
             api_key: "test-key".to_owned(),
             model: "test-model".to_owned(),
             custom_headers: BTreeMap::new(),
+            profile: Default::default(),
         }
     }
 

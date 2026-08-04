@@ -20,6 +20,7 @@ locale = "en"
 [default.extend-words]
 # Project-specific words to avoid false positives.
 # Example: helo = "helo"
+ba = "ba"
 iif = "iif"
 oif = "oif"
 ratatui = "ratatui"

@@ -5,6 +5,7 @@
 <h1 align="center">Saymore</h1>
 
 <p align="center">
+  <strong>Speak naturally. Type anywhere.</strong><br>
   Local-first voice typing for macOS and Windows.
 </p>
 
@@ -21,70 +22,98 @@
 
 <p align="center">
   <a href="https://github.com/PraxisGrove/Saymore/releases/latest"><strong>Download</strong></a>
+  · <a href="#what-you-can-do">Features</a>
   · <a href="docs/README.md">Documentation</a>
   · <a href="CONTRIBUTING.md">Contributing</a>
 </p>
 
-Saymore turns speech into text at the current cursor without making you switch
-to a separate editor. Start dictation with a global shortcut, speak naturally,
-and let Saymore recognize, optionally refine, and insert the final text into the
-app you are already using.
+Saymore turns speech into text at the current cursor, so you can dictate in the
+editor, browser, chat app, terminal, or other text field you already use. Press
+a global shortcut, speak naturally, and Saymore recognizes, optionally refines,
+and inserts the result without opening a separate writing surface.
 
-Saymore is built in Rust with [Slint](https://slint.dev/) and keeps its core
-speech, refinement, and storage choices explicit rather than tying the product
-to one provider.
+It is a native Rust and [Slint](https://slint.dev/) desktop application with
+explicit boundaries between speech recognition, text refinement, storage, and
+platform integration. You choose the providers; Saymore does not require a
+hosted Saymore account or backend.
 
-## Why Saymore
+> **Project status:** Saymore is usable and distributed for macOS and Windows,
+> but remains under active development. The latest release may lag behind the
+> repository state.
 
-- **Works where you type.** Use one dictation flow across editors, browsers,
-  chat apps, terminals, and other desktop text fields.
-- **Local-first by design.** Use local recognition when you want speech to stay
-  on your machine, with encrypted local history and configurable retention.
-- **Provider choice.** Select local or cloud ASR and configure optional LLM
-  refinement without coupling the application to a single vendor.
-- **Faithful text refinement.** Clean up filler, punctuation, and structure
-  without turning dictation into a chatbot or inventing content.
-- **Results do not silently disappear.** Failed delivery keeps recoverable text
-  available instead of dropping what you said.
+## What You Can Do
+
+| Area                    | Available today                                                                                                                                                                                               |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Cross-app dictation** | Start and stop from a configurable global shortcut, then insert text into the focused editable control. Defaults are Right Command on macOS and Right Alt on Windows.                                         |
+| **Speech recognition**  | Use macOS Dictation, Volcengine, or a custom OpenAI-compatible speech endpoint. Availability depends on the operating system and provider configuration.                                                      |
+| **Optional refinement** | Conservatively clean up filler, punctuation, self-corrections, and structure with SenseNova or DeepSeek. Invalid or unavailable refinement falls back to the recognized text.                                 |
+| **Personal dictionary** | Add, edit, delete, search, filter, and import canonical spellings from CSV. Saymore can also learn terms from repeated corrections in supported text controls.                                                |
+| **Private history**     | Search, inspect, copy, delete, or clear encrypted local history, with configurable retention. Original audio is not stored.                                                                                   |
+| **Desktop controls**    | Onboarding, permission checks, microphone selection, multiple shortcuts, launch at login, system tray controls, themes, English and Simplified Chinese UI, update checks, and privacy-safe diagnostic export. |
+
+When text insertion cannot be verified, Saymore keeps the final transcript
+available for recovery instead of silently discarding it.
 
 ## How It Works
 
 ```text
-Global trigger
-    -> record speech
-    -> recognize locally or with your configured ASR provider
-    -> apply safe local cleanup
-    -> optionally refine with your configured LLM provider
-    -> normalize confirmed spellings
-    -> insert the final text at the current cursor
+Global shortcut
+    -> record speech in memory
+    -> recognize with the configured ASR provider
+    -> apply deterministic local cleanup
+    -> optionally refine with the configured LLM provider
+    -> normalize confirmed dictionary spellings
+    -> insert at the current cursor
 ```
 
-Local recognition can keep audio processing on-device. Choosing a cloud ASR
-sends audio to that provider; enabling cloud refinement sends the transcript to
-the configured LLM provider. Saymore does not read screen context, generate
-replies, or automatically send messages. See the
-[product direction](docs/product/open-source-voice-input-wayfinder.md) for the
-full data and feature boundaries.
+The refinement stage is deliberately narrow: it improves a transcript without
+answering questions, inventing facts, or turning dictation into a chatbot. If a
+provider fails or its output violates Saymore's safeguards, the pipeline falls
+back to the last safe text.
 
-## Download and Status
+## Privacy Model
 
-Saymore is under active development. The macOS and Windows applications now
-share the main dictation workflow and most user-facing features, with
-platform-specific integration implemented natively on each system.
+- Audio is held in memory for recognition and is not written to local history.
+- Cloud ASR sends audio to the provider you configure. Cloud refinement sends
+  the transcript and only relevant confirmed dictionary terms to the selected
+  LLM provider.
+- Local history is encrypted. Its encryption key is kept in the platform
+  credential store, and retention can be disabled or changed by the user.
+- Sensitive controls are treated specially and are excluded from history and
+  correction learning.
+- Diagnostics stay local and record allowlisted event identifiers, not
+  transcripts, API keys, device names, paths, or raw error details.
+- Saymore does not read screen context, compose replies, or automatically send
+  messages.
 
-| Platform  | Distribution                                                                                                                         |
-| --------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| Windows   | Installers are distributed through [GitHub Releases](https://github.com/PraxisGrove/Saymore/releases/latest).                        |
-| macOS 12+ | Direct downloads are distributed through GitHub Releases. A Mac App Store release is planned after its submission workflow is ready. |
+The [product direction](docs/product/open-source-voice-input-wayfinder.md)
+defines the complete data, provider, and feature boundaries.
 
-Direct releases include checksums for verifying downloaded artifacts.
+## Download
+
+| Platform      | Package                                                                                                                                                            |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **macOS 12+** | A signed and notarized universal DMG for Apple Silicon and Intel Macs is available from [GitHub Releases](https://github.com/PraxisGrove/Saymore/releases/latest). |
+| **Windows**   | A current-user NSIS installer is available from [GitHub Releases](https://github.com/PraxisGrove/Saymore/releases/latest).                                         |
+
+Each direct release includes `SHA256SUMS` for artifact verification. A Mac App
+Store release is planned, but is not available yet.
+
+After installation:
+
+1. Complete onboarding and grant microphone permission. macOS also requires
+   Accessibility permission for global shortcuts and cross-app text insertion.
+2. Choose and test a speech-recognition provider on the Models page.
+3. Focus any editable field and use the configured shortcut to start and stop
+   dictation. Press Escape to cancel an active recording.
 
 ## Development
 
-The production desktop application uses Rust and Slint. Node.js and a web
+The production application uses Rust and Slint. Node.js, a WebView, and a web
 frontend are not part of the build.
 
-On macOS, start the persistent development preview:
+On macOS, start the persistent signed development preview:
 
 ```bash
 ./scripts/dev-preview.sh
@@ -96,16 +125,23 @@ On Windows, build the desktop application with Cargo:
 cargo build -p saymore-desktop
 ```
 
-Read the [development guide](docs/development.md) for prerequisites, preview
-behavior, packaging, and the complete quality gate. The workspace follows this
-dependency direction:
+The workspace has four ownership boundaries:
+
+| Path           | Responsibility                                              |
+| -------------- | ----------------------------------------------------------- |
+| `crates/app`   | Business types, invariants, use cases, and port traits      |
+| `crates/infra` | Filesystem, database, network, audio, and platform adapters |
+| `apps/desktop` | Slint UI, dependency wiring, and process lifecycle          |
+| `crates/xtask` | Repository maintenance and packaging automation             |
 
 ```text
 desktop -> app
 desktop -> infra -> app
 ```
 
-See [Architecture](docs/architecture.md) for crate ownership and platform
+See the [development guide](docs/development.md) for prerequisites, preview and
+packaging workflows, and the complete quality gate. See
+[Architecture](docs/architecture.md) for crate ownership and platform
 boundaries.
 
 ## Documentation
@@ -113,7 +149,7 @@ boundaries.
 - [Product direction and scope](docs/product/open-source-voice-input-wayfinder.md)
 - [Architecture](docs/architecture.md)
 - [Development](docs/development.md)
-- [Testing](docs/testing.md)
+- [Testing](docs/testing.md) and [review](docs/review.md)
 - [Releasing](docs/releasing.md)
 - [Technology stack](docs/technology-stack.md)
 

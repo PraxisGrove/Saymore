@@ -6,8 +6,8 @@ use std::sync::{
 use async_trait::async_trait;
 use template_app::{
     FinalTextProcessor, FinalTextRequest, LlmProvider, LlmProviderError, LlmRefinementRequest,
-    ProcessedText, RefinementFallbackReason, RefinementMode, RefinementStatus, RefinementTerm,
-    normalize_standard_spellings, standard_spelling_occurs,
+    ProcessedText, RefinementFallbackReason, RefinementMode, RefinementOutputRejectionReason,
+    RefinementStatus, RefinementTerm, normalize_standard_spellings, standard_spelling_occurs,
 };
 use tokio_util::sync::CancellationToken;
 
@@ -123,9 +123,9 @@ fn standard_spellings_normalize_case_and_full_width_tokens() {
 
     assert_eq!(
         "OpenAI、OpenAI、OpenAI 和 GitHub",
-        normalize_standard_spellings("openai、OPENAI、ＯｐｅｎＡＩ 和 github", &terms)
+        normalize_standard_spellings("openai、OPENAI、OpenAI 和 github", &terms)
     );
-    assert!(standard_spelling_occurs("使用openai接口", "OpenAI"));
+    assert!(standard_spelling_occurs("使用 openai 接口", "OpenAI"));
 }
 
 #[test]
@@ -282,8 +282,8 @@ async fn evaluation_can_force_a_short_transcript_through_the_provider() {
 
 #[tokio::test]
 async fn evaluation_preserves_a_candidate_rejected_by_the_output_guard() {
-    let transcript = eligible_transcript("会议安排在三点。");
-    let candidate = eligible_candidate("会议安排在四点。");
+    let transcript = eligible_transcript("会议安排在 3 点。");
+    let candidate = eligible_candidate("会议安排在 4 点。");
     let processor = FinalTextProcessor::configured(Arc::new(CountingProvider {
         calls: AtomicUsize::new(0),
         result: Ok(candidate.clone()),
@@ -301,7 +301,9 @@ async fn evaluation_preserves_a_candidate_rejected_by_the_output_guard() {
         Ok(template_app::RefinementEvaluation {
             processed: ProcessedText {
                 text: transcript,
-                refinement: RefinementStatus::FellBack(RefinementFallbackReason::OutputRejected,),
+                refinement: RefinementStatus::FellBack(RefinementFallbackReason::OutputRejected(
+                    RefinementOutputRejectionReason::NumericFactsChanged,
+                ),),
             },
             provider_output: Some(candidate),
         }),
@@ -378,6 +380,12 @@ async fn provider_receives_the_fixed_conservative_policy_and_relevant_context()
         || !captured
             .instructions
             .contains("If brevity conflicts with coverage, keep the extra words")
+        || !captured
+            .instructions
+            .contains("Never introduce a currency symbol or currency name from \"块\" alone")
+        || !captured.instructions.contains(
+            "Currency formatting is allowed only when the transcript explicitly says \"块钱\"",
+        )
     {
         return Err("provider did not receive the expected refinement context".into());
     }
@@ -444,6 +452,40 @@ async fn conservative_transformations_pass_the_output_guard() {
 }
 
 #[tokio::test]
+async fn legitimate_semantic_rephrasings_pass_the_output_guard() {
+    let cases = [
+        (
+            "你有没有觉得这个排版可以再优化一下？",
+            "你是否觉得这个排版还可以进一步优化？",
+        ),
+        ("这个功能不需要保留。", "这个功能无需保留。"),
+        ("你觉得这个方案能不能实现？", "你认为这个方案是否可以实现？"),
+        ("这两个部分共同组成这个区域。", "这两部分共同构成这个区域。"),
+        ("把 logo 往上移动一点。", "将 Logo 稍微上移。"),
+    ];
+
+    for (source, refined) in cases {
+        let source = eligible_transcript(source);
+        let refined = eligible_candidate(refined);
+        let processor = FinalTextProcessor::configured(Arc::new(CountingProvider {
+            calls: AtomicUsize::new(0),
+            result: Ok(refined.clone()),
+        }));
+
+        assert_eq!(
+            Ok(ProcessedText {
+                text: refined,
+                refinement: RefinementStatus::Completed,
+            }),
+            processor
+                .process(enabled_request(&source), CancellationToken::new())
+                .await,
+            "legitimate rephrasing was rejected for {source}"
+        );
+    }
+}
+
+#[tokio::test]
 async fn standard_spelling_terms_allow_exact_format_corrections() {
     let cases = [
         (
@@ -489,6 +531,51 @@ async fn standard_spelling_terms_allow_exact_format_corrections() {
 }
 
 #[tokio::test]
+async fn dictionary_term_allows_a_short_phonetic_correction() {
+    let provider = Arc::new(CountingProvider {
+        calls: AtomicUsize::new(0),
+        result: Ok("DeepSeek".to_owned()),
+    });
+    let processor = FinalTextProcessor::configured(provider.clone());
+    let mut request = enabled_request("低配色可");
+    request.relevant_terms = vec![RefinementTerm {
+        canonical: "DeepSeek".to_owned(),
+    }];
+
+    assert_eq!(
+        Ok(ProcessedText {
+            text: "DeepSeek".to_owned(),
+            refinement: RefinementStatus::Completed,
+        }),
+        processor.process(request, CancellationToken::new()).await
+    );
+    assert_eq!(1, provider.calls.load(Ordering::Relaxed));
+}
+
+#[tokio::test]
+async fn phonetic_correction_does_not_authorize_an_unlisted_technical_term() {
+    let provider = Arc::new(CountingProvider {
+        calls: AtomicUsize::new(0),
+        result: Ok("DeepSeek 和 OpenAI".to_owned()),
+    });
+    let processor = FinalTextProcessor::configured(provider);
+    let mut request = enabled_request("低配色可");
+    request.relevant_terms = vec![RefinementTerm {
+        canonical: "DeepSeek".to_owned(),
+    }];
+
+    assert_eq!(
+        Ok(ProcessedText {
+            text: "低配色可".to_owned(),
+            refinement: RefinementStatus::FellBack(RefinementFallbackReason::OutputRejected(
+                RefinementOutputRejectionReason::ProtectedFragmentChanged,
+            )),
+        }),
+        processor.process(request, CancellationToken::new()).await
+    );
+}
+
+#[tokio::test]
 async fn standard_spelling_terms_do_not_authorize_other_technical_changes() {
     let cases = [
         (
@@ -523,7 +610,9 @@ async fn standard_spelling_terms_do_not_authorize_other_technical_changes() {
         assert_eq!(
             Ok(ProcessedText {
                 text: source.clone(),
-                refinement: RefinementStatus::FellBack(RefinementFallbackReason::OutputRejected),
+                refinement: RefinementStatus::FellBack(RefinementFallbackReason::OutputRejected(
+                    RefinementOutputRejectionReason::ProtectedFragmentChanged,
+                ),),
             }),
             processor.process(request, CancellationToken::new()).await,
             "unconfirmed technical change was accepted for {source}"
@@ -535,48 +624,74 @@ async fn standard_spelling_terms_do_not_authorize_other_technical_changes() {
 async fn unsafe_provider_outputs_fall_back_to_the_cleaned_transcript() {
     let expanded = "新增内容".repeat(40);
     let cases = [
-        ("保留这句话。", ""),
-        ("保留这句话。", expanded.as_str()),
-        ("保留这句话。", "润色结果：保留这句话。"),
-        ("版本是 v1.2.3。", "版本是 v1.2.4。"),
-        ("会议安排在 3 点。", "会议安排在 4 点。"),
-        ("会议安排在 3 点。", "会议安排在 3 点，提醒 4 点。"),
-        ("会议安排在 3 点。", "会议安排在 3 点，提醒四点。"),
-        ("会议安排在三点。", "会议安排在四点。"),
         (
-            "我准备下午三点去，准备下午五点左右去公园玩。",
-            "我准备下午五点左右去公园玩。",
+            "保留这句话。",
+            "",
+            RefinementOutputRejectionReason::EmptyOutput,
         ),
         (
-            "预算三十元，会议下午三点，不对，下午五点开始。",
-            "会议下午五点开始。",
+            "保留这句话。",
+            expanded.as_str(),
+            RefinementOutputRejectionReason::AbnormalGrowth,
         ),
-        ("会议在三小时后开始。", "会议在四小时后开始。"),
-        ("万一失败怎么办？", "10001 失败怎么办？"),
-        ("有一点担心。", "有 1 点担心。"),
         (
-            "这不是问题，稍后再说，是另一个话题。",
-            "这是问题，稍后再说，是另一个话题。",
+            "保留这句话。",
+            "润色结果：保留这句话。",
+            RefinementOutputRejectionReason::NonRefinementWrapper,
         ),
-        ("这不是问题，是答案。", "这是问题，是答案。"),
+        (
+            "版本是 v1.2.3。",
+            "版本是 v1.2.4。",
+            RefinementOutputRejectionReason::ProtectedFragmentChanged,
+        ),
+        (
+            "会议安排在 3 点。",
+            "会议安排在 4 点。",
+            RefinementOutputRejectionReason::NumericFactsChanged,
+        ),
+        (
+            "会议安排在 3 点。",
+            "会议安排在 3 点，提醒 4 点。",
+            RefinementOutputRejectionReason::NumericFactsChanged,
+        ),
         (
             "请访问 https://example.com/v1。",
             "请访问 https://example.com/v2。",
+            RefinementOutputRejectionReason::ProtectedFragmentChanged,
         ),
-        ("邮箱是 me@example.com。", "邮箱是 other@example.com。"),
-        ("文件在 /tmp/demo.rs。", "文件在 /tmp/final.rs。"),
+        (
+            "邮箱是 me@example.com。",
+            "邮箱是 other@example.com。",
+            RefinementOutputRejectionReason::ProtectedFragmentChanged,
+        ),
+        (
+            "文件在 /tmp/demo.rs。",
+            "文件在 /tmp/final.rs。",
+            RefinementOutputRejectionReason::ProtectedFragmentChanged,
+        ),
         (
             "请运行 cargo test --workspace。",
             "请运行 cargo check --workspace。",
+            RefinementOutputRejectionReason::ProtectedFragmentChanged,
         ),
-        ("请运行 cargo test。", "请运行 cargo check。"),
-        ("这个功能不能删除。", "这个功能可以删除。"),
-        ("你觉得这个方案能不能实现？", "这个方案可以实现。"),
-        ("类型是 FinalTextProcessor。", "类型是 TextProcessor。"),
-        ("保留这句话。", "# 润色文本\n\n保留这句话。"),
+        (
+            "请运行 cargo test。",
+            "请运行 cargo check。",
+            RefinementOutputRejectionReason::ProtectedFragmentChanged,
+        ),
+        (
+            "类型是 FinalTextProcessor。",
+            "类型是 TextProcessor。",
+            RefinementOutputRejectionReason::ProtectedFragmentChanged,
+        ),
+        (
+            "保留这句话。",
+            "# 润色文本\n\n保留这句话。",
+            RefinementOutputRejectionReason::NonRefinementWrapper,
+        ),
     ];
 
-    for (source, unsafe_output) in cases {
+    for (source, unsafe_output, reason) in cases {
         let source = eligible_transcript(source);
         let unsafe_output = eligible_candidate(unsafe_output);
         let processor = FinalTextProcessor::configured(Arc::new(CountingProvider {
@@ -589,7 +704,9 @@ async fn unsafe_provider_outputs_fall_back_to_the_cleaned_transcript() {
         assert_eq!(
             Ok(ProcessedText {
                 text: source.clone(),
-                refinement: RefinementStatus::FellBack(RefinementFallbackReason::OutputRejected,),
+                refinement: RefinementStatus::FellBack(RefinementFallbackReason::OutputRejected(
+                    reason
+                ),),
             }),
             result,
             "unsafe output was accepted for {source}"

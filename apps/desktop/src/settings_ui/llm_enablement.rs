@@ -1,15 +1,18 @@
-use std::{net::IpAddr, sync::Arc};
+use std::sync::Arc;
 
 use slint::{ComponentHandle, SharedString};
 use template_app::{
-    ChatCompletionsLlmSettings, LlmProviderPreset, ProviderConfigStore, SaymoreSettings,
-    SettingsStore, SettingsStoreError,
+    ChatCompletionsLlmSettings, LlmProviderConfiguration, LlmProviderPreset, ProviderConfigStore,
+    ProviderConfigurator, SettingsStore, SettingsStoreError, llm_consent_required,
+    provider_is_local,
 };
-use template_infra::{ChatCompletionsLlmProvider, JsonSettingsStore};
+use template_infra::JsonSettingsStore;
 
 use crate::ui::{AppWindow, Translations};
 
-use super::{apply_loaded_settings, provider_preset};
+use super::{
+    apply_loaded_settings, provider_connection::DesktopProviderConnectionTester, provider_preset,
+};
 
 pub(super) fn wire(ui: &AppWindow, store: Arc<JsonSettingsStore>) {
     wire_enable_request(ui, Arc::clone(&store));
@@ -108,11 +111,6 @@ fn wire_enable_confirmation(ui: &AppWindow, store: Arc<JsonSettingsStore>) {
     });
 }
 
-pub(super) fn llm_consent_required(settings: &SaymoreSettings, expected_base_url: &str) -> bool {
-    !provider_is_local(expected_base_url)
-        && settings.llm.confirmed_base_url.trim() != expected_base_url.trim()
-}
-
 pub(super) fn persist_llm_consent(
     store: &JsonSettingsStore,
     base_url: &str,
@@ -169,50 +167,16 @@ pub(super) fn test_and_enable_llm(
     store: &JsonSettingsStore,
     provider_preset: LlmProviderPreset,
 ) -> Result<(), String> {
-    test_and_enable_llm_with(store, provider_preset, |provider| {
-        let runtime = tokio::runtime::Builder::new_current_thread()
-            .enable_all()
-            .build()
-            .map_err(|error| error.to_string())?;
-        runtime
-            .block_on(provider.test_connection())
-            .map_err(|error| error.to_string())
-    })
-}
-
-fn test_and_enable_llm_with(
-    store: &JsonSettingsStore,
-    provider_preset: LlmProviderPreset,
-    test: impl FnOnce(&ChatCompletionsLlmProvider) -> Result<(), String>,
-) -> Result<(), String> {
-    let mut catalog = store.load_catalog().map_err(|error| error.to_string())?;
+    let catalog = store.load_catalog().map_err(|error| error.to_string())?;
     let provider_settings = catalog
         .llm_provider_settings(provider_preset)
         .filter(|settings| llm_configuration_ready(provider_preset, settings))
         .ok_or_else(|| "LLM configuration is incomplete".to_owned())?;
-    let provider = ChatCompletionsLlmProvider::new(provider_settings.clone())
-        .map_err(|error| error.to_string())?;
-    test(&provider)?;
-    catalog.select_llm_provider(provider_preset);
-    let expected_provider_id = catalog
-        .active
-        .llm
-        .clone()
-        .ok_or_else(|| "LLM provider selection failed".to_owned())?;
-    store
-        .save_catalog(&catalog)
-        .map_err(|error| error.to_string())?;
-    if !store
-        .enable_llm_provider_if_unchanged(
-            &expected_provider_id,
-            &provider_settings.base_url,
-            &provider_settings.api_key,
-        )
-        .map_err(|error| error.to_string())?
-    {
-        return Err("LLM provider changed during connection test".to_owned());
-    }
-    Ok(())
+    let candidate = LlmProviderConfiguration::new(provider_preset, provider_settings);
+    let tester = DesktopProviderConnectionTester;
+    ProviderConfigurator::new(&tester, store)
+        .configure_llm(&candidate)
+        .map_err(|error| error.to_string())
 }
 
 pub(super) fn llm_configuration_ready(
@@ -224,45 +188,9 @@ pub(super) fn llm_configuration_ready(
         && (provider == LlmProviderPreset::Custom || !settings.api_key.trim().is_empty())
 }
 
-pub(super) fn provider_is_local(base_url: &str) -> bool {
-    let authority = base_url
-        .split_once("://")
-        .map_or(base_url, |(_, remainder)| remainder)
-        .split('/')
-        .next()
-        .unwrap_or_default()
-        .rsplit('@')
-        .next()
-        .unwrap_or_default();
-    let host = if authority.eq_ignore_ascii_case("::1") {
-        authority
-    } else if let Some(bracketed) = authority.strip_prefix('[') {
-        bracketed.split(']').next().unwrap_or_default()
-    } else {
-        authority.split(':').next().unwrap_or_default()
-    };
-    let host = host.trim_end_matches('.');
-    host.eq_ignore_ascii_case("localhost")
-        || host
-            .parse::<IpAddr>()
-            .is_ok_and(|address| address.is_loopback())
-}
-
 #[cfg(test)]
 mod tests {
-    use std::fs;
-
-    use uuid::Uuid;
-
     use super::*;
-
-    fn test_store(name: &str) -> (JsonSettingsStore, std::path::PathBuf) {
-        let directory = std::env::temp_dir().join(format!("saymore-{name}-{}", Uuid::new_v4()));
-        (
-            JsonSettingsStore::at_path(directory.join("providers.json")),
-            directory,
-        )
-    }
 
     #[test]
     fn custom_provider_can_omit_an_api_key() {
@@ -271,6 +199,7 @@ mod tests {
             api_key: String::new(),
             model: "qwen3:8b".to_owned(),
             custom_headers: Default::default(),
+            profile: Default::default(),
         };
 
         assert!(llm_configuration_ready(
@@ -281,84 +210,5 @@ mod tests {
             LlmProviderPreset::DeepSeek,
             &settings
         ));
-    }
-
-    #[test]
-    fn local_provider_does_not_require_data_sending_consent() {
-        let settings = SaymoreSettings::default();
-
-        for endpoint in [
-            "http://localhost:11434/v1",
-            "http://localhost.:11434/v1",
-            "http://127.0.0.1:8080/v1",
-            "http://127.0.0.2:8080/v1",
-            "http://[::1]:11434/v1",
-            "http://[0:0:0:0:0:0:0:1]:11434/v1",
-            "::1",
-        ] {
-            assert!(!llm_consent_required(&settings, endpoint));
-        }
-    }
-
-    #[test]
-    fn new_remote_endpoint_requires_consent_but_confirmed_endpoint_does_not() {
-        let mut settings = SaymoreSettings::default();
-        let endpoint = "https://api.example.com/v1";
-
-        assert!(llm_consent_required(&settings, endpoint));
-        settings.llm.confirmed_base_url = endpoint.to_owned();
-        assert!(!llm_consent_required(&settings, endpoint));
-        assert!(llm_consent_required(
-            &settings,
-            "https://other.example.com/v1"
-        ));
-    }
-
-    #[test]
-    fn failed_test_keeps_saved_provider_disabled_and_unconfirmed() {
-        let (store, directory) = test_store("llm-enable-failure");
-        let mut catalog = template_app::ProviderCatalog::default();
-        catalog.save_llm_provider_model_config(
-            LlmProviderPreset::DeepSeek,
-            "candidate-key",
-            "deepseek-chat",
-        );
-        assert!(store.save_catalog(&catalog).is_ok());
-
-        assert!(
-            test_and_enable_llm_with(&store, LlmProviderPreset::DeepSeek, |_| {
-                Err("connection failed".to_owned())
-            })
-            .is_err()
-        );
-        let Ok(settings) = store.load() else {
-            panic!("saved LLM settings should remain readable");
-        };
-        assert!(!settings.llm.enabled);
-        assert!(settings.llm.confirmed_base_url.is_empty());
-        let _ = fs::remove_dir_all(directory);
-    }
-
-    #[test]
-    fn successful_test_records_endpoint_and_enables_saved_provider() {
-        let (store, directory) = test_store("llm-enable-success");
-        let mut catalog = template_app::ProviderCatalog::default();
-        catalog.save_llm_provider_model_config(
-            LlmProviderPreset::DeepSeek,
-            "candidate-key",
-            "deepseek-chat",
-        );
-        assert!(store.save_catalog(&catalog).is_ok());
-
-        assert!(test_and_enable_llm_with(&store, LlmProviderPreset::DeepSeek, |_| Ok(())).is_ok());
-        let Ok(settings) = store.load() else {
-            panic!("enabled LLM settings should remain readable");
-        };
-        assert!(settings.llm.enabled);
-        assert_eq!(
-            LlmProviderPreset::DeepSeek.base_url(),
-            settings.llm.confirmed_base_url
-        );
-        let _ = fs::remove_dir_all(directory);
     }
 }

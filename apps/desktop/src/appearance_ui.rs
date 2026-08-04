@@ -4,15 +4,88 @@ use template_app::{ColorSchemePreference, LocalSettings, LocalSettingsChange, Th
 use crate::{
     local_settings_runtime::LocalSettingsHandle,
     ui::{
-        AppColors, AppWindow, ColorSchemePreference as UiColorSchemePreference, OnboardingWindow,
-        ThemeId as UiThemeId, Translations,
+        AppColors, AppWindow, AsrConfigurationOverlay,
+        ColorSchemePreference as UiColorSchemePreference, DictionaryAddedOverlay,
+        MicrophoneIntroOverlay, MicrophonePermissionOverlay, OnboardingWindow, OverlayColors,
+        RecordingLimitOverlay, RecordingOverlay, ResultOverlay, ThemeId as UiThemeId, Translations,
     },
 };
+
+#[cfg(target_os = "macos")]
+use crate::ui::AccessibilityPermissionOverlay;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 struct UiAppearance {
     theme: UiThemeId,
     color_scheme: UiColorSchemePreference,
+}
+
+#[derive(Clone)]
+pub(crate) struct OverlayAppearanceTargets {
+    recording: slint::Weak<RecordingOverlay>,
+    result: slint::Weak<ResultOverlay>,
+    recording_limit: slint::Weak<RecordingLimitOverlay>,
+    dictionary_added: slint::Weak<DictionaryAddedOverlay>,
+    microphone_intro: slint::Weak<MicrophoneIntroOverlay>,
+    microphone_permission: slint::Weak<MicrophonePermissionOverlay>,
+    asr_configuration: slint::Weak<AsrConfigurationOverlay>,
+    #[cfg(target_os = "macos")]
+    accessibility_permission: Option<slint::Weak<AccessibilityPermissionOverlay>>,
+}
+
+impl OverlayAppearanceTargets {
+    pub(crate) fn new(
+        recording: &RecordingOverlay,
+        result: &ResultOverlay,
+        recording_limit: &RecordingLimitOverlay,
+        dictionary_added: &DictionaryAddedOverlay,
+        microphone_intro: &MicrophoneIntroOverlay,
+        microphone_permission: &MicrophonePermissionOverlay,
+        asr_configuration: &AsrConfigurationOverlay,
+    ) -> Self {
+        Self {
+            recording: recording.as_weak(),
+            result: result.as_weak(),
+            recording_limit: recording_limit.as_weak(),
+            dictionary_added: dictionary_added.as_weak(),
+            microphone_intro: microphone_intro.as_weak(),
+            microphone_permission: microphone_permission.as_weak(),
+            asr_configuration: asr_configuration.as_weak(),
+            #[cfg(target_os = "macos")]
+            accessibility_permission: None,
+        }
+    }
+
+    #[cfg(target_os = "macos")]
+    pub(crate) fn with_accessibility(
+        mut self,
+        accessibility_permission: &AccessibilityPermissionOverlay,
+    ) -> Self {
+        self.accessibility_permission = Some(accessibility_permission.as_weak());
+        self
+    }
+
+    fn apply_theme(&self, theme: UiThemeId) {
+        macro_rules! apply {
+            ($target:expr) => {
+                if let Some(target) = $target.upgrade() {
+                    target.global::<OverlayColors>().set_theme_id(theme);
+                }
+            };
+        }
+
+        apply!(self.recording);
+        apply!(self.result);
+        apply!(self.recording_limit);
+        apply!(self.dictionary_added);
+        apply!(self.microphone_intro);
+        apply!(self.microphone_permission);
+        apply!(self.asr_configuration);
+        #[cfg(target_os = "macos")]
+        if let Some(accessibility_permission) = &self.accessibility_permission {
+            apply!(accessibility_permission);
+        }
+    }
 }
 
 /// Receives the persisted appearance roles shared by application-owned windows.
@@ -43,27 +116,37 @@ impl AppearanceTarget for OnboardingWindow {
 pub fn wire(
     ui: &AppWindow,
     onboarding: &OnboardingWindow,
+    overlays: OverlayAppearanceTargets,
     initial: &LocalSettings,
     settings: LocalSettingsHandle,
 ) {
-    apply_to_windows(ui, onboarding, initial);
-    wire_theme(ui, onboarding, settings.clone());
-    wire_color_scheme(ui, onboarding, settings);
+    apply_to_windows(ui, onboarding, &overlays, initial);
+    wire_theme(ui, onboarding, overlays.clone(), settings.clone());
+    wire_color_scheme(ui, onboarding, overlays, settings);
 }
 
-fn wire_theme(ui: &AppWindow, onboarding: &OnboardingWindow, settings: LocalSettingsHandle) {
+fn wire_theme(
+    ui: &AppWindow,
+    onboarding: &OnboardingWindow,
+    overlays: OverlayAppearanceTargets,
+    settings: LocalSettingsHandle,
+) {
     let app = ui.as_weak();
     let onboarding = onboarding.as_weak();
     ui.on_set_theme(move |theme| {
         let completion_app = app.clone();
         let completion_onboarding = onboarding.clone();
+        let completion_overlays = overlays.clone();
         let failure_ui = app.clone();
         let result = settings.submit(
             LocalSettingsChange::SetTheme(theme_from_ui(theme)),
             move |result| match result {
-                Ok(committed) => {
-                    apply_to_weak_windows(&completion_app, &completion_onboarding, &committed)
-                }
+                Ok(committed) => apply_to_weak_windows(
+                    &completion_app,
+                    &completion_onboarding,
+                    &completion_overlays,
+                    &committed,
+                ),
                 Err(error) => apply_error(&completion_app, "theme", error),
             },
         );
@@ -73,19 +156,28 @@ fn wire_theme(ui: &AppWindow, onboarding: &OnboardingWindow, settings: LocalSett
     });
 }
 
-fn wire_color_scheme(ui: &AppWindow, onboarding: &OnboardingWindow, settings: LocalSettingsHandle) {
+fn wire_color_scheme(
+    ui: &AppWindow,
+    onboarding: &OnboardingWindow,
+    overlays: OverlayAppearanceTargets,
+    settings: LocalSettingsHandle,
+) {
     let app = ui.as_weak();
     let onboarding = onboarding.as_weak();
     ui.on_set_color_scheme(move |scheme| {
         let completion_app = app.clone();
         let completion_onboarding = onboarding.clone();
+        let completion_overlays = overlays.clone();
         let failure_ui = app.clone();
         let result = settings.submit(
             LocalSettingsChange::SetColorScheme(color_scheme_from_ui(scheme)),
             move |result| match result {
-                Ok(committed) => {
-                    apply_to_weak_windows(&completion_app, &completion_onboarding, &committed)
-                }
+                Ok(committed) => apply_to_weak_windows(
+                    &completion_app,
+                    &completion_onboarding,
+                    &completion_overlays,
+                    &committed,
+                ),
                 Err(error) => apply_error(&completion_app, "color_scheme", error),
             },
         );
@@ -98,17 +190,24 @@ fn wire_color_scheme(ui: &AppWindow, onboarding: &OnboardingWindow, settings: Lo
 fn apply_to_weak_windows(
     app: &slint::Weak<AppWindow>,
     onboarding: &slint::Weak<OnboardingWindow>,
+    overlays: &OverlayAppearanceTargets,
     settings: &LocalSettings,
 ) {
     if let (Some(app), Some(onboarding)) = (app.upgrade(), onboarding.upgrade()) {
-        apply_to_windows(&app, &onboarding, settings);
+        apply_to_windows(&app, &onboarding, overlays, settings);
     }
 }
 
-fn apply_to_windows(app: &AppWindow, onboarding: &OnboardingWindow, settings: &LocalSettings) {
+fn apply_to_windows(
+    app: &AppWindow,
+    onboarding: &OnboardingWindow,
+    overlays: &OverlayAppearanceTargets,
+    settings: &LocalSettings,
+) {
     let appearance = ui_appearance(settings);
     apply(app, appearance);
     apply(onboarding, appearance);
+    overlays.apply_theme(appearance.theme);
     crate::main_window::schedule_titlebar_integration(app);
     #[cfg(target_os = "windows")]
     crate::windows_window::refresh_onboarding(onboarding);

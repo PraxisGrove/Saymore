@@ -5,7 +5,7 @@ use thiserror::Error;
 use tokio::{sync::Mutex, time::Instant};
 use tokio_util::sync::CancellationToken;
 
-use crate::refinement_policy::accepts_refinement;
+use crate::refinement_policy::validate_refinement;
 use crate::refinement_prompt::instructions_for;
 
 const REFINEMENT_TIMEOUT: Duration = Duration::from_secs(8);
@@ -98,7 +98,16 @@ pub enum RefinementFallbackReason {
     Protocol,
     Timeout,
     TemporarilyUnavailable,
-    OutputRejected,
+    OutputRejected(RefinementOutputRejectionReason),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RefinementOutputRejectionReason {
+    EmptyOutput,
+    AbnormalGrowth,
+    NonRefinementWrapper,
+    NumericFactsChanged,
+    ProtectedFragmentChanged,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
@@ -211,6 +220,7 @@ impl FinalTextProcessor {
         };
         if mode == RefinementEvaluationMode::ProductionPolicy
             && !refinement_needed(&text, &RefinementMode::Enabled)
+            && request.relevant_terms.is_empty()
         {
             reject_cancelled(&cancellation)?;
             return Ok(evaluation_without_provider(ProcessedText {
@@ -260,29 +270,30 @@ impl FinalTextProcessor {
         cancellation: &CancellationToken,
     ) -> Result<RefinementEvaluation, FinalTextProcessingError> {
         match refined {
-            Ok(Ok(text)) if accepts_refinement(&fallback_text, &text, relevant_terms) => {
-                reject_cancelled(cancellation)?;
-                self.circuit.lock().await.record_success();
-                let provider_output = text.trim().to_owned();
-                Ok(RefinementEvaluation {
-                    processed: ProcessedText {
-                        text: provider_output.clone(),
-                        refinement: RefinementStatus::Completed,
-                    },
-                    provider_output: Some(provider_output),
-                })
-            }
             Ok(Ok(text)) => {
                 reject_cancelled(cancellation)?;
-                Ok(RefinementEvaluation {
-                    processed: ProcessedText {
-                        text: fallback_text,
-                        refinement: RefinementStatus::FellBack(
-                            RefinementFallbackReason::OutputRejected,
-                        ),
-                    },
-                    provider_output: Some(text.trim().to_owned()),
-                })
+                let provider_output = text.trim().to_owned();
+                match validate_refinement(&fallback_text, &provider_output, relevant_terms) {
+                    Ok(()) => {
+                        self.circuit.lock().await.record_success();
+                        Ok(RefinementEvaluation {
+                            processed: ProcessedText {
+                                text: provider_output.clone(),
+                                refinement: RefinementStatus::Completed,
+                            },
+                            provider_output: Some(provider_output),
+                        })
+                    }
+                    Err(reason) => Ok(RefinementEvaluation {
+                        processed: ProcessedText {
+                            text: fallback_text,
+                            refinement: RefinementStatus::FellBack(
+                                RefinementFallbackReason::OutputRejected(reason),
+                            ),
+                        },
+                        provider_output: Some(provider_output),
+                    }),
+                }
             }
             Ok(Err(error)) => {
                 reject_cancelled(cancellation)?;

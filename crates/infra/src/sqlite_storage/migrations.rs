@@ -5,7 +5,7 @@ use super::unavailable;
 
 mod recent;
 
-const CURRENT_SCHEMA_VERSION: u32 = 19;
+const CURRENT_SCHEMA_VERSION: u32 = 24;
 
 pub(super) fn apply(connection: &mut Connection) -> Result<(), StorageError> {
     let version: u32 = connection
@@ -71,6 +71,21 @@ pub(super) fn apply(connection: &mut Connection) -> Result<(), StorageError> {
     }
     if version < 19 {
         recent::replace_clear_sky_theme(connection)?;
+    }
+    if version < 20 {
+        recent::add_usage_aggregates(connection)?;
+    }
+    if version < 21 {
+        recent::add_dictionary_assist_settings(connection)?;
+    }
+    if version < 22 {
+        recent::separate_dictionary_evidence_kinds(connection)?;
+    }
+    if version < 23 {
+        recent::make_dictionary_evidence_idempotent(connection)?;
+    }
+    if version < 24 {
+        recent::add_dictionary_assist_consent(connection)?;
     }
     Ok(())
 }

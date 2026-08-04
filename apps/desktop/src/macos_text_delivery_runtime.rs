@@ -10,7 +10,8 @@ use std::{
 
 use template_app::{
     AccessibilityAuthorization, CorrectionObservingTextDeliverer, DeliveryTargetPrivacy,
-    TextDeliverer, TextDeliveryError, TextDeliveryOutcome, TextEditObserver,
+    TextDeliverer, TextDeliveryError, TextDeliveryOutcome, TextRevisionEndReason,
+    TextRevisionObserver,
 };
 use template_infra::{MacOsTextDeliverer, MacOsTextDeliveryProgress, MacOsTextDeliverySession};
 
@@ -107,7 +108,7 @@ impl MacOsMainThreadTextDeliverer {
     fn run_delivery(
         &self,
         text: String,
-        observer: Option<TextEditObserver>,
+        observer: Option<TextRevisionObserver>,
     ) -> Result<TextDeliveryOutcome, TextDeliveryError> {
         if thread::current().id() == self.main_thread {
             return Err(TextDeliveryError::System(
@@ -213,9 +214,13 @@ impl CorrectionObservingTextDeliverer for MacOsMainThreadTextDeliverer {
     fn deliver_and_observe(
         &self,
         text: &str,
-        observer: TextEditObserver,
+        observer: TextRevisionObserver,
     ) -> Result<TextDeliveryOutcome, TextDeliveryError> {
         self.run_delivery(text.to_owned(), Some(observer))
+    }
+
+    fn finish_observation(&self, reason: TextRevisionEndReason) {
+        let _ = self.run_on_main(move |platform| platform.finish_observation(reason));
     }
 }
 
@@ -275,10 +280,12 @@ mod tests {
         fn deliver_and_observe(
             &self,
             text: &str,
-            _observer: TextEditObserver,
+            _observer: TextRevisionObserver,
         ) -> Result<TextDeliveryOutcome, TextDeliveryError> {
             self.deliver(text)
         }
+
+        fn finish_observation(&self, _reason: TextRevisionEndReason) {}
     }
 
     fn adapter_with_dispatcher(

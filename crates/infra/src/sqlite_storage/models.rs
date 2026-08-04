@@ -63,3 +63,15 @@ pub(super) fn save(connection: &mut Connection, model: InstalledModel) -> Result
         .map_err(unavailable)?;
     Ok(())
 }
+
+pub(super) fn delete(connection: &Connection, id: &str) -> Result<(), StorageError> {
+    if id.trim().is_empty() {
+        return Err(StorageError::Invalid(
+            "installed model identity is empty".to_owned(),
+        ));
+    }
+    connection
+        .execute("DELETE FROM installed_models WHERE id = ?1", [id])
+        .map_err(unavailable)?;
+    Ok(())
+}

@@ -6,7 +6,8 @@ use std::time::{Duration, Instant};
 
 use httpmock::{Method::POST, MockServer};
 use template_app::{
-    ChatCompletionsLlmSettings, LlmProvider, LlmProviderError, LlmRefinementRequest,
+    ChatCompletionsLlmSettings, ChatCompletionsProfile, LlmProvider, LlmProviderError,
+    LlmProviderPreset, LlmRefinementRequest,
 };
 #[cfg(target_os = "macos")]
 use template_app::{
@@ -15,9 +16,9 @@ use template_app::{
 };
 #[cfg(target_os = "macos")]
 use template_app::{ProviderConfigStore, SettingsStore};
-use template_infra::ChatCompletionsLlmProvider;
 #[cfg(target_os = "macos")]
 use template_infra::{AppEnvironment, JsonSettingsStore};
+use template_infra::{ChatCompletionsLlmProvider, discover_models};
 
 #[tokio::test]
 async fn sends_an_openai_compatible_chat_completion_request()
@@ -30,13 +31,15 @@ async fn sends_an_openai_compatible_chat_completion_request()
                 .header("authorization", "Bearer test-key")
                 .header("x-tenant", "tenant-a")
                 .body_includes("Refine conservatively.")
-                .body_includes(r#""model":"vendor-model""#)
+                .body_includes(r#""model":"deepseek-proxy-model""#)
                 .body_includes(r#""role":"system""#)
                 .body_includes(r#""role":"user""#)
                 .body_includes(r#""stream":false"#)
-                .body_includes(r#""reasoning_effort":"none""#)
-                .body_includes(r#""max_tokens":44"#)
-                .body_includes(r#""temperature":0.2"#)
+                .body_excludes("reasoning_effort")
+                .body_excludes("thinking")
+                .body_excludes("max_tokens")
+                .body_excludes("max_completion_tokens")
+                .body_excludes("temperature")
                 .body_includes("raw text")
                 .body_includes("Typeless");
             then.status(200).json_body(serde_json::json!({
@@ -49,8 +52,9 @@ async fn sends_an_openai_compatible_chat_completion_request()
     let provider = ChatCompletionsLlmProvider::new(ChatCompletionsLlmSettings {
         base_url: server.url("/v1"),
         api_key: "test-key".to_owned(),
-        model: "vendor-model".to_owned(),
+        model: "deepseek-proxy-model".to_owned(),
         custom_headers: BTreeMap::from([("X-Tenant".to_owned(), "tenant-a".to_owned())]),
+        profile: ChatCompletionsProfile::Portable,
     })?;
 
     let result = provider
@@ -91,6 +95,162 @@ async fn sends_deepseek_v4_in_non_thinking_mode() -> Result<(), Box<dyn std::err
         api_key: "deepseek-key".to_owned(),
         model: "deepseek-v4-flash".to_owned(),
         custom_headers: BTreeMap::new(),
+        profile: ChatCompletionsProfile::DeepSeek,
+    })?;
+
+    provider.test_connection().await?;
+
+    completion.assert_async().await;
+    Ok(())
+}
+
+#[tokio::test]
+async fn sends_kimi_in_non_thinking_mode() -> Result<(), Box<dyn std::error::Error>> {
+    let server = MockServer::start_async().await;
+    let completion = server
+        .mock_async(|when, then| {
+            when.method(POST)
+                .path("/v1/chat/completions")
+                .body_includes(r#""model":"kimi-k3""#)
+                .body_includes(r#""thinking":{"type":"disabled"}"#)
+                .body_excludes("reasoning_effort")
+                .body_excludes("max_tokens")
+                .body_excludes("max_completion_tokens")
+                .body_excludes("temperature");
+            then.status(200).json_body(serde_json::json!({
+                "choices": [{"message": {"content": "Refined text."}}]
+            }));
+        })
+        .await;
+    let mut settings = LlmProviderPreset::Kimi.settings("kimi-key");
+    settings.base_url = server.url("/v1");
+    settings.model = "kimi-k3".to_owned();
+    let provider = ChatCompletionsLlmProvider::new(settings)?;
+
+    provider.test_connection().await?;
+
+    completion.assert_async().await;
+    Ok(())
+}
+
+#[tokio::test]
+async fn sends_minimal_requests_for_the_new_openai_compatible_profiles()
+-> Result<(), Box<dyn std::error::Error>> {
+    let server = MockServer::start_async().await;
+    let completion = server
+        .mock_async(|when, then| {
+            when.method(POST)
+                .path("/v1/chat/completions")
+                .body_excludes("reasoning_effort")
+                .body_excludes("thinking")
+                .body_excludes("max_tokens")
+                .body_excludes("temperature");
+            then.status(200).json_body(serde_json::json!({
+                "choices": [{"message": {"content": "Refined text."}}]
+            }));
+        })
+        .await;
+
+    for profile in [
+        ChatCompletionsProfile::VolcengineArk,
+        ChatCompletionsProfile::Qwen,
+        ChatCompletionsProfile::ZhipuGlm,
+    ] {
+        let provider = ChatCompletionsLlmProvider::new(ChatCompletionsLlmSettings {
+            base_url: server.url("/v1"),
+            api_key: "test-key".to_owned(),
+            model: "provider-model".to_owned(),
+            custom_headers: BTreeMap::new(),
+            profile,
+        })?;
+        provider.test_connection().await?;
+    }
+
+    if completion.calls_async().await != 3 {
+        return Err("each new provider profile should send one request".into());
+    }
+    Ok(())
+}
+
+#[tokio::test]
+async fn siliconflow_and_stepfun_use_the_portable_chat_contract()
+-> Result<(), Box<dyn std::error::Error>> {
+    for preset in [LlmProviderPreset::SiliconFlow, LlmProviderPreset::StepFun] {
+        let server = MockServer::start_async().await;
+        let expected_model = format!(r#""model":"{}""#, preset.model());
+        let completion = server
+            .mock_async(|when, then| {
+                when.method(POST)
+                    .path("/v1/chat/completions")
+                    .header("authorization", "Bearer provider-key")
+                    .body_includes(expected_model.as_str())
+                    .body_excludes("reasoning_effort")
+                    .body_excludes("thinking")
+                    .body_excludes("max_tokens")
+                    .body_excludes("max_completion_tokens")
+                    .body_excludes("temperature");
+                then.status(200).json_body(serde_json::json!({
+                    "choices": [{"message": {"content": "Refined text."}}]
+                }));
+            })
+            .await;
+        let mut settings = preset.settings("provider-key");
+        settings.base_url = server.url("/v1");
+        let provider = ChatCompletionsLlmProvider::new(settings)?;
+
+        provider.test_connection().await?;
+
+        completion.assert_async().await;
+    }
+    Ok(())
+}
+
+#[tokio::test]
+async fn portable_payment_required_maps_to_quota() -> Result<(), Box<dyn std::error::Error>> {
+    let server = MockServer::start_async().await;
+    let rejected = server
+        .mock_async(|when, then| {
+            when.method(POST).path("/v1/chat/completions");
+            then.status(402).json_body(serde_json::json!({
+                "error": {"message": "insufficient balance"}
+            }));
+        })
+        .await;
+    let mut settings = LlmProviderPreset::StepFun.settings("step-key");
+    settings.base_url = server.url("/v1");
+    let provider = ChatCompletionsLlmProvider::new(settings)?;
+
+    if provider.test_connection().await != Err(LlmProviderError::Quota) {
+        return Err("HTTP 402 was not classified as quota".into());
+    }
+    rejected.assert_async().await;
+    Ok(())
+}
+
+#[tokio::test]
+async fn separates_minimax_reasoning_from_refined_content() -> Result<(), Box<dyn std::error::Error>>
+{
+    let server = MockServer::start_async().await;
+    let completion = server
+        .mock_async(|when, then| {
+            when.method(POST)
+                .path("/v1/chat/completions")
+                .body_includes(r#""model":"MiniMax-M3""#)
+                .body_includes(r#""reasoning_split":true"#)
+                .body_includes(r#""thinking":{"type":"disabled"}"#)
+                .body_excludes("temperature");
+            then.status(200).json_body(serde_json::json!({
+                "choices": [{"message": {"content": "Refined text."}}],
+                "base_resp": {"status_code": 0, "status_msg": "success"}
+            }));
+        })
+        .await;
+    let provider = ChatCompletionsLlmProvider::new(ChatCompletionsLlmSettings {
+        base_url: server.url("/v1"),
+        api_key: "minimax-key".to_owned(),
+        model: "MiniMax-M3".to_owned(),
+        custom_headers: BTreeMap::new(),
+        profile: ChatCompletionsProfile::MiniMax,
     })?;
 
     provider.test_connection().await?;
@@ -115,6 +275,7 @@ async fn accepts_a_full_chat_completions_endpoint() -> Result<(), Box<dyn std::e
         api_key: String::new(),
         model: "local-model".to_owned(),
         custom_headers: BTreeMap::new(),
+        profile: ChatCompletionsProfile::Portable,
     })?;
 
     provider.test_connection().await?;
@@ -137,6 +298,7 @@ async fn maps_a_bad_request_to_permanent_configuration_failure()
         api_key: String::new(),
         model: "missing-model".to_owned(),
         custom_headers: BTreeMap::new(),
+        profile: ChatCompletionsProfile::Portable,
     })?;
 
     let result = provider.test_connection().await;
@@ -145,6 +307,235 @@ async fn maps_a_bad_request_to_permanent_configuration_failure()
         return Err("HTTP 400 was not classified as invalid configuration".into());
     }
     rejected.assert_async().await;
+    Ok(())
+}
+
+#[tokio::test]
+async fn classifies_common_chat_completion_http_failures() -> Result<(), Box<dyn std::error::Error>>
+{
+    for status in [401_u16, 404, 429, 503] {
+        let server = MockServer::start_async().await;
+        let rejected = server
+            .mock_async(|when, then| {
+                when.method(POST).path("/v1/chat/completions");
+                then.status(status);
+            })
+            .await;
+        let provider = ChatCompletionsLlmProvider::new(ChatCompletionsLlmSettings {
+            base_url: server.url("/v1"),
+            api_key: "test-key".to_owned(),
+            model: "test-model".to_owned(),
+            custom_headers: BTreeMap::new(),
+            profile: ChatCompletionsProfile::Portable,
+        })?;
+
+        let result = provider.test_connection().await;
+        let classified = matches!(
+            (status, result),
+            (401, Err(LlmProviderError::Authentication))
+                | (404, Err(LlmProviderError::ModelUnavailable))
+                | (429, Err(LlmProviderError::Quota))
+                | (503, Err(LlmProviderError::Transport(_)))
+        );
+        if !classified {
+            return Err(format!("HTTP {status} was not classified correctly").into());
+        }
+        rejected.assert_async().await;
+    }
+    Ok(())
+}
+
+#[tokio::test]
+async fn rejects_success_responses_without_refined_text() -> Result<(), Box<dyn std::error::Error>>
+{
+    let server = MockServer::start_async().await;
+    let empty = server
+        .mock_async(|when, then| {
+            when.method(POST).path("/v1/chat/completions");
+            then.status(200).json_body(serde_json::json!({
+                "choices": [{"message": {"content": "  "}}]
+            }));
+        })
+        .await;
+    let provider = ChatCompletionsLlmProvider::new(ChatCompletionsLlmSettings {
+        base_url: server.url("/v1"),
+        api_key: "test-key".to_owned(),
+        model: "test-model".to_owned(),
+        custom_headers: BTreeMap::new(),
+        profile: ChatCompletionsProfile::Portable,
+    })?;
+
+    if !matches!(
+        provider.test_connection().await,
+        Err(LlmProviderError::Protocol(_))
+    ) {
+        return Err("empty completion content was accepted".into());
+    }
+    empty.assert_async().await;
+    Ok(())
+}
+
+#[tokio::test]
+async fn maps_openrouter_payment_required_to_quota() -> Result<(), Box<dyn std::error::Error>> {
+    let server = MockServer::start_async().await;
+    let rejected = server
+        .mock_async(|when, then| {
+            when.method(POST).path("/v1/chat/completions");
+            then.status(402);
+        })
+        .await;
+    let provider = ChatCompletionsLlmProvider::new(ChatCompletionsLlmSettings {
+        base_url: server.url("/v1"),
+        api_key: "test-key".to_owned(),
+        model: "openrouter/auto".to_owned(),
+        custom_headers: BTreeMap::new(),
+        profile: ChatCompletionsProfile::OpenRouter,
+    })?;
+
+    if provider.test_connection().await != Err(LlmProviderError::Quota) {
+        return Err("OpenRouter HTTP 402 was not classified as quota".into());
+    }
+    rejected.assert_async().await;
+    Ok(())
+}
+
+#[tokio::test]
+async fn maps_qwen_arrearage_to_quota() -> Result<(), Box<dyn std::error::Error>> {
+    let server = MockServer::start_async().await;
+    let rejected = server
+        .mock_async(|when, then| {
+            when.method(POST).path("/v1/chat/completions");
+            then.status(400).json_body(serde_json::json!({
+                "code": "Arrearage",
+                "message": "account balance is overdue"
+            }));
+        })
+        .await;
+    let provider = ChatCompletionsLlmProvider::new(ChatCompletionsLlmSettings {
+        base_url: server.url("/v1"),
+        api_key: "test-key".to_owned(),
+        model: "qwen-plus".to_owned(),
+        custom_headers: BTreeMap::new(),
+        profile: ChatCompletionsProfile::Qwen,
+    })?;
+
+    if provider.test_connection().await != Err(LlmProviderError::Quota) {
+        return Err("Qwen Arrearage was not classified as quota".into());
+    }
+    rejected.assert_async().await;
+    Ok(())
+}
+
+#[tokio::test]
+async fn maps_zhipu_missing_model_code_to_model_unavailable()
+-> Result<(), Box<dyn std::error::Error>> {
+    let server = MockServer::start_async().await;
+    let rejected = server
+        .mock_async(|when, then| {
+            when.method(POST).path("/v4/chat/completions");
+            then.status(400).json_body(serde_json::json!({
+                "error": {"code": 1211, "message": "model does not exist"}
+            }));
+        })
+        .await;
+    let provider = ChatCompletionsLlmProvider::new(ChatCompletionsLlmSettings {
+        base_url: server.url("/v4"),
+        api_key: "test-key".to_owned(),
+        model: "missing-model".to_owned(),
+        custom_headers: BTreeMap::new(),
+        profile: ChatCompletionsProfile::ZhipuGlm,
+    })?;
+
+    if provider.test_connection().await != Err(LlmProviderError::ModelUnavailable) {
+        return Err("Zhipu code 1211 was not classified as unavailable model".into());
+    }
+    rejected.assert_async().await;
+    Ok(())
+}
+
+#[tokio::test]
+async fn maps_minimax_business_error_from_successful_http_response()
+-> Result<(), Box<dyn std::error::Error>> {
+    let server = MockServer::start_async().await;
+    let rejected = server
+        .mock_async(|when, then| {
+            when.method(POST).path("/v1/chat/completions");
+            then.status(200).json_body(serde_json::json!({
+                "base_resp": {"status_code": 1008, "status_msg": "insufficient balance"}
+            }));
+        })
+        .await;
+    let provider = ChatCompletionsLlmProvider::new(ChatCompletionsLlmSettings {
+        base_url: server.url("/v1"),
+        api_key: "minimax-key".to_owned(),
+        model: "MiniMax-M3".to_owned(),
+        custom_headers: BTreeMap::new(),
+        profile: ChatCompletionsProfile::MiniMax,
+    })?;
+
+    if provider.test_connection().await != Err(LlmProviderError::Quota) {
+        return Err("MiniMax code 1008 was not classified as quota".into());
+    }
+    rejected.assert_async().await;
+    Ok(())
+}
+
+#[tokio::test]
+async fn maps_minimax_invalid_key_from_http_error() -> Result<(), Box<dyn std::error::Error>> {
+    let server = MockServer::start_async().await;
+    let rejected = server
+        .mock_async(|when, then| {
+            when.method(POST).path("/v1/chat/completions");
+            then.status(400).json_body(serde_json::json!({
+                "base_resp": {"status_code": 2049, "status_msg": "invalid API key"}
+            }));
+        })
+        .await;
+    let provider = ChatCompletionsLlmProvider::new(ChatCompletionsLlmSettings {
+        base_url: server.url("/v1"),
+        api_key: "invalid-key".to_owned(),
+        model: "MiniMax-M3".to_owned(),
+        custom_headers: BTreeMap::new(),
+        profile: ChatCompletionsProfile::MiniMax,
+    })?;
+
+    if provider.test_connection().await != Err(LlmProviderError::Authentication) {
+        return Err("MiniMax code 2049 was not classified as authentication".into());
+    }
+    rejected.assert_async().await;
+    Ok(())
+}
+
+#[tokio::test]
+#[ignore = "requires SAYMORE_LLM_SMOKE_PROVIDER and that provider's API key environment variable"]
+async fn live_provider_smoke_test_from_environment() -> Result<(), Box<dyn std::error::Error>> {
+    let provider_id = std::env::var("SAYMORE_LLM_SMOKE_PROVIDER")?;
+    let preset = LlmProviderPreset::ALL
+        .into_iter()
+        .find(|preset| preset.id() == provider_id && *preset != LlmProviderPreset::Custom)
+        .ok_or("SAYMORE_LLM_SMOKE_PROVIDER must name a built-in provider")?;
+    let profile = preset.profile();
+    let api_key = std::env::var(profile.api_key_environment)?;
+    let models = if preset.supports_remote_model_discovery() {
+        discover_models(profile.model_list_url, &api_key).await?
+    } else {
+        preset
+            .recommended_models()
+            .iter()
+            .map(ToString::to_string)
+            .collect()
+    };
+    if models.is_empty() {
+        return Err("provider returned an empty model list".into());
+    }
+    let mut settings = preset.settings(&api_key);
+    if let Ok(model) = std::env::var("SAYMORE_LLM_SMOKE_MODEL") {
+        settings.model = model;
+    }
+
+    ChatCompletionsLlmProvider::new(settings)?
+        .test_connection()
+        .await?;
     Ok(())
 }
 
@@ -328,6 +719,9 @@ fn provider_settings(
             .cloned()
             .map(serde_json::from_value)
             .transpose()?
+            .unwrap_or_default(),
+        profile: LlmProviderPreset::from_id_or_base_url(&provider.id, &required("base_url")?)
+            .map(|preset| preset.profile().chat_completions)
             .unwrap_or_default(),
     })
 }

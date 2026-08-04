@@ -1,3 +1,4 @@
+use chrono::NaiveDate;
 use thiserror::Error;
 use unicode_normalization::UnicodeNormalization;
 
@@ -119,6 +120,9 @@ impl OnboardingStep {
 pub struct LocalSettings {
     pub history_enabled: bool,
     pub history_retention: HistoryRetention,
+    pub dictionary_assist_enabled: bool,
+    pub dictionary_assist_consent_fingerprint: Option<String>,
+    pub dictionary_assist_last_success_at_ms: Option<i64>,
     pub preferred_microphone_id: Option<String>,
     pub preferred_microphone_name: Option<String>,
     pub diagnostics_logging_enabled: bool,
@@ -141,6 +145,9 @@ impl Default for LocalSettings {
         Self {
             history_enabled: true,
             history_retention: HistoryRetention::SevenDays,
+            dictionary_assist_enabled: false,
+            dictionary_assist_consent_fingerprint: None,
+            dictionary_assist_last_success_at_ms: None,
             preferred_microphone_id: None,
             preferred_microphone_name: None,
             diagnostics_logging_enabled: true,
@@ -341,6 +348,11 @@ pub trait DiagnosticEventStore: Send + Sync {
 /// Persists encrypted final-output history and applies its retention policy.
 pub trait HistoryStore: Send + Sync {
     fn insert_history(&self, record: NewHistoryRecord) -> Result<(), StorageError>;
+    /// Replaces the encrypted final text with a later user-corrected version.
+    ///
+    /// Implementations must preserve the original ASR and refinement fields and
+    /// reject an unknown record identity.
+    fn update_history_final_text(&self, id: &str, final_text: &str) -> Result<(), StorageError>;
     fn history_page(
         &self,
         cursor: Option<HistoryCursor>,
@@ -367,6 +379,34 @@ pub trait HistoryStore: Send + Sync {
     fn cleanup_history(&self, now_ms: i64) -> Result<u64, StorageError>;
 }
 
+/// One privacy-safe daily usage bucket with no recognized text or provider metadata.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DailyUsage {
+    pub date: NaiveDate,
+    pub audio_duration_ms: u64,
+    pub character_count: u64,
+}
+
+/// Persisted usage totals plus a bounded range of daily buckets.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct UsageSnapshot {
+    pub total_duration_ms: u64,
+    pub total_characters: u64,
+    pub days: Vec<DailyUsage>,
+}
+
+/// Loads aggregate dictation usage independently from retained transcript history.
+///
+/// Implementations must not expose recognized text and must keep history deletion
+/// independent from previously recorded usage totals.
+pub trait UsageStore: Send + Sync {
+    fn usage_snapshot(
+        &self,
+        period_start: NaiveDate,
+        period_end: NaiveDate,
+    ) -> Result<UsageSnapshot, StorageError>;
+}
+
 /// Maintains the user's confirmed dictionary entries.
 ///
 /// Implementations must preserve compatible legacy entry data while exposing only
@@ -378,6 +418,16 @@ pub trait DictionaryStore: Send + Sync {
         entry: NewDictionaryEntry,
         now_ms: i64,
     ) -> Result<DictionaryEntry, StorageError>;
+    /// Changes the canonical spelling while preserving the entry's identity and provenance.
+    ///
+    /// Implementations must reject empty spellings, unknown identities, and a spelling that
+    /// conflicts with another entry in the same language.
+    fn update_dictionary(
+        &self,
+        id: &str,
+        canonical: &str,
+        now_ms: i64,
+    ) -> Result<DictionaryEntry, StorageError>;
     fn delete_dictionary(&self, id: &str) -> Result<(), StorageError>;
 }
 
@@ -385,6 +435,7 @@ pub trait DictionaryStore: Send + Sync {
 pub trait InstalledModelStore: Send + Sync {
     fn list_installed_models(&self) -> Result<Vec<InstalledModel>, StorageError>;
     fn save_installed_model(&self, model: InstalledModel) -> Result<(), StorageError>;
+    fn delete_installed_model(&self, id: &str) -> Result<(), StorageError>;
 }
 
 pub fn dictionary_comparison_key(value: &str) -> String {

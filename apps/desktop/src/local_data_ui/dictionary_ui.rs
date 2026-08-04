@@ -76,6 +76,7 @@ pub(super) fn wire(
     wire_filter_and_search(ui, Arc::clone(&state));
     wire_draft_actions(ui, Arc::clone(&storage), Arc::clone(&state));
     wire_csv_import(ui, Arc::clone(&storage), Arc::clone(&state));
+    super::dictionary_edit::wire(ui, Arc::clone(&storage), Arc::clone(&state));
     wire_delete(ui, storage, state);
 }
 
@@ -470,6 +471,17 @@ fn apply_state(ui: &AppWindow, state: &DictionaryUiState) {
     apply_drafts(ui, state);
 }
 
+pub(super) fn replace_entries(
+    ui: &AppWindow,
+    state: &Arc<Mutex<DictionaryUiState>>,
+    entries: Vec<DictionaryEntry>,
+) {
+    if let Ok(mut state) = state.lock() {
+        state.entries = entries;
+        apply_state(ui, &state);
+    }
+}
+
 fn to_evidence_item(evidence: &DictionaryCandidateEvidence) -> DictionaryEvidenceItem {
     let kind = match evidence.assessment.kind {
         DictionaryCandidateKind::NamedTerm => "named term",
@@ -482,6 +494,7 @@ fn to_evidence_item(evidence: &DictionaryCandidateEvidence) -> DictionaryEvidenc
     let source = match evidence.assessment.source {
         CandidateAssessmentSource::Local => "local",
         CandidateAssessmentSource::Llm => "LLM",
+        CandidateAssessmentSource::VocabularySuggestion => "Vocabulary suggestion",
     };
     let state = match evidence.state {
         DictionaryCandidateState::Pending => "pending",

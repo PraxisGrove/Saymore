@@ -1,9 +1,12 @@
 use std::sync::Arc;
 
 use slint::{ComponentHandle, SharedString};
+#[cfg(test)]
+use template_app::ProviderConfigurationStore;
 use template_app::{
-    OpenAiCompatibleAsrSettings, ProviderConfigStore, SettingsStore, SettingsStoreError,
-    SpeechRecognitionError, VolcengineAsrSettings,
+    AsrConfigurationError, AsrProviderConfiguration, OpenAiCompatibleAsrSettings,
+    ProviderConfigStore, ProviderConfigurator, ProviderConnectionTester, SettingsStore,
+    SettingsStoreError, SpeechRecognitionError, VolcengineAsrSettings,
 };
 use template_infra::{JsonSettingsStore, OpenAiCompatibleSpeechRecognizer};
 use uuid::Uuid;
@@ -15,10 +18,19 @@ use crate::ui::{
 
 use super::{
     VOLCENGINE_ASR_1_MODEL, VOLCENGINE_ASR_2_MODEL, VOLCENGINE_LEGACY_MODEL, apply_loaded_settings,
-    apply_pending_test, apply_status,
+    apply_pending_test, apply_status, provider_connection::DesktopProviderConnectionTester,
 };
 
-mod recognition_test;
+pub(super) mod recognition_test;
+
+pub(super) fn run_local_asr_test(
+    recognizer: &dyn template_app::StreamingSpeechRecognizer,
+) -> (std::time::Duration, Result<String, SpeechRecognitionError>) {
+    let started = std::time::Instant::now();
+    let result = recognition_test::standard_audio_samples()
+        .and_then(|samples| recognition_test::recognize_with(recognizer, samples));
+    (started.elapsed(), result)
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum AsrConfigError {
@@ -28,19 +40,8 @@ pub(super) enum AsrConfigError {
     InvalidBaseUrl,
     MissingModel,
     UnsupportedModel,
+    #[cfg(test)]
     Store,
-}
-
-#[derive(Clone)]
-enum AsrCandidate {
-    Volcengine(VolcengineAsrSettings),
-    Custom(OpenAiCompatibleAsrSettings),
-}
-
-#[derive(Debug)]
-enum AsrSaveError {
-    Configuration(AsrConfigError),
-    Connection(SpeechRecognitionError),
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -172,7 +173,7 @@ fn wire_provider_selection(ui: &AppWindow, store: Arc<JsonSettingsStore>) {
     });
 }
 
-fn current_candidate(ui: &AppWindow) -> Result<AsrCandidate, AsrConfigError> {
+fn current_candidate(ui: &AppWindow) -> Result<AsrProviderConfiguration, AsrConfigError> {
     match ui.get_asr_provider() {
         UiAsrProvider::Volcengine => candidate(
             UiAsrProvider::Volcengine,
@@ -194,7 +195,7 @@ fn candidate(
     api_key: &str,
     base_url: &str,
     model: &str,
-) -> Result<AsrCandidate, AsrConfigError> {
+) -> Result<AsrProviderConfiguration, AsrConfigError> {
     match provider {
         UiAsrProvider::Volcengine => {
             let api_key = api_key.trim();
@@ -205,11 +206,13 @@ fn candidate(
             if !volcengine_api_key_is_valid(api_key) {
                 return Err(AsrConfigError::InvalidApiKey);
             }
-            Ok(AsrCandidate::Volcengine(VolcengineAsrSettings {
-                enabled: true,
-                api_key: api_key.to_owned(),
-                model: model.to_owned(),
-            }))
+            Ok(AsrProviderConfiguration::Volcengine(
+                VolcengineAsrSettings {
+                    enabled: true,
+                    api_key: api_key.to_owned(),
+                    model: model.to_owned(),
+                },
+            ))
         }
         UiAsrProvider::Custom => {
             let api_key = api_key.trim();
@@ -232,7 +235,7 @@ fn candidate(
             };
             OpenAiCompatibleSpeechRecognizer::new(settings.clone())
                 .map_err(|_| AsrConfigError::InvalidBaseUrl)?;
-            Ok(AsrCandidate::Custom(settings))
+            Ok(AsrProviderConfiguration::OpenAiCompatible(settings))
         }
     }
 }
@@ -240,7 +243,7 @@ fn candidate(
 fn begin_connection_test(
     ui: &AppWindow,
     store: Arc<JsonSettingsStore>,
-    candidate: Result<AsrCandidate, AsrConfigError>,
+    candidate: Result<AsrProviderConfiguration, AsrConfigError>,
     purpose: TestPurpose,
 ) {
     let candidate = match candidate {
@@ -263,16 +266,17 @@ fn begin_connection_test(
     let spawn_result = std::thread::Builder::new()
         .name("saymore-test-asr".to_owned())
         .spawn(move || {
-            let attempt = recognition_test::run(&candidate);
-            let result = attempt
-                .result
-                .map_err(AsrSaveError::Connection)
-                .and_then(|transcript| {
-                    if purpose == TestPurpose::Save {
-                        save_candidate(&store, &candidate).map_err(AsrSaveError::Configuration)?;
-                    }
-                    Ok(transcript)
-                });
+            let started = std::time::Instant::now();
+            let tester = DesktopProviderConnectionTester;
+            let result = match purpose {
+                TestPurpose::Save => {
+                    ProviderConfigurator::new(&tester, store.as_ref()).configure_asr(&candidate)
+                }
+                TestPurpose::TestOnly => tester
+                    .test_asr(&candidate)
+                    .map_err(AsrConfigurationError::Connection),
+            };
+            let elapsed = started.elapsed();
             if let Err(error) = &result {
                 tracing::warn!(
                     target: "saymore::diagnostics",
@@ -281,7 +285,7 @@ fn begin_connection_test(
                 );
             }
             let _ = result_ui.upgrade_in_event_loop(move |ui| {
-                finish_connection_test(&ui, &store, purpose, attempt.elapsed, result);
+                finish_connection_test(&ui, &store, purpose, elapsed, result);
             });
         });
     if spawn_result.is_err() {
@@ -303,7 +307,7 @@ fn finish_connection_test(
     store: &JsonSettingsStore,
     purpose: TestPurpose,
     elapsed: std::time::Duration,
-    result: Result<String, AsrSaveError>,
+    result: Result<String, AsrConfigurationError>,
 ) {
     ui.set_asr_testing(false);
     ui.set_asr_test_elapsed(format!("{:.2}", elapsed.as_secs_f64()).into());
@@ -338,14 +342,14 @@ fn finish_connection_test(
                 ui.global::<Translations>().get_models_connected(),
             );
         }
-        Err(AsrSaveError::Configuration(error)) => {
+        Err(AsrConfigurationError::Store(_)) => {
             ui.set_asr_test_succeeded(false);
             ui.set_asr_test_result(SharedString::default());
             ui.set_asr_draft_error(true);
-            ui.set_asr_error_field(config_error_field(error));
-            ui.set_asr_config_status(asr_config_error_text(ui, error));
+            ui.set_asr_error_field(UiAsrConfigurationField::Form);
+            ui.set_asr_config_status(ui.global::<Translations>().get_common_save_failed());
         }
-        Err(AsrSaveError::Connection(error)) => {
+        Err(AsrConfigurationError::Connection(error)) => {
             ui.set_asr_test_succeeded(false);
             ui.set_asr_test_result(SharedString::default());
             ui.set_asr_draft_error(true);
@@ -356,32 +360,12 @@ fn finish_connection_test(
 }
 
 #[cfg(test)]
-fn test_and_save(
-    store: &JsonSettingsStore,
-    candidate: &AsrCandidate,
-    test: impl FnOnce(&AsrCandidate) -> Result<(), SpeechRecognitionError>,
-) -> Result<(), AsrSaveError> {
-    test(candidate).map_err(AsrSaveError::Connection)?;
-    save_candidate(store, candidate).map_err(AsrSaveError::Configuration)
-}
-
 fn save_candidate(
     store: &JsonSettingsStore,
-    candidate: &AsrCandidate,
+    candidate: &AsrProviderConfiguration,
 ) -> Result<(), AsrConfigError> {
     store
-        .load_catalog()
-        .and_then(|mut catalog| {
-            match candidate {
-                AsrCandidate::Volcengine(candidate) => {
-                    catalog.configure_volcengine_asr_provider(candidate);
-                }
-                AsrCandidate::Custom(candidate) => {
-                    catalog.configure_openai_transcriptions_asr_provider(candidate);
-                }
-            }
-            store.save_catalog(&catalog)
-        })
+        .save_asr_configuration(candidate)
         .map_err(|_| AsrConfigError::Store)
 }
 
@@ -489,6 +473,7 @@ fn config_error_field(error: AsrConfigError) -> UiAsrConfigurationField {
         AsrConfigError::MissingModel | AsrConfigError::UnsupportedModel => {
             UiAsrConfigurationField::Model
         }
+        #[cfg(test)]
         AsrConfigError::Store => UiAsrConfigurationField::Form,
     }
 }
@@ -514,6 +499,7 @@ fn asr_config_error_text(ui: &AppWindow, error: AsrConfigError) -> SharedString 
         AsrConfigError::InvalidBaseUrl => translations.get_models_invalid_service_url(),
         AsrConfigError::MissingModel => translations.get_models_enter_model_name(),
         AsrConfigError::UnsupportedModel => translations.get_models_unsupported_volcengine_model(),
+        #[cfg(test)]
         AsrConfigError::Store => translations.get_common_save_failed(),
     }
 }
@@ -525,43 +511,6 @@ mod tests {
     use super::*;
 
     const CURRENT_KEY: &str = "123e4567-e89b-42d3-a456-426614174000";
-    const CANDIDATE_KEY: &str = "223e4567-e89b-42d3-a456-426614174000";
-
-    #[test]
-    fn authentication_network_and_quota_failures_keep_the_current_configuration() {
-        let directory = std::env::temp_dir().join(format!("saymore-asr-atomic-{}", Uuid::new_v4()));
-        let store = JsonSettingsStore::at_path(directory.join("providers.json"));
-        assert_eq!(
-            Ok(()),
-            save_asr_configuration(&store, CURRENT_KEY, VOLCENGINE_ASR_2_MODEL)
-        );
-        let candidate = candidate(
-            UiAsrProvider::Volcengine,
-            CANDIDATE_KEY,
-            "",
-            VOLCENGINE_ASR_2_MODEL,
-        );
-        let Ok(candidate) = candidate else {
-            panic!("candidate should be valid");
-        };
-
-        for error in [
-            SpeechRecognitionError::Authentication,
-            SpeechRecognitionError::Transport("offline".to_owned()),
-            SpeechRecognitionError::Quota,
-        ] {
-            assert!(test_and_save(&store, &candidate, |_| Err(error)).is_err());
-            assert_eq!(
-                Some(CURRENT_KEY.to_owned()),
-                store
-                    .load()
-                    .ok()
-                    .map(|settings| settings.asr.volcengine.api_key)
-            );
-        }
-        let _ = fs::remove_dir_all(directory);
-    }
-
     #[test]
     fn configured_providers_can_be_switched_without_losing_either_configuration() {
         let directory = std::env::temp_dir().join(format!("saymore-asr-switch-{}", Uuid::new_v4()));

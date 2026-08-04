@@ -26,7 +26,33 @@ export enum UiLanguage {
 export enum LlmProvider {
     sensenova,
     deepseek,
+    qwen,
+    volcengine-ark,
+    openai,
+    kimi,
+    gemini,
+    openrouter,
+    zhipu-glm,
+    minimax,
+    siliconflow,
+    stepfun,
     custom,
+}
+
+export struct LlmProviderConfigurationState {
+    sensenova: bool,
+    deepseek: bool,
+    qwen: bool,
+    volcengine-ark: bool,
+    openai: bool,
+    kimi: bool,
+    gemini: bool,
+    openrouter: bool,
+    zhipu-glm: bool,
+    minimax: bool,
+    siliconflow: bool,
+    stepfun: bool,
+    custom: bool,
 }
 
 export enum AsrProvider {
@@ -42,6 +68,7 @@ export enum AsrProviderCardKind {
     paraformer,
     whisper-large-v3-turbo,
     qwen3-asr,
+    sense-voice-small,
     custom,
 }
 
@@ -69,6 +96,7 @@ export enum AsrConfigurationField {
 export enum ModalSize {
     standard,
     compact,
+    tall,
 }
 
 export component StatusPill inherits Rectangle {
@@ -193,6 +221,7 @@ export component AppButton inherits Rectangle {
 
 export component ModalShell inherits Rectangle {
     in property <ModalSize> size: ModalSize.standard;
+    in property <length> panel-height-override: 0px;
     in property <bool> show-close: true;
     in property <bool> close-enabled: true;
     in property <bool> dismiss-on-backdrop: false;
@@ -201,7 +230,11 @@ export component ModalShell inherits Rectangle {
     callback close-requested();
 
     private property <length> requested-width: root.size == ModalSize.compact ? 420px : 540px;
-    private property <length> requested-height: root.size == ModalSize.compact ? 220px : 468px;
+    private property <length> requested-height: root.panel-height-override > 0px
+        ? root.panel-height-override
+        : root.size == ModalSize.compact ? 220px
+        : root.size == ModalSize.tall ? 600px
+        : 468px;
 
     background: AppColors.scrim;
     opacity: 1;
@@ -219,7 +252,7 @@ export component ModalShell inherits Rectangle {
     panel := Rectangle {
         width: min(root.requested-width, root.width - 32px);
         height: min(root.requested-height, root.height - 32px);
-        x: (root.width - self.width) / 2 + (root.size == ModalSize.standard ? 36px : 0px);
+        x: (root.width - self.width) / 2 + (root.size == ModalSize.compact ? 0px : 36px);
         y: (root.height - self.height) / 2;
         border-radius: 12px;
         border-width: 1px;

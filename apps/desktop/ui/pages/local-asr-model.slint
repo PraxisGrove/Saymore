@@ -1,10 +1,18 @@
 import { AsrProviderCardKind, ModalShell, ModalSize } from "../components.slint";
 import { AppColors } from "../color-system.slint";
+import { RecognitionTestPanel } from "asr-recognition-test.slint";
 
 export enum LocalModelDownloadState {
     not-downloaded,
     downloading,
+    paused,
+    cancelling,
     downloaded,
+}
+
+export enum PunctuationMode {
+    llm,
+    local,
 }
 
 component LocalModelSummaryPill inherits Rectangle {
@@ -14,7 +22,7 @@ component LocalModelSummaryPill inherits Rectangle {
     width: 104px;
     height: 36px;
     border-radius: 18px;
-    background: AppColors.surface-subtle;
+    background: AppColors.surface-faint;
 
     Image {
         x: 12px;
@@ -36,6 +44,27 @@ component LocalModelSummaryPill inherits Rectangle {
     }
 }
 
+component LocalModelBusySpinner inherits Image {
+    in property <bool> running: false;
+    in property <brush> tint: AppColors.brand-strong;
+    private property <angle> angle: 0deg;
+
+    source: @image-url("../../icons/lucide/refresh-cw.svg");
+    colorize: root.tint;
+    opacity: root.running ? 1 : 0;
+    transform-origin: { x: root.width / 2, y: root.height / 2 };
+    transform-rotation: root.angle;
+    animate opacity { duration: 120ms; easing: ease-out; }
+    states [
+        spinning when root.running: {
+            angle: 360deg;
+            in {
+                animate angle { duration: 800ms; iteration-count: -1; easing: linear; }
+            }
+        }
+    ]
+}
+
 component LocalModelMetric inherits Rectangle {
     in property <image> icon;
     in property <string> label;
@@ -43,7 +72,6 @@ component LocalModelMetric inherits Rectangle {
     in property <length> content-offset: 0px;
     in property <bool> muted-value: false;
     in property <bool> live-value: false;
-
     background: transparent;
 
     Image {
@@ -63,15 +91,16 @@ component LocalModelMetric inherits Rectangle {
         font-weight: 700;
     }
     metric-value := Text {
-        x: root.content-offset + (root.live-value ? 34px : 22px);
+        x: root.content-offset + 22px;
         y: 27px;
+        height: 13px;
         text: root.value;
         color: root.muted-value ? AppColors.text-muted : AppColors.ink;
         font-size: 11px;
         font-weight: 600;
     }
     if root.live-value: Rectangle {
-        x: root.content-offset + 22px;
+        x: root.content-offset + 4px;
         y: 32px;
         width: 6px;
         height: 6px;
@@ -82,20 +111,22 @@ component LocalModelMetric inherits Rectangle {
 
 component LocalModelActionButton inherits Rectangle {
     in property <string> label;
+    in property <string> hover-label;
     in property <bool> enabled: true;
     in property <bool> primary: false;
     in property <bool> danger: false;
     in property <bool> pending: false;
-    in property <bool> brand-outline: false;
     callback activated();
+
+    private property <bool> showing-hover-action: root.hover-label != "" && button-touch.has-hover;
 
     width: 90px;
     height: 32px;
     border-radius: 7px;
-    border-width: root.primary || root.pending ? 0px : 1px;
-    border-color: root.danger ? AppColors.danger
-        : root.brand-outline ? AppColors.brand-strong : AppColors.border;
+    border-width: root.primary || root.pending || root.danger ? 0px : 1px;
+    border-color: root.danger ? AppColors.danger : AppColors.border;
     background: !root.enabled && !root.pending ? AppColors.surface-muted
+        : root.pending && root.showing-hover-action ? AppColors.brand
         : root.pending ? AppColors.brand-soft
         : root.primary ? (button-touch.has-hover ? AppColors.brand-hover : AppColors.brand)
         : button-touch.has-hover ? (root.danger ? AppColors.danger-soft : AppColors.surface)
@@ -104,26 +135,34 @@ component LocalModelActionButton inherits Rectangle {
     animate background { duration: 120ms; easing: ease-out; }
     animate opacity { duration: 80ms; easing: ease-out; }
     accessible-role: button;
-    accessible-label: root.label;
+    accessible-label: root.showing-hover-action ? root.hover-label : root.label;
     accessible-enabled: root.enabled;
     accessible-action-default => { if root.enabled { root.activated(); } }
 
-    Text {
-        text: root.label;
+    button-label := Text {
+        x: root.pending && !root.showing-hover-action ? 22px : 0px;
+        width: root.pending && !root.showing-hover-action ? parent.width - 26px : parent.width;
+        text: root.showing-hover-action ? root.hover-label : root.label;
         color: !root.enabled && !root.pending ? AppColors.text-muted
+            : root.showing-hover-action ? AppColors.on-brand
             : root.pending ? AppColors.brand-strong
             : root.primary ? AppColors.on-brand
-            : root.danger ? AppColors.danger
-            : root.brand-outline ? AppColors.brand-strong : AppColors.text;
+            : root.danger ? AppColors.danger : AppColors.text;
         font-size: 10px;
         font-weight: 650;
         horizontal-alignment: center;
         vertical-alignment: center;
-        overflow: elide;
+    }
+    LocalModelBusySpinner {
+        x: 8px;
+        y: (root.height - self.height) / 2;
+        width: 12px;
+        height: 12px;
+        running: root.pending && !root.showing-hover-action;
     }
     button-touch := TouchArea {
         enabled: root.enabled;
-        mouse-cursor: root.enabled ? pointer : default;
+        mouse-cursor: self.enabled ? pointer : default;
         clicked => { root.activated(); }
     }
 }
@@ -132,12 +171,19 @@ component LocalModelSelectionControl inherits Rectangle {
     in property <LocalModelDownloadState> download-state;
     in property <bool> selected: false;
     in property <bool> enabled: false;
+    in property <bool> pending: false;
     callback activated();
 
-    private property <string> label: root.selected
-        ? @tr("models.asr.selection.current" => "Current provider")
+    private property <string> label: root.pending
+        ? @tr("models.asr.selection.activating" => "Switching")
+        : root.selected
+        ? @tr("models.asr.selection.current" => "Current")
         : root.download-state == LocalModelDownloadState.downloading
             ? @tr("models.asr.local.downloading" => "Downloading")
+            : root.download-state == LocalModelDownloadState.paused
+                ? @tr("models.asr.local.paused" => "Paused")
+                : root.download-state == LocalModelDownloadState.cancelling
+                    ? @tr("models.asr.local.cancelling" => "Cancelling")
             : root.download-state == LocalModelDownloadState.downloaded
                 ? @tr("models.asr.local.downloaded" => "Downloaded")
                 : @tr("models.asr.local.not-downloaded" => "Not downloaded");
@@ -146,10 +192,12 @@ component LocalModelSelectionControl inherits Rectangle {
     height: 34px;
     background: transparent;
     accessible-role: switch;
-    accessible-label: root.label;
-    accessible-enabled: root.enabled;
+    accessible-label: root.selected
+        ? @tr("models.asr.selection.current-accessible" => "Current provider")
+        : root.label;
+    accessible-enabled: root.enabled && !root.pending;
     accessible-checked: root.selected;
-    accessible-action-default => { if root.enabled { root.activated(); } }
+    accessible-action-default => { if root.enabled && !root.pending { root.activated(); } }
 
     Rectangle {
         x: 0px;
@@ -157,12 +205,15 @@ component LocalModelSelectionControl inherits Rectangle {
         width: 28px;
         height: 16px;
         border-radius: 8px;
-        background: root.selected ? AppColors.success
+        background: root.pending ? AppColors.brand
+            : root.selected ? AppColors.success
             : selection-touch.has-hover && root.enabled ? AppColors.selected
             : AppColors.chart-neutral;
-        opacity: root.selected || root.enabled ? 1 : 0.5;
+        opacity: root.pending || root.selected || root.enabled ? 1 : 0.5;
+        animate background { duration: 150ms; easing: ease-out; }
 
         Rectangle {
+            visible: !root.pending;
             x: root.selected ? 14px : 2px;
             y: 2px;
             width: 12px;
@@ -171,12 +222,21 @@ component LocalModelSelectionControl inherits Rectangle {
             background: AppColors.surface;
             animate x { duration: 160ms; easing: ease-out; }
         }
+        LocalModelBusySpinner {
+            x: 8px;
+            y: 2px;
+            width: 12px;
+            height: 12px;
+            running: root.pending;
+            tint: AppColors.on-brand;
+        }
     }
     Text {
         x: 36px;
         width: parent.width - 36px;
         text: root.label;
-        color: root.selected ? AppColors.success
+        color: root.pending ? AppColors.brand-strong
+            : root.selected ? AppColors.success
             : root.enabled ? AppColors.text : AppColors.text-muted;
         font-size: 10px;
         font-weight: 600;
@@ -184,9 +244,36 @@ component LocalModelSelectionControl inherits Rectangle {
         overflow: elide;
     }
     selection-touch := TouchArea {
-        enabled: root.enabled;
+        enabled: root.enabled && !root.pending;
         mouse-cursor: root.enabled ? pointer : default;
         clicked => { root.activated(); }
+    }
+    Rectangle {
+        x: 0px;
+        y: 31px;
+        width: parent.width;
+        height: 3px;
+        border-radius: 2px;
+        background: AppColors.selected;
+        opacity: root.pending ? 1 : 0;
+        clip: true;
+        animate opacity { duration: 120ms; easing: ease-out; }
+
+        Rectangle {
+            x: -36px;
+            width: 36px;
+            height: parent.height;
+            border-radius: 2px;
+            background: AppColors.brand;
+            states [
+                moving when root.pending: {
+                    x: 116px;
+                    in {
+                        animate x { duration: 720ms; iteration-count: -1; easing: linear; }
+                    }
+                }
+            ]
+        }
     }
 }
 
@@ -197,56 +284,112 @@ export component LocalAsrModelModal inherits Rectangle {
     in property <bool> download-supported: false;
     in property <bool> adapter-ready: false;
     in property <bool> selected: false;
+    in property <bool> selection-pending: false;
+    in property <string> download-size;
+    in property <string> installed-size;
     in property <bool> runtime-memory-live: false;
     in property <string> runtime-memory-usage;
+    in property <string> operation-error;
     in property <bool> testing: false;
     in property <bool> test-succeeded: false;
     in property <bool> test-failed: false;
     in property <string> test-elapsed;
     in property <string> test-result;
+    in property <string> download-error;
+    in property <bool> llm-enabled: false;
+    in property <PunctuationMode> punctuation-mode: PunctuationMode.llm;
+    in property <LocalModelDownloadState> punctuation-download-state: LocalModelDownloadState.not-downloaded;
+    in property <float> punctuation-download-progress: 0;
+    in property <string> punctuation-download-size: "";
+    in property <string> punctuation-installed-size: "";
+    in property <bool> punctuation-runtime-live: false;
+    in property <string> punctuation-runtime-memory: "";
+    in property <bool> punctuation-pending: false;
+    in property <string> punctuation-error: "";
     callback cancelled();
     callback download-requested(AsrProviderCardKind);
+    callback pause-requested(AsrProviderCardKind);
+    callback cancel-download-requested(AsrProviderCardKind);
     callback delete-requested(AsrProviderCardKind);
     callback select-provider(AsrProviderCardKind);
     callback run-test(AsrProviderCardKind);
+    callback refresh-runtime-memory(AsrProviderCardKind);
+    callback punctuation-mode-requested(PunctuationMode);
+    callback punctuation-download-requested();
+    callback punctuation-delete-requested();
+    callback open-llm-settings();
 
     private property <float> bounded-progress: max(0, min(1, root.download-progress));
     private property <int> progress-percent: round(root.bounded-progress * 100);
     private property <string> title: root.kind == AsrProviderCardKind.qwen3-asr ? "Qwen3-ASR 1.7B"
         : root.kind == AsrProviderCardKind.paraformer ? "Paraformer-zh"
+        : root.kind == AsrProviderCardKind.sense-voice-small ? "SenseVoiceSmall"
         : "Whisper large-v3-turbo";
-    private property <string> download-size: root.kind == AsrProviderCardKind.qwen3-asr ? "2.1 GB"
-        : root.kind == AsrProviderCardKind.paraformer ? "889 MB" : "3.1 GB";
-    private property <string> memory-estimate: root.kind == AsrProviderCardKind.qwen3-asr ? "3.8 GB"
-        : root.kind == AsrProviderCardKind.paraformer ? "2.0 GB" : "5.4 GB";
-    private property <bool> showing-live-memory: root.runtime-memory-live && root.runtime-memory-usage != "";
-    private property <string> memory-display: root.showing-live-memory
+    private property <string> memory-estimate: root.kind == AsrProviderCardKind.qwen3-asr ? "4.3 GB"
+        : root.kind == AsrProviderCardKind.paraformer ? "503 MB"
+        : root.kind == AsrProviderCardKind.sense-voice-small ? "573 MB"
+        : "2.15 GB";
+    private property <bool> showing-live-memory: !root.selection-pending && root.runtime-memory-live && root.runtime-memory-usage != "";
+    private property <string> memory-display: root.selection-pending
+        ? @tr("models.asr.local.memory-loading" => "Loading model…")
+        : root.showing-live-memory
         ? root.runtime-memory-usage
         : @tr("models.asr.local.memory-approximate" => "Approx. {}", root.memory-estimate);
     private property <bool> installed: root.download-state == LocalModelDownloadState.downloaded;
     private property <bool> downloading: root.download-state == LocalModelDownloadState.downloading;
-    private property <bool> test-ready: root.installed && root.adapter-ready;
-    private property <string> model-status: root.downloading
+    private property <bool> paused: root.download-state == LocalModelDownloadState.paused;
+    private property <bool> cancelling: root.download-state == LocalModelDownloadState.cancelling;
+    private property <bool> test-ready: root.installed && root.adapter-ready && !root.selection-pending;
+    private property <string> model-status: root.selection-pending
+        ? @tr("models.asr.local.status.switching" => "Switching · {}", root.title)
+        : root.downloading
         ? @tr("models.asr.local.status.downloading" => "Downloading · {}", root.title)
+        : root.paused
+            ? @tr("models.asr.local.status.paused" => "Paused · {}", root.title)
+            : root.cancelling
+                ? @tr("models.asr.local.status.cancelling" => "Cancelling download · {}", root.title)
         : root.installed
             ? @tr("models.asr.local.status.downloaded" => "Downloaded · {}", root.title)
             : @tr("models.asr.local.status.not-downloaded" => "Not downloaded · {}", root.title);
-    private property <string> model-detail: !root.download-supported
+    private property <string> model-detail: root.operation-error != ""
+        ? root.operation-error
+        : root.selection-pending
+            ? @tr("models.asr.local.activation-loading" => "Loading the model into memory")
+        : root.download-error != ""
+        ? root.download-error
+        : !root.download-supported
         ? @tr("models.asr.placeholder.download-disabled" => "No verified download source or production adapter is available.")
         : root.downloading
             ? @tr("models.asr.local.progress-detail" => "{}% of {}", root.progress-percent, root.download-size)
+            : root.paused
+                ? @tr("models.asr.local.paused-detail" => "{}% of {} · Continue when ready", root.progress-percent, root.download-size)
+                : root.cancelling
+                    ? @tr("models.asr.local.cancelling-detail" => "Removing downloaded temporary files…")
             : root.installed && root.selected
-                ? @tr("models.asr.local.delete-current-disabled" => "Switch providers before deleting the model")
+                ? @tr("models.asr.local.delete-current-disabled" => "Switch providers to delete")
                 : root.installed
-                    ? @tr("models.asr.local.delete-ready" => "Stored locally and ready to delete")
+                    ? @tr("models.asr.local.delete-ready-size" => "Stored locally · {} on disk", root.installed-size)
                     : @tr("models.asr.local.download-ready" => "Download to use this model offline");
     private property <string> action-label: root.downloading
         ? @tr("models.asr.local.downloading-percent" => "Downloading {}%", root.progress-percent)
-        : root.installed ? @tr("models.asr.local.delete" => "Delete model")
-        : @tr("models.asr.local.download" => "Download model");
-    private property <bool> action-enabled: root.installed
-        ? !root.selected
-        : !root.downloading && root.download-supported;
+        : root.paused ? @tr("models.asr.local.continue" => "Continue")
+        : root.cancelling ? @tr("models.asr.local.cancelling" => "Cancelling")
+        : root.installed ? @tr("models.asr.local.delete" => "Delete")
+        : @tr("models.asr.local.download-action" => "Download");
+    private property <bool> action-enabled: root.cancelling ? false
+        : root.installed
+        ? !root.selected && !root.selection-pending
+        : root.download-supported;
+    private property <string> output-mode: root.kind == AsrProviderCardKind.paraformer
+        ? @tr("models.asr.local.output.streaming" => "Streaming")
+        : @tr("models.asr.local.output.non-streaming" => "Final only");
+    private property <string> usage-tip: root.kind == AsrProviderCardKind.paraformer
+        ? @tr("models.asr.local.usage-tip.paraformer" => "Lightweight live Chinese and Chinese-English dictation. Best with an LLM.")
+        : root.kind == AsrProviderCardKind.whisper-large-v3-turbo
+            ? @tr("models.asr.local.usage-tip.whisper" => "Multilingual dictation with higher memory use. Text appears after speaking.")
+        : root.kind == AsrProviderCardKind.sense-voice-small
+            ? @tr("models.asr.local.usage-tip.sensevoice" => "Lightweight five-language transcription. Final text only.")
+            : @tr("models.asr.local.usage-tip.qwen3" => "Handles dialects, multiple languages, and complex speech. Needs a stronger device.");
 
     modal-focus := FocusScope {
         width: parent.width;
@@ -269,7 +412,7 @@ export component LocalAsrModelModal inherits Rectangle {
                 height: 42px;
                 source: root.kind == AsrProviderCardKind.qwen3-asr
                     ? @image-url("../../icons/providers/qwen.png")
-                    : root.kind == AsrProviderCardKind.paraformer
+                    : root.kind == AsrProviderCardKind.paraformer || root.kind == AsrProviderCardKind.sense-voice-small
                         ? @image-url("../../icons/providers/funasr.png")
                         : @image-url("../../icons/providers/openai.png");
                 image-fit: contain;
@@ -289,8 +432,10 @@ export component LocalAsrModelModal inherits Rectangle {
                 y: 45px;
                 width: dialog.panel-width - 276px;
                 text: root.download-supported
-                    ? @tr("models.asr.local.subtitle.verified" => "Local open-source model · Verified")
-                    : @tr("models.asr.local.subtitle.pending" => "Local open-source model · Awaiting verification");
+                    ? @tr("models.asr.local.subtitle.verified" => "Open source · Verified")
+                    : root.kind == AsrProviderCardKind.sense-voice-small
+                        ? @tr("models.asr.local.subtitle.sensevoice" => "Lightweight five-language model · Final only · INT8")
+                    : @tr("models.asr.local.subtitle.pending" => "Open source · Verification pending");
                 color: AppColors.text-muted;
                 font-size: 10px;
                 overflow: elide;
@@ -300,18 +445,39 @@ export component LocalAsrModelModal inherits Rectangle {
                 y: 16px;
                 download-state: root.download-state;
                 selected: root.selected;
-                enabled: root.installed && root.adapter-ready && !root.selected;
+                pending: root.selection-pending;
+                enabled: root.installed && root.adapter-ready && !root.selected && !root.selection-pending;
                 activated => { root.select-provider(root.kind); }
             }
 
-            LocalModelSummaryPill { x: 24px; y: 80px; icon: @image-url("../../icons/lucide/monitor.svg"); label: @tr("models.asr.summary.local-processing" => "Local"); }
-            LocalModelSummaryPill { x: 153px; y: 80px; icon: @image-url("../../icons/lucide/globe.svg"); label: @tr("models.asr.summary.no-network" => "Offline"); }
-            LocalModelSummaryPill { x: 281px; y: 80px; icon: @image-url("../../icons/lucide/book-open.svg"); label: @tr("models.asr.summary.simplified-chinese" => "Chinese"); }
-            LocalModelSummaryPill { x: 410px; y: 80px; icon: @image-url("../../icons/lucide/file-text.svg"); label: @tr("models.asr.summary.free" => "Free"); }
+            detail-body := Flickable {
+                x: 0px;
+                y: 72px;
+                width: dialog.panel-width;
+                height: dialog.panel-height - 88px;
+                viewport-width: self.width;
+                viewport-height: max(self.height, usage-tip.y + usage-tip.height + 12px);
+                interactive: self.viewport-height > self.height;
 
-            Rectangle {
+            LocalModelSummaryPill { x: 24px; y: 8px; icon: @image-url("../../icons/lucide/monitor.svg"); label: @tr("models.asr.summary.local-processing" => "Local"); }
+            LocalModelSummaryPill { x: 153px; y: 8px; icon: @image-url("../../icons/lucide/globe.svg"); label: @tr("models.asr.summary.no-network" => "Offline"); }
+            LocalModelSummaryPill {
+                x: 281px;
+                y: 8px;
+                icon: @image-url("../../icons/lucide/book-open.svg");
+                label: root.kind == AsrProviderCardKind.paraformer
+                    ? @tr("models.asr.summary.chinese-english" => "ZH · EN")
+                    : root.kind == AsrProviderCardKind.whisper-large-v3-turbo
+                        ? @tr("models.asr.summary.multilingual" => "Multilingual")
+                    : root.kind == AsrProviderCardKind.qwen3-asr
+                        ? @tr("models.asr.summary.chinese-dialects" => "ZH · Dialects")
+                    : @tr("models.asr.summary.five-languages" => "ZH · EN · JA · KO · YUE");
+            }
+            LocalModelSummaryPill { x: 410px; y: 8px; icon: @image-url("../../icons/lucide/file-text.svg"); label: root.output-mode; }
+
+            metrics := Rectangle {
                 x: 28px;
-                y: 140px;
+                y: root.kind == AsrProviderCardKind.paraformer ? 61px : 68px;
                 width: 486px;
                 height: 52px;
                 background: transparent;
@@ -322,7 +488,7 @@ export component LocalAsrModelModal inherits Rectangle {
                     height: parent.height;
                     content-offset: 12px;
                     icon: @image-url("../../icons/lucide/download.svg");
-                    label: @tr("models.asr.local.download-size" => "Download size");
+                    label: @tr("models.asr.local.download-size" => "Download");
                     value: root.download-size;
                 }
                 LocalModelMetric {
@@ -331,9 +497,12 @@ export component LocalAsrModelModal inherits Rectangle {
                     height: parent.height;
                     content-offset: 31px;
                     icon: @image-url("../../icons/lucide/memory-stick.svg");
-                    label: @tr("models.asr.local.memory" => "Runtime memory");
+                    label: root.showing-live-memory
+                        ? @tr("models.asr.local.memory-current" => "Memory")
+                        : @tr("models.asr.local.memory" => "Memory");
                     value: root.memory-display;
                     live-value: root.showing-live-memory;
+                    muted-value: root.selection-pending;
                 }
                 LocalModelMetric {
                     x: parent.width * 2 / 3;
@@ -341,7 +510,7 @@ export component LocalAsrModelModal inherits Rectangle {
                     height: parent.height;
                     content-offset: 76px;
                     icon: @image-url("../../icons/lucide/badge-check.svg");
-                    label: @tr("models.asr.local.compatibility" => "Compatibility");
+                    label: @tr("models.asr.local.compatibility" => "Device");
                     value: root.adapter-ready
                         ? @tr("models.asr.status.supported" => "Supported")
                         : @tr("models.asr.placeholder.unverified" => "Unverified");
@@ -349,84 +518,360 @@ export component LocalAsrModelModal inherits Rectangle {
                 }
             }
 
-            Rectangle {
+            if root.kind == AsrProviderCardKind.paraformer: Text {
+                x: 40px;
+                y: 144px;
+                text: @tr("models.asr.local.model-settings" => "Model settings");
+                color: AppColors.text-muted;
+                font-size: 12px;
+                font-weight: 500;
+            }
+
+            model-files := Rectangle {
                 x: 28px;
-                y: 204px;
+                y: root.kind == AsrProviderCardKind.paraformer ? 166px : 132px;
                 width: 486px;
                 height: 78px;
                 background: transparent;
 
-                Image { x: 0px; y: 10px; width: 15px; height: 15px; source: @image-url("../../icons/lucide/package-check.svg"); colorize: AppColors.text-muted; }
-                Text { x: 23px; y: 9px; text: @tr("models.asr.local.model-files" => "Model files"); color: AppColors.text; font-size: 11px; font-weight: 700; }
-                Text { x: 23px; y: 31px; width: 330px; text: root.model-status; color: AppColors.ink; font-size: 10px; font-weight: 600; overflow: elide; }
-                Text { x: 23px; y: 51px; width: 330px; text: root.model-detail; color: AppColors.text-muted; font-size: 8px; overflow: elide; }
-                LocalModelActionButton {
+                Image { x: 12px; y: 10px; width: 15px; height: 15px; source: @image-url("../../icons/lucide/package-check.svg"); colorize: AppColors.text-muted; }
+                Text { x: 34px; y: 9px; text: @tr("models.asr.local.model-files" => "Files"); color: AppColors.text; font-size: 11px; font-weight: 700; }
+                model-action := LocalModelActionButton {
                     x: 380px;
                     y: 13px;
+                    visible: !root.cancelling;
                     label: root.action-label;
+                    hover-label: root.downloading ? @tr("models.asr.local.pause" => "Pause") : "";
                     enabled: root.action-enabled;
-                    primary: !root.installed && !root.downloading;
+                    primary: !root.installed && !root.downloading && !root.paused;
                     pending: root.downloading;
                     danger: root.installed && !root.selected;
                     activated => {
                         if root.installed { root.delete-requested(root.kind); }
+                        else if root.downloading { root.pause-requested(root.kind); }
                         else { root.download-requested(root.kind); }
                     }
                 }
-                if root.downloading: Rectangle {
+                if root.downloading || root.paused: Rectangle {
+                    x: 328px;
+                    y: 13px;
+                    width: 46px;
+                    height: 32px;
+                    background: transparent;
+                    accessible-role: button;
+                    accessible-label: @tr("models.asr.local.cancel" => "Cancel");
+                    accessible-action-default => { root.cancel-download-requested(root.kind); }
+                    Text {
+                        width: parent.width;
+                        height: parent.height;
+                        text: @tr("models.asr.local.cancel" => "Cancel");
+                        color: cancel-touch.has-hover ? AppColors.danger : AppColors.text-muted;
+                        font-size: 10px;
+                        font-weight: 650;
+                        horizontal-alignment: right;
+                        vertical-alignment: center;
+                    }
+                    cancel-touch := TouchArea {
+                        mouse-cursor: pointer;
+                        clicked => { root.cancel-download-requested(root.kind); }
+                    }
+                }
+                Text { x: 34px; y: 31px; width: max(0px, model-action.x - 46px); text: root.model-status; color: AppColors.ink; font-size: 10px; font-weight: 600; overflow: elide; }
+                Text { x: 34px; y: 51px; width: max(0px, model-action.x - 46px); text: root.model-detail; color: root.operation-error != "" ? AppColors.danger : AppColors.text-muted; font-size: 8px; overflow: elide; }
+                if root.downloading || root.paused: Rectangle {
                     x: 380px;
                     y: 53px;
                     width: 90px;
                     height: 4px;
                     border-radius: 2px;
                     background: AppColors.selected;
+                    clip: true;
 
                     Rectangle {
+                        x: 0px;
+                        y: 0px;
                         width: parent.width * root.bounded-progress;
                         height: parent.height;
                         border-radius: 2px;
                         background: AppColors.brand;
+                        animate width { duration: 180ms; easing: ease-out; }
                     }
+                }
+                if root.cancelling: LocalModelActionButton {
+                    x: 380px;
+                    y: 43px;
+                    label: @tr("models.asr.local.cancelling" => "Cancelling");
+                    enabled: false;
+                    pending: true;
                 }
             }
 
             Rectangle {
+                visible: root.kind == AsrProviderCardKind.paraformer;
                 x: 28px;
-                y: 294px;
+                y: 246px;
                 width: 486px;
                 height: 96px;
-                border-radius: 8px;
-                background: AppColors.surface-subtle;
+                background: transparent;
 
-                Text { x: 16px; y: 12px; text: @tr("models.test.title" => "Recognition test"); color: AppColors.text; font-size: 11px; font-weight: 700; }
-                Text { x: 16px; y: 34px; text: @tr("models.test.fixed-audio" => "Fixed test audio 3.9 sec"); color: AppColors.text-muted; font-size: 9px; }
-                if root.test-succeeded || root.test-failed: Text {
-                    x: 16px;
-                    y: 70px;
-                    width: 350px;
-                    text: root.test-failed
-                        ? @tr("models.test.failed" => "Recognition failed")
-                        : root.test-result.is-empty
-                            ? @tr("models.test.succeeded" => "Recognition succeeded")
-                            : @tr("models.test.transcript" => "Transcript: {}", root.test-result);
-                    color: root.test-failed ? AppColors.danger : AppColors.success;
-                    font-size: 9px;
-                    font-weight: 650;
-                    overflow: elide;
+                Image { x: 12px; y: 12px; width: 14px; height: 14px; source: @image-url("../../icons/lucide/message-square-text.svg"); colorize: AppColors.text-muted; }
+                Text { x: 32px; y: 7px; text: @tr("models.asr.punctuation.title" => "Punctuation"); color: AppColors.text; font-size: 11px; font-weight: 700; }
+                Text {
+                    x: 32px; y: 31px; width: 300px;
+                    text: root.punctuation-mode == PunctuationMode.llm
+                        ? root.llm-enabled
+                            ? @tr("models.asr.punctuation.llm-enabled" => "LLM polishing is enabled")
+                            : @tr("models.asr.punctuation.llm-disabled" => "LLM is not enabled")
+                        : root.punctuation-download-state == LocalModelDownloadState.downloaded
+                            ? @tr("models.asr.punctuation.local-enabled" => "Local punctuation enabled")
+                            : @tr("models.asr.punctuation.local-missing" => "Local model not downloaded");
+                    color: root.punctuation-error != "" ? AppColors.danger
+                        : root.punctuation-mode == PunctuationMode.local && root.punctuation-download-state == LocalModelDownloadState.downloaded ? AppColors.success
+                        : root.punctuation-mode == PunctuationMode.llm && !root.llm-enabled ? AppColors.warning
+                        : AppColors.text;
+                    font-size: 10px; font-weight: 650; overflow: elide;
                 }
-                LocalModelActionButton {
-                    x: 380px;
-                    y: 12px;
-                    label: root.testing
-                        ? @tr("models.test.testing" => "Testing…")
-                        : @tr("models.test.action" => "Run test");
-                    enabled: root.test-ready && !root.testing;
-                    brand-outline: true;
-                    activated => { root.run-test(root.kind); }
+                punctuation-description := Text {
+                    x: 32px; y: 50px; width: 300px;
+                    height: root.punctuation-error != "" ? 20px : 10px;
+                    text: root.punctuation-error != "" ? root.punctuation-error
+                        : root.punctuation-mode == PunctuationMode.llm
+                            ? @tr("models.asr.punctuation.llm-description" => "LLM adds punctuation and improves sentence breaks.")
+                            : root.punctuation-download-state == LocalModelDownloadState.downloaded
+                                ? @tr("models.asr.punctuation.local-description" => "Offline · {} on disk{}", root.punctuation-installed-size, root.punctuation-runtime-live ? @tr("models.asr.punctuation.loaded" => " · loaded") : "")
+                                : @tr("models.asr.punctuation.download-description" => "Download {} to restore punctuation fully offline.", root.punctuation-download-size);
+                    color: AppColors.text-muted; font-size: 8px; wrap: word-wrap; overflow: elide;
+                }
+
+                Rectangle {
+                    x: 380px; y: 0px; width: 90px; height: 28px;
+                    border-radius: 14px; background: AppColors.surface-faint;
+                    Rectangle {
+                        x: root.punctuation-mode == PunctuationMode.llm ? 2px : 45px;
+                        y: 2px; width: 43px; height: 24px; border-radius: 12px;
+                        border-width: 1px; border-color: AppColors.border;
+                        background: AppColors.surface;
+                        animate x { duration: 150ms; easing: ease-out; }
+                    }
+                    Text { x: 0px; width: 45px; height: parent.height; text: "LLM"; color: root.punctuation-mode == PunctuationMode.llm ? AppColors.brand-strong : AppColors.text-muted; font-size: 9px; font-weight: 650; horizontal-alignment: center; vertical-alignment: center; }
+                    Text { x: 45px; width: 45px; height: parent.height; text: @tr("models.asr.punctuation.local" => "Local"); color: root.punctuation-mode == PunctuationMode.local ? AppColors.brand-strong : AppColors.text-muted; font-size: 9px; font-weight: 650; horizontal-alignment: center; vertical-alignment: center; }
+                    Rectangle {
+                        x: 0px; y: -8px; width: 45px; height: 44px; background: transparent;
+                        accessible-role: tab;
+                        accessible-label: "LLM";
+                        accessible-enabled: !root.punctuation-pending && root.punctuation-download-state != LocalModelDownloadState.downloading;
+                        accessible-action-default => {
+                            if !root.punctuation-pending && root.punctuation-download-state != LocalModelDownloadState.downloading {
+                                root.punctuation-mode-requested(PunctuationMode.llm);
+                            }
+                        }
+                        TouchArea { enabled: !root.punctuation-pending && root.punctuation-download-state != LocalModelDownloadState.downloading; mouse-cursor: self.enabled ? pointer : default; clicked => { root.punctuation-mode-requested(PunctuationMode.llm); } }
+                    }
+                    Rectangle {
+                        x: 45px; y: -8px; width: 45px; height: 44px; background: transparent;
+                        accessible-role: tab;
+                        accessible-label: @tr("models.asr.punctuation.local" => "Local");
+                        accessible-enabled: !root.punctuation-pending && root.punctuation-download-state != LocalModelDownloadState.downloading;
+                        accessible-action-default => {
+                            if !root.punctuation-pending && root.punctuation-download-state != LocalModelDownloadState.downloading {
+                                root.punctuation-mode-requested(PunctuationMode.local);
+                            }
+                        }
+                        TouchArea { enabled: !root.punctuation-pending && root.punctuation-download-state != LocalModelDownloadState.downloading; mouse-cursor: self.enabled ? pointer : default; clicked => { root.punctuation-mode-requested(PunctuationMode.local); } }
+                    }
+                }
+                if root.punctuation-mode == PunctuationMode.llm && !root.llm-enabled: Rectangle {
+                    x: 380px; y: 31px; width: 90px; height: 44px; background: transparent;
+                    accessible-role: button;
+                    accessible-label: @tr("models.asr.punctuation.open-llm" => "Enable LLM");
+                    accessible-action-default => { root.open-llm-settings(); }
+                    Text { x: 5px; y: 8px; width: 45px; height: 28px; text: @tr("models.asr.punctuation.open-llm" => "Enable LLM"); color: AppColors.brand-strong; font-size: 10px; font-weight: 650; horizontal-alignment: right; vertical-alignment: center; }
+                    Image { x: 58px; y: 16px; width: 12px; height: 12px; source: @image-url("../../icons/lucide/arrow-right.svg"); colorize: AppColors.brand; }
+                    TouchArea { mouse-cursor: pointer; clicked => { root.open-llm-settings(); } }
+                }
+                if root.punctuation-mode == PunctuationMode.local && root.punctuation-download-state != LocalModelDownloadState.downloaded: LocalModelActionButton {
+                    x: 380px; y: 42px; height: 28px;
+                    label: root.punctuation-download-state == LocalModelDownloadState.downloading
+                        ? @tr("models.asr.local.downloading-percent" => "Downloading {}%", round(root.punctuation-download-progress * 100))
+                        : @tr("models.asr.punctuation.download-enable" => "Download & enable");
+                    primary: root.punctuation-download-state != LocalModelDownloadState.downloading;
+                    pending: root.punctuation-download-state == LocalModelDownloadState.downloading;
+                    enabled: !root.punctuation-pending && root.punctuation-download-state != LocalModelDownloadState.downloading;
+                    activated => { root.punctuation-download-requested(); }
+                }
+                if root.punctuation-mode == PunctuationMode.local && root.punctuation-download-state == LocalModelDownloadState.downloaded: Rectangle {
+                    x: 380px; y: 42px; width: 90px; height: 28px; background: transparent;
+                    Text { width: parent.width; height: parent.height; text: @tr("models.asr.punctuation.delete" => "Delete local model"); color: delete-punctuation.has-hover ? AppColors.danger : AppColors.text-muted; font-size: 9px; horizontal-alignment: center; vertical-alignment: center; }
+                    delete-punctuation := TouchArea { mouse-cursor: pointer; clicked => { root.punctuation-delete-requested(); } }
+                }
+            }
+
+            recognition-test := RecognitionTestPanel {
+                x: 28px;
+                y: root.kind == AsrProviderCardKind.paraformer
+                    ? 336px
+                    : 222px;
+                width: 486px;
+                background: AppColors.surface-faint;
+                testing: root.testing;
+                succeeded: root.test-succeeded;
+                failed: root.test-failed;
+                ready: root.test-ready;
+                elapsed: root.test-elapsed;
+                transcript: root.test-result;
+                activated => { root.run-test(root.kind); }
+            }
+
+            usage-tip := Text {
+                x: 28px;
+                y: root.kind == AsrProviderCardKind.paraformer
+                    ? recognition-test.y + recognition-test.height + 10px
+                    : 330px;
+                width: dialog.panel-width - 56px;
+                height: root.kind == AsrProviderCardKind.paraformer ? 20px : 36px;
+                text: root.usage-tip;
+                color: AppColors.text;
+                font-size: 10px;
+                vertical-alignment: center;
+                wrap: word-wrap;
+            }
+            }
+
+            if detail-body.viewport-height > detail-body.height: Rectangle {
+                x: dialog.panel-width - 12px;
+                y: detail-body.y + 8px;
+                width: 3px;
+                height: detail-body.height - 16px;
+                border-radius: 1.5px;
+                background: AppColors.border;
+                opacity: scroll-touch.has-hover || scroll-touch.pressed ? 0.9 : 0.55;
+                animate opacity { duration: 120ms; easing: ease-out; }
+
+                scroll-thumb := Rectangle {
+                    x: 0px;
+                    width: parent.width;
+                    height: max(32px, parent.height * detail-body.height / detail-body.viewport-height);
+                    y: (0px - detail-body.viewport-y) / (detail-body.viewport-height - detail-body.height) * (parent.height - self.height);
+                    border-radius: 1.5px;
+                    background: AppColors.chart-neutral;
+                }
+                scroll-touch := TouchArea {
+                    property <length> saved-mouse-y;
+                    property <length> saved-viewport-y;
+                    x: -5px;
+                    width: parent.width + 10px;
+                    mouse-cursor: pointer;
+                    pointer-event(event) => {
+                        if event.button == PointerEventButton.left && event.kind == PointerEventKind.down {
+                            self.saved-mouse-y = self.mouse-y;
+                            self.saved-viewport-y = detail-body.viewport-y;
+                        }
+                    }
+                    moved => {
+                        if self.pressed {
+                            detail-body.viewport-y = max(
+                                detail-body.height - detail-body.viewport-height,
+                                min(
+                                    0px,
+                                    self.saved-viewport-y - (self.mouse-y - self.saved-mouse-y)
+                                        * (detail-body.viewport-height - detail-body.height)
+                                        / (parent.height - scroll-thumb.height)
+                                )
+                            );
+                        }
+                    }
                 }
             }
         }
     }
+    Timer {
+        interval: 2s;
+        running: root.showing-live-memory;
+        triggered => { root.refresh-runtime-memory(root.kind); }
+    }
     init => { modal-focus.focus(); }
-    changed visible => { if root.visible { modal-focus.focus(); } }
+    changed kind => { detail-body.viewport-y = 0px; }
+    changed visible => { if root.visible { detail-body.viewport-y = 0px; modal-focus.focus(); } }
+}
+
+export component LocalModelDownloadFailureDialog inherits Rectangle {
+    in property <string> detail;
+    in property <bool> insufficient-space: false;
+    callback retry();
+    callback later();
+    callback manage-space();
+
+    failure-focus := FocusScope {
+        width: parent.width;
+        height: parent.height;
+        capture-key-pressed(event) => {
+            if event.text == Key.Escape { root.later(); return accept; }
+            return reject;
+        }
+
+        failure-shell := ModalShell {
+            width: parent.width;
+            height: parent.height;
+            size: ModalSize.compact;
+            close-requested => { root.later(); }
+
+            Rectangle {
+                x: 24px;
+                y: 22px;
+                width: 38px;
+                height: 38px;
+                border-radius: 8px;
+                background: AppColors.danger-soft;
+                Image {
+                    x: 9px;
+                    y: 9px;
+                    width: 20px;
+                    height: 20px;
+                    source: @image-url("../../icons/lucide/circle-alert.svg");
+                    colorize: AppColors.danger;
+                }
+            }
+            Text {
+                x: 76px;
+                y: 20px;
+                width: failure-shell.panel-width - 136px;
+                text: @tr("models.asr.local.download-failure.title" => "Model download failed");
+                color: AppColors.ink;
+                font-size: 18px;
+                font-weight: 700;
+                overflow: elide;
+            }
+            Text {
+                x: 24px;
+                y: 78px;
+                width: failure-shell.panel-width - 48px;
+                height: 62px;
+                text: root.detail;
+                color: AppColors.text-muted;
+                font-size: 10px;
+                wrap: word-wrap;
+                overflow: elide;
+            }
+            if root.insufficient-space: LocalModelActionButton {
+                x: 24px;
+                y: failure-shell.panel-height - 54px;
+                label: @tr("models.asr.local.download-failure.manage-space" => "Manage space");
+                activated => { root.manage-space(); }
+            }
+            later-button := LocalModelActionButton {
+                x: retry-button.x - self.width - 12px;
+                y: failure-shell.panel-height - 54px;
+                label: @tr("models.asr.local.download-failure.later" => "Later");
+                activated => { root.later(); }
+            }
+            retry-button := LocalModelActionButton {
+                x: failure-shell.panel-width - self.width - 24px;
+                y: failure-shell.panel-height - 54px;
+                label: @tr("models.asr.local.download-failure.retry" => "Continue download");
+                primary: true;
+                activated => { root.retry(); }
+            }
+        }
+    }
+    init => { failure-focus.focus(); }
 }

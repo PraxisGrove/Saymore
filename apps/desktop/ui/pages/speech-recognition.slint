@@ -16,6 +16,19 @@ export component SpeechRecognitionPage inherits Rectangle {
     in property <[AsrProviderCardSpec]> provider-cards;
     in property <bool> macos-speech-selected: false;
     in property <SystemSpeechStatus> macos-speech-status: SystemSpeechStatus.unavailable;
+    in property <bool> paraformer-downloaded: false;
+    in property <string> paraformer-installed-size;
+    in property <bool> paraformer-selected: false;
+    in property <bool> whisper-downloaded: false;
+    in property <string> whisper-installed-size;
+    in property <bool> whisper-selected: false;
+    in property <bool> qwen3-downloaded: false;
+    in property <string> qwen3-installed-size;
+    in property <bool> qwen3-selected: false;
+    in property <bool> sense-voice-downloaded: false;
+    in property <string> sense-voice-installed-size;
+    in property <bool> sense-voice-selected: false;
+    in property <bool> cloud-provider-selected: false;
     in-out property <AsrProvider> provider: AsrProvider.volcengine;
     in property <AsrProvider> active-provider: AsrProvider.volcengine;
     in-out property <string> volcengine-api-key;
@@ -25,7 +38,6 @@ export component SpeechRecognitionPage inherits Rectangle {
     in-out property <string> custom-base-url;
     in-out property <string> custom-model;
     in property <bool> custom-configured: false;
-    in property <bool> active-configured: false;
     in property <bool> config-error: false;
     in-out property <bool> draft-error: false;
     in property <string> config-status;
@@ -37,6 +49,11 @@ export component SpeechRecognitionPage inherits Rectangle {
     callback open-config(AsrProvider);
     callback open-macos-speech-details();
     callback open-placeholder-details(AsrProviderCardKind);
+
+    private property <int> provider-row-count: (root.provider-cards.length + 1) / 2;
+    private property <length> provider-content-height: root.provider-row-count == 0
+        ? 0px
+        : root.provider-row-count * 108px - 12px;
 
     background: transparent;
     init => {
@@ -52,12 +69,14 @@ export component SpeechRecognitionPage inherits Rectangle {
         width: parent.width;
         height: parent.height;
         viewport-width: self.width;
-        viewport-height: max(self.height, ((root.provider-cards.length + 1) / 2) * 120px);
+        viewport-height: max(self.height, root.provider-content-height);
 
         for card[card-index] in root.provider-cards: AsrProviderCard {
             x: Math.mod(card-index, 2) == 0 ? 0px : (provider-list.viewport-width + 16px) / 2;
-            y: Math.floor(card-index / 2) * 120px;
+            y: Math.floor(card-index / 2) * 108px;
             width: (provider-list.viewport-width - 16px) / 2;
+            recommended: card.kind == AsrProviderCardKind.paraformer
+                || card.kind == AsrProviderCardKind.volcengine;
             logo: card.kind == AsrProviderCardKind.saymore-cloud
                 ? @image-url("../../icons/saymore-mark-3d-136.png")
                 : card.kind == AsrProviderCardKind.macos-dictation
@@ -72,6 +91,8 @@ export component SpeechRecognitionPage inherits Rectangle {
                         ? @image-url("../../icons/providers/openai.png")
                         : card.kind == AsrProviderCardKind.qwen3-asr
                             ? @image-url("../../icons/providers/qwen.png")
+                        : card.kind == AsrProviderCardKind.sense-voice-small
+                            ? @image-url("../../icons/providers/funasr.png")
                             : @image-url("../../icons/lucide/plus.svg");
             logo-size: card.kind == AsrProviderCardKind.saymore-cloud
                 || card.kind == AsrProviderCardKind.macos-dictation
@@ -109,11 +130,13 @@ export component SpeechRecognitionPage inherits Rectangle {
                         : card.kind == AsrProviderCardKind.volcengine
                 ? @tr("models.provider.volcengine" => "Volcengine")
                 : card.kind == AsrProviderCardKind.paraformer
-                    ? "Paraformer"
+                    ? "Paraformer-zh"
                     : card.kind == AsrProviderCardKind.whisper-large-v3-turbo
                         ? "Whisper large-v3-turbo"
                         : card.kind == AsrProviderCardKind.qwen3-asr
                             ? "Qwen3-ASR 1.7B"
+                        : card.kind == AsrProviderCardKind.sense-voice-small
+                            ? "SenseVoiceSmall"
                             : @tr("models.provider.custom-compatible" => "Custom compatible API");
             summary: card.kind == AsrProviderCardKind.saymore-cloud
                 ? @tr("models.asr.summary.saymore-cloud-unavailable" => "Cloud service adapter is not yet connected")
@@ -137,9 +160,49 @@ export component SpeechRecognitionPage inherits Rectangle {
                     ? root.custom-configured
                         ? @tr("models.asr.summary.custom-configured" => "Address and credentials configured")
                         : @tr("models.asr.summary.custom" => "Base URL, API key, and model")
+                    : card.kind == AsrProviderCardKind.paraformer
+                        ? root.paraformer-downloaded
+                            ? @tr("models.asr.local.status.downloaded" => "Downloaded · {}", root.paraformer-installed-size)
+                            : @tr("models.asr.local.download-ready" => "Download to use this model offline")
+                    : card.kind == AsrProviderCardKind.whisper-large-v3-turbo
+                        ? root.whisper-downloaded
+                            ? @tr("models.asr.local.status.downloaded" => "Downloaded · {}", root.whisper-installed-size)
+                            : @tr("models.asr.local.download-ready" => "Download to use this model offline")
+                    : card.kind == AsrProviderCardKind.qwen3-asr
+                        ? root.qwen3-downloaded
+                            ? @tr("models.asr.local.status.downloaded" => "Downloaded · {}", root.qwen3-installed-size)
+                            : @tr("models.asr.local.download-ready" => "Download to use this model offline")
+                    : card.kind == AsrProviderCardKind.sense-voice-small
+                        ? root.sense-voice-downloaded
+                            ? @tr("models.asr.local.status.downloaded" => "Downloaded · {}", root.sense-voice-installed-size)
+                            : @tr("models.asr.local.download-ready" => "Download to use this model offline")
                     : @tr("models.asr.summary.local-unavailable" => "Download and production adapter are not yet connected");
             status: !card.available
                 ? @tr("models.asr.status.unavailable" => "Unavailable")
+                : card.kind == AsrProviderCardKind.paraformer
+                    ? root.paraformer-selected
+                        ? @tr("models.asr.status.current" => "Current")
+                        : root.paraformer-downloaded
+                            ? @tr("models.asr.status.available" => "Available")
+                            : @tr("models.asr.local.download" => "Download")
+                : card.kind == AsrProviderCardKind.whisper-large-v3-turbo
+                    ? root.whisper-selected
+                        ? @tr("models.asr.status.current" => "Current")
+                        : root.whisper-downloaded
+                            ? @tr("models.asr.status.available" => "Available")
+                            : @tr("models.asr.local.download" => "Download")
+                : card.kind == AsrProviderCardKind.qwen3-asr
+                    ? root.qwen3-selected
+                        ? @tr("models.asr.status.current" => "Current")
+                        : root.qwen3-downloaded
+                            ? @tr("models.asr.status.available" => "Available")
+                            : @tr("models.asr.local.download" => "Download")
+                : card.kind == AsrProviderCardKind.sense-voice-small
+                    ? root.sense-voice-selected
+                        ? @tr("models.asr.status.current" => "Current")
+                        : root.sense-voice-downloaded
+                            ? @tr("models.asr.status.available" => "Available")
+                            : @tr("models.asr.local.download" => "Download")
                 : card.kind == AsrProviderCardKind.macos-dictation
                     ? root.macos-speech-status == SystemSpeechStatus.permission-required
                         ? @tr("models.asr.status.authorize" => "Authorize")
@@ -152,14 +215,14 @@ export component SpeechRecognitionPage inherits Rectangle {
                                     : @tr("models.asr.status.available" => "Available")
                                 : @tr("models.asr.status.unavailable" => "Unavailable")
                 : card.kind == AsrProviderCardKind.volcengine
-                    ? !root.macos-speech-selected && root.active-provider == AsrProvider.volcengine && root.volcengine-configured
+                    ? root.cloud-provider-selected && root.active-provider == AsrProvider.volcengine && root.volcengine-configured
                         ? @tr("models.asr.status.current" => "Current")
-                        : root.config-error && root.active-provider == AsrProvider.volcengine
+                        : root.cloud-provider-selected && root.config-error && root.active-provider == AsrProvider.volcengine
                             ? @tr("models.status.connection-failed.plain" => "Connection issue")
                             : root.volcengine-configured
                                 ? @tr("models.asr.status.available" => "Available")
                                 : @tr("models.status.not-configured.plain" => "Not configured")
-                    : !root.macos-speech-selected && root.active-provider == AsrProvider.custom && root.custom-configured
+                    : root.cloud-provider-selected && root.active-provider == AsrProvider.custom && root.custom-configured
                         ? @tr("models.asr.status.current" => "Current")
                         : root.custom-configured
                             ? @tr("models.asr.status.available" => "Available")
@@ -172,16 +235,32 @@ export component SpeechRecognitionPage inherits Rectangle {
                 : card.kind == AsrProviderCardKind.macos-dictation && root.macos-speech-selected
                     && root.macos-speech-status == SystemSpeechStatus.ready
                     ? ProviderStatusTone.active
-                : root.config-error && card.kind == AsrProviderCardKind.volcengine
+                : card.kind == AsrProviderCardKind.paraformer && root.paraformer-selected
+                    ? ProviderStatusTone.active
+                : card.kind == AsrProviderCardKind.whisper-large-v3-turbo && root.whisper-selected
+                    ? ProviderStatusTone.active
+                : card.kind == AsrProviderCardKind.qwen3-asr && root.qwen3-selected
+                    ? ProviderStatusTone.active
+                : card.kind == AsrProviderCardKind.sense-voice-small && root.sense-voice-selected
+                    ? ProviderStatusTone.active
+                : root.cloud-provider-selected && root.config-error && card.kind == AsrProviderCardKind.volcengine
                     && root.active-provider == AsrProvider.volcengine
                     ? ProviderStatusTone.error
-                    : !root.macos-speech-selected && ((card.kind == AsrProviderCardKind.volcengine && root.active-provider == AsrProvider.volcengine && root.volcengine-configured)
+                    : root.cloud-provider-selected && ((card.kind == AsrProviderCardKind.volcengine && root.active-provider == AsrProvider.volcengine && root.volcengine-configured)
                         || (card.kind == AsrProviderCardKind.custom && root.active-provider == AsrProvider.custom && root.custom-configured))
                         ? ProviderStatusTone.active : ProviderStatusTone.neutral;
             selected: (card.kind == AsrProviderCardKind.macos-dictation && root.macos-speech-selected)
-                || (!root.macos-speech-selected && card.kind == AsrProviderCardKind.volcengine && root.active-provider == AsrProvider.volcengine)
-                || (!root.macos-speech-selected && card.kind == AsrProviderCardKind.custom && root.active-provider == AsrProvider.custom);
+                || (card.kind == AsrProviderCardKind.paraformer && root.paraformer-selected)
+                || (card.kind == AsrProviderCardKind.whisper-large-v3-turbo && root.whisper-selected)
+                || (card.kind == AsrProviderCardKind.qwen3-asr && root.qwen3-selected)
+                || (card.kind == AsrProviderCardKind.sense-voice-small && root.sense-voice-selected)
+                || (root.cloud-provider-selected && card.kind == AsrProviderCardKind.volcengine && root.active-provider == AsrProvider.volcengine)
+                || (root.cloud-provider-selected && card.kind == AsrProviderCardKind.custom && root.active-provider == AsrProvider.custom);
             available: card.available && !self.selected && ((card.kind == AsrProviderCardKind.macos-dictation && root.macos-speech-status == SystemSpeechStatus.ready)
+                || (card.kind == AsrProviderCardKind.paraformer && root.paraformer-downloaded)
+                || (card.kind == AsrProviderCardKind.whisper-large-v3-turbo && root.whisper-downloaded)
+                || (card.kind == AsrProviderCardKind.qwen3-asr && root.qwen3-downloaded)
+                || (card.kind == AsrProviderCardKind.sense-voice-small && root.sense-voice-downloaded)
                 || (card.kind == AsrProviderCardKind.volcengine && root.volcengine-configured)
                 || (card.kind == AsrProviderCardKind.custom && root.custom-configured));
             enabled: true;

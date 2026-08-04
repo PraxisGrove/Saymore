@@ -62,6 +62,10 @@ impl AppPaths {
         self.data_directory.join("config.json")
     }
 
+    pub fn models_directory(&self) -> PathBuf {
+        self.data_directory.join("models")
+    }
+
     #[cfg(target_os = "macos")]
     pub(crate) fn development_history_key(&self) -> PathBuf {
         self.data_directory.join("history-data-key")

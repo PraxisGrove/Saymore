@@ -37,9 +37,6 @@ installer-icon = "icons/icon.ico"
 header-image = "packaging/windows/nsis-header.bmp"
 sidebar-image = "packaging/windows/nsis-sidebar.bmp"
 
-[features]
-history-experiments = ["template-app/history-experiments"]
-
 [[test]]
 name = "i18n_runtime"
 harness = false
@@ -65,6 +62,9 @@ windows = { workspace = true, features = [
     "Win32_System_LibraryLoader",
     "Win32_UI_WindowsAndMessaging",
 ] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+mach2 = { workspace = true }
 
 [dependencies]
 slint = { workspace = true }

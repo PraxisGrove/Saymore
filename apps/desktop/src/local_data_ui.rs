@@ -17,6 +17,8 @@ use crate::ui::{
 };
 use crate::{RecorderHandle, local_settings_runtime::LocalSettingsHandle};
 
+mod dictionary_assist;
+mod dictionary_edit;
 mod dictionary_ui;
 mod history_query;
 mod local_settings;
@@ -42,6 +44,7 @@ struct UiDataState {
 pub fn wire(
     ui: &AppWindow,
     storage: Arc<SqliteStorage>,
+    provider_settings: Arc<template_infra::JsonSettingsStore>,
     recorder: RecorderHandle,
     settings: LocalSettingsHandle,
 ) {
@@ -54,12 +57,14 @@ pub fn wire(
     load_initial(ui, &storage, &dictionary_state);
     wire_history(ui, Arc::clone(&storage), Arc::clone(&state));
     dictionary_ui::wire(ui, Arc::clone(&storage), dictionary_state);
+    let dictionary_assist = dictionary_assist::wire(ui, Arc::clone(&storage), provider_settings);
     wire_local_settings(
         ui,
         Arc::clone(&storage),
         Arc::clone(&state),
         settings,
         Arc::clone(&recorder),
+        dictionary_assist,
     );
     refresh_microphone_devices_async(ui.as_weak(), Arc::clone(&storage), recorder);
     schedule_history_cleanup(ui.as_weak(), storage, state);

@@ -1,13 +1,13 @@
 use std::sync::Arc;
 
 use slint::{ComponentHandle, SharedString};
-use template_app::LlmProviderPreset;
 #[cfg(any(target_os = "macos", test))]
 use template_app::ProviderConfigStore;
+use template_app::{LlmProviderPreset, provider_is_local};
 #[cfg(target_os = "macos")]
 use template_app::{MicrophoneAuthorization, MicrophonePermissionProvider};
 #[cfg(test)]
-use template_app::{ProviderCatalog, ProviderInstance};
+use template_app::{ProviderCatalog, ProviderInstance, llm_consent_required};
 #[cfg(test)]
 use template_infra::AppEnvironment;
 use template_infra::JsonSettingsStore;
@@ -30,6 +30,7 @@ mod llm_configuration;
 mod llm_enablement;
 mod loaded_settings;
 mod model_discovery;
+mod provider_connection;
 mod provider_key_page;
 #[cfg(test)]
 mod regression_tests;
@@ -37,9 +38,9 @@ mod regression_tests;
 #[cfg(test)]
 use asr_configuration::{AsrConfigError, save_asr_configuration, save_custom_asr_configuration};
 use asr_configuration::{volcengine_api_key_is_valid, volcengine_model_id};
-use llm_enablement::{llm_configuration_ready, provider_is_local};
+use llm_enablement::llm_configuration_ready;
 #[cfg(test)]
-use llm_enablement::{llm_consent_required, persist_llm_consent, test_and_enable_llm};
+use llm_enablement::{persist_llm_consent, test_and_enable_llm};
 use loaded_settings::apply_loaded_settings;
 
 const VOLCENGINE_ASR_1_MODEL: &str = "volc.bigasr.sauc.duration";
@@ -53,6 +54,16 @@ fn provider_preset(provider: UiLlmProvider) -> LlmProviderPreset {
     match provider {
         UiLlmProvider::Sensenova => LlmProviderPreset::SenseNova,
         UiLlmProvider::Deepseek => LlmProviderPreset::DeepSeek,
+        UiLlmProvider::Qwen => LlmProviderPreset::Qwen,
+        UiLlmProvider::VolcengineArk => LlmProviderPreset::VolcengineArk,
+        UiLlmProvider::Openai => LlmProviderPreset::OpenAi,
+        UiLlmProvider::Kimi => LlmProviderPreset::Kimi,
+        UiLlmProvider::Gemini => LlmProviderPreset::Gemini,
+        UiLlmProvider::Openrouter => LlmProviderPreset::OpenRouter,
+        UiLlmProvider::ZhipuGlm => LlmProviderPreset::ZhipuGlm,
+        UiLlmProvider::Minimax => LlmProviderPreset::MiniMax,
+        UiLlmProvider::Siliconflow => LlmProviderPreset::SiliconFlow,
+        UiLlmProvider::Stepfun => LlmProviderPreset::StepFun,
         UiLlmProvider::Custom => LlmProviderPreset::Custom,
     }
 }
@@ -61,6 +72,16 @@ fn ui_provider(provider: LlmProviderPreset) -> UiLlmProvider {
     match provider {
         LlmProviderPreset::SenseNova => UiLlmProvider::Sensenova,
         LlmProviderPreset::DeepSeek => UiLlmProvider::Deepseek,
+        LlmProviderPreset::Qwen => UiLlmProvider::Qwen,
+        LlmProviderPreset::VolcengineArk => UiLlmProvider::VolcengineArk,
+        LlmProviderPreset::OpenAi => UiLlmProvider::Openai,
+        LlmProviderPreset::Kimi => UiLlmProvider::Kimi,
+        LlmProviderPreset::Gemini => UiLlmProvider::Gemini,
+        LlmProviderPreset::OpenRouter => UiLlmProvider::Openrouter,
+        LlmProviderPreset::ZhipuGlm => UiLlmProvider::ZhipuGlm,
+        LlmProviderPreset::MiniMax => UiLlmProvider::Minimax,
+        LlmProviderPreset::SiliconFlow => UiLlmProvider::Siliconflow,
+        LlmProviderPreset::StepFun => UiLlmProvider::Stepfun,
         LlmProviderPreset::Custom => UiLlmProvider::Custom,
     }
 }
@@ -76,10 +97,23 @@ pub fn wire(ui: &AppWindow, store: Arc<JsonSettingsStore>) {
             apply_loaded_settings(&ui, &refresh_store);
         }
     });
-    model_discovery::wire(ui);
+    model_discovery::wire(ui, Arc::clone(&store));
     asr_configuration::wire(ui, Arc::clone(&store));
     wire_llm(ui, store);
     provider_key_page::wire(ui);
+}
+
+pub(crate) fn run_local_asr_test(
+    recognizer: &dyn template_app::StreamingSpeechRecognizer,
+) -> (
+    std::time::Duration,
+    Result<String, template_app::SpeechRecognitionError>,
+) {
+    asr_configuration::run_local_asr_test(recognizer)
+}
+
+pub(crate) fn reload_settings(ui: &AppWindow, store: &JsonSettingsStore) {
+    loaded_settings::apply_loaded_settings(ui, store);
 }
 
 #[cfg(target_os = "macos")]
@@ -325,7 +359,54 @@ mod tests {
             Some(provider_key_page::DEEPSEEK_KEY_PAGE),
             provider_key_page::url(1, UiLlmProvider::Deepseek)
         );
+        assert_eq!(
+            Some(provider_key_page::QWEN_KEY_PAGE),
+            provider_key_page::url(1, UiLlmProvider::Qwen)
+        );
+        assert_eq!(
+            Some(provider_key_page::VOLCENGINE_KEY_PAGE),
+            provider_key_page::url(1, UiLlmProvider::VolcengineArk)
+        );
+        assert_eq!(
+            Some(provider_key_page::OPENAI_KEY_PAGE),
+            provider_key_page::url(1, UiLlmProvider::Openai)
+        );
+        assert_eq!(
+            Some(provider_key_page::KIMI_KEY_PAGE),
+            provider_key_page::url(1, UiLlmProvider::Kimi)
+        );
+        assert_eq!(
+            Some(provider_key_page::GEMINI_KEY_PAGE),
+            provider_key_page::url(1, UiLlmProvider::Gemini)
+        );
+        assert_eq!(
+            Some(provider_key_page::OPENROUTER_KEY_PAGE),
+            provider_key_page::url(1, UiLlmProvider::Openrouter)
+        );
+        assert_eq!(
+            Some(provider_key_page::ZHIPU_KEY_PAGE),
+            provider_key_page::url(1, UiLlmProvider::ZhipuGlm)
+        );
+        assert_eq!(
+            Some(provider_key_page::MINIMAX_KEY_PAGE),
+            provider_key_page::url(1, UiLlmProvider::Minimax)
+        );
+        assert_eq!(
+            Some(provider_key_page::SILICONFLOW_KEY_PAGE),
+            provider_key_page::url(1, UiLlmProvider::Siliconflow)
+        );
+        assert_eq!(
+            Some(provider_key_page::STEPFUN_KEY_PAGE),
+            provider_key_page::url(1, UiLlmProvider::Stepfun)
+        );
         assert_eq!(None, provider_key_page::url(1, UiLlmProvider::Custom));
+    }
+
+    #[test]
+    fn all_llm_presets_round_trip_through_the_ui_provider_enum() {
+        for preset in LlmProviderPreset::ALL {
+            assert_eq!(preset, provider_preset(ui_provider(preset)));
+        }
     }
 
     #[test]

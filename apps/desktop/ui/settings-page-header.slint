@@ -3,6 +3,7 @@ import { AppColors } from "color-system.slint";
 export component SettingsPageHeader inherits Rectangle {
     in property <string> title;
     in property <string> detail;
+    in property <bool> left-aligned: false;
 
     height: 70px;
     background: transparent;
@@ -14,7 +15,7 @@ export component SettingsPageHeader inherits Rectangle {
         color: AppColors.ink;
         font-size: 25px;
         font-weight: 700;
-        horizontal-alignment: center;
+        horizontal-alignment: root.left-aligned ? left : center;
         vertical-alignment: center;
     }
     Text {
@@ -24,7 +25,7 @@ export component SettingsPageHeader inherits Rectangle {
         text: root.detail;
         color: AppColors.text-muted;
         font-size: 12px;
-        horizontal-alignment: center;
+        horizontal-alignment: root.left-aligned ? left : center;
         vertical-alignment: center;
     }
 }

@@ -1,26 +1,35 @@
 use std::{
     io,
+    path::PathBuf,
     sync::{Arc, Mutex},
 };
 
-use slint::ComponentHandle;
 use template_app::{
     AccessibilityAuthorization, CorrectionObservingTextDeliverer, DeliveryTargetPrivacy,
-    DictationCompletion, DictationCompletionAdapters, DictationCompletionClock,
-    DictationCompletionPolicy, DictationCompletionResult, DictationHandoff,
-    DictationHistoryMetadata, DictationHistoryPolicy, DictationPolicyError, DictationPolicySource,
-    DictationSessionId, DictionaryLearningOutcome, DictionaryLearningStore,
-    FinalTextProcessingError, FinalTextRequest, FinalTranscriptRefiner, LocalSettingsStore,
-    NewDictionaryObservation, ProviderCatalog, ProviderInstance, RefinementEvaluation,
-    TextDeliverer, TextDeliveryError, TextDeliveryOutcome, TextEditObserver, correction_from_edit,
+    DictationCompletion, DictationCompletionAdapters, DictationCompletionPolicy,
+    DictationCompletionResult, DictationHandoff, DictationHistoryMetadata, DictationHistoryPolicy,
+    DictationPolicyError, DictationPolicySource, DictationSessionId, FinalTextProcessingError,
+    FinalTextRequest, FinalTranscriptRefiner, LocalSettingsStore, ProviderCatalog,
+    ProviderInstance, RefinementEvaluation, TextDeliverer, TextDeliveryError, TextDeliveryOutcome,
+    TextRevisionEndReason, TextRevisionObserver,
 };
-use template_infra::{JsonSettingsStore, SqliteStorage, SystemClock, copy_text_to_clipboard};
+use template_infra::{
+    JsonSettingsStore, PARAFORMER_MODEL_ID, QWEN3_ASR_MODEL_ID, SENSE_VOICE_MODEL_ID,
+    SqliteStorage, SystemClock, WHISPER_MODEL_ID, copy_text_to_clipboard,
+};
 
 use crate::{
     asr_runtime::AsrSessionController,
     refinement_runtime::{ProcessingActivity, RefinementPlan, RefinementRuntime},
-    ui::{AppWindow, RecordingOverlay, Translations},
+    ui::{AppWindow, RecordingOverlay},
 };
+
+mod correction_observation;
+
+use correction_observation::{HistoryRevisionRecorder, history_was_saved, text_revision_observer};
+
+const MACOS_SPEECH_PROVIDER_ID: &str = "macos-speech";
+const MACOS_DICTATION_MODEL_ID: &str = "macos-dictation";
 
 #[derive(Clone)]
 pub(crate) struct DictationRuntime {
@@ -42,10 +51,15 @@ impl DictationRuntime {
         settings: Arc<JsonSettingsStore>,
         storage: Arc<SqliteStorage>,
         deliverer: Arc<dyn CorrectionObservingTextDeliverer>,
+        models_directory: PathBuf,
     ) -> Result<Self, io::Error> {
         let dictionary = storage.clone();
         Ok(Self {
-            asr: Arc::new(AsrSessionController::new(settings.clone(), dictionary)),
+            asr: Arc::new(AsrSessionController::new(
+                settings.clone(),
+                dictionary,
+                models_directory,
+            )),
             refinement: Arc::new(RefinementRuntime::new(settings.clone())?),
             storage,
             settings,
@@ -67,19 +81,33 @@ impl DictationRuntime {
             ui: context.ui.clone(),
             status_overlay: context.status_overlay.clone(),
         });
-        let observer = dictionary_edit_observer(
+        let history_revision = Arc::new(HistoryRevisionRecorder::new(
             id,
             Arc::clone(&self.storage),
-            context.ui,
-            Arc::clone(&self.refinement),
-        );
+            context.ui.clone(),
+        ));
+        let observer_factory: TextRevisionObserverFactory = Box::new({
+            let storage = Arc::clone(&self.storage);
+            let refinement = Arc::clone(&self.refinement);
+            let history_revision = Arc::clone(&history_revision);
+            move |original| {
+                text_revision_observer(
+                    original,
+                    id,
+                    storage,
+                    context.ui,
+                    refinement,
+                    history_revision,
+                )
+            }
+        });
         let deliverer = Arc::new(CompletionDeliverer::new(
             id,
             Arc::clone(&self.deliverer),
-            observer,
+            observer_factory,
             context.copy_to_clipboard,
         ));
-        DictationCompletion::new(DictationCompletionAdapters {
+        let result = DictationCompletion::new(DictationCompletionAdapters {
             policy: policy.clone(),
             restored_transcriber: self.asr.clone(),
             refiner: policy,
@@ -88,7 +116,13 @@ impl DictationRuntime {
             history: self.storage.clone(),
             clock: Arc::new(SystemClock),
         })
-        .complete(handoff)
+        .complete(handoff);
+        history_revision.finish(history_was_saved(&result));
+        result
+    }
+
+    pub(crate) fn finish_text_revision_observation(&self, reason: TextRevisionEndReason) {
+        self.deliverer.finish_observation(reason);
     }
 }
 
@@ -154,9 +188,23 @@ fn history_metadata(catalog: &ProviderCatalog) -> DictationHistoryMetadata {
     DictationHistoryMetadata {
         asr_provider_id: catalog.active.asr.clone(),
         llm_provider_id: catalog.active.llm.clone(),
-        asr_model: active_provider_model(catalog.active.asr.as_deref(), &catalog.asr_providers),
+        asr_model: active_asr_model(catalog.active.asr.as_deref(), &catalog.asr_providers),
         llm_model: active_provider_model(catalog.active.llm.as_deref(), &catalog.llm_providers),
     }
+}
+
+fn active_asr_model(active_id: Option<&str>, providers: &[ProviderInstance]) -> Option<String> {
+    active_provider_model(active_id, providers).or_else(|| {
+        let model = match active_id? {
+            MACOS_SPEECH_PROVIDER_ID => MACOS_DICTATION_MODEL_ID,
+            template_app::PARAFORMER_PROVIDER_ID => PARAFORMER_MODEL_ID,
+            template_app::WHISPER_PROVIDER_ID => WHISPER_MODEL_ID,
+            template_app::QWEN3_ASR_PROVIDER_ID => QWEN3_ASR_MODEL_ID,
+            template_app::SENSE_VOICE_PROVIDER_ID => SENSE_VOICE_MODEL_ID,
+            _ => return None,
+        };
+        Some(model.to_owned())
+    })
 }
 
 fn active_provider_model(
@@ -186,21 +234,23 @@ fn show_refining_activity(ui: &slint::Weak<AppWindow>, overlay: &slint::Weak<Rec
 struct CompletionDeliverer {
     id: DictationSessionId,
     platform: Arc<dyn CorrectionObservingTextDeliverer>,
-    observer: Mutex<Option<TextEditObserver>>,
+    observer_factory: Mutex<Option<TextRevisionObserverFactory>>,
     copy_to_clipboard: bool,
 }
+
+type TextRevisionObserverFactory = Box<dyn FnOnce(String) -> TextRevisionObserver + Send + 'static>;
 
 impl CompletionDeliverer {
     fn new(
         id: DictationSessionId,
         platform: Arc<dyn CorrectionObservingTextDeliverer>,
-        observer: TextEditObserver,
+        observer_factory: TextRevisionObserverFactory,
         copy_to_clipboard: bool,
     ) -> Self {
         Self {
             id,
             platform,
-            observer: Mutex::new(Some(observer)),
+            observer_factory: Mutex::new(Some(observer_factory)),
             copy_to_clipboard,
         }
     }
@@ -220,8 +270,8 @@ impl TextDeliverer for CompletionDeliverer {
     }
 
     fn deliver(&self, text: &str) -> Result<TextDeliveryOutcome, TextDeliveryError> {
-        let observer = self
-            .observer
+        let observer_factory = self
+            .observer_factory
             .lock()
             .map_err(|_| {
                 TextDeliveryError::System("delivery observer lock was poisoned".to_owned())
@@ -230,6 +280,7 @@ impl TextDeliverer for CompletionDeliverer {
             .ok_or_else(|| {
                 TextDeliveryError::System("dictation delivery was already attempted".to_owned())
             })?;
+        let observer = observer_factory(text.to_owned());
         let delivery = self.platform.deliver_and_observe(text, observer);
         if should_preserve_clipboard(self.copy_to_clipboard, &delivery)
             && let Err(error) = copy_text_to_clipboard(text)
@@ -263,68 +314,11 @@ fn should_preserve_clipboard(
         )
 }
 
-fn dictionary_edit_observer(
-    id: DictationSessionId,
-    storage: Arc<SqliteStorage>,
-    ui: slint::Weak<AppWindow>,
-    refinement: Arc<RefinementRuntime>,
-) -> TextEditObserver {
-    let dictation_id = id.to_string();
-    Box::new(move |edit| {
-        let Some(correction) = correction_from_edit(&edit.original, &edit.edited) else {
-            return;
-        };
-        let language = inferred_dictionary_language(&correction.canonical).to_owned();
-        let assessment = refinement.assess_dictionary_correction(
-            id,
-            &correction.canonical,
-            &edit.original,
-            &edit.edited,
-            &language,
-        );
-        let result = storage.record_dictionary_observation(NewDictionaryObservation {
-            dictation_id: dictation_id.clone(),
-            language,
-            correction,
-            assessment,
-            observed_at_ms: SystemClock.now_ms(),
-        });
-        let _ = ui.upgrade_in_event_loop(move |ui| match result {
-            Ok(DictionaryLearningOutcome::Added(entry)) => {
-                ui.set_dictionary_status(
-                    ui.global::<Translations>()
-                        .invoke_dictionary_automatically_added(entry.canonical.clone().into()),
-                );
-                ui.invoke_refresh_dictionary();
-                ui.invoke_show_dictionary_added(entry.id.into(), entry.canonical.into());
-            }
-            Ok(DictionaryLearningOutcome::Pending { .. }) => ui.invoke_refresh_dictionary(),
-            Ok(DictionaryLearningOutcome::Rejected | DictionaryLearningOutcome::Suppressed) => {}
-            Err(error) => tracing::warn!(
-                target: "saymore::diagnostics",
-                event = "dictionary.learning_failed",
-                dictation_id = %dictation_id,
-                reason = %error
-            ),
-        });
-    })
-}
-
-fn inferred_dictionary_language(text: &str) -> &'static str {
-    if text.chars().any(
-        |character| matches!(character as u32, 0x3400..=0x4DBF | 0x4E00..=0x9FFF | 0xF900..=0xFAFF),
-    ) {
-        "zh-Hans"
-    } else {
-        "en"
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use std::sync::atomic::{AtomicUsize, Ordering};
 
-    use template_app::{ObservedTextEdit, TextEditObserver};
+    use template_app::{TextRevisionEndReason, TextRevisionEvent, TextRevisionObserver};
 
     use super::*;
 
@@ -357,35 +351,38 @@ mod tests {
         fn deliver_and_observe(
             &self,
             text: &str,
-            observer: TextEditObserver,
+            observer: TextRevisionObserver,
         ) -> Result<TextDeliveryOutcome, TextDeliveryError> {
             self.deliveries
                 .lock()
                 .unwrap_or_else(std::sync::PoisonError::into_inner)
                 .push(text.to_owned());
-            observer(ObservedTextEdit {
-                original: text.to_owned(),
-                edited: format!("{text}!"),
-            });
+            observer(TextRevisionEvent::Snapshot(format!("{text}!")));
+            observer(TextRevisionEvent::Snapshot(format!("{text}!!")));
+            observer(TextRevisionEvent::Ended(TextRevisionEndReason::FocusLost));
             Ok(TextDeliveryOutcome::AccessibilityVerified)
         }
+
+        fn finish_observation(&self, _reason: TextRevisionEndReason) {}
     }
 
     #[test]
-    fn completion_delivery_wires_one_correction_observer() {
+    fn completion_delivery_keeps_the_correction_observer_active() {
         let observer_calls = Arc::new(AtomicUsize::new(0));
         let platform = Arc::new(FakePlatformDeliverer {
             deliveries: Mutex::new(Vec::new()),
             observer_calls: Arc::clone(&observer_calls),
         });
         let observed = Arc::clone(&platform.observer_calls);
-        let observer: TextEditObserver = Box::new(move |_| {
-            observed.fetch_add(1, Ordering::Relaxed);
+        let observer_factory: TextRevisionObserverFactory = Box::new(move |_| {
+            Box::new(move |_| {
+                observed.fetch_add(1, Ordering::Relaxed);
+            })
         });
         let deliverer = CompletionDeliverer::new(
             DictationSessionId::generate(),
             platform.clone(),
-            observer,
+            observer_factory,
             false,
         );
 
@@ -393,7 +390,7 @@ mod tests {
             Ok(TextDeliveryOutcome::AccessibilityVerified),
             deliverer.deliver("hello")
         );
-        assert_eq!(1, observer_calls.load(Ordering::Relaxed));
+        assert_eq!(3, observer_calls.load(Ordering::Relaxed));
         assert_eq!(
             vec!["hello"],
             platform
@@ -424,5 +421,33 @@ mod tests {
                 "restricted".to_owned()
             ))
         ));
+    }
+
+    #[test]
+    fn history_metadata_records_model_ids_for_built_in_asr_providers() {
+        let mut macos = ProviderCatalog::default();
+        macos.select_macos_speech_provider();
+        let mut paraformer = ProviderCatalog::default();
+        paraformer.select_paraformer_provider();
+        let mut whisper = ProviderCatalog::default();
+        whisper.select_whisper_provider();
+        let mut qwen3 = ProviderCatalog::default();
+        qwen3.select_qwen3_asr_provider();
+        let mut sense_voice = ProviderCatalog::default();
+        sense_voice.select_sense_voice_provider();
+        let cases = [
+            (macos, MACOS_DICTATION_MODEL_ID),
+            (paraformer, PARAFORMER_MODEL_ID),
+            (whisper, WHISPER_MODEL_ID),
+            (qwen3, QWEN3_ASR_MODEL_ID),
+            (sense_voice, SENSE_VOICE_MODEL_ID),
+        ];
+
+        for (catalog, expected_model) in cases {
+            assert_eq!(
+                Some(expected_model),
+                history_metadata(&catalog).asr_model.as_deref()
+            );
+        }
     }
 }

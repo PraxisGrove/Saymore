@@ -1,5 +1,9 @@
-// Independent overlays deliberately keep a fixed palette across application themes.
+import { ThemeId } from "color-system.slint";
+
+// Independent overlays keep stable neutral surfaces while their accents follow the app theme.
 export global OverlayColors {
+    in-out property <ThemeId> theme-id: ThemeId.saymore;
+
     out property <color> surface: #ffffff;
     out property <color> surface-subtle: #f4f4f1;
     out property <color> surface-subtle-hover: #efeeeb;
@@ -20,16 +24,33 @@ export global OverlayColors {
     out property <color> text-muted: #7b7974;
     out property <color> text-muted-warm: #77746c;
     out property <color> text-muted-strong: #5f5d58;
-    out property <color> on-accent: #ffffff;
+    out property <color> on-accent: theme-id == ThemeId.lime-pulse ? #172014
+        : theme-id == ThemeId.sunlit-gold ? #2a2107
+        : #ffffff;
     out property <color> notification-ink: #161616;
     out property <color> notification-muted: #777774;
 
-    out property <color> accent: #d97757;
-    out property <color> accent-strong: #c6613f;
-    out property <color> accent-soft: #f2ded6;
-    out property <color> accent-soft-alert: #f5e7df;
-    out property <color> info: #256bc1;
-    out property <color> info-soft: #cbe1fb;
+    out property <color> accent: theme-id == ThemeId.saymore ? #2563eb
+        : theme-id == ThemeId.lime-pulse ? #b3e90c
+        : theme-id == ThemeId.berry-graphite ? #d94f78
+        : theme-id == ThemeId.iris-mist ? #7a5cce
+        : theme-id == ThemeId.sunlit-gold ? #f8ce2e
+        : #d97757;
+    out property <color> accent-strong: theme-id == ThemeId.saymore ? #1d4ed8
+        : theme-id == ThemeId.lime-pulse ? #a4d50b
+        : theme-id == ThemeId.berry-graphite ? #b8325d
+        : theme-id == ThemeId.iris-mist ? #5e43ad
+        : theme-id == ThemeId.sunlit-gold ? #e9bb22
+        : #c6613f;
+    out property <color> accent-soft: theme-id == ThemeId.saymore ? #e8f0fe
+        : theme-id == ThemeId.lime-pulse ? #ddf59a
+        : theme-id == ThemeId.berry-graphite ? #f9dce6
+        : theme-id == ThemeId.iris-mist ? #eee8fa
+        : theme-id == ThemeId.sunlit-gold ? #fff3bd
+        : #f6e6df;
+    out property <color> accent-soft-alert: accent-soft;
+    out property <color> info: accent-strong;
+    out property <color> info-soft: accent-soft;
     out property <color> update-accent: #2563eb;
     out property <color> update-accent-hover: #1d4ed8;
     out property <color> update-accent-pressed: #1e40af;
@@ -45,8 +66,8 @@ export global OverlayColors {
     out property <color> recording-text-warm: #faf9f8;
     out property <color> recording-icon: #d1cfc5;
     out property <color> recording-muted: #a7a7a2;
-    out property <color> recording-accent: #ff7958;
-    out property <color> recording-wave-accent: #e97858;
+    out property <color> recording-accent: accent;
+    out property <color> recording-wave-accent: accent;
     out property <color> recording-control-light: #faf9f5;
     out property <color> recording-control-light-hover: #ffffff;
     out property <color> recording-control-light-pressed: #deddd8;
@@ -55,9 +76,9 @@ export global OverlayColors {
     out property <color> recording-pressed: #ffffff33;
     out property <brush> recording-spinner-arc: @conic-gradient(
         from 0deg,
-        #ff7958 0deg,
-        #ff7958 105deg,
-        #ff795800 105deg,
-        #ff795800 360deg
+        recording-accent 0deg,
+        recording-accent 105deg,
+        recording-accent.transparentize(1) 105deg,
+        recording-accent.transparentize(1) 360deg
     );
 }

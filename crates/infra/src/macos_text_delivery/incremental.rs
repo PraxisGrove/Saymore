@@ -1,6 +1,12 @@
-use std::{thread, time::Duration};
+use std::{
+    sync::{Mutex, OnceLock, mpsc},
+    thread,
+    time::Duration,
+};
 
-use template_app::{TextDeliveryError, TextDeliveryOutcome, TextEditObserver};
+use template_app::{
+    TextDeliveryError, TextDeliveryOutcome, TextRevisionEndReason, TextRevisionObserver,
+};
 
 use super::{
     ACCESSIBILITY_VERIFICATION_TIMEOUT, AccessibilityAuthorization, DeliveryTargetAction,
@@ -9,11 +15,11 @@ use super::{
     VERIFICATION_POLL_INTERVAL, authorization_from, current_delivery_target,
     delivery_target_action, keyboard, secure_event_input_enabled, verify_observed_insertion,
 };
-use crate::macos_text_delivery::observation::CorrectionObservationTarget;
+use crate::macos_text_delivery::observation::{ControlResetSnapshot, CorrectionObservationTarget};
 
 pub struct MacOsTextDeliverySession {
     text: String,
-    observer: Option<TextEditObserver>,
+    observer: Option<TextRevisionObserver>,
     state: Option<DeliveryState>,
 }
 
@@ -41,6 +47,7 @@ enum DeliveryState {
 struct Verification {
     focused: OwnedAxElement,
     initial_range: TextRange,
+    reset_snapshot: ControlResetSnapshot,
     remaining: Duration,
     range_changed: bool,
 }
@@ -49,6 +56,7 @@ enum PasteTarget {
     Observable {
         focused: OwnedAxElement,
         initial_range: TextRange,
+        reset_snapshot: ControlResetSnapshot,
     },
     Unobservable,
     Secure,
@@ -59,13 +67,28 @@ struct DeliveryAttempt {
     observation: Option<CorrectionObservationTarget>,
 }
 
+static ACTIVE_REVISION_OBSERVER: OnceLock<Mutex<Option<mpsc::Sender<TextRevisionEndReason>>>> =
+    OnceLock::new();
+
+pub(super) fn finish_active_observation(reason: TextRevisionEndReason) {
+    let Ok(mut active) = ACTIVE_REVISION_OBSERVER
+        .get_or_init(|| Mutex::new(None))
+        .lock()
+    else {
+        return;
+    };
+    if let Some(observer) = active.take() {
+        let _ = observer.send(reason);
+    }
+}
+
 enum VerificationPoll {
     Complete(InsertionVerification),
     Pending { range_changed: bool },
 }
 
 impl MacOsTextDeliverySession {
-    pub(super) fn new(text: String, observer: Option<TextEditObserver>) -> Self {
+    pub(super) fn new(text: String, observer: Option<TextRevisionObserver>) -> Self {
         Self {
             text,
             observer,
@@ -158,11 +181,13 @@ impl MacOsTextDeliverySession {
                 Duration::ZERO,
             );
         };
+        let reset_snapshot = ControlResetSnapshot::capture(&focused);
         match focused.replace_selection(&self.text) {
             Ok(()) => self.wait_for(
                 DeliveryState::VerifyDirect(Verification {
                     focused,
                     initial_range,
+                    reset_snapshot,
                     remaining: ACCESSIBILITY_VERIFICATION_TIMEOUT,
                     range_changed: false,
                 }),
@@ -173,6 +198,7 @@ impl MacOsTextDeliverySession {
                     DeliveryState::BeginPaste(PasteTarget::Observable {
                         focused,
                         initial_range,
+                        reset_snapshot,
                     }),
                     Duration::ZERO,
                 ),
@@ -191,6 +217,7 @@ impl MacOsTextDeliverySession {
                     verification.focused,
                     verification.initial_range,
                     &self.text,
+                    verification.reset_snapshot,
                 );
                 self.complete(Ok(DeliveryAttempt {
                     outcome: TextDeliveryOutcome::AccessibilityVerified,
@@ -204,6 +231,7 @@ impl MacOsTextDeliverySession {
                 DeliveryState::BeginPaste(PasteTarget::Observable {
                     focused: verification.focused,
                     initial_range: verification.initial_range,
+                    reset_snapshot: verification.reset_snapshot,
                 }),
                 Duration::ZERO,
             ),
@@ -217,6 +245,7 @@ impl MacOsTextDeliverySession {
                             DeliveryState::BeginPaste(PasteTarget::Observable {
                                 focused: verification.focused,
                                 initial_range: verification.initial_range,
+                                reset_snapshot: verification.reset_snapshot,
                             }),
                             Duration::ZERO,
                         )
@@ -246,12 +275,14 @@ impl MacOsTextDeliverySession {
             PasteTarget::Observable {
                 focused,
                 initial_range,
+                reset_snapshot,
             } => self.wait_for(
                 DeliveryState::VerifyPaste {
                     temporary,
                     verification: Verification {
                         focused,
                         initial_range,
+                        reset_snapshot,
                         remaining: PASTE_VERIFICATION_TIMEOUT,
                         range_changed: false,
                     },
@@ -292,6 +323,7 @@ impl MacOsTextDeliverySession {
                     verification.focused,
                     verification.initial_range,
                     &self.text,
+                    verification.reset_snapshot,
                 );
                 self.finish_paste(
                     temporary,
@@ -367,9 +399,24 @@ impl MacOsTextDeliverySession {
     ) -> MacOsTextDeliveryProgress {
         let result = result.map(|attempt| {
             if let (Some(target), Some(observer)) = (attempt.observation, self.observer.take()) {
-                let _ = thread::Builder::new()
+                let (cancellation, cancelled) = mpsc::channel();
+                if let Ok(mut active) = ACTIVE_REVISION_OBSERVER
+                    .get_or_init(|| Mutex::new(None))
+                    .lock()
+                    && let Some(previous) = active.replace(cancellation)
+                {
+                    let _ = previous.send(TextRevisionEndReason::NextDictation);
+                }
+                let result = thread::Builder::new()
                     .name("saymore-correction-observer".to_owned())
-                    .spawn(move || target.observe(observer));
+                    .spawn(move || target.observe(observer, cancelled));
+                if let Err(error) = result {
+                    tracing::warn!(
+                        target: "saymore::diagnostics",
+                        event = "history.revision_observer_start_failed",
+                        reason = %error
+                    );
+                }
             }
             attempt.outcome
         });
@@ -428,7 +475,7 @@ fn map_secure_error(secure: bool, error: TextDeliveryError) -> TextDeliveryError
 
 pub(super) fn run_synchronously(
     text: String,
-    observer: Option<TextEditObserver>,
+    observer: Option<TextRevisionObserver>,
 ) -> Result<TextDeliveryOutcome, TextDeliveryError> {
     let mut session = MacOsTextDeliverySession::new(text, observer);
     thread::sleep(MacOsTextDeliverySession::initial_delay());

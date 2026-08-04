@@ -120,7 +120,9 @@ pub fn fallback_detail(
         | RefinementFallbackReason::TemporarilyUnavailable => {
             translations.get_refinement_temporarily_unavailable()
         }
-        RefinementFallbackReason::OutputRejected => translations.get_refinement_output_rejected(),
+        RefinementFallbackReason::OutputRejected(_) => {
+            translations.get_refinement_output_rejected()
+        }
         RefinementFallbackReason::NotConfigured
         | RefinementFallbackReason::Authentication
         | RefinementFallbackReason::InvalidConfiguration

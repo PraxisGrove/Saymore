@@ -25,7 +25,7 @@ use core_foundation_sys::{
 use objc2_app_kit::{NSRunningApplication, NSWorkspace};
 use template_app::{
     AccessibilityAuthorization, CorrectionObservingTextDeliverer, DeliveryTargetPrivacy,
-    TextDeliverer, TextDeliveryError, TextDeliveryOutcome, TextEditObserver,
+    TextDeliverer, TextDeliveryError, TextDeliveryOutcome, TextRevisionObserver,
 };
 
 mod ax;
@@ -68,7 +68,7 @@ impl MacOsTextDeliverer {
 
     pub fn begin_delivery_and_observe(
         text: String,
-        observer: TextEditObserver,
+        observer: TextRevisionObserver,
     ) -> MacOsTextDeliverySession {
         MacOsTextDeliverySession::new(text, Some(observer))
     }
@@ -135,9 +135,13 @@ impl CorrectionObservingTextDeliverer for MacOsTextDeliverer {
     fn deliver_and_observe(
         &self,
         text: &str,
-        observer: TextEditObserver,
+        observer: TextRevisionObserver,
     ) -> Result<TextDeliveryOutcome, TextDeliveryError> {
         incremental::run_synchronously(text.to_owned(), Some(observer))
+    }
+
+    fn finish_observation(&self, reason: template_app::TextRevisionEndReason) {
+        incremental::finish_active_observation(reason);
     }
 }
 

@@ -34,8 +34,8 @@ Use this skill when you need to:
 
 ## Verification Cadence
 
-During implementation, run the smallest relevant checks for the changed crate
-or behavior. Do not run every workspace gate merely because a task is ending.
+During implementation, run the smallest relevant checks for the changed crate or
+behavior. Do not run every workspace gate merely because a task is ending.
 
 Immediately before `git push`, run these from the workspace root:
 
@@ -112,7 +112,8 @@ Refactor in coherent stages:
 2. Move logic into the right crate or module.
 3. Add focused tests around behavior.
 4. Delete the old path once migration is complete.
-5. Run focused checks; reserve the full workspace gate for pre-push verification.
+5. Run focused checks; reserve the full workspace gate for pre-push
+   verification.
 
 ## Size Gates
 

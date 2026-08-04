@@ -75,6 +75,7 @@ pub(crate) fn wire_core_services(
         Arc::clone(&bootstrap.settings_store),
         Arc::clone(&bootstrap.local_storage),
         Arc::clone(&deliverer),
+        bootstrap.paths.models_directory(),
     )?;
     update_authorizations(
         &windows.ui,
@@ -88,6 +89,14 @@ pub(crate) fn wire_core_services(
         Arc::clone(&microphone),
     );
     settings_ui::wire(&windows.ui, Arc::clone(&bootstrap.settings_store));
+    #[cfg(target_os = "macos")]
+    crate::local_model_runtime::wire(
+        &windows.ui,
+        Arc::clone(&bootstrap.settings_store),
+        Arc::clone(&bootstrap.local_storage),
+        bootstrap.paths.models_directory(),
+        Arc::clone(&dictation.asr),
+    )?;
     let settings_store: Arc<dyn LocalSettingsStore> = bootstrap.local_storage.clone();
     let local_settings_runtime = local_settings_runtime::LocalSettingsRuntime::new(Arc::new(
         LocalSettingsMutator::new(settings_store),
@@ -108,9 +117,22 @@ pub(crate) fn wire_core_services(
         Arc::clone(&microphone),
         onboarding_deliverer,
     )?;
+    let overlay_appearance = appearance_ui::OverlayAppearanceTargets::new(
+        &windows.overlay,
+        &windows.result_overlay,
+        &windows.recording_limit_overlay,
+        &windows.dictionary_added_overlay,
+        &windows.microphone_intro_overlay,
+        &windows.microphone_permission_overlay,
+        &windows.asr_configuration_overlay,
+    );
+    #[cfg(target_os = "macos")]
+    let overlay_appearance =
+        overlay_appearance.with_accessibility(&windows.accessibility_permission_overlay);
     appearance_ui::wire(
         &windows.ui,
         onboarding.window(),
+        overlay_appearance,
         &bootstrap.local_settings,
         local_settings.clone(),
     );
@@ -160,6 +182,7 @@ fn wire_local_features(
     local_data_ui::wire(
         &windows.ui,
         Arc::clone(&bootstrap.local_storage),
+        Arc::clone(&bootstrap.settings_store),
         recorder,
         settings.clone(),
     );

@@ -12,8 +12,8 @@ Use these rules to keep Rust code easy to understand, review, and modify.
 
 ## API Shape
 
-- Avoid boolean or ambiguous `Option` positional parameters when callsites become
-  unclear. Prefer enums, named constructors, or small value types.
+- Avoid boolean or ambiguous `Option` positional parameters when callsites
+  become unclear. Prefer enums, named constructors, or small value types.
 - Use precise error types at boundaries that need structured handling.
 - Add doc comments to new traits explaining their role and implementation
   expectations.

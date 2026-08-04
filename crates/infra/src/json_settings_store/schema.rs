@@ -2,9 +2,10 @@ use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
 use template_app::{
-    ActiveProviders, AsrSettings, ChatCompletionsLlmSettings, LlmSettings,
-    OpenAiCompatibleAsrSettings, ProviderCatalog, ProviderDataConsent, ProviderInstance,
-    SaymoreSettings, SettingsStoreError, VolcengineAsrSettings,
+    ActiveProviders, AsrSettings, ChatCompletionsLlmSettings, ChatCompletionsProfile,
+    LlmProviderPreset, LlmSettings, OpenAiCompatibleAsrSettings, ProviderCatalog,
+    ProviderDataConsent, ProviderInstance, SaymoreSettings, SettingsStoreError,
+    VolcengineAsrSettings,
 };
 use uuid::Uuid;
 
@@ -78,6 +79,8 @@ struct StoredChatCompletionsLlmSettings {
     model: String,
     #[serde(default)]
     custom_headers: BTreeMap<String, String>,
+    #[serde(default)]
+    profile: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -233,7 +236,8 @@ pub(super) fn legacy_catalog(legacy: LegacySettings) -> ProviderCatalog {
                 "base_url": config.base_url,
                 "api_key": config.api_key,
                 "model": config.model,
-                "custom_headers": config.custom_headers
+                "custom_headers": config.custom_headers,
+                "profile": config.profile
             }),
             data_consent,
         });
@@ -286,31 +290,43 @@ pub(super) fn catalog_to_settings(
             .iter()
             .find(|provider| provider.provider_type == CHAT_COMPLETIONS_TYPE)
     });
-    let (enabled, confirmed_base_url, chat_completions) =
-        match llm_provider.filter(|provider| provider.provider_type == CHAT_COMPLETIONS_TYPE) {
-            Some(provider) => {
-                let stored: StoredChatCompletionsLlmSettings =
-                    serde_json::from_value(provider.config.clone()).map_err(json_error)?;
-                let confirmed = provider
-                    .data_consent
-                    .as_ref()
-                    .filter(|consent| consent.fingerprint == endpoint_fingerprint(&stored.base_url))
-                    .map(|_| stored.base_url.clone())
-                    .unwrap_or_default();
-                let enabled = active_llm == Some(provider.id.as_str()) && !confirmed.is_empty();
-                (
-                    enabled,
-                    confirmed,
-                    ChatCompletionsLlmSettings {
-                        base_url: stored.base_url,
-                        api_key: stored.api_key,
-                        model: stored.model,
-                        custom_headers: stored.custom_headers,
-                    },
-                )
-            }
-            None => (false, String::new(), ChatCompletionsLlmSettings::default()),
-        };
+    let (enabled, confirmed_base_url, chat_completions) = match llm_provider
+        .filter(|provider| provider.provider_type == CHAT_COMPLETIONS_TYPE)
+    {
+        Some(provider) => {
+            let stored: StoredChatCompletionsLlmSettings =
+                serde_json::from_value(provider.config.clone()).map_err(json_error)?;
+            let confirmed = provider
+                .data_consent
+                .as_ref()
+                .filter(|consent| consent.fingerprint == endpoint_fingerprint(&stored.base_url))
+                .map(|_| stored.base_url.clone())
+                .unwrap_or_default();
+            let enabled = active_llm == Some(provider.id.as_str())
+                && provider
+                    .config
+                    .get("enabled")
+                    .and_then(serde_json::Value::as_bool)
+                    .unwrap_or(true)
+                && !confirmed.is_empty();
+            let profile = LlmProviderPreset::from_id_or_base_url(&provider.id, &stored.base_url)
+                .map(|preset| preset.profile().chat_completions)
+                .or_else(|| ChatCompletionsProfile::from_id(&stored.profile))
+                .unwrap_or_default();
+            (
+                enabled,
+                confirmed,
+                ChatCompletionsLlmSettings {
+                    base_url: stored.base_url,
+                    api_key: stored.api_key,
+                    model: stored.model,
+                    custom_headers: stored.custom_headers,
+                    profile,
+                },
+            )
+        }
+        None => (false, String::new(), ChatCompletionsLlmSettings::default()),
+    };
     Ok(SaymoreSettings {
         asr: AsrSettings {
             volcengine,

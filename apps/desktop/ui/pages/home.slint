@@ -37,7 +37,12 @@ component DayBar inherits Rectangle {
     in property <float> level;
     in property <string> label;
     in property <bool> highlighted;
+    in property <string> details;
+    callback hovered(bool);
+    private property <bool> hover-active: day-touch.has-hover;
     background: transparent;
+    accessible-role: text;
+    accessible-label: root.details;
 
     Rectangle {
         x: (parent.width - 24px) / 2;
@@ -47,7 +52,9 @@ component DayBar inherits Rectangle {
         border-radius: 6px;
         background: root.highlighted ? AppColors.brand : AppColors.chart-neutral;
     }
-    Text { y: parent.height - 12px; width: parent.width; height: 12px; text: root.label; color: AppColors.text-muted; font-size: 9px; horizontal-alignment: center; vertical-alignment: top; }
+    Text { y: parent.height - 12px; width: parent.width; height: 12px; text: root.label; color: root.highlighted ? AppColors.brand : AppColors.text-muted; font-size: 9px; font-weight: root.highlighted ? 600 : 400; horizontal-alignment: center; vertical-alignment: top; }
+    day-touch := TouchArea { }
+    changed hover-active => { root.hovered(root.hover-active); }
 }
 
 component VoiceMark inherits Rectangle {
@@ -90,7 +97,7 @@ component StatusNode inherits Rectangle {
         background: root.ready ? AppColors.success-soft : AppColors.surface-subtle;
         Image { x: 8px; y: 8px; width: 14px; height: 14px; source: root.icon; colorize: root.ready ? AppColors.success : AppColors.text-muted; }
     }
-    status-label := Text { x: (root.width - self.width - 14px) / 2; y: 52px; width: min(self.preferred-width, root.width - 14px); text: root.label; color: AppColors.text; font-size: 10px; font-weight: 650; horizontal-alignment: center; overflow: elide; }
+    status-label := Text { x: (root.width - self.width) / 2; y: 52px; width: min(self.preferred-width, root.width - 14px); text: root.label; color: AppColors.text; font-size: 10px; font-weight: 650; horizontal-alignment: center; overflow: elide; }
     Image { x: status-label.x + status-label.width + 4px; y: status-label.y + (status-label.preferred-height - self.height) / 2; width: 10px; height: 10px; source: @image-url("../../icons/lucide/arrow-up-right.svg"); colorize: AppColors.text-muted; }
     TouchArea { mouse-cursor: pointer; clicked => { root.activated(); } }
 }
@@ -113,6 +120,10 @@ export component HomePage inherits Rectangle {
     in property <string> usage-average-speed: "0";
     in property <[float]> usage-trend;
     in property <[string]> usage-day-labels;
+    in property <[string]> usage-day-dates;
+    in property <[string]> usage-daily-minutes;
+    in property <[string]> usage-daily-characters;
+    in property <[string]> usage-daily-speeds;
     in property <int> usage-highlighted-day: -1;
     in property <bool> usage-loading: false;
     in property <bool> usage-error: false;
@@ -130,6 +141,8 @@ export component HomePage inherits Rectangle {
     private property <length> shortcut-card-width: root.width >= 650px ? 326px : (root.width - card-gap) / 2;
     private property <length> configuration-x: shortcut-card-width + card-gap;
     private property <string> primary-shortcut: root.shortcut-labels.length > 0 ? root.shortcut-labels[0] : root.shortcut-label;
+    private property <int> hovered-usage-day: -1;
+    private property <bool> showing-daily-usage: root.hovered-usage-day >= 0 && !root.usage-loading && !root.usage-error;
 
     background: transparent;
     Text { x: 0px; y: 43px; text: @tr("home.headline" => "Speak your mind, hands-free"); color: AppColors.ink; font-size: 27px; font-weight: 700; }
@@ -150,7 +163,7 @@ export component HomePage inherits Rectangle {
         }
         Text { x: 20px; y: 160px; text: @tr("home.shortcut.toggle-hint" => "Press once to start, then again to finish"); color: AppColors.text-muted; font-size: 10px; }
         Text { x: parent.width - 75px; y: 160px; width: 36px; text: @tr("common.edit" => "Edit"); color: AppColors.text; font-size: 10px; font-weight: 600; horizontal-alignment: right; }
-        Image { x: parent.width - 32px; y: 160px; width: 11px; height: 11px; source: @image-url("../../icons/lucide/chevron-right.svg"); colorize: AppColors.text-muted; }
+        Image { x: parent.width - 32px; y: 162px; width: 11px; height: 11px; source: @image-url("../../icons/lucide/chevron-right.svg"); colorize: AppColors.text-muted; }
         TouchArea { mouse-cursor: pointer; clicked => { root.open-shortcut-settings(); } }
     }
 
@@ -161,7 +174,7 @@ export component HomePage inherits Rectangle {
         Rectangle {
             x: parent.width - 94px; y: 18px; width: 74px; height: 26px; border-radius: 7px; background: root.healthy ? AppColors.success-soft : AppColors.surface-subtle;
             Rectangle { x: 11px; y: 9px; width: 8px; height: 8px; border-radius: 4px; background: root.healthy ? AppColors.success : AppColors.text-muted; }
-            Text { x: 25px; y: 5px; text: root.healthy ? @tr("home.health.all-good" => "All good") : @tr("home.health.pending" => "Pending"); color: root.healthy ? AppColors.success : AppColors.text-muted; font-size: 9px; font-weight: 650; }
+            Text { x: 25px; y: 7px; text: root.healthy ? @tr("home.health.all-good" => "All good") : @tr("home.health.pending" => "Pending"); color: root.healthy ? AppColors.success : AppColors.text-muted; font-size: 9px; font-weight: 650; }
         }
         private property <length> node-width: 80px;
         private property <length> node-gap: (configuration-card.width - 3 * node-width - 20px) / 2;
@@ -173,11 +186,11 @@ export component HomePage inherits Rectangle {
     usage-card := Rectangle {
         x: 0px; y: 313px; width: parent.width - 1px; height: max(300px, parent.height - 316px); border-radius: 12px; background: AppColors.surface;
         Text { x: 20px; y: 18px; text: @tr("home.usage.title" => "Usage overview"); color: AppColors.ink; font-size: 14px; font-weight: 650; }
-        Text { x: 20px; y: 46px; text: root.usage-loading ? @tr("home.usage.loading" => "Loading") : root.usage-error ? @tr("home.usage.failed" => "Could not load") : @tr("home.usage.totals" => "All-time totals"); color: AppColors.text-muted; font-size: 10px; font-weight: 500; }
+        Text { x: 20px; y: 46px; text: root.usage-loading ? @tr("home.usage.loading" => "Loading") : root.usage-error ? @tr("home.usage.failed" => "Could not load") : root.showing-daily-usage ? root.usage-day-labels[root.hovered-usage-day] + " · " + root.usage-day-dates[root.hovered-usage-day] : @tr("home.usage.totals" => "All-time totals"); color: root.showing-daily-usage ? AppColors.brand : AppColors.text-muted; font-size: 10px; font-weight: root.showing-daily-usage ? 600 : 500; }
         private property <length> metric-width: (self.width - 40px) / 3;
-        UsageMetric { x: 20px; y: 68px; width: parent.metric-width; height: 68px; value: root.usage-loading ? "•••" : root.usage-error ? "—" : root.usage-total-minutes; unit: @tr("home.usage.minutes.unit" => "min"); show-unit: !root.usage-loading && !root.usage-error; label: @tr("home.usage.dictation-total" => "Voice input time"); placement: 0; }
-        UsageMetric { x: 20px + parent.metric-width; y: 68px; width: parent.metric-width; height: 68px; value: root.usage-loading ? "•••" : root.usage-error ? "—" : root.usage-total-characters; unit: @tr("home.usage.characters.unit" => "characters"); show-unit: !root.usage-loading && !root.usage-error; label: @tr("home.usage.characters-total" => "Characters entered"); }
-        UsageMetric { x: 20px + parent.metric-width * 2; y: 68px; width: parent.metric-width; height: 68px; value: root.usage-loading ? "•••" : root.usage-error ? "—" : root.usage-average-speed; unit: @tr("home.usage.speed.unit" => "chars/min"); show-unit: !root.usage-loading && !root.usage-error; label: @tr("home.usage.average-speed" => "Average speed"); placement: 2; }
+        UsageMetric { x: 20px; y: 68px; width: parent.metric-width; height: 68px; value: root.usage-loading ? "•••" : root.usage-error ? "—" : root.showing-daily-usage ? root.usage-daily-minutes[root.hovered-usage-day] : root.usage-total-minutes; unit: @tr("home.usage.minutes.unit" => "min"); show-unit: !root.usage-loading && !root.usage-error; label: @tr("home.usage.dictation-total" => "Voice input time"); placement: 0; }
+        UsageMetric { x: 20px + parent.metric-width; y: 68px; width: parent.metric-width; height: 68px; value: root.usage-loading ? "•••" : root.usage-error ? "—" : root.showing-daily-usage ? root.usage-daily-characters[root.hovered-usage-day] : root.usage-total-characters; unit: @tr("home.usage.characters.unit" => "characters"); show-unit: !root.usage-loading && !root.usage-error; label: @tr("home.usage.characters-total" => "Characters entered"); }
+        UsageMetric { x: 20px + parent.metric-width * 2; y: 68px; width: parent.metric-width; height: 68px; value: root.usage-loading ? "•••" : root.usage-error ? "—" : root.showing-daily-usage ? root.usage-daily-speeds[root.hovered-usage-day] : root.usage-average-speed; unit: @tr("home.usage.speed.unit" => "chars/min"); show-unit: !root.usage-loading && !root.usage-error; label: @tr("home.usage.average-speed" => "Average speed"); placement: 2; }
         if root.usage-error: Rectangle {
             x: 20px + parent.metric-width * 2; y: 105px; width: parent.metric-width; height: 24px; background: transparent;
             Text { text: @tr("common.reload" => "Reload ↗"); color: AppColors.brand-strong; font-size: 10px; font-weight: 600; horizontal-alignment: right; vertical-alignment: center; }
@@ -186,7 +199,14 @@ export component HomePage inherits Rectangle {
         Text { x: 20px; y: 160px; text: @tr("home.usage.seven-day-trend" => "Last 7 days"); color: AppColors.text-muted; font-size: 10px; font-weight: 600; }
         HorizontalLayout {
             x: 40px; y: 192px; width: parent.width - 80px; height: max(80px, parent.height - 210px); spacing: 0px; alignment: space-between;
-            for label[index] in root.usage-day-labels: DayBar { width: 48px; level: root.usage-trend[index]; label: label; highlighted: index == root.usage-highlighted-day; }
+            for label[index] in root.usage-day-labels: DayBar {
+                width: 48px;
+                level: root.usage-trend[index];
+                label: label;
+                highlighted: root.hovered-usage-day >= 0 ? index == root.hovered-usage-day : index == root.usage-highlighted-day;
+                details: label + " " + root.usage-day-dates[index] + ", " + root.usage-daily-minutes[index] + " " + @tr("home.usage.minutes.unit" => "min") + ", " + root.usage-daily-characters[index] + " " + @tr("home.usage.characters.unit" => "characters") + ", " + root.usage-daily-speeds[index] + " " + @tr("home.usage.speed.unit" => "chars/min");
+                hovered(hovered) => { root.hovered-usage-day = hovered ? index : -1; }
+            }
         }
     }
 }

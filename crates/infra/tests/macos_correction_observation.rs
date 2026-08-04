@@ -3,8 +3,8 @@
 use std::{sync::mpsc, time::Duration};
 
 use template_app::{
-    AccessibilityAuthorization, CorrectionObservingTextDeliverer, TextDeliverer,
-    correction_from_edit,
+    AccessibilityAuthorization, CorrectionObservingTextDeliverer, FinalTextRevisionState,
+    TextDeliverer, correction_from_edit,
 };
 use template_infra::MacOsTextDeliverer;
 
@@ -25,8 +25,14 @@ fn textedit_reports_a_user_correction_after_real_delivery() -> Result<(), Box<dy
     )?;
     eprintln!("delivery outcome: {outcome:?}; replace CMO with Saymore in TextEdit now");
 
-    let edit = receiver.recv_timeout(Duration::from_secs(25))?;
-    let correction = correction_from_edit(&edit.original, &edit.edited)
+    let mut state = FinalTextRevisionState::new("我们使用 CMO 开发");
+    let revision = loop {
+        let event = receiver.recv_timeout(Duration::from_secs(130))?;
+        if let Some(revision) = state.handle(event) {
+            break revision;
+        }
+    };
+    let correction = correction_from_edit(&revision.original, &revision.final_text)
         .ok_or("the observed TextEdit change was not an eligible local correction")?;
     if correction.canonical == "Saymore" {
         Ok(())

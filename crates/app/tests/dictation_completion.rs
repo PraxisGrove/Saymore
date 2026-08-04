@@ -136,6 +136,17 @@ impl DictionaryStore for TestAdapter {
         ))
     }
 
+    fn update_dictionary(
+        &self,
+        _id: &str,
+        _canonical: &str,
+        _now_ms: i64,
+    ) -> Result<DictionaryEntry, StorageError> {
+        Err(StorageError::Unavailable(
+            "unexpected dictionary mutation".to_owned(),
+        ))
+    }
+
     fn delete_dictionary(&self, _id: &str) -> Result<(), StorageError> {
         Err(StorageError::Unavailable(
             "unexpected dictionary deletion".to_owned(),
@@ -327,6 +338,61 @@ fn successful_refinement_is_normalized_before_delivery() {
 }
 
 #[test]
+fn enabled_history_keeps_recognized_refined_and_final_text() {
+    let id = DictationSessionId::generate();
+    let transcript = "我想确认这段足够长的原始识别文本是否会被保留";
+    let refined = "我想确认这段足够长的润色文本是否会被保留";
+    let harness = Harness::new(Scenario {
+        policy: Ok(policy(
+            RefinementMode::Enabled,
+            DictationHistoryPolicy::Enabled(Default::default()),
+        )),
+        refinement: Ok(RefinementEvaluation {
+            processed: ProcessedText {
+                text: refined.to_owned(),
+                refinement: RefinementStatus::Completed,
+            },
+            provider_output: Some(refined.to_owned()),
+        }),
+        delivery: Ok(TextDeliveryOutcome::ClipboardVerified),
+        ..Scenario::default()
+    });
+
+    let result = harness
+        .completion
+        .complete(captured_handoff(id, transcript));
+
+    assert_eq!(
+        completed(
+            id,
+            refined,
+            RefinementStatus::Completed,
+            Ok(TextDeliveryOutcome::ClipboardVerified),
+            DictationHistoryResult::Saved(HistoryDelivery::Delivered),
+        ),
+        result
+    );
+    assert_eq!(
+        vec![NewHistoryRecord {
+            id: id.to_string(),
+            created_at_ms: 1_750_000_000_000,
+            final_text: refined.to_owned(),
+            raw_asr_text: Some(transcript.to_owned()),
+            llm_refined_text: Some(refined.to_owned()),
+            audio_duration_ms: 30,
+            language: None,
+            delivery: HistoryDelivery::Delivered,
+            refinement: HistoryRefinement::Completed,
+            asr_provider_id: None,
+            llm_provider_id: None,
+            asr_model: None,
+            llm_model: None,
+        }],
+        values(&harness.adapter.history_records)
+    );
+}
+
+#[test]
 fn refinement_failure_falls_back_without_retrying_delivery() {
     let id = DictationSessionId::generate();
     let text = "this final transcript remains available after provider failure";
@@ -457,7 +523,7 @@ fn history_failure_does_not_change_the_delivery_terminal_state() {
             id: id.to_string(),
             created_at_ms: 1_750_000_000_000,
             final_text: text.to_owned(),
-            raw_asr_text: experimental_text(text),
+            raw_asr_text: Some(text.to_owned()),
             llm_refined_text: None,
             audio_duration_ms: 30,
             language: None,
@@ -541,8 +607,4 @@ fn values<T: Clone>(values: &Mutex<Vec<T>>) -> Vec<T> {
 
 fn strings(recorded: &Mutex<Vec<String>>) -> Vec<String> {
     values(recorded)
-}
-
-fn experimental_text(text: &str) -> Option<String> {
-    cfg!(any(debug_assertions, feature = "history-experiments")).then(|| text.to_owned())
 }

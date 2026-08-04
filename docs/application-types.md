@@ -9,13 +9,13 @@ workspace.
 
 ## Supported Directions
 
-| Type | Use when | Default stack |
-|---|---|---|
-| Server plus full-stack frontend | The product needs an HTTP API and browser UI written primarily in Rust. | `tokio`, `axum`, `leptos`, `tracing`, OpenTelemetry, `sqlx`, PostgreSQL. |
-| Server plus desktop client | The product needs a backend and an installed desktop app. | Server stack plus `slint`; share contracts through a dedicated crate. |
-| Desktop-only app | The product is local-first or does not need a hosted backend. | `slint`, Rust application wiring, local `infra` adapters, and SQLite with `rusqlite` when needed. |
-| Server-only service | The product is an API, worker, or backend service. | `tokio`, `axum`, `tower`, `tracing`, OpenTelemetry, `sqlx`, PostgreSQL. |
-| CLI/TUI app | The product is a command-line tool, developer tool, or terminal UI. | `clap`, `anyhow`, `thiserror`, `tracing`, optional `ratatui` and `crossterm`. |
+| Type                            | Use when                                                                | Default stack                                                                                     |
+| ------------------------------- | ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| Server plus full-stack frontend | The product needs an HTTP API and browser UI written primarily in Rust. | `tokio`, `axum`, `leptos`, `tracing`, OpenTelemetry, `sqlx`, PostgreSQL.                          |
+| Server plus desktop client      | The product needs a backend and an installed desktop app.               | Server stack plus `slint`; share contracts through a dedicated crate.                             |
+| Desktop-only app                | The product is local-first or does not need a hosted backend.           | `slint`, Rust application wiring, local `infra` adapters, and SQLite with `rusqlite` when needed. |
+| Server-only service             | The product is an API, worker, or backend service.                      | `tokio`, `axum`, `tower`, `tracing`, OpenTelemetry, `sqlx`, PostgreSQL.                           |
+| CLI/TUI app                     | The product is a command-line tool, developer tool, or terminal UI.     | `clap`, `anyhow`, `thiserror`, `tracing`, optional `ratatui` and `crossterm`.                     |
 
 ## Selection Rules
 
@@ -33,7 +33,7 @@ workspace.
 - Keep the workspace dependency-light.
 - Do not add framework dependencies for every possible application type.
 - Add dependencies when the chosen application type actually needs them.
-- Keep the current `app`, `infra`, `desktop`, and `xtask` responsibilities clear.
-  Split another crate only when a concrete product boundary justifies it.
+- Keep the current `app`, `infra`, `desktop`, and `xtask` responsibilities
+  clear. Split another crate only when a concrete product boundary justifies it.
 - Document application-specific choices in `docs/technology-stack.md` and
   `docs/architecture.md` when the project commits to them.

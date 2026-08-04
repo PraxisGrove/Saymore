@@ -14,8 +14,8 @@ pub trait UserStore {
 }
 ```
 
-Production implementations live in infrastructure crates. Tests can use fakes
-or mocks.
+Production implementations live in infrastructure crates. Tests can use fakes or
+mocks.
 
 ## Guidelines
 

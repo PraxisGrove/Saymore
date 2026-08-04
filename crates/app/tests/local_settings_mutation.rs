@@ -86,6 +86,32 @@ fn changing_history_enabled_preserves_unrelated_settings() {
 }
 
 #[test]
+fn dictionary_assist_authorization_and_preference_are_committed() {
+    let initial = LocalSettings::default();
+    let store = Arc::new(FakeSettingsStore::new(initial.clone()));
+    let mutator = LocalSettingsMutator::new(store);
+
+    let enabled = mutator.apply(LocalSettingsChange::AuthorizeVocabularySuggestions(
+        "provider-consent".to_owned(),
+    ));
+    assert_eq!(
+        Ok(changed(&initial, |settings| {
+            settings.dictionary_assist_enabled = true;
+            settings.dictionary_assist_consent_fingerprint = Some("provider-consent".to_owned());
+        })),
+        enabled
+    );
+
+    let disabled = mutator.apply(LocalSettingsChange::SetVocabularySuggestionsEnabled(false));
+    assert_eq!(
+        Ok(changed(&initial, |settings| {
+            settings.dictionary_assist_consent_fingerprint = Some("provider-consent".to_owned());
+        })),
+        disabled
+    );
+}
+
+#[test]
 fn every_change_commits_the_expected_complete_snapshot() {
     let initial = LocalSettings::default();
     let cases = [
