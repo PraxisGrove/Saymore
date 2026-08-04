@@ -29,7 +29,7 @@ rfd = "0.17"
 reqwest = { version = "0.13.4", default-features = false, features = ["json", "multipart", "rustls-no-provider", "stream"] }
 rustls = { version = "0.23.42", default-features = false, features = ["ring", "std"] }
 httpmock = "0.8.3"
-ico = "0.4"
+ico = "0.5"
 image = { version = "0.25", default-features = false, features = ["png"] }
 mach2 = "0.6.0"
 num-format = "0.4.4"
