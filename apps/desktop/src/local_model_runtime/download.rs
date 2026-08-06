@@ -134,6 +134,12 @@ enum DownloadCompletion {
     Failed(ModelInstallError, bool),
 }
 
+impl DownloadCompletion {
+    fn clears_persisted_queue_entry(&self) -> bool {
+        matches!(self, Self::Installed(_) | Self::Cancelled)
+    }
+}
+
 pub(super) fn wire_download(
     ui: &AppWindow,
     storage: Arc<SqliteStorage>,
@@ -211,13 +217,7 @@ impl DownloadRuntime {
                 if !runtime.downloads.finish(model, generation) {
                     return;
                 }
-                if let Err(error) = runtime.storage.remove_model_download(model.id()) {
-                    tracing::warn!(
-                        event = "model.download_queue_remove_failed",
-                        model_id = model.id(),
-                        reason = %error
-                    );
-                }
+                runtime.clear_persisted_queue_entry(model, &completion);
                 let next_runtime = Arc::clone(&runtime);
                 let _ = runtime.ui.upgrade_in_event_loop(move |ui| {
                     apply_completion(&ui, model, completion);
@@ -226,7 +226,6 @@ impl DownloadRuntime {
             });
         if let Err(error) = spawn {
             let _ = self.downloads.finish(model, generation);
-            let _ = self.storage.remove_model_download(model.id());
             if let Some(ui) = self.ui.upgrade() {
                 apply_download_failure(
                     &ui,
@@ -249,6 +248,7 @@ impl DownloadRuntime {
                     Ok(()) => DownloadCompletion::Cancelled,
                     Err(error) => DownloadCompletion::Failed(error, false),
                 };
+                runtime.clear_persisted_queue_entry(model, &completion);
                 let _ = runtime.ui.upgrade_in_event_loop(move |ui| {
                     apply_completion(&ui, model, completion);
                 });
@@ -261,6 +261,19 @@ impl DownloadRuntime {
                 model,
                 ModelInstallError::Filesystem(error.to_string()),
                 false,
+            );
+        }
+    }
+
+    fn clear_persisted_queue_entry(&self, model: LocalModel, completion: &DownloadCompletion) {
+        if !completion.clears_persisted_queue_entry() {
+            return;
+        }
+        if let Err(error) = self.storage.remove_model_download(model.id()) {
+            tracing::warn!(
+                event = "model.download_queue_remove_failed",
+                model_id = model.id(),
+                reason = %error
             );
         }
     }
@@ -376,12 +389,6 @@ fn wire_cancel(ui: &AppWindow, runtime: Arc<DownloadRuntime>) {
             return;
         }
         let _ = runtime.downloads.remove_queued(model);
-        if let Err(error) = runtime.storage.remove_model_download(model.id()) {
-            if let Some(ui) = runtime.ui.upgrade() {
-                ui.set_local_model_operation_error(error.to_string().into());
-            }
-            return;
-        }
         let Some(ui) = runtime.ui.upgrade() else {
             return;
         };
@@ -550,6 +557,23 @@ mod tests {
         let ready = coordinator.take_ready();
         assert_eq!(1, ready.len());
         assert_eq!(LocalModel::Paraformer, ready[0].0);
+    }
+
+    #[test]
+    fn persisted_queue_entry_is_cleared_only_after_terminal_cleanup() {
+        let installed =
+            DownloadCompletion::Installed(Ok((SharedString::default(), SharedString::default())));
+        let paused = DownloadCompletion::Paused;
+        let cancelled = DownloadCompletion::Cancelled;
+        let failed = DownloadCompletion::Failed(
+            ModelInstallError::Download("network unavailable".to_owned()),
+            false,
+        );
+
+        assert!(installed.clears_persisted_queue_entry());
+        assert!(!paused.clears_persisted_queue_entry());
+        assert!(cancelled.clears_persisted_queue_entry());
+        assert!(!failed.clears_persisted_queue_entry());
     }
 
     #[test]
