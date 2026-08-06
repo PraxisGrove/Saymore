@@ -38,9 +38,13 @@ fn optional_env(name: &str) -> Option<String> {
 }
 
 fn plan(input: PlanInput<'_>) -> Result<ReleasePlan, Box<dyn Error>> {
+    let current_version = parse_version(input.current_version)?;
     let version = match input.latest_tag {
-        Some(tag) => bump_tag(tag)?,
-        None => parse_version(input.current_version)?.to_string(),
+        Some(tag) => {
+            let automatic_patch = next_patch(parse_tag(tag)?)?;
+            std::cmp::max(current_version, automatic_patch).to_string()
+        }
+        None => current_version.to_string(),
     };
     let changed = input.latest_tag.is_none() || input.ahead_by > 0;
     let tag = format!("v{version}");
@@ -51,16 +55,19 @@ fn plan(input: PlanInput<'_>) -> Result<ReleasePlan, Box<dyn Error>> {
     })
 }
 
-fn bump_tag(tag: &str) -> Result<String, Box<dyn Error>> {
+fn parse_tag(tag: &str) -> Result<Version, Box<dyn Error>> {
     let version = tag
         .strip_prefix('v')
         .ok_or("latest release tag must start with v")?;
-    let mut version = parse_version(version)?;
+    parse_version(version)
+}
+
+fn next_patch(mut version: Version) -> Result<Version, Box<dyn Error>> {
     version.patch = version
         .patch
         .checked_add(1)
         .ok_or("patch version overflow")?;
-    Ok(version.to_string())
+    Ok(version)
 }
 
 fn parse_version(value: &str) -> Result<Version, Box<dyn Error>> {
@@ -81,6 +88,7 @@ fn parse_version(value: &str) -> Result<Version, Box<dyn Error>> {
     }
 }
 
+#[derive(PartialEq, Eq, PartialOrd, Ord)]
 struct Version {
     major: u64,
     minor: u64,
@@ -134,6 +142,24 @@ mod tests {
     }
 
     #[test]
+    fn explicit_workspace_minor_version_takes_precedence() {
+        let actual = plan(PlanInput {
+            current_version: "0.2.0",
+            latest_tag: Some("v0.1.2"),
+            ahead_by: 2,
+        })
+        .ok();
+        assert_eq!(
+            Some(ReleasePlan {
+                should_release: true,
+                version: "0.2.0".to_owned(),
+                tag: "v0.2.0".to_owned(),
+            }),
+            actual
+        );
+    }
+
+    #[test]
     fn unchanged_source_prevents_release() {
         let unchanged = plan(PlanInput {
             current_version: "0.1.0",
@@ -147,8 +173,8 @@ mod tests {
 
     #[test]
     fn malformed_release_tags_are_rejected() {
-        assert!(bump_tag("release-1.2.3").is_err());
-        assert!(bump_tag("v1.2").is_err());
-        assert!(bump_tag("v1.2.beta").is_err());
+        assert!(parse_tag("release-1.2.3").is_err());
+        assert!(parse_tag("v1.2").is_err());
+        assert!(parse_tag("v1.2.beta").is_err());
     }
 }

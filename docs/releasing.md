@@ -18,7 +18,10 @@ and version decision.
 
 The workspace version in the root `Cargo.toml` is the only application version
 source. The first automated release uses that version. Later releases increment
-the patch component of the latest `vMAJOR.MINOR.PATCH` GitHub Release tag.
+the patch component of the latest `vMAJOR.MINOR.PATCH` GitHub Release tag by
+default. To prepare a minor or major release, set the workspace version higher
+than that automatic patch version; the release plan uses the explicit workspace
+version instead.
 
 Each packaging job applies the planned version before compiling. After every
 package succeeds, the publish job commits the version change when needed,
