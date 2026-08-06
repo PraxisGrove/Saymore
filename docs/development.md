@@ -42,6 +42,19 @@ After the gate passes, review the complete change being pushed for both
 repository-standard compliance and fidelity to the originating request or spec.
 Ordinary task completion does not require this full gate or dual-axis review.
 
+## Diagnostics And Observability
+
+Instrument adapter boundaries and long-running operations with structured event
+identifiers and allowlisted fields. Diagnostics must not contain audio,
+transcripts, API keys, Provider request or response bodies, device names, user
+paths, or raw errors that can expose those values. Add context when an error
+crosses an ownership boundary, while keeping `crates/app` independent from
+concrete logging frameworks.
+
+Required maintenance automation belongs in `crates/xtask`. Shell scripts may
+provide platform-specific development ergonomics, but CI and repository gates
+must invoke the Rust tasks or their underlying Cargo commands directly.
+
 ## Desktop Toolchain
 
 The target desktop app is compiled through Cargo and Slint. Node.js, pnpm,
@@ -161,9 +174,21 @@ On Windows, a local NSIS preview uses the same commands as the release workflow:
 
 ```bash
 cargo build -p saymore-desktop --release
-cargo packager --release --packages saymore-desktop --formats nsis --binaries-dir target/release --out-dir dist
+cargo packager --release --packages saymore-desktop --formats nsis --binaries-dir target/release --out-dir "$PWD\dist"
 Move-Item dist\saymore-desktop_*_*-setup.exe dist\Saymore-Setup.exe
 ```
+
+Use an absolute output directory. `cargo-packager` otherwise resolves a relative
+path from the desktop package directory and may place artifacts under
+`apps/desktop/dist` instead of the workspace `dist` directory. A portable test
+artifact is the same release executable copied out of `target/release`; it is
+not a second build flavor and uses the normal production data paths.
+
+The Windows x64 Cargo target statically links the MSVC CRT to match the pinned
+sherpa-onnx static-MT archive. A `LNK4098` warning indicates that this target
+configuration was not applied and must be fixed before packaging. The current
+sherpa archive is static, so the NSIS package does not require sherpa or ONNX
+Runtime DLL resources.
 
 The desktop build uses `apps/desktop/icons/taskbar.ico` as the executable's
 default icon so the Start menu, desktop shortcut, and taskbar grouping all use

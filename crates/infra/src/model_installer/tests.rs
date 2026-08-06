@@ -1,6 +1,7 @@
 #![allow(clippy::panic_in_result_fn)]
 
 use httpmock::{Method::GET, MockServer};
+use sha2::{Digest, Sha256};
 
 use super::verification::VERIFICATION_MARKER;
 use super::*;
@@ -36,6 +37,45 @@ async fn resumes_a_partial_file_and_atomically_activates_it()
     fs::write(installed.join("model.bin"), b"abcd")?;
     assert!(!installer.is_installed());
     assert!(!staging.exists());
+    Ok(())
+}
+
+#[tokio::test]
+async fn a_new_installer_instance_resumes_the_persisted_partial_file()
+-> Result<(), Box<dyn std::error::Error>> {
+    let server = MockServer::start_async().await;
+    let download = server
+        .mock_async(|when, then| {
+            when.method(GET)
+                .path("/model.bin")
+                .header("range", "bytes=2-");
+            then.status(206).body("c");
+        })
+        .await;
+    let directory = tempfile::tempdir()?;
+    let models_root = directory.path().join("models");
+    let first_process = VerifiedModelInstaller::with_manifest(
+        models_root.clone(),
+        server.base_url(),
+        vec![test_artifact("model.bin", b"abc")],
+    )?;
+    fs::create_dir_all(first_process.staging_directory())?;
+    fs::write(
+        first_process.staging_directory().join("model.bin.part"),
+        b"ab",
+    )?;
+    drop(first_process);
+
+    let restarted_process = VerifiedModelInstaller::with_manifest(
+        models_root,
+        server.base_url(),
+        vec![test_artifact("model.bin", b"abc")],
+    )?;
+    let installed = restarted_process.install(Arc::new(|_| {})).await?;
+
+    download.assert_async().await;
+    assert_eq!(b"abc", fs::read(installed.join("model.bin"))?.as_slice());
+    assert!(restarted_process.is_installed());
     Ok(())
 }
 
@@ -240,6 +280,98 @@ async fn rejects_a_wrong_hash_without_activating_the_model()
     assert!(matches!(result, Err(ModelInstallError::Integrity(_))));
     assert_eq!(4, download.calls_async().await);
     assert!(!installer.model_directory().exists());
+    Ok(())
+}
+
+#[tokio::test]
+async fn recovers_after_a_network_outage_without_a_false_installed_state()
+-> Result<(), Box<dyn std::error::Error>> {
+    let server = MockServer::start_async().await;
+    let outage = server
+        .mock_async(|when, then| {
+            when.method(GET).path("/model.bin");
+            then.status(503);
+        })
+        .await;
+    let directory = tempfile::tempdir()?;
+    let installer = VerifiedModelInstaller::with_manifest(
+        directory.path().join("models"),
+        server.base_url(),
+        vec![test_artifact("model.bin", b"abc")],
+    )?;
+
+    let failure = installer.install(Arc::new(|_| {})).await;
+
+    assert!(matches!(failure, Err(ModelInstallError::Download(_))));
+    assert_eq!(4, outage.calls_async().await);
+    assert!(!installer.is_installed());
+    assert!(!installer.model_directory().exists());
+    outage.delete_async().await;
+    server
+        .mock_async(|when, then| {
+            when.method(GET).path("/model.bin");
+            then.status(200).body("abc");
+        })
+        .await;
+
+    let installed = installer.install(Arc::new(|_| {})).await?;
+
+    assert_eq!(b"abc", fs::read(installed.join("model.bin"))?.as_slice());
+    assert!(installer.is_installed());
+    Ok(())
+}
+
+#[test]
+fn rejects_an_install_that_exceeds_available_disk_space() -> Result<(), Box<dyn std::error::Error>>
+{
+    let directory = tempfile::tempdir()?;
+    let mut artifact = test_artifact("model.bin", b"abc");
+    artifact.bytes = u64::MAX;
+    let installer = VerifiedModelInstaller::with_manifest(
+        directory.path().join("models"),
+        "https://example.invalid".to_owned(),
+        vec![artifact],
+    )?;
+
+    let result = installer.ensure_install_space();
+
+    assert!(matches!(
+        result,
+        Err(ModelInstallError::InsufficientSpace {
+            required_bytes: u64::MAX,
+            ..
+        })
+    ));
+    assert!(!installer.model_directory().exists());
+    Ok(())
+}
+
+#[tokio::test]
+async fn installs_atomically_under_a_long_unicode_models_path()
+-> Result<(), Box<dyn std::error::Error>> {
+    let server = MockServer::start_async().await;
+    server
+        .mock_async(|when, then| {
+            when.method(GET).path("/model.bin");
+            then.status(200).body("abc");
+        })
+        .await;
+    let directory = tempfile::tempdir()?;
+    let mut models_root = directory.path().to_path_buf();
+    for index in 0..8 {
+        models_root.push(format!("中文模型目录-{index}-{}", "a".repeat(24)));
+    }
+    assert!(models_root.as_os_str().len() > 260);
+    let installer = VerifiedModelInstaller::with_manifest(
+        models_root,
+        server.base_url(),
+        vec![test_artifact("model.bin", b"abc")],
+    )?;
+
+    let installed = installer.install(Arc::new(|_| {})).await?;
+
+    assert_eq!(b"abc", fs::read(installed.join("model.bin"))?.as_slice());
+    assert!(installer.is_installed());
     Ok(())
 }
 

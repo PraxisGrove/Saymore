@@ -428,3 +428,17 @@ pub(super) fn add_dictionary_assist_consent(
         .map_err(unavailable)?;
     transaction.commit().map_err(unavailable)
 }
+
+pub(super) fn add_model_download_queue(connection: &mut Connection) -> Result<(), StorageError> {
+    let transaction = connection.transaction().map_err(unavailable)?;
+    transaction
+        .execute_batch(
+            "CREATE TABLE IF NOT EXISTS model_download_queue (
+                sequence INTEGER PRIMARY KEY AUTOINCREMENT,
+                model_id TEXT NOT NULL UNIQUE CHECK(length(trim(model_id)) > 0)
+             );
+             PRAGMA user_version = 25;",
+        )
+        .map_err(unavailable)?;
+    transaction.commit().map_err(unavailable)
+}

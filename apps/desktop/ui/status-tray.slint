@@ -18,6 +18,8 @@ export component StatusTray inherits SystemTrayIcon {
     callback toggle-pause();
     callback quit-application();
 
+    clicked => { root.show-main-window(); }
+
     Menu {
         MenuItem {
             title: @tr("tray.menu.show" => "Show Saymore");

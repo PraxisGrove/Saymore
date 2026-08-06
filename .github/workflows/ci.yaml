@@ -38,6 +38,12 @@ jobs:
       - name: Install cargo-nextest
         uses: taiki-e/install-action@nextest
 
+      - name: Install cargo-packager
+        if: runner.os == 'Windows'
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-packager@0.11.8
+
       - name: Format
         run: cargo fmt --all --check
 
@@ -48,7 +54,6 @@ jobs:
         run: cargo nextest run --workspace --all-targets --profile ci
 
       - name: Test model navigation
-        if: matrix.platform == 'macOS'
         run: cargo test -p saymore-desktop --test models_navigation
 
       - name: Doc tests
@@ -59,6 +64,26 @@ jobs:
 
       - name: Build release application
         run: cargo build -p saymore-desktop --release
+
+      - name: Build Windows distribution artifacts
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $output = Join-Path $env:GITHUB_WORKSPACE 'dist\ci-windows'
+          cargo packager --release --packages saymore-desktop --formats nsis --binaries-dir target/release --out-dir $output
+          Copy-Item target\release\saymore-desktop.exe (Join-Path $output 'Saymore-Portable.exe')
+          $installers = @(Get-ChildItem $output -Filter 'saymore-desktop_*_x64-setup.exe')
+          if ($installers.Count -ne 1) {
+            throw "expected one Windows x64 NSIS installer, found $($installers.Count)"
+          }
+
+      - name: Upload Windows distribution artifacts
+        if: runner.os == 'Windows'
+        uses: actions/upload-artifact@v6
+        with:
+          name: saymore-windows-x64
+          path: dist/ci-windows/*
+          retention-days: 7
 
       - name: Size gate
         run: cargo run -p xtask -- size

@@ -75,7 +75,7 @@ mod feedback_runtime;
 mod home_stats;
 mod i18n;
 mod local_data_ui;
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", target_os = "windows"))]
 mod local_model_runtime;
 mod local_settings_runtime;
 #[cfg(all(target_os = "macos", debug_assertions))]
@@ -106,6 +106,7 @@ mod settings_ui;
 #[cfg(any(target_os = "macos", target_os = "windows"))]
 mod status_tray;
 mod storage_usage_ui;
+mod typography;
 #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 mod ui_status;
 mod update_check;
@@ -113,6 +114,8 @@ mod update_check;
 mod windows_runtime;
 #[cfg(target_os = "windows")]
 mod windows_window;
+
+use typography::ApplyTypography;
 
 pub(crate) type RecorderHandle = Arc<Mutex<recording_audio::RecordingAudio>>;
 
@@ -324,21 +327,42 @@ struct DesktopWindows {
 impl DesktopWindows {
     fn initialize(bootstrap: &DesktopBootstrap) -> Result<Self, Box<dyn Error>> {
         let ui = AppWindow::new()?;
+        let overlay = RecordingOverlay::new()?;
+        let result_overlay = ResultOverlay::new()?;
+        let recording_limit_overlay = RecordingLimitOverlay::new()?;
+        let dictionary_added_overlay = DictionaryAddedOverlay::new()?;
+        let microphone_intro_overlay = MicrophoneIntroOverlay::new()?;
+        let microphone_permission_overlay = MicrophonePermissionOverlay::new()?;
+        let asr_configuration_overlay = AsrConfigurationOverlay::new()?;
+        #[cfg(target_os = "macos")]
+        let accessibility_permission_overlay = AccessibilityPermissionOverlay::new()?;
+
+        ui.apply_typography();
+        overlay.apply_typography();
+        result_overlay.apply_typography();
+        recording_limit_overlay.apply_typography();
+        dictionary_added_overlay.apply_typography();
+        microphone_intro_overlay.apply_typography();
+        microphone_permission_overlay.apply_typography();
+        asr_configuration_overlay.apply_typography();
+        #[cfg(target_os = "macos")]
+        accessibility_permission_overlay.apply_typography();
+
         #[cfg(target_os = "macos")]
         let reopen_handler = install_application_reopen_handler(&ui)?;
         let language_context =
             main_window::initialize(&ui, &bootstrap.local_settings, bootstrap.environment)?;
         Ok(Self {
             ui,
-            overlay: RecordingOverlay::new()?,
-            result_overlay: ResultOverlay::new()?,
-            recording_limit_overlay: RecordingLimitOverlay::new()?,
-            dictionary_added_overlay: DictionaryAddedOverlay::new()?,
-            microphone_intro_overlay: MicrophoneIntroOverlay::new()?,
-            microphone_permission_overlay: MicrophonePermissionOverlay::new()?,
-            asr_configuration_overlay: AsrConfigurationOverlay::new()?,
+            overlay,
+            result_overlay,
+            recording_limit_overlay,
+            dictionary_added_overlay,
+            microphone_intro_overlay,
+            microphone_permission_overlay,
+            asr_configuration_overlay,
             #[cfg(target_os = "macos")]
-            accessibility_permission_overlay: AccessibilityPermissionOverlay::new()?,
+            accessibility_permission_overlay,
             language_context,
             #[cfg(target_os = "macos")]
             _reopen_handler: reopen_handler,

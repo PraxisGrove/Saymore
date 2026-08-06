@@ -26,6 +26,7 @@ use crate::{
     local_settings_runtime::{LocalSettingsHandle, LocalSettingsSubmissionError},
     main_window,
     permission_actions::{PermissionAction, microphone_permission_action},
+    typography::ApplyTypography,
     ui::{AppPage, AppWindow, OnboardingWindow},
 };
 
@@ -73,6 +74,7 @@ impl OnboardingRuntime {
         deliverer: Arc<dyn TextDeliverer>,
     ) -> Result<Self, slint::PlatformError> {
         let window = OnboardingWindow::new()?;
+        window.apply_typography();
         #[cfg(target_os = "windows")]
         crate::windows_window::integrate_onboarding(&window);
         let active = Arc::new(AtomicBool::new(false));

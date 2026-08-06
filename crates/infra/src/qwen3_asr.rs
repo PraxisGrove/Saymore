@@ -177,7 +177,7 @@ impl StreamingRecognitionSession for Qwen3Session {
 }
 
 fn append_segment(transcript: &mut String, segment: &str) {
-    let (segment, overlapped) = deduplicated_segment(transcript, segment.trim());
+    let (segment, overlapped) = deduplicated_segment(transcript, speech_text(segment));
     if segment.is_empty() {
         return;
     }
@@ -199,6 +199,14 @@ fn append_segment(transcript: &mut String, segment: &str) {
         transcript.push(' ');
     }
     transcript.push_str(segment);
+}
+
+fn speech_text(segment: &str) -> &str {
+    let segment = segment.trim();
+    segment
+        .split_once("<asr_text>")
+        .map(|(_, speech)| speech.trim_start())
+        .unwrap_or(segment)
 }
 
 fn deduplicated_segment<'a>(transcript: &str, segment: &'a str) -> (&'a str, bool) {
@@ -338,6 +346,15 @@ mod tests {
             "这对我来说是至高无上的荣誉，但是。是一个大一的新生，一个从县城出来的年轻人",
             transcript
         );
+    }
+
+    #[test]
+    fn removes_qwen_control_metadata_before_joining_segments() {
+        let mut transcript = "第一段。".to_owned();
+
+        append_segment(&mut transcript, "language Chinese<asr_text>第二段。");
+
+        assert_eq!("第一段。第二段。", transcript);
     }
 
     #[test]

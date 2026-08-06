@@ -9,13 +9,19 @@ use std::{
 
 use sherpa_onnx::Wave;
 use template_app::{SpeechRecognitionHints, StreamingSpeechRecognizer};
-use template_infra::ParaformerSpeechRecognizer;
+use template_infra::{
+    ParaformerSpeechRecognizer, VerifiedModelInstaller, current_process_resident_memory_bytes,
+};
+
+mod probe_support;
 
 const SAMPLE_RATE: i32 = 16_000;
 const CHUNK_SAMPLES: usize = 9_600;
 
 fn main() -> Result<(), Box<dyn Error>> {
     let arguments = Arguments::parse()?;
+    let installer = VerifiedModelInstaller::paraformer(arguments.models_root)?;
+    let model = probe_support::install_model("Paraformer", &installer, 10 * 1024 * 1024)?;
     let wave = Wave::read(path_text(&arguments.wave)?).ok_or_else(|| {
         io::Error::new(
             io::ErrorKind::InvalidData,
@@ -34,13 +40,27 @@ fn main() -> Result<(), Box<dyn Error>> {
     }
     let samples = pcm_i16(wave.samples());
 
-    println!("Model: {}", arguments.model.display());
+    println!("Model: {}", model.display());
+    println!(
+        "Installed size: {} bytes",
+        installer.installed_size_bytes()?
+    );
     println!("Audio: {}", arguments.wave.display());
     println!("Loading the pinned Q8 Paraformer through the production adapter...");
+    let memory_before = current_process_resident_memory_bytes();
     let load_started = Instant::now();
-    let recognizer = ParaformerSpeechRecognizer::load(&arguments.model)?;
+    let recognizer = ParaformerSpeechRecognizer::load(&model)?;
     let load_elapsed = load_started.elapsed();
+    let memory_after = current_process_resident_memory_bytes();
     println!("Load time: {:.2}s", load_elapsed.as_secs_f64());
+    println!(
+        "Resident memory: before {:?}, after {:?}, delta {:?} bytes",
+        memory_before,
+        memory_after,
+        memory_before
+            .zip(memory_after)
+            .and_then(|(before, after)| after.checked_sub(before))
+    );
 
     let first = transcribe_once(&recognizer, &samples, 1)?;
     let second = transcribe_once(&recognizer, &samples, 2)?;
@@ -72,7 +92,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 }
 
 struct Arguments {
-    model: PathBuf,
+    models_root: PathBuf,
     wave: PathBuf,
     expected: Option<String>,
 }
@@ -80,7 +100,7 @@ struct Arguments {
 impl Arguments {
     fn parse() -> Result<Self, io::Error> {
         let mut arguments = env::args_os().skip(1);
-        let model = arguments.next().map(PathBuf::from).ok_or_else(usage)?;
+        let models_root = arguments.next().map(PathBuf::from).ok_or_else(usage)?;
         let wave = arguments.next().map(PathBuf::from).ok_or_else(usage)?;
         let expected = arguments
             .next()
@@ -90,7 +110,7 @@ impl Arguments {
             return Err(usage());
         }
         Ok(Self {
-            model,
+            models_root,
             wave,
             expected,
         })
@@ -148,6 +168,6 @@ fn path_text(path: &Path) -> Result<&str, io::Error> {
 fn usage() -> io::Error {
     io::Error::new(
         io::ErrorKind::InvalidInput,
-        "usage: paraformer_onnx_probe MODEL_DIR WAVE_PATH [EXPECTED_TEXT]",
+        "usage: paraformer_onnx_probe MODELS_ROOT WAVE_PATH [EXPECTED_TEXT]",
     )
 }

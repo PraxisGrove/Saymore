@@ -26,10 +26,7 @@ pub(super) mod recognition_test;
 pub(super) fn run_local_asr_test(
     recognizer: &dyn template_app::StreamingSpeechRecognizer,
 ) -> (std::time::Duration, Result<String, SpeechRecognitionError>) {
-    let started = std::time::Instant::now();
-    let result = recognition_test::standard_audio_samples()
-        .and_then(|samples| recognition_test::recognize_with(recognizer, samples));
-    (started.elapsed(), result)
+    crate::asr_runtime::self_test::run(recognizer)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

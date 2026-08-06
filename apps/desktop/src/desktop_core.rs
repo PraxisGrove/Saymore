@@ -89,7 +89,7 @@ pub(crate) fn wire_core_services(
         Arc::clone(&microphone),
     );
     settings_ui::wire(&windows.ui, Arc::clone(&bootstrap.settings_store));
-    #[cfg(target_os = "macos")]
+    #[cfg(any(target_os = "macos", target_os = "windows"))]
     crate::local_model_runtime::wire(
         &windows.ui,
         Arc::clone(&bootstrap.settings_store),

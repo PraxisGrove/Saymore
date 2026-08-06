@@ -1,10 +1,10 @@
 # Saymore Desktop
 
-The native Saymore desktop application, implemented with Rust and Slint. It
-currently supports macOS Accessibility and microphone permission flows. Press
-the right Command key once to start recording and press it again to finish;
-press Escape to cancel. Saymore keeps the recording in memory and converts it to
-mono 16 kHz signed 16-bit PCM for speech recognition.
+The native Saymore desktop application, implemented with Rust and Slint for
+macOS and Windows. Press the configured global shortcut once to start recording
+and again to finish; the defaults are Right Command on macOS and Right Alt on
+Windows. Press Escape to cancel. Saymore keeps the recording in memory and
+converts it to mono 16 kHz signed 16-bit PCM for speech recognition.
 
 ## Development
 
@@ -32,6 +32,18 @@ cargo run -p xtask -- bundle-macos
 ```
 
 `just preview` and `just release` are optional aliases when `just` is installed.
+
+On Windows, build the desktop application with:
+
+```powershell
+cargo build -p saymore-desktop
+```
+
+Left-click the notification-area icon to show and focus the main window. Use
+right-click to open the tray menu.
+
+See the [development guide](../../docs/development.md) for Windows packaging and
+release-candidate checks.
 
 ## Local refinement experiment
 

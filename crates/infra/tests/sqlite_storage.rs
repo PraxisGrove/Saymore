@@ -302,7 +302,7 @@ fn clear_sky_settings_migrate_to_sunlit_gold() -> Result<(), Box<dyn std::error:
     )?;
     let version: u32 = connection.query_row("PRAGMA user_version", [], |row| row.get(0))?;
     assert_eq!("sunlit-gold", stored_theme);
-    assert_eq!(24, version);
+    assert_eq!(25, version);
     Ok(())
 }
 
@@ -985,7 +985,7 @@ fn dictionary_identity_preserves_token_boundaries_across_v3_migration()
 
     let connection = rusqlite::Connection::open(path)?;
     let version: u32 = connection.query_row("PRAGMA user_version", [], |row| row.get(0))?;
-    assert_eq!(24, version);
+    assert_eq!(25, version);
     let spaced_key: String = connection.query_row(
         "SELECT canonical_key FROM dictionary_entries WHERE canonical = 'Open AI'",
         [],
@@ -1112,5 +1112,41 @@ fn installed_model_metadata_is_upserted_and_deleted_by_stable_id()
     assert_eq!(vec![model], store.list_installed_models()?);
     store.delete_installed_model("model-id")?;
     assert!(store.list_installed_models()?.is_empty());
+    Ok(())
+}
+
+#[test]
+fn model_download_queue_is_idempotent_fifo_and_persistent() -> Result<(), Box<dyn std::error::Error>>
+{
+    use template_app::ModelDownloadQueueStore;
+
+    let directory = tempfile::tempdir()?;
+    let path = directory.path().join("saymore.sqlite3");
+    let secrets = Arc::new(MemorySecretStore::default());
+    let store = SqliteStorage::start(path.clone(), secrets.clone())?;
+    store.enqueue_model_download("whisper")?;
+    store.enqueue_model_download("qwen3")?;
+    store.enqueue_model_download("whisper")?;
+    assert_eq!(
+        vec!["whisper", "qwen3"],
+        store
+            .queued_model_downloads()?
+            .into_iter()
+            .map(|entry| entry.model_id)
+            .collect::<Vec<_>>()
+    );
+    drop(store);
+
+    let store = SqliteStorage::start(path, secrets)?;
+    store.remove_model_download("whisper")?;
+    assert_eq!(
+        vec!["qwen3"],
+        store
+            .queued_model_downloads()?
+            .into_iter()
+            .map(|entry| entry.model_id)
+            .collect::<Vec<_>>()
+    );
+    assert!(store.enqueue_model_download("  ").is_err());
     Ok(())
 }

@@ -11,16 +11,20 @@ use template_app::{
 use template_infra::MacOsSpeechRecognizer;
 use template_infra::{OpenAiCompatibleSpeechRecognizer, VolcengineSpeechRecognizer};
 
-const STANDARD_AUDIO: &[u8] = include_bytes!("../../../assets/asr-test/standard-zh.pcm");
-const EXPECTED_SAMPLE_COUNT: usize = 61_744;
-
 pub(in crate::settings_ui) struct RecognitionTestAttempt {
+    #[cfg_attr(
+        not(target_os = "macos"),
+        expect(
+            dead_code,
+            reason = "only the macOS system recognition test displays it"
+        )
+    )]
     pub(in crate::settings_ui) elapsed: Duration,
     pub(in crate::settings_ui) result: Result<String, SpeechRecognitionError>,
 }
 
 pub(in crate::settings_ui) fn run(candidate: &AsrProviderConfiguration) -> RecognitionTestAttempt {
-    let Ok(samples) = standard_audio_samples() else {
+    let Ok(samples) = crate::asr_runtime::self_test::standard_audio_samples() else {
         return RecognitionTestAttempt {
             elapsed: Duration::ZERO,
             result: Err(SpeechRecognitionError::Protocol(
@@ -54,20 +58,8 @@ fn recognize(
 
 #[cfg(target_os = "macos")]
 pub(super) fn run_macos() -> RecognitionTestAttempt {
-    let Ok(samples) = standard_audio_samples() else {
-        return RecognitionTestAttempt {
-            elapsed: Duration::ZERO,
-            result: Err(SpeechRecognitionError::Protocol(
-                "standard recognition audio is invalid".to_owned(),
-            )),
-        };
-    };
-    let started = Instant::now();
-    let result = recognize_with(&MacOsSpeechRecognizer::new(), samples);
-    RecognitionTestAttempt {
-        result,
-        elapsed: started.elapsed(),
-    }
+    let (elapsed, result) = crate::asr_runtime::self_test::run(&MacOsSpeechRecognizer::new());
+    RecognitionTestAttempt { result, elapsed }
 }
 
 pub(super) fn recognize_with(
@@ -85,31 +77,4 @@ pub(super) fn recognize_with(
         ));
     }
     Ok(transcript)
-}
-
-pub(super) fn standard_audio_samples() -> Result<Vec<i16>, SpeechRecognitionError> {
-    if STANDARD_AUDIO.len() != EXPECTED_SAMPLE_COUNT * 2 {
-        return Err(SpeechRecognitionError::Protocol(
-            "standard recognition audio has an invalid length".to_owned(),
-        ));
-    }
-    Ok(STANDARD_AUDIO
-        .chunks_exact(2)
-        .map(|bytes| i16::from_le_bytes([bytes[0], bytes[1]]))
-        .collect())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn bundled_audio_matches_the_expected_non_silent_pcm() {
-        let Ok(samples) = standard_audio_samples() else {
-            panic!("bundled test audio should be valid");
-        };
-
-        assert_eq!(EXPECTED_SAMPLE_COUNT, samples.len());
-        assert!(samples.iter().any(|sample| sample.unsigned_abs() > 500));
-    }
 }

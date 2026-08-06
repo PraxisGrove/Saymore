@@ -1,4 +1,5 @@
 import { AppColors } from "color-system.slint";
+import { Typography } from "typography.slint";
 
 component OnboardingButton inherits Rectangle {
     in property <string> label;
@@ -151,7 +152,7 @@ component MicrophoneWave inherits Rectangle {
 
 export component OnboardingWindow inherits Window {
     title: @tr("onboarding.window-title" => "Set up Saymore");
-    default-font-family: "PingFang SC";
+    default-font-family: Typography.ui-font-family;
     default-font-size: 13px;
     preferred-width: 920px;
     preferred-height: 620px;

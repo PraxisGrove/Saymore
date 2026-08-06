@@ -80,8 +80,7 @@ Qwen 的官方仓库发布了同一评测配置下的 **BF16/vLLM** 结果，比
   运行时。
 - Paraformer 不在该表；本仓库的 Paraformer Q8 使用
   AISHELL-1、FLEURS、字符级规范化和 sherpa-onnx，不能直接与 Qwen
-  表混排。参见现有
-  [Paraformer ONNX benchmark](/Users/yugonglian/github/Saymore/docs/research/paraformer-onnx-benchmark.md)。
+  表混排。参见现有 [Paraformer ONNX benchmark](paraformer-onnx-benchmark.md)。
 
 ## 建议决策
 

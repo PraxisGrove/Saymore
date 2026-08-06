@@ -3,7 +3,10 @@ use std::sync::Arc;
 use template_app::SpeechRecognitionError;
 use template_infra::SenseVoiceSpeechRecognizer;
 
-use super::{AsrSessionController, current_process_resident_memory_bytes, resident_memory_delta};
+use super::{
+    AsrSessionController, current_process_resident_memory_bytes, ensure_self_test,
+    resident_memory_delta,
+};
 
 pub(super) struct LoadedSenseVoice {
     pub(super) recognizer: Arc<SenseVoiceSpeechRecognizer>,
@@ -12,8 +15,9 @@ pub(super) struct LoadedSenseVoice {
 
 impl AsrSessionController {
     pub fn prepare_sense_voice(&self) -> Result<Option<u64>, SpeechRecognitionError> {
-        self.sense_voice_runtime()
-            .map(|loaded| loaded.resident_memory_bytes)
+        let loaded = self.sense_voice_runtime()?;
+        ensure_self_test(loaded.recognizer.as_ref())?;
+        Ok(loaded.resident_memory_bytes)
     }
 
     pub fn clear_sense_voice(&self) {

@@ -6,10 +6,13 @@ use std::{
 
 use slint::{ComponentHandle, SharedString};
 use template_app::ProviderConfigStore;
-use template_infra::{JsonSettingsStore, ModelInstallError, SqliteStorage, VerifiedModelInstaller};
+use template_infra::{
+    JsonSettingsStore, ModelInstallError, SqliteStorage, VerifiedModelInstaller,
+    current_process_resident_memory_bytes,
+};
 
 use crate::{
-    asr_runtime::{AsrSessionController, current_process_resident_memory_bytes},
+    asr_runtime::AsrSessionController,
     settings_ui,
     ui::{AppWindow, AsrProviderCardKind, LocalModelDownloadState},
 };
@@ -56,6 +59,17 @@ pub(crate) fn wire(
     models_directory: std::path::PathBuf,
     asr: Arc<AsrSessionController>,
 ) -> Result<(), io::Error> {
+    let device = template_infra::local_inference_device();
+    tracing::info!(
+        target: "saymore::diagnostics",
+        event = "local_asr.device_capabilities",
+        architecture = device.architecture,
+        total_physical_memory_bytes = ?device.total_physical_memory_bytes,
+        available_physical_memory_bytes = ?device.available_physical_memory_bytes,
+        avx = device.avx,
+        avx2 = device.avx2,
+        cpu_backend_supported = device.cpu_backend_supported
+    );
     let installers = Arc::new(LocalModelInstallers {
         paraformer: Arc::new(
             VerifiedModelInstaller::paraformer(models_directory.clone()).map_err(runtime_error)?,

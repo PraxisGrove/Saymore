@@ -1,5 +1,6 @@
 import { AsrProviderCardKind } from "../components.slint";
 import { AppColors } from "../color-system.slint";
+import { Typography } from "../typography.slint";
 
 component CompactActionButton inherits Rectangle {
     in property <string> label;
@@ -43,8 +44,8 @@ component StorageLegendRow inherits Rectangle {
     accessible-action-default => { if root.interactive { root.activated(); } }
     Rectangle { x: 10px; y: 14px; width: 8px; height: 8px; border-radius: 4px; background: root.marker-color; }
     Text { x: 30px; width: parent.width - 188px; text: root.label; color: AppColors.text; font-size: 11px; font-weight: 550; vertical-alignment: center; overflow: elide; }
-    Text { x: parent.width - 178px; width: 82px; text: root.usage; color: AppColors.ink; font-family: "Geist Mono"; font-size: 10px; font-weight: 600; horizontal-alignment: right; vertical-alignment: center; }
-    Text { x: parent.width - 84px; width: 56px; text: root.percent; color: AppColors.text-muted; font-family: "Geist Mono"; font-size: 10px; horizontal-alignment: right; vertical-alignment: center; }
+    Text { x: parent.width - 178px; width: 82px; text: root.usage; color: AppColors.ink; font-family: Typography.mono-font-family; font-size: 10px; font-weight: 600; horizontal-alignment: right; vertical-alignment: center; }
+    Text { x: parent.width - 84px; width: 56px; text: root.percent; color: AppColors.text-muted; font-family: Typography.mono-font-family; font-size: 10px; horizontal-alignment: right; vertical-alignment: center; }
     if root.interactive: Image { x: parent.width - 17px; y: 11px; width: 14px; height: 14px; source: @image-url("../../icons/lucide/chevron-right.svg"); colorize: AppColors.text-muted; }
     row-touch := TouchArea { enabled: root.interactive; mouse-cursor: root.interactive ? pointer : default; clicked => { root.activated(); } }
 }
@@ -66,7 +67,7 @@ component StorageDonut inherits Rectangle {
     if root.diagnostics-share > 0: Path { width: 200px; height: 200px; viewbox-width: 200; viewbox-height: 200; commands: root.diagnostics-path; fill: AppColors.storage-diagnostics; }
     if root.other-share > 0: Path { width: 200px; height: 200px; viewbox-width: 200; viewbox-height: 200; commands: root.other-path; fill: AppColors.storage-other; }
     Text { x: 40px; y: 72px; width: 120px; height: 22px; text: @tr("settings.storage.total" => "Total"); color: AppColors.text-muted; font-size: 11px; font-weight: 500; horizontal-alignment: center; vertical-alignment: center; }
-    Text { x: 23px; y: 96px; width: 154px; height: 38px; text: root.total; color: AppColors.ink; font-family: "Geist Mono"; font-size: 19px; font-weight: 450; horizontal-alignment: center; vertical-alignment: center; overflow: elide; }
+    Text { x: 23px; y: 96px; width: 154px; height: 38px; text: root.total; color: AppColors.ink; font-family: Typography.mono-font-family; font-size: 19px; font-weight: 450; horizontal-alignment: center; vertical-alignment: center; overflow: elide; }
 }
 
 component StorageOverviewCard inherits Rectangle {
@@ -174,7 +175,7 @@ component InstalledModelRow inherits Rectangle {
     Rectangle { x: 80px; y: 25px; width: 8px; height: 8px; border-radius: 4px; background: root.marker-color; }
     Text { x: 94px; y: 17px; width: parent.width - 300px; text: root.title; color: AppColors.text; font-size: 13px; font-weight: 500; overflow: elide; }
     Text { x: 94px; y: 42px; width: parent.width - 300px; text: root.detail; color: root.active ? AppColors.success : AppColors.text-muted; font-size: 9px; overflow: elide; }
-    Text { x: parent.width - 210px; y: 29px; width: 100px; height: 22px; text: root.size; color: AppColors.ink; font-family: "Geist Mono"; font-size: 11px; font-weight: 600; horizontal-alignment: right; vertical-alignment: center; }
+    Text { x: parent.width - 210px; y: 29px; width: 100px; height: 22px; text: root.size; color: AppColors.ink; font-family: Typography.mono-font-family; font-size: 11px; font-weight: 600; horizontal-alignment: right; vertical-alignment: center; }
     if root.active: Rectangle { x: parent.width - 92px; y: 25px; width: 66px; height: 30px; border-radius: 8px; background: AppColors.success-soft; Text { text: @tr("settings.storage.in-use" => "In use"); color: AppColors.success; font-size: 10px; font-weight: 600; horizontal-alignment: center; vertical-alignment: center; } }
     if !root.active: ModelDeleteButton { x: parent.width - 62px; y: 26px; enabled: !root.pending; activated => { root.delete-requested(); } }
 }
@@ -234,7 +235,7 @@ component LocalModelsPage inherits Rectangle {
         Text { x: 72px; y: 17px; text: @tr("settings.storage.model-summary" => "{} speech models + {} auxiliary model" | "{} speech models + {} auxiliary models" % (root.punctuation-installed ? 1 : 0), root.installed-count, root.punctuation-installed ? 1 : 0); color: AppColors.text; font-size: 14px; font-weight: 650; }
         Text { x: 72px; y: 43px; text: @tr("settings.storage.models-local" => "Speech and auxiliary models are stored on this device."); color: AppColors.text-muted; font-size: 10px; }
         Text { x: parent.width - 138px; y: 18px; text: @tr("settings.storage.total-usage" => "Total usage"); color: AppColors.text-muted; font-size: 9px; }
-        Text { x: parent.width - 138px; y: 36px; width: 118px; text: root.total-usage; color: AppColors.ink; font-family: "Geist Mono"; font-size: 18px; font-weight: 650; horizontal-alignment: left; }
+        Text { x: parent.width - 138px; y: 36px; width: 118px; text: root.total-usage; color: AppColors.ink; font-family: Typography.mono-font-family; font-size: 18px; font-weight: 650; horizontal-alignment: left; }
         ModelUsageBar { x: 20px; y: 78px; width: parent.width - 40px; height: 10px; qwen-share: root.qwen-share; sense-voice-share: root.sense-voice-share; whisper-share: root.whisper-share; paraformer-share: root.paraformer-share; punctuation-share: root.punctuation-share; }
         Text { x: 20px; y: 94px; text: @tr("settings.storage.model-realtime" => "Measured from model files in real time, including auxiliary models."); color: AppColors.text-muted; font-size: 8px; }
     }
@@ -256,7 +257,7 @@ component LocalModelsPage inherits Rectangle {
         Rectangle { x: 80px; y: 23px; width: 8px; height: 8px; border-radius: 4px; background: AppColors.model-punctuation; }
         Text { x: 94px; y: 17px; width: parent.width - 300px; text: "CT-Transformer 中英标点 INT8"; color: AppColors.text; font-size: 13px; font-weight: 500; overflow: elide; }
         Text { x: 94px; y: 38px; width: parent.width - 300px; text: @tr("settings.storage.punctuation-detail" => "For Paraformer · Local punctuation restoration"); color: AppColors.text-muted; font-size: 9px; overflow: elide; }
-        Text { x: parent.width - 210px; y: 28px; width: 100px; height: 22px; text: root.punctuation-size; color: AppColors.ink; font-family: "Geist Mono"; font-size: 11px; font-weight: 600; horizontal-alignment: right; vertical-alignment: center; }
+        Text { x: parent.width - 210px; y: 28px; width: 100px; height: 22px; text: root.punctuation-size; color: AppColors.ink; font-family: Typography.mono-font-family; font-size: 11px; font-weight: 600; horizontal-alignment: right; vertical-alignment: center; }
         ModelDeleteButton { x: parent.width - 62px; y: 19px; enabled: !root.punctuation-pending; activated => { root.delete-punctuation(); } }
     }
     if !root.punctuation-installed: Rectangle { x: 0px; y: 230px + root.installed-count * 84px; width: parent.width; height: 70px; border-radius: 10px; background: AppColors.surface; Text { text: @tr("settings.storage.no-auxiliary-model" => "No auxiliary model installed"); color: AppColors.text-muted; font-size: 11px; horizontal-alignment: center; vertical-alignment: center; } }

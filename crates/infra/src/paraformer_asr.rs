@@ -358,6 +358,30 @@ mod tests {
         Ok(())
     }
 
+    #[test]
+    fn long_audio_is_forwarded_without_losing_samples() -> Result<(), SpeechRecognitionError> {
+        let samples = vec![7_i16; SAMPLE_RATE as usize * 180];
+        let result_count = samples.len().div_ceil(9_600) + 1;
+        let state = Arc::new(Mutex::new(FakeState {
+            results: std::iter::repeat_n(Some("long recording".to_owned()), result_count).collect(),
+            ..FakeState::default()
+        }));
+        let recognizer = ParaformerSpeechRecognizer::with_decoder(Arc::new(FakeDecoder {
+            state: Arc::clone(&state),
+        }));
+        let session = recognizer.start(SpeechRecognitionHints::default(), Arc::new(|_| {}))?;
+
+        for chunk in samples.chunks(9_600) {
+            session.push_audio(chunk.to_vec())?;
+        }
+        assert_eq!("long recording", session.finish()?);
+
+        let state = state.lock().map_err(lock_error)?;
+        let accepted_samples = state.accepted.iter().map(Vec::len).sum::<usize>();
+        assert_eq!(samples.len() + TAIL_PADDING_SAMPLES, accepted_samples);
+        Ok(())
+    }
+
     fn create_sparse_file(path: &Path, bytes: u64) -> Result<(), std::io::Error> {
         let file = File::create(path)?;
         file.set_len(bytes)

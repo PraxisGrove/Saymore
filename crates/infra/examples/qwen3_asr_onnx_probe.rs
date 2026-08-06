@@ -4,38 +4,61 @@ use std::{
     io,
     path::{Path, PathBuf},
     sync::Arc,
-    time::Instant,
+    time::{Duration, Instant},
 };
 
 use sherpa_onnx::Wave;
 use template_app::{SpeechRecognitionHints, StreamingSpeechRecognizer};
-use template_infra::{Qwen3AsrSpeechRecognizer, VerifiedModelInstaller};
+use template_infra::{
+    Qwen3AsrSpeechRecognizer, VerifiedModelInstaller, current_process_resident_memory_bytes,
+};
+
+mod probe_support;
 
 const SAMPLE_RATE: i32 = 16_000;
 
 fn main() -> Result<(), Box<dyn Error>> {
     let (models_root, wave_path, maximum_seconds) = arguments()?;
     let installer = VerifiedModelInstaller::qwen3_asr_1_7b(models_root)?;
-    let runtime = tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .build()?;
-    let model = runtime.block_on(installer.install(Arc::new(|_| {})))?;
+    let model = probe_support::install_model("Qwen3-ASR", &installer, 100 * 1024 * 1024)?;
     let mut samples = read_samples(&wave_path)?;
     if let Some(maximum_seconds) = maximum_seconds {
         samples.truncate(maximum_seconds.saturating_mul(SAMPLE_RATE as usize));
     }
+    println!("Model: {}", model.display());
+    println!(
+        "Installed size: {} bytes",
+        installer.installed_size_bytes()?
+    );
+    let memory_before = current_process_resident_memory_bytes();
     let load_started = Instant::now();
     let recognizer = Qwen3AsrSpeechRecognizer::load(&model)?;
-    println!("Load time: {:.2}s", load_started.elapsed().as_secs_f64());
+    let load_elapsed = load_started.elapsed();
+    let memory_after = current_process_resident_memory_bytes();
+    println!("Load time: {:.2}s", load_elapsed.as_secs_f64());
+    println!(
+        "Resident memory: before {:?}, after {:?}, delta {:?} bytes",
+        memory_before,
+        memory_after,
+        memory_before
+            .zip(memory_after)
+            .and_then(|(before, after)| after.checked_sub(before))
+    );
     let first = transcribe(&recognizer, &samples)?;
     let second = transcribe(&recognizer, &samples)?;
-    if compact(&first) != compact(&second) {
+    if compact(&first.text) != compact(&second.text) {
         return Err(io::Error::other(format!(
-            "consecutive sessions disagreed: {first:?} / {second:?}"
+            "consecutive sessions disagreed: {:?} / {:?}",
+            first.text, second.text
         ))
         .into());
     }
-    println!("PASS: two sessions returned {first:?}");
+    println!(
+        "PASS: two sessions returned {:?}; inference {:.2}s / {:.2}s",
+        first.text,
+        first.elapsed.as_secs_f64(),
+        second.elapsed.as_secs_f64()
+    );
     Ok(())
 }
 
@@ -73,21 +96,24 @@ fn read_samples(path: &Path) -> Result<Vec<i16>, Box<dyn Error>> {
         .collect())
 }
 
+struct Transcription {
+    text: String,
+    elapsed: Duration,
+}
+
 fn transcribe(
     recognizer: &Qwen3AsrSpeechRecognizer,
     samples: &[i16],
-) -> Result<String, Box<dyn Error>> {
+) -> Result<Transcription, Box<dyn Error>> {
     let session = recognizer.start(SpeechRecognitionHints::default(), Arc::new(|_| {}))?;
     let started = Instant::now();
     for chunk in samples.chunks(1_600) {
         session.push_audio(chunk.to_vec())?;
     }
     let text = session.finish()?;
-    println!(
-        "Inference: {:.2}s; final: {text}",
-        started.elapsed().as_secs_f64()
-    );
-    Ok(text)
+    let elapsed = started.elapsed();
+    println!("Inference: {:.2}s; final: {text}", elapsed.as_secs_f64());
+    Ok(Transcription { text, elapsed })
 }
 
 fn arguments() -> Result<(PathBuf, PathBuf, Option<usize>), io::Error> {

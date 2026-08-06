@@ -5210,7 +5210,6 @@ version = "0.1.2"
 dependencies = [
  "chrono",
  "httpmock",
- "mach2",
  "num-format",
  "raw-window-handle",
  "reqwest",
@@ -5994,6 +5993,7 @@ dependencies = [
  "futures-util",
  "httpmock",
  "keyring",
+ "mach2",
  "objc2 0.6.4",
  "objc2-app-kit 0.3.2",
  "objc2-av-foundation",

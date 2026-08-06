@@ -4,6 +4,7 @@ import { RecognitionTestPanel } from "asr-recognition-test.slint";
 
 export enum LocalModelDownloadState {
     not-downloaded,
+    queued,
     downloading,
     paused,
     cancelling,
@@ -336,6 +337,7 @@ export component LocalAsrModelModal inherits Rectangle {
         ? root.runtime-memory-usage
         : @tr("models.asr.local.memory-approximate" => "Approx. {}", root.memory-estimate);
     private property <bool> installed: root.download-state == LocalModelDownloadState.downloaded;
+    private property <bool> queued: root.download-state == LocalModelDownloadState.queued;
     private property <bool> downloading: root.download-state == LocalModelDownloadState.downloading;
     private property <bool> paused: root.download-state == LocalModelDownloadState.paused;
     private property <bool> cancelling: root.download-state == LocalModelDownloadState.cancelling;
@@ -344,6 +346,8 @@ export component LocalAsrModelModal inherits Rectangle {
         ? @tr("models.asr.local.status.switching" => "Switching · {}", root.title)
         : root.downloading
         ? @tr("models.asr.local.status.downloading" => "Downloading · {}", root.title)
+        : root.queued
+            ? @tr("models.asr.local.status.queued" => "Queued · {}", root.title)
         : root.paused
             ? @tr("models.asr.local.status.paused" => "Paused · {}", root.title)
             : root.cancelling
@@ -361,6 +365,8 @@ export component LocalAsrModelModal inherits Rectangle {
         ? @tr("models.asr.placeholder.download-disabled" => "No verified download source or production adapter is available.")
         : root.downloading
             ? @tr("models.asr.local.progress-detail" => "{}% of {}", root.progress-percent, root.download-size)
+            : root.queued
+                ? @tr("models.asr.local.queued-detail" => "Waiting for an available download slot")
             : root.paused
                 ? @tr("models.asr.local.paused-detail" => "{}% of {} · Continue when ready", root.progress-percent, root.download-size)
                 : root.cancelling
@@ -372,11 +378,12 @@ export component LocalAsrModelModal inherits Rectangle {
                     : @tr("models.asr.local.download-ready" => "Download to use this model offline");
     private property <string> action-label: root.downloading
         ? @tr("models.asr.local.downloading-percent" => "Downloading {}%", root.progress-percent)
+        : root.queued ? @tr("models.asr.local.queued" => "Queued")
         : root.paused ? @tr("models.asr.local.continue" => "Continue")
         : root.cancelling ? @tr("models.asr.local.cancelling" => "Cancelling")
         : root.installed ? @tr("models.asr.local.delete" => "Delete")
         : @tr("models.asr.local.download-action" => "Download");
-    private property <bool> action-enabled: root.cancelling ? false
+    private property <bool> action-enabled: root.cancelling || root.queued ? false
         : root.installed
         ? !root.selected && !root.selection-pending
         : root.download-supported;
@@ -543,7 +550,7 @@ export component LocalAsrModelModal inherits Rectangle {
                     label: root.action-label;
                     hover-label: root.downloading ? @tr("models.asr.local.pause" => "Pause") : "";
                     enabled: root.action-enabled;
-                    primary: !root.installed && !root.downloading && !root.paused;
+                    primary: !root.installed && !root.queued && !root.downloading && !root.paused;
                     pending: root.downloading;
                     danger: root.installed && !root.selected;
                     activated => {
@@ -552,7 +559,7 @@ export component LocalAsrModelModal inherits Rectangle {
                         else { root.download-requested(root.kind); }
                     }
                 }
-                if root.downloading || root.paused: Rectangle {
+                if root.queued || root.downloading || root.paused: Rectangle {
                     x: 328px;
                     y: 13px;
                     width: 46px;

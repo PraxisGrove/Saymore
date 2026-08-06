@@ -1,4 +1,5 @@
 import { AppColors } from "color-system.slint";
+import { Typography } from "typography.slint";
 
 export component AboutProductCard inherits Rectangle {
     in property <string> app-version;
@@ -41,7 +42,7 @@ export component AboutProductCard inherits Rectangle {
         height: 32px;
         text: "Saymore";
         color: root.product-ink;
-        font-family: "Noto Sans SC";
+        font-family: Typography.ui-font-family;
         font-size: 22px;
         font-weight: 700;
         vertical-alignment: center;
@@ -52,7 +53,7 @@ export component AboutProductCard inherits Rectangle {
         width: root.compact ? parent.width - 96px : 300px;
         text: @tr("settings.product.tagline" => "Speak your mind, hands-free.");
         color: root.product-muted;
-        font-family: "Noto Sans SC";
+        font-family: Typography.ui-font-family;
         font-size: 12px;
         overflow: elide;
     }
@@ -83,7 +84,7 @@ export component AboutProductCard inherits Rectangle {
             width: self.preferred-width;
             text: root.release-notes-label;
             color: release-notes-touch.has-hover ? root.product-ink : root.product-text;
-            font-family: "Noto Sans SC";
+            font-family: Typography.ui-font-family;
             font-size: 11px;
             font-weight: 600;
             vertical-alignment: center;
@@ -109,7 +110,7 @@ export component AboutProductCard inherits Rectangle {
         height: 32px;
         text: root.app-version;
         color: root.product-ink;
-        font-family: "Menlo";
+        font-family: Typography.mono-font-family;
         font-size: 14px;
         font-weight: 500;
         horizontal-alignment: center;
@@ -130,7 +131,7 @@ export component AboutProductCard inherits Rectangle {
         height: 32px;
         text: root.status-label;
         color: root.status-color;
-        font-family: "Noto Sans SC";
+        font-family: Typography.ui-font-family;
         font-size: 10px;
         font-weight: 600;
         horizontal-alignment: right;
@@ -165,7 +166,7 @@ export component AboutProductCard inherits Rectangle {
             width: parent.width - 35px;
             text: root.action-label;
             color: root.update-available ? AppColors.on-brand : root.product-text;
-            font-family: "Noto Sans SC";
+            font-family: Typography.ui-font-family;
             font-size: 11px;
             font-weight: 600;
             horizontal-alignment: right;

@@ -63,6 +63,13 @@ binaries, but it does not make every control an AppKit or WinUI widget.
 Platform-specific behavior must therefore be validated on both operating systems
 instead of inferred from the macOS appearance.
 
+Desktop UI text uses platform system fonts instead of bundled application fonts.
+Windows maps UI and monospaced text to Segoe UI and Consolas; macOS maps them to
+PingFang SC and Menlo. The Slint windows receive this mapping from the desktop
+composition layer before they are shown. Font sizes, weights, and layout remain
+shared across platforms unless a separately validated platform exception is
+required.
+
 ## Platform Integration
 
 macOS adapters use the relevant Accessibility, Core Graphics, AppKit, Keychain,

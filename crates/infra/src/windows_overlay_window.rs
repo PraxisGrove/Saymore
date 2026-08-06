@@ -93,8 +93,7 @@ fn overlay_origin(hwnd: HWND) -> Result<(i32, i32), WindowsOverlayWindowError> {
     let mut dpi_y = DEFAULT_DPI;
     unsafe { GetDpiForMonitor(monitor, MDT_EFFECTIVE_DPI, &raw mut dpi_x, &raw mut dpi_y) }
         .map_err(|error| WindowsOverlayWindowError::Configure(error.to_string()))?;
-    let margin =
-        BOTTOM_MARGIN * i32::try_from(dpi_y).unwrap_or(DEFAULT_DPI as i32) / DEFAULT_DPI as i32;
+    let margin = scaled_bottom_margin(dpi_y);
     let mut window_rect = RECT::default();
     unsafe { GetWindowRect(hwnd, &raw mut window_rect) }
         .map_err(|error| WindowsOverlayWindowError::Configure(error.to_string()))?;
@@ -111,6 +110,12 @@ fn overlay_origin(hwnd: HWND) -> Result<(i32, i32), WindowsOverlayWindowError> {
         ),
         margin,
     ))
+}
+
+fn scaled_bottom_margin(dpi: u32) -> i32 {
+    let scaled = u64::from(BOTTOM_MARGIN.unsigned_abs()).saturating_mul(u64::from(dpi))
+        / u64::from(DEFAULT_DPI);
+    i32::try_from(scaled).unwrap_or(i32::MAX)
 }
 
 fn bottom_center_origin(
@@ -151,5 +156,12 @@ mod tests {
             (-1660, 1025),
             bottom_center_origin((-2560, 0, -640, 1080), (120, 43), 12)
         );
+    }
+
+    #[test]
+    fn scales_the_bottom_margin_for_high_dpi_monitors() {
+        assert_eq!(12, scaled_bottom_margin(96));
+        assert_eq!(18, scaled_bottom_margin(144));
+        assert_eq!(24, scaled_bottom_margin(192));
     }
 }

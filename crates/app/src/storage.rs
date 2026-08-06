@@ -298,6 +298,11 @@ pub struct InstalledModel {
     pub last_verified_at_ms: Option<i64>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct QueuedModelDownload {
+    pub model_id: String,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
 pub enum SecretStoreError {
     #[error("secret storage is temporarily unavailable: {0}")]
@@ -436,6 +441,16 @@ pub trait InstalledModelStore: Send + Sync {
     fn list_installed_models(&self) -> Result<Vec<InstalledModel>, StorageError>;
     fn save_installed_model(&self, model: InstalledModel) -> Result<(), StorageError>;
     fn delete_installed_model(&self, id: &str) -> Result<(), StorageError>;
+}
+
+/// Persists the FIFO order of local-model downloads across application restarts.
+///
+/// Implementations must make enqueue idempotent for a model identity and return
+/// entries in their original insertion order.
+pub trait ModelDownloadQueueStore: Send + Sync {
+    fn queued_model_downloads(&self) -> Result<Vec<QueuedModelDownload>, StorageError>;
+    fn enqueue_model_download(&self, model_id: &str) -> Result<(), StorageError>;
+    fn remove_model_download(&self, model_id: &str) -> Result<(), StorageError>;
 }
 
 pub fn dictionary_comparison_key(value: &str) -> String {

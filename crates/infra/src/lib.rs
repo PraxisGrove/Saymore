@@ -8,11 +8,13 @@ mod app_paths;
 mod cpal_audio_recorder;
 mod dictation_shortcut;
 mod dictionary_files;
+mod local_inference_device;
 mod model_discovery;
 mod model_installer;
 mod offline_punctuation;
 mod openai_transcriptions_asr;
 mod paraformer_asr;
+mod process_memory;
 mod qwen3_asr;
 mod sense_voice_asr;
 mod storage_usage;
@@ -192,6 +194,7 @@ pub use chat_completions_llm::ChatCompletionsLlmProvider;
 pub use cpal_audio_recorder::CpalAudioRecorder;
 pub use dictation_shortcut::DictationShortcutAction;
 pub use dictionary_files::{DictionaryFileError, DictionaryFileReport, DictionaryFiles};
+pub use local_inference_device::{LocalInferenceDevice, local_inference_device};
 pub use model_discovery::{ModelDiscoveryError, discover_models};
 pub use model_installer::{
     ModelDownloadProgress, ModelInstallControl, ModelInstallError, ModelInstallInterruption,
@@ -204,6 +207,7 @@ pub use openai_transcriptions_asr::OpenAiCompatibleSpeechRecognizer;
 pub use paraformer_asr::ParaformerSpeechRecognizer;
 #[cfg(any(target_os = "macos", target_os = "windows"))]
 pub use platform_secret_store::PlatformSecretStore;
+pub use process_memory::current_process_resident_memory_bytes;
 pub use qwen3_asr::Qwen3AsrSpeechRecognizer;
 pub use sense_voice_asr::SenseVoiceSpeechRecognizer;
 pub use sqlite_storage::{SqliteStorage, read_dictionary_snapshot};

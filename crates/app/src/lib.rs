@@ -101,9 +101,10 @@ pub use storage::{
     DailyUsage, DiagnosticEventStore, DictionaryEntry, DictionaryOrigin, DictionaryStore,
     HistoryCursor, HistoryDelivery, HistoryPage, HistoryRecord, HistoryRefinement,
     HistoryRetention, HistoryStore, InstalledModel, InstalledModelStore, LocalSettings,
-    LocalSettingsStore, NewDictionaryEntry, NewHistoryRecord, OnboardingStatus, OnboardingStep,
-    SecretStore, SecretStoreError, StorageError, UiLanguagePreference, UsageSnapshot, UsageStore,
-    dictionary_comparison_key, normalize_language_tag,
+    LocalSettingsStore, ModelDownloadQueueStore, NewDictionaryEntry, NewHistoryRecord,
+    OnboardingStatus, OnboardingStep, QueuedModelDownload, SecretStore, SecretStoreError,
+    StorageError, UiLanguagePreference, UsageSnapshot, UsageStore, dictionary_comparison_key,
+    normalize_language_tag,
 };
 pub use system_audio::{OutputAudioMuteSession, OutputAudioMuter, SystemAudioMuteError};
 pub use text_delivery::{

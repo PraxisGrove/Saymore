@@ -17,6 +17,13 @@ enum ObservedControlText {
     Reset,
 }
 
+#[derive(Debug, PartialEq, Eq)]
+enum ObservationUpdate {
+    Deferred,
+    Snapshot(String),
+    ControlReset,
+}
+
 pub(super) struct CorrectionObservationTarget {
     focused: windows::Win32::UI::Accessibility::IUIAutomationElement,
     original: String,
@@ -100,20 +107,13 @@ impl ActiveCorrectionObservation {
         }
         let focused = self.target.has_focus();
         let has_active_composition = self.target.has_active_composition();
-        let edited = match self.target.current_text() {
-            Some(ObservedControlText::Content(edited)) => Some(edited),
-            Some(ObservedControlText::Reset) if has_active_composition => None,
-            Some(ObservedControlText::Reset) => {
+        match observation_update(self.target.current_text(), has_active_composition) {
+            ObservationUpdate::Deferred => {}
+            ObservationUpdate::Snapshot(edited) => self.report_if_changed(&edited),
+            ObservationUpdate::ControlReset => {
                 self.finish(TextRevisionEndReason::ControlReset);
                 return true;
             }
-            None => None,
-        };
-
-        if let Some(edited) = edited
-            && !has_active_composition
-        {
-            self.report_if_changed(&edited);
         }
         if focused == Some(false) {
             self.finish(TextRevisionEndReason::FocusLost);
@@ -138,6 +138,21 @@ impl ActiveCorrectionObservation {
             self.ended = true;
             (self.observer)(TextRevisionEvent::Ended(reason));
         }
+    }
+}
+
+fn observation_update(
+    current: Option<ObservedControlText>,
+    has_active_composition: bool,
+) -> ObservationUpdate {
+    match current {
+        Some(ObservedControlText::Content(_)) if has_active_composition => {
+            ObservationUpdate::Deferred
+        }
+        Some(ObservedControlText::Content(edited)) => ObservationUpdate::Snapshot(edited),
+        Some(ObservedControlText::Reset) if has_active_composition => ObservationUpdate::Deferred,
+        Some(ObservedControlText::Reset) => ObservationUpdate::ControlReset,
+        None => ObservationUpdate::Deferred,
     }
 }
 
@@ -225,6 +240,34 @@ mod tests {
                 "surrounding ",
                 " remaining"
             )
+        );
+    }
+
+    #[test]
+    fn composition_defers_snapshot_until_it_finishes() {
+        assert_eq!(
+            ObservationUpdate::Deferred,
+            observation_update(Some(ObservedControlText::Content("ni".to_owned())), true)
+        );
+        assert_eq!(
+            ObservationUpdate::Snapshot("你".to_owned()),
+            observation_update(Some(ObservedControlText::Content("你".to_owned())), false)
+        );
+    }
+
+    #[test]
+    fn composition_does_not_treat_a_temporary_empty_value_as_a_reset() {
+        assert_eq!(
+            ObservationUpdate::Deferred,
+            observation_update(Some(ObservedControlText::Reset), true)
+        );
+    }
+
+    #[test]
+    fn empty_value_after_composition_ends_resets_the_observation() {
+        assert_eq!(
+            ObservationUpdate::ControlReset,
+            observation_update(Some(ObservedControlText::Reset), false)
         );
     }
 }

@@ -15,12 +15,12 @@ Project guidance for humans and coding agents.
   decisions.
 - `product/local-asr-launch-decision-map.md`: critical path, acceptance gates,
   and deferred work for the first local ASR beta.
+- `research/windows-release-acceptance.md`: consolidated Windows x64 runtime,
+  packaging, compatibility, and release-gate evidence for the four pinned local
+  ASR models.
 - `research/typeless-input-behavior.md`: first-party research on Typeless
   desktop dictation timing, insertion, processing, permissions, and known
   unknowns.
-- `research/open-source-readme-benchmark.md`: first-party comparison of polished
-  desktop and Rust project READMEs, with recommendations for Saymore's project
-  homepage.
 - `research/multilingual-support-typeless-shandianshuo.md`: first-party
   comparison of Typeless and Shandianshuo multilingual behavior and model
   architecture.
@@ -29,10 +29,8 @@ Project guidance for humans and coding agents.
 - `architecture.md`: crate boundaries and dependency direction.
 - `development.md`: required Cargo, nextest, deny, and size gates.
 - `technology-stack.md`: recommended Rust crates and framework choices.
-- `application-types.md`: supported project directions and when to choose them.
 - `error-handling.md`: structured error strategy.
 - `fail-fast.md`: early validation without production assertions.
 - `dependency-policy.md`: dependency selection and review rules.
-- `observability.md`: tracing and runtime diagnostics guidance.
 - `testing.md`: test layout and test authoring rules.
 - `review.md`: review checklist, size guidance, and API-change expectations.

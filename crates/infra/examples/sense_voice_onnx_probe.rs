@@ -9,7 +9,11 @@ use std::{
 
 use sherpa_onnx::Wave;
 use template_app::{SpeechRecognitionHints, StreamingSpeechRecognizer};
-use template_infra::{SenseVoiceSpeechRecognizer, VerifiedModelInstaller};
+use template_infra::{
+    SenseVoiceSpeechRecognizer, VerifiedModelInstaller, current_process_resident_memory_bytes,
+};
+
+mod probe_support;
 
 const SAMPLE_RATE: i32 = 16_000;
 const CHUNK_SAMPLES: usize = 9_600;
@@ -17,10 +21,7 @@ const CHUNK_SAMPLES: usize = 9_600;
 fn main() -> Result<(), Box<dyn Error>> {
     let arguments = Arguments::parse()?;
     let installer = VerifiedModelInstaller::sense_voice_small(arguments.models_root)?;
-    let runtime = tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .build()?;
-    let model = runtime.block_on(installer.install(Arc::new(|_| {})))?;
+    let model = probe_support::install_model("SenseVoice", &installer, 10 * 1024 * 1024)?;
     let wave = Wave::read(path_text(&arguments.wave)?).ok_or_else(|| {
         io::Error::new(
             io::ErrorKind::InvalidData,
@@ -40,11 +41,25 @@ fn main() -> Result<(), Box<dyn Error>> {
     let samples = pcm_i16(wave.samples());
 
     println!("Model: {}", model.display());
+    println!(
+        "Installed size: {} bytes",
+        installer.installed_size_bytes()?
+    );
     println!("Audio: {}", arguments.wave.display());
+    let memory_before = current_process_resident_memory_bytes();
     let load_started = Instant::now();
     let recognizer = SenseVoiceSpeechRecognizer::load(&model)?;
     let load_elapsed = load_started.elapsed();
+    let memory_after = current_process_resident_memory_bytes();
     println!("Load time: {:.2}s", load_elapsed.as_secs_f64());
+    println!(
+        "Resident memory: before {:?}, after {:?}, delta {:?} bytes",
+        memory_before,
+        memory_after,
+        memory_before
+            .zip(memory_after)
+            .and_then(|(before, after)| after.checked_sub(before))
+    );
 
     let first = transcribe_once(&recognizer, &samples, 1)?;
     let second = transcribe_once(&recognizer, &samples, 2)?;

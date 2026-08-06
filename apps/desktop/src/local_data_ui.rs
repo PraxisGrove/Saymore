@@ -174,12 +174,14 @@ fn wire_history_item_actions(
     });
 }
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", target_os = "windows"))]
 fn copy_history_text(text: &str) {
-    let _ = template_infra::copy_text_to_clipboard(text);
+    if let Err(error) = template_infra::copy_text_to_clipboard(text) {
+        tracing::warn!(event = "history.copy_failed", reason = %error);
+    }
 }
 
-#[cfg(not(target_os = "macos"))]
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
 fn copy_history_text(_text: &str) {
     tracing::warn!(
         event = "history.copy_unavailable",

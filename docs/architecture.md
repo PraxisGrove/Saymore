@@ -205,6 +205,27 @@ shortcut activation and suppression. Preview and release bundles use the same
 capture behavior; their distinct identities affect only whether macOS has
 granted each bundle permission to activate shortcuts globally.
 
+### Local model downloads on Windows
+
+macOS and Windows use the same four pinned model manifests, including artifact
+sizes and SHA-256 values. The desktop download coordinator admits a request only
+after the installer checks peak disk space. It persists model identities through
+the application-owned `ModelDownloadQueueStore`, runs at most two downloads, and
+selects the next entry in SQLite insertion order. Restored entries remain
+visibly queued until the user resumes download activity, so startup does not
+silently begin network transfers.
+
+The Windows x64 build uses sherpa-onnx's pinned static-MT archive. Rust targets
+the static MSVC CRT to keep the native libraries ABI-compatible; sherpa and ONNX
+Runtime are linked into the executable and are not copied as DLL resources by
+NSIS. Device diagnostics locally sample architecture, physical memory, and
+AVX/AVX2 availability. Only the proven x64 packaging constraint is currently a
+hard gate; per-model memory recommendations require Windows device validation.
+
+Runtime memory shown for an active model is the current process working set on
+Windows and resident set size on macOS. It is sampled locally and is not a
+model-only allocation measurement.
+
 ### Windows global shortcuts
 
 The application layer stores each configured dictation shortcut as an opaque,
@@ -252,6 +273,31 @@ localized-keyboard-label change must expose structured key and modifier names
 instead of special-casing individual storage values. Every added locale must
 cover the complete named-key vocabulary in the translation build validation so
 one shortcut cannot mix localized and fallback-English parts.
+
+The hook reserves Right Alt only while that binding and dictation shortcuts are
+enabled. It cannot claim a Windows-supported priority above elevated processes,
+the secure desktop, or every other low-level hook. Release acceptance therefore
+injects a complete Right Alt press through the production monitor and requires
+exactly one toggle while the foreground and focused native window remain
+unchanged. Users who need AltGr retain the supported option to replace or remove
+the default binding.
+
+### Windows distribution and data ownership
+
+Windows distribution remains NSIS with `currentUser` installation; Saymore does
+not require MSIX identity or administrator elevation. The x64 release statically
+links sherpa-onnx, ONNX Runtime, and the MSVC CRT. Its PE import table may
+contain only Windows system libraries, so packaging must fail review if a new
+private DLL dependency appears without a corresponding NSIS resource.
+
+The installed program lives under `%LOCALAPPDATA%\Saymore`, while production
+settings, encrypted history, diagnostics, and models live in the separate
+application data paths owned by `AppPaths`. NSIS upgrades replace program files
+without deleting application data. Uninstall removes the program, shortcuts, and
+uninstall registry entry but intentionally preserves user data and downloaded
+models. A portable release EXE uses the same production application data paths;
+deleting the portable EXE also preserves that data. Data removal remains an
+explicit in-app lifecycle action rather than an installer side effect.
 
 `xtask` owns repository maintenance, local preview and ad-hoc bundle workflows,
 and size-gate commands. Formal distribution metadata lives with the desktop

@@ -1,9 +1,9 @@
-import "../fonts/InterVariable.ttf";
 import { OverlayColors } from "overlay-color-system.slint";
+import { Typography } from "typography.slint";
 
 export component MicrophoneIntroOverlay inherits Window {
     title: "Saymore Microphone";
-    default-font-family: "Inter";
+    default-font-family: Typography.ui-font-family;
     preferred-width: 400px;
     preferred-height: 176px;
     min-width: 400px;
@@ -50,7 +50,7 @@ export component MicrophoneIntroOverlay inherits Window {
 
 export component MicrophonePermissionOverlay inherits Window {
     title: "Saymore Microphone Permission";
-    default-font-family: "Inter";
+    default-font-family: Typography.ui-font-family;
     preferred-width: 400px;
     preferred-height: 96px;
     min-width: 400px;
@@ -85,7 +85,7 @@ export component MicrophonePermissionOverlay inherits Window {
 
 export component AccessibilityPermissionOverlay inherits Window {
     title: "Saymore Accessibility Permission";
-    default-font-family: "Inter";
+    default-font-family: Typography.ui-font-family;
     preferred-width: 420px;
     preferred-height: 104px;
     min-width: 420px;
@@ -130,7 +130,7 @@ export component AccessibilityPermissionOverlay inherits Window {
 
 export component AsrConfigurationOverlay inherits Window {
     title: "Saymore Voice Recognition Setup";
-    default-font-family: "PingFang SC";
+    default-font-family: Typography.ui-font-family;
     preferred-width: 380px;
     preferred-height: 126px;
     min-width: 380px;

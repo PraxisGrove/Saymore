@@ -1,11 +1,9 @@
 use std::time::Duration;
 
 use slint::{ComponentHandle, Timer};
-#[cfg(target_os = "macos")]
-use template_infra::activate_application;
 
 use crate::{
-    overlay_window,
+    overlay_window, status_tray,
     ui::{AppPage, AppWindow, DictionaryAddedOverlay},
 };
 
@@ -69,21 +67,11 @@ pub fn wire(ui: &AppWindow, overlay: &DictionaryAddedOverlay) {
             tracing::warn!(event = "dictionary.window_show_failed", reason = %error);
             return;
         }
-        if let Err(error) = activate_platform_application() {
+        if let Err(error) = status_tray::activate_main_window(&ui) {
             tracing::warn!(event = "dictionary.application_activate_failed", reason = %error);
         }
         if let Some(overlay) = view_notification.upgrade() {
             let _ = overlay.hide();
         }
     });
-}
-
-#[cfg(target_os = "macos")]
-fn activate_platform_application() -> Result<(), String> {
-    activate_application().map_err(|error| error.to_string())
-}
-
-#[cfg(target_os = "windows")]
-fn activate_platform_application() -> Result<(), String> {
-    Ok(())
 }

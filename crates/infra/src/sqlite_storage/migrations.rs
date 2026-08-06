@@ -5,7 +5,7 @@ use super::unavailable;
 
 mod recent;
 
-const CURRENT_SCHEMA_VERSION: u32 = 24;
+const CURRENT_SCHEMA_VERSION: u32 = 25;
 
 pub(super) fn apply(connection: &mut Connection) -> Result<(), StorageError> {
     let version: u32 = connection
@@ -86,6 +86,9 @@ pub(super) fn apply(connection: &mut Connection) -> Result<(), StorageError> {
     }
     if version < 24 {
         recent::add_dictionary_assist_consent(connection)?;
+    }
+    if version < 25 {
+        recent::add_model_download_queue(connection)?;
     }
     Ok(())
 }

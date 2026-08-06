@@ -25,7 +25,7 @@ impl DesktopPlatform {
             #[cfg(any(target_os = "macos", test))]
             Self::MacOs => Some(AsrProviderCardKind::MacosDictation),
             #[cfg(any(target_os = "windows", test))]
-            Self::Windows => Some(AsrProviderCardKind::WindowsSpeech),
+            Self::Windows => None,
             #[cfg(any(not(any(target_os = "macos", target_os = "windows")), test))]
             Self::Other => None,
         }
@@ -42,27 +42,27 @@ impl DesktopPlatform {
         }
     }
 
-    fn paraformer_available(self) -> bool {
+    fn local_models_available(self) -> bool {
         match self {
             #[cfg(any(target_os = "macos", test))]
             Self::MacOs => true,
             #[cfg(any(target_os = "windows", test))]
-            Self::Windows => false,
+            Self::Windows => true,
             #[cfg(any(not(any(target_os = "macos", target_os = "windows")), test))]
             Self::Other => false,
         }
     }
 
     fn whisper_available(self) -> bool {
-        self.paraformer_available()
+        self.local_models_available()
     }
 
     fn qwen3_available(self) -> bool {
-        self.paraformer_available()
+        self.local_models_available()
     }
 
     fn sense_voice_available(self) -> bool {
-        self.paraformer_available()
+        self.local_models_available()
     }
 }
 
@@ -82,7 +82,7 @@ fn provider_cards(platform: DesktopPlatform) -> Vec<AsrProviderCardSpec> {
         });
     }
     cards.extend([
-        if platform.paraformer_available() {
+        if platform.local_models_available() {
             available(AsrProviderCardKind::Paraformer)
         } else {
             unavailable(AsrProviderCardKind::Paraformer)
@@ -130,16 +130,13 @@ mod tests {
     fn unavailable_cards_are_visible_as_non_selectable_placeholders() {
         for platform in [DesktopPlatform::MacOs, DesktopPlatform::Windows] {
             let cards = provider_cards(platform);
-            assert_eq!(8, cards.len());
-            let expected_unavailable = if matches!(platform, DesktopPlatform::MacOs) {
-                1
+            let expected_count = if matches!(platform, DesktopPlatform::MacOs) {
+                8
             } else {
-                6
+                7
             };
-            assert_eq!(
-                expected_unavailable,
-                cards.iter().filter(|card| !card.available).count()
-            );
+            assert_eq!(expected_count, cards.len());
+            assert_eq!(1, cards.iter().filter(|card| !card.available).count());
         }
     }
 
@@ -164,7 +161,6 @@ mod tests {
         assert_eq!(
             vec![
                 AsrProviderCardKind::SaymoreCloud,
-                AsrProviderCardKind::WindowsSpeech,
                 AsrProviderCardKind::Paraformer,
                 AsrProviderCardKind::WhisperLargeV3Turbo,
                 AsrProviderCardKind::Qwen3Asr,
@@ -200,10 +196,10 @@ mod tests {
     }
 
     #[test]
-    fn paraformer_is_available_only_on_macos() {
+    fn paraformer_is_available_on_supported_desktop_platforms() {
         for (platform, expected) in [
             (DesktopPlatform::MacOs, true),
-            (DesktopPlatform::Windows, false),
+            (DesktopPlatform::Windows, true),
             (DesktopPlatform::Other, false),
         ] {
             let paraformer = provider_cards(platform)
@@ -214,10 +210,10 @@ mod tests {
     }
 
     #[test]
-    fn whisper_is_available_only_on_macos() {
+    fn whisper_is_available_on_supported_desktop_platforms() {
         for (platform, expected) in [
             (DesktopPlatform::MacOs, true),
-            (DesktopPlatform::Windows, false),
+            (DesktopPlatform::Windows, true),
             (DesktopPlatform::Other, false),
         ] {
             let whisper = provider_cards(platform)
@@ -228,10 +224,10 @@ mod tests {
     }
 
     #[test]
-    fn qwen3_is_available_only_on_macos() {
+    fn qwen3_is_available_on_supported_desktop_platforms() {
         for (platform, expected) in [
             (DesktopPlatform::MacOs, true),
-            (DesktopPlatform::Windows, false),
+            (DesktopPlatform::Windows, true),
             (DesktopPlatform::Other, false),
         ] {
             let qwen3 = provider_cards(platform)

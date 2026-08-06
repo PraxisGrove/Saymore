@@ -1,6 +1,6 @@
 use std::{
-    fs::{self, File, OpenOptions},
-    io::{Read, Write},
+    fs,
+    io::Write,
     path::{Path, PathBuf},
     sync::{
         Arc,
@@ -9,17 +9,21 @@ use std::{
     time::Duration,
 };
 
-use bzip2::read::BzDecoder;
 use futures_util::StreamExt;
 use reqwest::{Client, StatusCode, header::RANGE};
-use sha2::{Digest, Sha256};
 use thiserror::Error;
 use tokio_util::sync::CancellationToken;
 
+mod artifact_files;
 mod manifests;
 mod sense_voice_manifest;
 mod verification;
 
+use artifact_files::{
+    download_error, extract_tar_bzip2_member, file_matches, file_size, filesystem_error,
+    manifest_matches, open_partial, remove_directory_if_present, remove_file_if_present,
+    staged_bytes,
+};
 use verification::{verification_marker_matches, write_verification_marker};
 
 #[cfg(test)]
@@ -202,6 +206,7 @@ impl VerifiedModelInstaller {
     fn new(models_root: PathBuf, manifest: ModelManifest) -> Result<Self, ModelInstallError> {
         let _ = rustls::crypto::ring::default_provider().install_default();
         let client = Client::builder()
+            .user_agent(concat!("Saymore/", env!("CARGO_PKG_VERSION")))
             .redirect(reqwest::redirect::Policy::limited(10))
             .connect_timeout(CONNECT_TIMEOUT)
             .read_timeout(READ_TIMEOUT)
@@ -236,6 +241,12 @@ impl VerifiedModelInstaller {
             downloaded_bytes: staged_bytes(&self.staging_directory(), &self.manifest)?,
             total_bytes: self.manifest.total_bytes(),
         })
+    }
+
+    /// Checks the peak free-space requirement before a download is admitted to the queue.
+    pub fn ensure_install_space(&self) -> Result<(), ModelInstallError> {
+        fs::create_dir_all(&self.models_root).map_err(filesystem_error)?;
+        self.ensure_space(&self.staging_directory())
     }
 
     pub fn is_installed(&self) -> bool {
@@ -315,7 +326,7 @@ impl VerifiedModelInstaller {
         fs::create_dir_all(&self.models_root).map_err(filesystem_error)?;
         let staging = self.staging_directory();
         fs::create_dir_all(&staging).map_err(filesystem_error)?;
-        self.ensure_space(&staging)?;
+        self.ensure_install_space()?;
         for artifact in &self.manifest.downloads {
             control.check()?;
             self.download_artifact(&staging, artifact, Arc::clone(&on_progress), control)
@@ -575,132 +586,4 @@ impl VerifiedModelInstaller {
             },
         )
     }
-}
-
-fn extract_tar_bzip2_member(
-    archive_path: &Path,
-    member_path: &str,
-    destination: &Path,
-    expected_bytes: u64,
-) -> Result<(), ModelInstallError> {
-    let archive_file = File::open(archive_path).map_err(filesystem_error)?;
-    let decoder = BzDecoder::new(archive_file);
-    let mut archive = tar::Archive::new(decoder);
-    let mut found = false;
-    for entry in archive.entries().map_err(filesystem_error)? {
-        let mut entry = entry.map_err(filesystem_error)?;
-        let path = entry.path().map_err(filesystem_error)?;
-        if path != Path::new(member_path) {
-            continue;
-        }
-        if found || !entry.header().entry_type().is_file() || entry.size() != expected_bytes {
-            return Err(ModelInstallError::Integrity(
-                "the punctuation archive contains an invalid model entry".to_owned(),
-            ));
-        }
-        if let Some(parent) = destination.parent() {
-            fs::create_dir_all(parent).map_err(filesystem_error)?;
-        }
-        let mut output = File::create(destination).map_err(filesystem_error)?;
-        std::io::copy(&mut entry, &mut output).map_err(filesystem_error)?;
-        output.sync_all().map_err(filesystem_error)?;
-        found = true;
-    }
-    if !found {
-        return Err(ModelInstallError::Integrity(
-            "the punctuation archive does not contain the pinned model entry".to_owned(),
-        ));
-    }
-    Ok(())
-}
-
-fn open_partial(path: &Path, append: bool) -> Result<File, ModelInstallError> {
-    OpenOptions::new()
-        .create(true)
-        .write(true)
-        .append(append)
-        .truncate(!append)
-        .open(path)
-        .map_err(filesystem_error)
-}
-
-fn staged_bytes(staging: &Path, manifest: &ModelManifest) -> Result<u64, ModelInstallError> {
-    manifest
-        .downloads
-        .iter()
-        .try_fold(0_u64, |total, artifact| {
-            let complete = file_size(&staging.join(&artifact.local_path))?;
-            let partial = file_size(&staging.join(&artifact.local_path).with_extension(format!(
-                "{}part",
-                Path::new(&artifact.local_path)
-                    .extension()
-                    .and_then(|extension| extension.to_str())
-                    .map(|extension| format!("{extension}."))
-                    .unwrap_or_default()
-            )))?;
-            Ok(total.saturating_add(complete.max(partial).min(artifact.bytes)))
-        })
-}
-
-fn manifest_matches(directory: &Path, manifest: &ModelManifest) -> bool {
-    manifest.artifacts.iter().all(|artifact| {
-        file_matches(&directory.join(&artifact.local_path), artifact).unwrap_or(false)
-    })
-}
-
-fn file_matches(path: &Path, artifact: &ModelArtifact) -> Result<bool, ModelInstallError> {
-    if file_size(path)? != artifact.bytes {
-        return Ok(false);
-    }
-    Ok(sha256(path)? == artifact.sha256)
-}
-
-fn sha256(path: &Path) -> Result<String, ModelInstallError> {
-    let mut file = File::open(path).map_err(filesystem_error)?;
-    let mut digest = Sha256::new();
-    let mut buffer = [0_u8; 64 * 1024];
-    loop {
-        let read = file.read(&mut buffer).map_err(filesystem_error)?;
-        if read == 0 {
-            break;
-        }
-        digest.update(&buffer[..read]);
-    }
-    Ok(digest
-        .finalize()
-        .iter()
-        .map(|byte| format!("{byte:02x}"))
-        .collect())
-}
-
-fn file_size(path: &Path) -> Result<u64, ModelInstallError> {
-    match fs::metadata(path) {
-        Ok(metadata) => Ok(metadata.len()),
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(0),
-        Err(error) => Err(filesystem_error(error)),
-    }
-}
-
-fn remove_file_if_present(path: &Path) -> Result<(), ModelInstallError> {
-    match fs::remove_file(path) {
-        Ok(()) => Ok(()),
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
-        Err(error) => Err(filesystem_error(error)),
-    }
-}
-
-fn remove_directory_if_present(path: &Path) -> Result<(), ModelInstallError> {
-    match fs::remove_dir_all(path) {
-        Ok(()) => Ok(()),
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
-        Err(error) => Err(filesystem_error(error)),
-    }
-}
-
-fn download_error(error: impl std::fmt::Display) -> ModelInstallError {
-    ModelInstallError::Download(error.to_string())
-}
-
-fn filesystem_error(error: impl std::fmt::Display) -> ModelInstallError {
-    ModelInstallError::Filesystem(error.to_string())
 }

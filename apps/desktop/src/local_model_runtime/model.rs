@@ -35,6 +35,10 @@ impl LocalModel {
         }
     }
 
+    pub(super) fn from_id(id: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|model| model.id() == id)
+    }
+
     pub(super) fn card_kind(self) -> AsrProviderCardKind {
         match self {
             Self::Paraformer => AsrProviderCardKind::Paraformer,

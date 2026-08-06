@@ -11,7 +11,7 @@ use template_app::{
 };
 
 const SAMPLE_RATE: i32 = 16_000;
-const MAX_SEGMENT_SAMPLES: usize = 30 * SAMPLE_RATE as usize;
+const MAX_SEGMENT_SAMPLES: usize = 29 * SAMPLE_RATE as usize;
 const ENCODER_FILE: &str = "turbo-encoder.int8.onnx";
 const ENCODER_BYTES: u64 = 674_716_297;
 const DECODER_FILE: &str = "turbo-decoder.int8.onnx";

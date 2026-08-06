@@ -24,9 +24,11 @@ fn main() {
 #[cfg(target_os = "windows")]
 fn embed_windows_resources() -> Result<(), std::io::Error> {
     println!("cargo:rerun-if-changed=icons/taskbar.ico");
+    println!("cargo:rerun-if-changed=packaging/windows/app.manifest");
     winresource::WindowsResource::new()
         .set_icon("icons/taskbar.ico")
         .set_icon_with_id("icons/taskbar.ico", "2")
+        .set_manifest_file("packaging/windows/app.manifest")
         .compile()
 }
 

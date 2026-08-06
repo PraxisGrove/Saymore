@@ -3,13 +3,6 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-#[cfg(target_os = "macos")]
-use mach2::{
-    kern_return::KERN_SUCCESS,
-    task::task_info,
-    task_info::{MACH_TASK_BASIC_INFO, MACH_TASK_BASIC_INFO_COUNT, mach_task_basic_info},
-    traps::mach_task_self,
-};
 use template_app::{
     DictationSessionId, DictionaryStore, OwnedRecognition, ParaformerPunctuationMode, PcmRecording,
     RestoredRecordingTranscriber, SpeechRecognitionError, SpeechRecognitionHints,
@@ -23,10 +16,11 @@ use template_infra::{
     PUNCTUATION_MODEL_REVISION, ParaformerSpeechRecognizer, QWEN3_ASR_MODEL_ID,
     QWEN3_ASR_MODEL_REVISION, Qwen3AsrSpeechRecognizer, SENSE_VOICE_MODEL_ID,
     SENSE_VOICE_MODEL_REVISION, VolcengineSpeechRecognizer, WHISPER_MODEL_ID,
-    WHISPER_MODEL_REVISION, WhisperSpeechRecognizer,
+    WHISPER_MODEL_REVISION, WhisperSpeechRecognizer, current_process_resident_memory_bytes,
 };
 
 mod punctuation;
+pub(crate) mod self_test;
 mod sense_voice;
 
 use punctuation::PunctuatedRecognitionSession;
@@ -102,8 +96,9 @@ impl AsrSessionController {
     }
 
     pub fn prepare_paraformer(&self) -> Result<Option<u64>, SpeechRecognitionError> {
-        self.paraformer_runtime()
-            .map(|loaded| loaded.resident_memory_bytes)
+        let loaded = self.paraformer_runtime()?;
+        ensure_self_test(loaded.recognizer.as_ref())?;
+        Ok(loaded.resident_memory_bytes)
     }
 
     pub fn clear_paraformer(&self) {
@@ -144,8 +139,9 @@ impl AsrSessionController {
     }
 
     pub fn prepare_whisper(&self) -> Result<Option<u64>, SpeechRecognitionError> {
-        self.whisper_runtime()
-            .map(|loaded| loaded.resident_memory_bytes)
+        let loaded = self.whisper_runtime()?;
+        ensure_self_test(loaded.recognizer.as_ref())?;
+        Ok(loaded.resident_memory_bytes)
     }
 
     pub fn clear_whisper(&self) {
@@ -155,8 +151,9 @@ impl AsrSessionController {
     }
 
     pub fn prepare_qwen3(&self) -> Result<Option<u64>, SpeechRecognitionError> {
-        self.qwen3_runtime()
-            .map(|loaded| loaded.resident_memory_bytes)
+        let loaded = self.qwen3_runtime()?;
+        ensure_self_test(loaded.recognizer.as_ref())?;
+        Ok(loaded.resident_memory_bytes)
     }
 
     pub fn clear_qwen3(&self) {
@@ -453,29 +450,11 @@ fn resident_memory_delta(before: Option<u64>, after: Option<u64>) -> Option<u64>
         .filter(|bytes| *bytes > 0)
 }
 
-#[cfg(target_os = "macos")]
-pub(crate) fn current_process_resident_memory_bytes() -> Option<u64> {
-    let mut info = mach_task_basic_info::default();
-    let mut count = MACH_TASK_BASIC_INFO_COUNT;
-    // SAFETY: `info` is a writable Mach task-info buffer of the advertised size.
-    let status = unsafe {
-        task_info(
-            mach_task_self(),
-            MACH_TASK_BASIC_INFO,
-            std::ptr::addr_of_mut!(info).cast(),
-            &mut count,
-        )
-    };
-    if status != KERN_SUCCESS {
-        return None;
-    }
-    // `mach2` models this ABI structure as packed to four-byte alignment.
-    Some(unsafe { std::ptr::addr_of!(info.resident_size).read_unaligned() })
-}
-
-#[cfg(not(target_os = "macos"))]
-pub(crate) fn current_process_resident_memory_bytes() -> Option<u64> {
-    None
+fn ensure_self_test(
+    recognizer: &dyn StreamingSpeechRecognizer,
+) -> Result<(), SpeechRecognitionError> {
+    let (_, result) = self_test::run(recognizer);
+    result.map(|_| ())
 }
 
 impl RestoredRecordingTranscriber for AsrSessionController {

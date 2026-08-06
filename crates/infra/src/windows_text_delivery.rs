@@ -1,15 +1,8 @@
 mod clipboard;
 mod observation;
+mod worker;
 
-use std::{
-    fmt, mem,
-    sync::{
-        Arc, Mutex,
-        mpsc::{self, Receiver, SyncSender},
-    },
-    thread::{self, JoinHandle},
-    time::Duration,
-};
+use std::{fmt, mem, sync::Arc, thread, time::Duration};
 
 use template_app::{
     AccessibilityAuthorization, CorrectionObservingTextDeliverer, DeliveryTargetPrivacy,
@@ -18,6 +11,7 @@ use template_app::{
 };
 use windows::{
     Win32::{
+        Foundation::{HWND, LPARAM, WPARAM},
         System::{
             Com::{CLSCTX_INPROC_SERVER, CoCreateInstance},
             Ole::{OleInitialize, OleUninitialize},
@@ -32,17 +26,17 @@ use windows::{
                 INPUT, INPUT_0, INPUT_KEYBOARD, KEYBDINPUT, KEYEVENTF_KEYUP, SendInput,
                 VIRTUAL_KEY, VK_CONTROL, VK_V,
             },
+            WindowsAndMessaging::{SendMessageW, WM_PASTE},
         },
     },
     core::{Error as WindowsError, HRESULT, Interface},
 };
 
 use self::clipboard::{ClipboardSnapshot, TemporaryClipboard};
-use self::observation::{ActiveCorrectionObservation, CorrectionObservationTarget, POLL_INTERVAL};
+use self::worker::{DeliveryCommand, DeliveryWorker};
 
 const FOCUS_SETTLE_DELAY: Duration = Duration::from_millis(80);
 const PASTE_CONSUMPTION_DELAY: Duration = Duration::from_millis(300);
-const COMMAND_QUEUE_CAPACITY: usize = 2;
 const UIA_E_NOTSUPPORTED: HRESULT = HRESULT(0x80040200_u32 as i32);
 
 #[derive(Clone)]
@@ -118,159 +112,6 @@ pub fn copy_text_to_clipboard(text: &str) -> Result<(), TextDeliveryError> {
         .map_err(|failure| failure.error)
 }
 
-enum DeliveryCommand {
-    Authorization {
-        response: mpsc::Sender<AccessibilityAuthorization>,
-    },
-    TargetPrivacy {
-        response: mpsc::Sender<DeliveryTargetPrivacy>,
-    },
-    Deliver {
-        text: String,
-        observer: Option<TextRevisionObserver>,
-        response: mpsc::Sender<Result<TextDeliveryOutcome, TextDeliveryError>>,
-    },
-    FinishObservation {
-        reason: TextRevisionEndReason,
-        response: mpsc::Sender<()>,
-    },
-}
-
-struct DeliveryWorker {
-    sender: Mutex<Option<SyncSender<DeliveryCommand>>>,
-    thread: Option<JoinHandle<()>>,
-}
-
-impl DeliveryWorker {
-    fn spawn() -> Result<Self, TextDeliveryError> {
-        let (sender, receiver) = mpsc::sync_channel(COMMAND_QUEUE_CAPACITY);
-        let (initialization_sender, initialization_receiver) = mpsc::channel();
-        let worker = thread::Builder::new()
-            .name("saymore-windows-text-delivery".to_owned())
-            .spawn(move || run_worker(receiver, initialization_sender))
-            .map_err(|error| {
-                TextDeliveryError::System(format!("start Windows delivery worker failed: {error}"))
-            })?;
-        match initialization_receiver.recv() {
-            Ok(Ok(())) => Ok(Self {
-                sender: Mutex::new(Some(sender)),
-                thread: Some(worker),
-            }),
-            Ok(Err(error)) => {
-                drop(sender);
-                let _ = worker.join();
-                Err(error)
-            }
-            Err(_) => {
-                drop(sender);
-                let _ = worker.join();
-                Err(worker_unavailable())
-            }
-        }
-    }
-
-    fn request<T>(
-        &self,
-        command: impl FnOnce(mpsc::Sender<T>) -> DeliveryCommand,
-    ) -> Result<T, TextDeliveryError> {
-        let (response_sender, response_receiver) = mpsc::channel();
-        let sender = self.sender.lock().map_err(|_| worker_unavailable())?;
-        sender
-            .as_ref()
-            .ok_or_else(worker_unavailable)?
-            .send(command(response_sender))
-            .map_err(|_| worker_unavailable())?;
-        drop(sender);
-        response_receiver.recv().map_err(|_| worker_unavailable())
-    }
-}
-
-impl Drop for DeliveryWorker {
-    fn drop(&mut self) {
-        match self.sender.lock() {
-            Ok(mut sender) => {
-                sender.take();
-            }
-            Err(poisoned) => {
-                poisoned.into_inner().take();
-            }
-        }
-        if let Some(worker) = self.thread.take() {
-            let _ = worker.join();
-        }
-    }
-}
-
-fn run_worker(
-    receiver: Receiver<DeliveryCommand>,
-    initialized: mpsc::Sender<Result<(), TextDeliveryError>>,
-) {
-    let runtime = match NativeDelivery::initialize() {
-        Ok(runtime) => {
-            let _ = initialized.send(Ok(()));
-            runtime
-        }
-        Err(error) => {
-            let _ = initialized.send(Err(error));
-            return;
-        }
-    };
-    let mut active_observations = Vec::new();
-    loop {
-        match receiver.recv_timeout(POLL_INTERVAL) {
-            Ok(DeliveryCommand::Authorization { response }) => {
-                let _ = response.send(AccessibilityAuthorization::Granted);
-            }
-            Ok(DeliveryCommand::TargetPrivacy { response }) => {
-                let privacy = runtime
-                    .focused_target()
-                    .map(|target| target.privacy())
-                    .unwrap_or(DeliveryTargetPrivacy::Sensitive);
-                let _ = response.send(privacy);
-            }
-            Ok(DeliveryCommand::Deliver {
-                text,
-                observer,
-                response,
-            }) => {
-                for observation in &mut active_observations {
-                    observation.finish(TextRevisionEndReason::NextDictation);
-                }
-                active_observations.clear();
-                match deliver_once(&runtime, &text) {
-                    Ok(attempt) => {
-                        if let Some(observation) = observer.and_then(|observer| {
-                            CorrectionObservationTarget::capture(&attempt.target, &text)
-                                .map(|target| ActiveCorrectionObservation::new(target, observer))
-                        }) {
-                            active_observations.push(observation);
-                        }
-                        let _ = response.send(Ok(attempt.outcome));
-                    }
-                    Err(error) => {
-                        let _ = response.send(Err(error));
-                    }
-                }
-            }
-            Ok(DeliveryCommand::FinishObservation { reason, response }) => {
-                for observation in &mut active_observations {
-                    observation.finish(reason);
-                }
-                active_observations.clear();
-                let _ = response.send(());
-            }
-            Err(mpsc::RecvTimeoutError::Timeout) => {}
-            Err(mpsc::RecvTimeoutError::Disconnected) => {
-                for observation in &mut active_observations {
-                    observation.finish(TextRevisionEndReason::Cancelled);
-                }
-                break;
-            }
-        }
-        active_observations.retain_mut(|observation| !observation.poll());
-    }
-}
-
 fn observable_control_text(element: &IUIAutomationElement) -> Option<String> {
     if let Ok(Some(pattern)) =
         current_pattern::<IUIAutomationValuePattern>(element, UIA_ValuePatternId)
@@ -342,6 +183,7 @@ impl NativeDelivery {
             .then(|| observable_control_text(&element))
             .flatten();
         Ok(FocusedTarget {
+            paste_window: native_paste_window(&element),
             element,
             sensitive,
             initial_text,
@@ -367,6 +209,7 @@ struct FocusedTarget {
     element: IUIAutomationElement,
     sensitive: bool,
     initial_text: Option<String>,
+    paste_window: Option<HWND>,
 }
 
 impl FocusedTarget {
@@ -460,7 +303,7 @@ trait DeliveryOperations {
         text: &str,
     ) -> Result<Self::Temporary, ClipboardSetupFailure<Self::Temporary>>;
     fn focus_matches(&self, target: &Self::Target) -> Result<bool, TextDeliveryError>;
-    fn send_paste(&self) -> Result<(), TextDeliveryError>;
+    fn send_paste(&self, target: &Self::Target) -> Result<PasteDispatch, TextDeliveryError>;
     fn wait_for_paste(&self);
     fn restore_clipboard(
         &self,
@@ -506,8 +349,8 @@ impl DeliveryOperations for NativeDelivery {
         self.focus_matches(target)
     }
 
-    fn send_paste(&self) -> Result<(), TextDeliveryError> {
-        send_paste_shortcut()
+    fn send_paste(&self, target: &Self::Target) -> Result<PasteDispatch, TextDeliveryError> {
+        send_paste(target.paste_window)
     }
 
     fn wait_for_paste(&self) {
@@ -552,13 +395,16 @@ fn deliver_once<O: DeliveryOperations>(
         .focus_matches(&target)
         .and_then(|same| {
             if same {
-                operations.send_paste()
+                operations.send_paste(&target)
             } else {
                 Err(focus_changed_error())
             }
         })
-        .and_then(|()| {
+        .and_then(|dispatch| {
             operations.wait_for_paste();
+            if dispatch == PasteDispatch::Synchronous {
+                return Ok(());
+            }
             operations.focus_matches(&target).and_then(|same| {
                 if same {
                     Ok(())
@@ -598,6 +444,37 @@ fn send_paste_shortcut() -> Result<(), TextDeliveryError> {
             inputs.len()
         )))
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum PasteDispatch {
+    Synchronous,
+    Asynchronous,
+}
+
+fn send_paste(window: Option<HWND>) -> Result<PasteDispatch, TextDeliveryError> {
+    if let Some(window) = window {
+        unsafe { SendMessageW(window, WM_PASTE, Some(WPARAM(0)), Some(LPARAM(0))) };
+        Ok(PasteDispatch::Synchronous)
+    } else {
+        send_paste_shortcut().map(|()| PasteDispatch::Asynchronous)
+    }
+}
+
+fn native_paste_window(element: &IUIAutomationElement) -> Option<HWND> {
+    let class_name = unsafe { element.CurrentClassName() }.ok()?.to_string();
+    if !supports_window_paste(&class_name) {
+        return None;
+    }
+    let window = unsafe { element.CurrentNativeWindowHandle() }.ok()?;
+    (!window.0.is_null()).then_some(window)
+}
+
+fn supports_window_paste(class_name: &str) -> bool {
+    class_name.eq_ignore_ascii_case("Edit")
+        || class_name
+            .get(..8)
+            .is_some_and(|prefix| prefix.eq_ignore_ascii_case("RichEdit"))
 }
 
 fn paste_cleanup_inputs(sent: u32) -> Vec<INPUT> {
@@ -663,7 +540,10 @@ fn system_error(operation: &str, error: WindowsError) -> TextDeliveryError {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::{
+        Mutex,
+        atomic::{AtomicUsize, Ordering},
+    };
 
     use super::*;
 
@@ -715,6 +595,15 @@ mod tests {
     }
 
     #[test]
+    fn native_edit_controls_use_synchronous_window_paste() {
+        assert!(supports_window_paste("Edit"));
+        assert!(supports_window_paste("RICHEDIT50W"));
+        assert!(supports_window_paste("RichEditD2DPT"));
+        assert!(!supports_window_paste("_WwG"));
+        assert!(!supports_window_paste("Chrome_RenderWidgetHostHWND"));
+    }
+
+    #[test]
     fn paste_sequence_releases_v_before_control() {
         let inputs = paste_inputs();
         let keys = inputs.map(|input| unsafe { input.Anonymous.ki });
@@ -754,6 +643,7 @@ mod tests {
         restore_calls: AtomicUsize,
         setup_error: bool,
         restore_error: bool,
+        paste_dispatch: PasteDispatch,
     }
 
     impl FakeOperations {
@@ -765,11 +655,17 @@ mod tests {
                 restore_calls: AtomicUsize::new(0),
                 setup_error: false,
                 restore_error,
+                paste_dispatch: PasteDispatch::Asynchronous,
             }
         }
 
         fn with_setup_error(mut self) -> Self {
             self.setup_error = true;
+            self
+        }
+
+        fn with_synchronous_paste(mut self) -> Self {
+            self.paste_dispatch = PasteDispatch::Synchronous;
             self
         }
     }
@@ -815,9 +711,9 @@ mod tests {
                 .ok_or_else(worker_unavailable)
         }
 
-        fn send_paste(&self) -> Result<(), TextDeliveryError> {
+        fn send_paste(&self, _target: &Self::Target) -> Result<PasteDispatch, TextDeliveryError> {
             self.paste_calls.fetch_add(1, Ordering::Relaxed);
-            Ok(())
+            Ok(self.paste_dispatch)
         }
 
         fn wait_for_paste(&self) {}
@@ -859,6 +755,18 @@ mod tests {
     fn focus_change_after_paste_never_repeats_paste() {
         let operations = FakeOperations::new(false, vec![false, true], false);
         assert!(deliver_once(&operations, "private text").is_err());
+        assert_eq!(1, operations.paste_calls.load(Ordering::Relaxed));
+        assert_eq!(1, operations.restore_calls.load(Ordering::Relaxed));
+    }
+
+    #[test]
+    fn synchronous_window_paste_completes_before_a_later_focus_change() {
+        let operations = FakeOperations::new(false, vec![true], false).with_synchronous_paste();
+
+        assert_eq!(
+            Ok(TextDeliveryOutcome::ClipboardAttempted),
+            deliver_once(&operations, "private text").map(|attempt| attempt.outcome)
+        );
         assert_eq!(1, operations.paste_calls.load(Ordering::Relaxed));
         assert_eq!(1, operations.restore_calls.load(Ordering::Relaxed));
     }

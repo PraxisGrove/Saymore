@@ -11,6 +11,7 @@ import { AudioInputDevice, SettingsPage } from "pages/settings.slint";
 import { AppPage, AsrConfigurationField, AsrProvider, AsrProviderCardKind, AsrProviderCardSpec, LlmProvider, LlmProviderConfigurationState, SettingsSection, SystemSpeechStatus, UiLanguage } from "components.slint";
 import { AppColors, ColorSchemePreference, ThemeId } from "color-system.slint";
 import { Translations } from "translations.slint";
+import { Typography } from "typography.slint";
 import { UpdateNotification } from "update-notification.slint";
 export { Translations } from "translations.slint";
 export { RecordingOverlay } from "recording-overlay.slint";
@@ -27,6 +28,7 @@ export { LocalModelDownloadState } from "pages/local-asr-model.slint";
 export { PunctuationMode } from "pages/local-asr-model.slint";
 export { AppColors, ColorSchemePreference, ThemeId } from "color-system.slint";
 export { OverlayColors } from "overlay-color-system.slint";
+export { Typography } from "typography.slint";
 
 export component AppWindow inherits Window {
     private property <string> translation-marker: Translations.language-save-failed;
@@ -40,7 +42,7 @@ export component AppWindow inherits Window {
         || root.asr-placeholder-kind == AsrProviderCardKind.paraformer;
     private property <AsrProvider> asr-modal-original-provider: AsrProvider.volcengine;
     title: root.development-environment ? "Saymore Preview" : "Saymore";
-    default-font-family: "PingFang SC";
+    default-font-family: Typography.ui-font-family;
     default-font-size: 13px;
     preferred-width: 920px;
     preferred-height: 700px;

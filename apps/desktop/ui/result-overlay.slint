@@ -1,11 +1,11 @@
-import "../fonts/InterVariable.ttf";
 import { ScrollView } from "std-widgets.slint";
 
 import { OverlayColors } from "overlay-color-system.slint";
+import { Typography } from "typography.slint";
 
 export component ResultOverlay inherits Window {
     title: "Saymore Result";
-    default-font-family: "Inter";
+    default-font-family: Typography.ui-font-family;
     preferred-width: 400px;
     preferred-height: 232px;
     min-width: 400px;

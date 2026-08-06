@@ -1,6 +1,6 @@
 # Saymore 本地 ASR Beta 发布决策地图
 
-状态：当前有效，按 macOS 完整闭环后再进入 Windows 的顺序开发 日期：2026-08-03
+状态：当前有效，macOS 与 Windows 四模型运行时闭环已完成 日期：2026-08-05
 
 ## 目标与边界
 
@@ -28,27 +28,30 @@ Qwen3-ASR 1.7B 和 SenseVoiceSmall 四个本地 ASR
 | ASR-019 | 确定磁盘空间不足规则     | 已决策 | 产品决策 | ASR-016                   | 下载前检查峰值空间；不足时不创建任务；途中耗尽保留断点且不激活                                               |
 | ASR-020 | 锁定本地模型运行时制品   | 已完成 | 研究     | ASR-010                   | 四个 macOS 制品均已固定不可变 revision、文件大小和 SHA-256；Qwen3 社区转换制品仍需在自有 OSS 前补 provenance |
 | ASR-021 | 确定设备兼容性分级规则   | 已决策 | 产品决策 | ASR-020                   | 本地检测设备能力；硬不兼容或低于安全最低线时禁用安装，低于推荐线但可运行时警告后允许                         |
-| ASR-030 | 修正流式结束正确性       | 进行中 | 原型     | ASR-020                   | 固定样本不再出现结尾重复或截断；连续结束、取消和空音频结果在 macOS 与 Windows 均稳定                         |
-| ASR-040 | 实现生产本地 ASR Adapter | 进行中 | 开发任务 | ASR-030                   | 四个 macOS Adapter 已实现并验证；Windows 运行库与真机闭环待完成                                              |
+| ASR-030 | 修正流式结束正确性       | 已完成 | 原型     | ASR-020                   | 四模型连续结束、取消、空音频和长录音契约均已通过 macOS 与 Windows 验证                                       |
+| ASR-040 | 实现生产本地 ASR Adapter | 已完成 | 开发任务 | ASR-030                   | 四个 Adapter 已在 Windows x64 完成固定制品加载、最小自检和真实音频推理                                       |
 | ASR-050 | 实现上游直连模型交付     | 已完成 | 开发任务 | ASR-020                   | 四个 macOS 模型均接入通用断点、校验、原子激活、重试、快速复验和删除流程                                      |
-| ASR-060 | 重构模型页并接入运行时   | 进行中 | 原型     | ASR-010、ASR-040、ASR-050 | 四个 macOS Provider 均已完成下载控制、显式切换、测试和真实听写；Windows 尚未接入                             |
-| ASR-070 | 通过双端 Beta 发布门槛   | 受阻   | 开发任务 | ASR-060                   | macOS 与 Windows 安装包均通过离线首轮识别、连续听写、取消、无语音、损坏恢复和目标应用投递测试                |
+| ASR-060 | 重构模型页并接入运行时   | 已完成 | 原型     | ASR-010、ASR-040、ASR-050 | Windows 四模型已完成下载控制、显式切换自检、识别测试、大小与工作集统计和真实听写                             |
+| ASR-070 | 通过双端 Beta 发布门槛   | 受阻   | 开发任务 | ASR-060                   | Windows x64/依赖/NSIS/portable/右 Alt 自动门槛已验证；仍需签名和干净机麦克风、Word/Chromium、跨屏人工验收    |
 
-当前 macOS 边界已经完成：Paraformer、Whisper large-v3-turbo、Qwen3-ASR 1.7B 和
-SenseVoiceSmall 均已锁定研发制品，并完成下载恢复、完整性校验、原子安装、Provider
-选择、删除保护、识别测试和真实听写闭环。Qwen3 使用 sherpa 官方文档指向的社区
-INT8 转换制品，并非 Qwen 官方量化包；在迁移自有 OSS 或公开承诺质量前仍需完成
-provenance 与四模型 A/B。下一执行边界是 Windows
-系统语音服务和四个本地模型的运行库、打包与真机验证。
+当前 macOS 与 Windows 运行时边界已经完成：Paraformer、Whisper large-v3-turbo、
+Qwen3-ASR 1.7B 和 SenseVoiceSmall 均已锁定研发制品，并完成下载恢复、完整性校验、
+原子安装、Provider 选择、删除保护、识别测试和真实听写闭环。Qwen3 使用 sherpa
+官方文档指向的社区 INT8 转换制品，并非 Qwen 官方量化包；在迁移自有 OSS
+或公开承诺质量前仍需完成 provenance 与四模型 A/B。Windows 实测数据见
+`docs/research/windows-release-acceptance.md`；下一执行边界是正式打包、签名和麦克风到
+Word、Chromium 等自定义编辑控件投递的人工发布验收。Windows
+系统语音依赖在线识别和应用 package identity，
+其隐私与分发方案尚未确定，因此不进入当前 Windows Beta 范围。
 
 ## Beta 必须具备
 
 - 在独立模型页的“语音模型”分类展示 Paraformer、Whisper large-v3-turbo 和
   Qwen3-ASR
   1.7B，并明确大小、来源、许可证、适用场景、流式输出能力和“音频不离开设备”。
-- 语音识别 Provider 先展示 Saymore 云和当前平台的系统内置服务，随后依次展示
+- 语音识别 Provider 先展示 Saymore 云；macOS 保留系统内置服务，随后依次展示
   Paraformer、Whisper large-v3-turbo、Qwen3-ASR 1.7B、SenseVoiceSmall、
-  火山引擎和自定义接口。
+  火山引擎和自定义接口。Windows 系统语音在当前 Beta 中不展示为可用 Provider。
 - 四个本地模型平级展示，不默认推荐、不预选、不自动下载；未来 Saymore 自有云端
   ASR 也由用户主动选择，不自动取代当前 Provider。
 - 允许多个本地模型同时安装，但只有一个当前
@@ -141,7 +144,7 @@ provenance 与四模型 A/B。下一执行边界是 Windows
 
 ## 下一张可执行任务
 
-进入 Windows 阶段：先适配系统自带语音识别，再复用
-同一套模型清单和应用层生命周期，补齐四个本地模型的 Windows
-运行库打包与真机验证。 “检测并更新”仍推迟到 Saymore
-自有对象存储和远程签名清单可用后。
+Windows 四模型运行时、失败恢复和未签名候选包自动门槛已经完成。下一步对候选 NSIS
+包完成正式签名，并执行干净机麦克风、右 Alt、Word/Chromium
+投递、跨屏、升级数据保留和历史展示的整机人工发布验收。“检测并更新”仍推迟到
+Saymore 自有对象存储和远程签名清单可用后；Windows 系统语音保持延期。

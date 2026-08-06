@@ -36,7 +36,7 @@ pub(super) fn snapshot() -> Result<ClipboardSnapshot, TextDeliveryError> {
 pub(super) fn replace_with_text(
     text: &str,
 ) -> Result<TemporaryClipboard, ClipboardSetupFailure<TemporaryClipboard>> {
-    let wide: Vec<u16> = text.encode_utf16().chain(std::iter::once(0)).collect();
+    let wide = clipboard_text(text);
     let bytes = wide.len().saturating_mul(mem::size_of::<u16>());
     let memory = unsafe { GlobalAlloc(GMEM_MOVEABLE, bytes) }
         .map_err(|error| setup_failure(system_error("allocate clipboard text", error), None))?;
@@ -81,6 +81,10 @@ pub(super) fn replace_with_text(
         ));
     }
     Ok(TemporaryClipboard { sequence })
+}
+
+fn clipboard_text(text: &str) -> Vec<u16> {
+    text.encode_utf16().chain(std::iter::once(0)).collect()
 }
 
 fn setup_failure(
@@ -162,5 +166,17 @@ mod tests {
     fn restore_only_when_temporary_clipboard_is_still_current() {
         assert!(should_restore(42, 42));
         assert!(!should_restore(42, 43));
+    }
+
+    #[test]
+    fn clipboard_text_uses_utf16_and_a_single_terminator() {
+        let text = "Windows 历史复制 你好 🚀";
+        let encoded = clipboard_text(text);
+
+        assert_eq!(Some(&0), encoded.last());
+        assert_eq!(
+            text,
+            String::from_utf16_lossy(&encoded[..encoded.len() - 1])
+        );
     }
 }
