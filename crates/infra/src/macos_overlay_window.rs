@@ -1,9 +1,9 @@
-use std::{cell::Cell, ffi::c_void, ptr::NonNull, sync::OnceLock};
+use std::{ffi::c_void, ptr::NonNull, sync::OnceLock};
 
 use objc2::{
-    ClassType, MainThreadMarker, ffi, msg_send,
+    MainThreadMarker, ffi, msg_send,
     rc::Retained,
-    runtime::{AnyClass, AnyObject, Imp, Sel},
+    runtime::{AnyClass, AnyObject, ClassBuilder, Sel},
     sel,
 };
 use objc2_app_kit::{
@@ -14,32 +14,7 @@ use objc2_foundation::{NSPoint, NSPointInRect};
 use thiserror::Error;
 
 const BOTTOM_MARGIN: f64 = 12.0;
-static HOOKED_WINIT_CLASS: OnceLock<&'static AnyClass> = OnceLock::new();
-static NONACTIVATING_MARKER_KEY: u8 = 0;
-
-thread_local! {
-    static OVERLAY_PRESENTATION_ACTIVE: Cell<bool> = const { Cell::new(false) };
-}
-
-struct OverlayPresentationGuard<'a> {
-    presenting: &'a Cell<bool>,
-}
-
-impl<'a> OverlayPresentationGuard<'a> {
-    fn enter(presenting: &'a Cell<bool>) -> Option<Self> {
-        if presenting.replace(true) {
-            None
-        } else {
-            Some(Self { presenting })
-        }
-    }
-}
-
-impl Drop for OverlayPresentationGuard<'_> {
-    fn drop(&mut self) {
-        self.presenting.set(false);
-    }
-}
+static OVERLAY_PANEL_CLASS: OnceLock<&'static AnyClass> = OnceLock::new();
 
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
 pub enum MacOsOverlayWindowError {
@@ -51,24 +26,22 @@ pub enum MacOsOverlayWindowError {
     MissingWindow,
     #[error("macOS did not report an available screen")]
     MissingScreen,
-    #[error("the native overlay window was not backed by the expected winit class")]
-    UnexpectedWindowClass,
-    #[error("macOS could not install the nonactivating overlay presentation hook")]
-    HookRegistrationFailed,
+    #[error("macOS could not register the native overlay panel class")]
+    PanelClassRegistrationFailed,
+    #[error("the native overlay window cannot be converted to an NSPanel")]
+    IncompatibleWindowClass,
 }
 
 /// Configures a Slint/Winit window as a nonactivating macOS overlay.
 ///
 /// Expected callers are short-lived UI surfaces such as recording, success,
-/// recovery, and microphone-status overlays. The first call installs a
-/// process-wide override on the active Winit `NSWindow` subclass. The override
-/// forwards normal windows to Winit's inherited presentation behavior and uses
-/// nonactivating presentation only for windows carrying this function's
-/// lifecycle-bound marker. Calls for a different Winit window subclass are
-/// rejected rather than changing another backend implicitly.
+/// recovery, and microphone-status overlays. Each Winit `NSWindow` is converted
+/// to a process-owned `NSPanel` subclass without adding instance variables. A
+/// real panel is required for an inactive application to appear in another
+/// application's full-screen Space.
 ///
-/// The window is also positioned using AppKit's logical multi-display
-/// coordinate system and configured to appear above normal application windows.
+/// The panel is positioned using AppKit's logical multi-display coordinate
+/// system and configured to appear above normal application windows.
 ///
 /// # Safety
 ///
@@ -77,8 +50,9 @@ pub enum MacOsOverlayWindowError {
 pub unsafe fn configure_overlay_window(
     ns_view: NonNull<c_void>,
 ) -> Result<(), MacOsOverlayWindowError> {
-    let (mtm, window) = overlay_window(ns_view)?;
-    install_nonactivating_presentation(&window)?;
+    // SAFETY: the caller guarantees that `ns_view` remains live for this call.
+    let (mtm, window) = unsafe { overlay_window(ns_view)? };
+    convert_to_panel(&window)?;
     window.setStyleMask(overlay_style_mask(window.styleMask()));
     window.setHidesOnDeactivate(false);
     window.setHasShadow(false);
@@ -106,7 +80,7 @@ pub unsafe fn configure_overlay_window(
     Ok(())
 }
 
-fn overlay_window(
+unsafe fn overlay_window(
     ns_view: NonNull<c_void>,
 ) -> Result<(MainThreadMarker, Retained<objc2_app_kit::NSWindow>), MacOsOverlayWindowError> {
     let mtm = MainThreadMarker::new().ok_or(MacOsOverlayWindowError::NotMainThread)?;
@@ -118,120 +92,60 @@ fn overlay_window(
     Ok((mtm, window))
 }
 
-fn install_nonactivating_presentation(window: &NSWindow) -> Result<(), MacOsOverlayWindowError> {
-    let winit_class = winit_window_class(window.class())?;
-    install_presentation_hook(winit_class)?;
+fn convert_to_panel(window: &NSWindow) -> Result<(), MacOsOverlayWindowError> {
+    let panel_class = overlay_panel_class()?;
+    let current_class = window.class();
+    if current_class == panel_class {
+        return Ok(());
+    }
+    if current_class.instance_size() != panel_class.instance_size() {
+        return Err(MacOsOverlayWindowError::IncompatibleWindowClass);
+    }
+
     let window = std::ptr::from_ref(window).cast_mut().cast::<AnyObject>();
-    // The assign association points back to the window itself. It does not
-    // create a retain cycle, and Objective-C removes it when the window dies.
-    unsafe {
-        ffi::objc_setAssociatedObject(
-            window,
-            nonactivating_marker_key(),
-            window,
-            ffi::OBJC_ASSOCIATION_ASSIGN,
-        );
-    }
-    Ok(())
-}
-
-fn winit_window_class(
-    mut class: &'static AnyClass,
-) -> Result<&'static AnyClass, MacOsOverlayWindowError> {
-    loop {
-        let superclass = class
-            .superclass()
-            .ok_or(MacOsOverlayWindowError::UnexpectedWindowClass)?;
-        if superclass == NSWindow::class() {
-            return Ok(class);
-        }
-        class = superclass;
-    }
-}
-
-fn install_presentation_hook(
-    winit_class: &'static AnyClass,
-) -> Result<(), MacOsOverlayWindowError> {
-    if let Some(installed) = HOOKED_WINIT_CLASS.get().copied() {
-        return if installed == winit_class {
-            Ok(())
-        } else {
-            Err(MacOsOverlayWindowError::UnexpectedWindowClass)
-        };
-    }
-    let selector = sel!(makeKeyAndOrderFront:);
-    let method = winit_class
-        .instance_method(selector)
-        .ok_or(MacOsOverlayWindowError::HookRegistrationFailed)?;
-    // The method comes from the live class object and its encoding is owned by
-    // the Objective-C runtime for the lifetime of that class.
-    let type_encoding = unsafe { ffi::method_getTypeEncoding(method) };
-    if type_encoding.is_null() {
-        return Err(MacOsOverlayWindowError::HookRegistrationFailed);
-    }
-    // Objective-C IMPs use this exact receiver/selector/sender ABI for a void
-    // method with one object argument.
-    let implementation: Imp = unsafe {
-        std::mem::transmute::<unsafe extern "C-unwind" fn(&AnyObject, Sel, Option<&AnyObject>), Imp>(
-            show_window_without_stealing_focus,
-        )
-    };
-    // The class and type encoding are runtime-owned and remain valid after the
-    // method is installed.
-    let added = unsafe {
-        ffi::class_addMethod(
-            std::ptr::from_ref(winit_class).cast_mut(),
-            selector,
-            implementation,
-            type_encoding,
-        )
-    };
-    if !added.as_bool() {
-        return Err(MacOsOverlayWindowError::HookRegistrationFailed);
-    }
-    if HOOKED_WINIT_CLASS.set(winit_class).is_ok() {
+    // SAFETY: both classes have the same runtime instance size, the registered
+    // panel subclass adds no ivars, and conversion runs only on the main thread
+    // before AppKit presents the window. The content view and delegate remain
+    // owned by the unchanged NSWindow storage.
+    let previous = unsafe { ffi::object_setClass(window, panel_class) };
+    if std::ptr::eq(previous, current_class) {
         Ok(())
     } else {
-        HOOKED_WINIT_CLASS
-            .get()
-            .copied()
-            .filter(|installed| *installed == winit_class)
-            .map(|_| ())
-            .ok_or(MacOsOverlayWindowError::UnexpectedWindowClass)
+        Err(MacOsOverlayWindowError::IncompatibleWindowClass)
     }
 }
 
-fn nonactivating_marker_key() -> *const c_void {
-    std::ptr::from_ref(&NONACTIVATING_MARKER_KEY).cast()
+fn overlay_panel_class() -> Result<&'static AnyClass, MacOsOverlayWindowError> {
+    if let Some(class) = OVERLAY_PANEL_CLASS.get().copied() {
+        return Ok(class);
+    }
+    if let Some(class) = AnyClass::get(c"SaymoreOverlayPanel") {
+        let _ = OVERLAY_PANEL_CLASS.set(class);
+        return Ok(class);
+    }
+    let superclass =
+        AnyClass::get(c"NSPanel").ok_or(MacOsOverlayWindowError::PanelClassRegistrationFailed)?;
+    let mut builder = ClassBuilder::new(c"SaymoreOverlayPanel", superclass)
+        .ok_or(MacOsOverlayWindowError::PanelClassRegistrationFailed)?;
+    // SAFETY: the selector ABI is void(receiver, selector, sender), and the
+    // registered function uses that exact Objective-C calling convention.
+    unsafe {
+        builder.add_method(
+            sel!(makeKeyAndOrderFront:),
+            show_panel_without_stealing_focus as unsafe extern "C-unwind" fn(_, _, *mut AnyObject),
+        );
+    }
+    let class = builder.register();
+    let _ = OVERLAY_PANEL_CLASS.set(class);
+    Ok(class)
 }
 
-unsafe extern "C-unwind" fn show_window_without_stealing_focus(
+unsafe extern "C-unwind" fn show_panel_without_stealing_focus(
     window: &AnyObject,
     _command: Sel,
-    sender: Option<&AnyObject>,
+    _sender: *mut AnyObject,
 ) {
-    // Associated objects are automatically cleared when their owner is
-    // destroyed, so a later window at the same address cannot inherit the mark.
-    let marker = unsafe {
-        ffi::objc_getAssociatedObject(std::ptr::from_ref(window), nonactivating_marker_key())
-    };
-    let is_overlay = !marker.is_null();
-    if is_overlay {
-        let _ = OVERLAY_PRESENTATION_ACTIVE.try_with(|presenting| {
-            let Some(_guard) = OverlayPresentationGuard::enter(presenting) else {
-                return;
-            };
-            // Winit uses orderFront: for visible windows that must not become key.
-            let _: () = unsafe { msg_send![window, orderFront: sender] };
-        });
-    } else if HOOKED_WINIT_CLASS.get().is_some() {
-        // Preserve Winit's normal key-window behavior for every unmarked window.
-        // The explicit class passed to `super` is where Objective-C starts the
-        // lookup. Starting at the hooked Winit class would invoke this method
-        // again and eventually overflow the main thread's stack.
-        let _: () =
-            unsafe { msg_send![super(window, NSWindow::class()), makeKeyAndOrderFront: sender] };
-    }
+    let _: () = unsafe { msg_send![window, orderFrontRegardless] };
 }
 
 fn overlay_style_mask(current: NSWindowStyleMask) -> NSWindowStyleMask {
@@ -251,14 +165,17 @@ mod tests {
     }
 
     #[test]
-    fn nested_overlay_presentation_is_suppressed() {
-        let presenting = Cell::new(false);
-        let first = OverlayPresentationGuard::enter(&presenting);
-
-        assert!(first.is_some());
-        assert!(OverlayPresentationGuard::enter(&presenting).is_none());
-
-        drop(first);
-        assert!(OverlayPresentationGuard::enter(&presenting).is_some());
+    fn overlay_runtime_class_is_a_real_panel_without_extra_storage() -> Result<(), &'static str> {
+        let panel = overlay_panel_class().map_err(|_| "the panel class should register")?;
+        let superclass = panel
+            .superclass()
+            .ok_or("the panel should have a superclass")?;
+        if superclass.name() != c"NSPanel" {
+            return Err("the overlay class should inherit from NSPanel");
+        }
+        if panel.instance_size() != superclass.instance_size() {
+            return Err("the overlay class must not add instance storage");
+        }
+        Ok(())
     }
 }

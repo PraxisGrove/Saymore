@@ -137,7 +137,11 @@ recording.
 On macOS, Winit owns the standard application menu and Command-Q termination.
 The macOS application-menu adapter adds the standard Window menu so Command-W
 routes through AppKit to the desktop's existing close-request handler, which
-hides the main window without terminating the resident process.
+hides the main window without terminating the resident process. Independent
+status and recovery overlays are converted from Winit windows to process-owned,
+nonactivating AppKit panels. The panels join all Spaces as full-screen auxiliary
+windows so they remain visible without taking focus when another application is
+full-screen.
 
 The Windows dictation slice reuses the shared `CpalAudioRecorder`, recording
 state machine, ASR session, `DictationCompletion`, and Slint overlays. Its
