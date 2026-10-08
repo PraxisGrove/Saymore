@@ -1,12 +1,12 @@
 [profile.default]
-default-filter = "not binary(models_navigation)"
+default-filter = "not binary(models_navigation) and not binary(model_discovery_runtime)"
 failure-output = "immediate-final"
 fail-fast = false
 status-level = "slow"
 slow-timeout = { period = "30s", terminate-after = 2 }
 
 [profile.ci]
-default-filter = "not binary(models_navigation)"
+default-filter = "not binary(models_navigation) and not binary(model_discovery_runtime)"
 failure-output = "immediate-final"
 fail-fast = false
 status-level = "all"

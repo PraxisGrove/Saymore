@@ -97,3 +97,39 @@ async fn rejects_model_discovery_without_an_api_key() {
         discover_models("https://unused.invalid/models", "  ").await
     );
 }
+
+#[tokio::test]
+async fn discovers_models_from_a_keyless_loopback_service() -> Result<(), Box<dyn std::error::Error>>
+{
+    let server = MockServer::start_async().await;
+    let models = server
+        .mock_async(|when, then| {
+            when.method(GET)
+                .path("/v1/models")
+                .header_missing("authorization");
+            then.status(200)
+                .json_body(serde_json::json!({"data": [{"id": "local-model"}]}));
+        })
+        .await;
+    let discovered = discover_models(&server.url("/v1/models"), " ").await?;
+    if discovered != vec!["local-model"] {
+        return Err(format!("unexpected local models: {discovered:?}").into());
+    }
+    models.assert_async().await;
+    Ok(())
+}
+
+#[tokio::test]
+async fn rejects_invalid_discovery_urls_before_sending_credentials() {
+    for endpoint in [
+        "not-a-url",
+        "file:///models",
+        "https://user:password@provider.example/models",
+        "https://provider.example/models#fragment",
+    ] {
+        assert!(matches!(
+            discover_models(endpoint, "provider-key").await,
+            Err(ModelDiscoveryError::Protocol(_))
+        ));
+    }
+}

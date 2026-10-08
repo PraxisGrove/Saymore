@@ -3790,3 +3790,11 @@ msgstr "查看更新"
 #~ msgctxt "models.asr.summary.service-billing"
 #~ msgid "Service billing"
 #~ msgstr "服务计费"
+
+msgctxt "models.fetch.presets-action"
+msgid "Preset models"
+msgstr "预置模型"
+
+msgctxt "models.fetch.presets-status"
+msgid "Preset models; you can also enter a model ID manually"
+msgstr "已显示预置模型，也可手动填写模型 ID"

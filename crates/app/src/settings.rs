@@ -385,11 +385,7 @@ impl ProviderCatalog {
         preset: LlmProviderPreset,
         settings: ChatCompletionsLlmSettings,
     ) {
-        let model_list_url = if preset == LlmProviderPreset::Custom {
-            format!("{}/models", settings.base_url.trim().trim_end_matches('/'))
-        } else {
-            preset.model_list_url().to_owned()
-        };
+        let model_list_url = preset.model_list_url_for(&settings.base_url);
         let profile = settings.profile;
         let selected_model = settings.model.clone();
         let mut config = provider_config(&settings);

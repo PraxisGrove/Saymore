@@ -381,6 +381,7 @@ export component AppWindow inherits Window {
     callback select-llm-model(LlmProvider, string);
     callback prepare-llm-provider(LlmProvider);
     callback refresh-models();
+    callback invalidate-model-discovery();
     callback request-asr-test();
     callback request-local-model-download(AsrProviderCardKind);
     callback request-local-model-pause(AsrProviderCardKind);
@@ -427,16 +428,18 @@ export component AppWindow inherits Window {
             root.refresh-history();
         }
     }
-    changed model-tab => { root.available-models = []; root.model-discovery-status = ""; root.model-discovery-error = false; }
-    changed asr-provider => { root.available-models = []; root.model-discovery-status = ""; root.model-discovery-error = false; }
+    changed asr-modal-visible => { root.invalidate-model-discovery(); }
+    changed llm-modal-visible => { root.invalidate-model-discovery(); }
+    changed model-tab => { root.invalidate-model-discovery(); root.available-models = []; root.model-discovery-status = ""; root.model-discovery-error = false; }
+    changed asr-provider => { root.invalidate-model-discovery(); root.available-models = []; root.model-discovery-status = ""; root.model-discovery-error = false; }
     changed asr-api-key => { root.asr-test-succeeded = false; root.asr-test-elapsed = ""; root.asr-test-result = ""; }
     changed asr-model => { root.asr-test-succeeded = false; root.asr-test-elapsed = ""; root.asr-test-result = ""; }
-    changed custom-asr-api-key => { root.asr-test-succeeded = false; root.asr-test-elapsed = ""; root.asr-test-result = ""; root.available-models = []; root.model-discovery-loading = false; root.model-discovery-status = ""; root.model-discovery-error = false; }
-    changed custom-asr-base-url => { root.asr-test-succeeded = false; root.asr-test-elapsed = ""; root.asr-test-result = ""; root.available-models = []; root.model-discovery-loading = false; root.model-discovery-status = ""; root.model-discovery-error = false; }
+    changed custom-asr-api-key => { root.invalidate-model-discovery(); root.asr-test-succeeded = false; root.asr-test-elapsed = ""; root.asr-test-result = ""; root.available-models = []; root.model-discovery-loading = false; root.model-discovery-status = ""; root.model-discovery-error = false; }
+    changed custom-asr-base-url => { root.invalidate-model-discovery(); root.asr-test-succeeded = false; root.asr-test-elapsed = ""; root.asr-test-result = ""; root.available-models = []; root.model-discovery-loading = false; root.model-discovery-status = ""; root.model-discovery-error = false; }
     changed custom-asr-model => { root.asr-test-succeeded = false; root.asr-test-elapsed = ""; root.asr-test-result = ""; }
-    changed llm-provider => { root.available-models = []; root.model-discovery-status = ""; root.model-discovery-error = false; }
-    changed llm-draft-api-key => { root.llm-config-dirty = !root.llm-draft-matches-saved; root.llm-draft-error = false; }
-    changed llm-draft-base-url => { root.llm-config-dirty = !root.llm-draft-matches-saved; root.llm-draft-error = false; }
+    changed llm-provider => { root.invalidate-model-discovery(); root.available-models = []; root.model-discovery-status = ""; root.model-discovery-error = false; }
+    changed llm-draft-api-key => { root.invalidate-model-discovery(); root.llm-config-dirty = !root.llm-draft-matches-saved; root.llm-draft-error = false; }
+    changed llm-draft-base-url => { root.invalidate-model-discovery(); root.llm-config-dirty = !root.llm-draft-matches-saved; root.llm-draft-error = false; }
     changed llm-draft-model => { root.llm-config-dirty = !root.llm-draft-matches-saved; root.llm-draft-error = false; }
     if root.current-page != AppPage.settings: HorizontalLayout {
         padding: 10px;
@@ -815,6 +818,7 @@ export component AppWindow inherits Window {
         model-discovery-error: root.model-discovery-error;
         model-discovery-status: root.model-discovery-status;
         cancelled => {
+            root.invalidate-model-discovery();
             root.asr-modal-visible = false;
             root.cancel-asr-config();
         }
@@ -1021,8 +1025,10 @@ export component AppWindow inherits Window {
         status-message: root.llm-config-status;
         available-models <=> root.available-models;
         model-discovery-loading: root.model-discovery-loading;
+        model-discovery-error: root.model-discovery-error;
         model-discovery-status: root.model-discovery-status;
         cancelled => {
+            root.invalidate-model-discovery();
             root.llm-modal-visible = false;
             root.llm-provider = root.active-llm-provider;
             root.prepare-llm-provider(root.active-llm-provider);

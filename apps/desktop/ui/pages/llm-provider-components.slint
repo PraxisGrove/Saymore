@@ -383,6 +383,7 @@ export component LlmConfigurationModal inherits Rectangle {
     in property <string> status-message;
     in-out property <[string]> available-models;
     in property <bool> model-discovery-loading;
+    in property <bool> model-discovery-error;
     in property <string> model-discovery-status;
     callback cancelled();
     callback save-and-test();
@@ -395,12 +396,12 @@ export component LlmConfigurationModal inherits Rectangle {
     private property <string> provider-name: root.provider == LlmProvider.deepseek ? "DeepSeek" : root.provider == LlmProvider.qwen ? @tr("models.provider.qwen" => "Tongyi Qianwen") : root.provider == LlmProvider.volcengine-ark ? @tr("models.provider.volcengine-ark" => "Volcengine Ark") : root.provider == LlmProvider.sensenova ? "SenseNova" : root.provider == LlmProvider.openai ? "OpenAI" : root.provider == LlmProvider.kimi ? "Kimi" : root.provider == LlmProvider.gemini ? "Gemini" : root.provider == LlmProvider.openrouter ? "OpenRouter" : root.provider == LlmProvider.zhipu-glm ? @tr("models.provider.zhipu" => "Zhipu GLM") : root.provider == LlmProvider.minimax ? "MiniMax" : root.provider == LlmProvider.siliconflow ? @tr("models.provider.siliconflow" => "SiliconFlow") : root.provider == LlmProvider.stepfun ? @tr("models.provider.stepfun" => "StepFun") : @tr("models.provider.custom-compatible" => "Custom compatible API");
     private property <bool> ready: root.provider == LlmProvider.custom ? !root.base-url.is-empty && !root.selected-model.is-empty : root.provider == LlmProvider.qwen ? !root.api-key.is-empty && !root.base-url.is-empty && !root.selected-model.is-empty : !root.api-key.is-empty && !root.selected-model.is-empty;
     private property <bool> static-catalog: root.provider == LlmProvider.qwen || root.provider == LlmProvider.volcengine-ark || root.provider == LlmProvider.zhipu-glm;
-    private property <bool> manual-model-entry: root.provider == LlmProvider.custom || root.static-catalog || root.provider == LlmProvider.minimax;
+    private property <bool> manual-model-entry: true;
     private property <bool> manual-field-visible: root.provider == LlmProvider.custom || root.show-manual-model-entry;
     private property <bool> show-manual-model-entry: false;
     private property <string> manual-model-value;
     private property <string> manual-previous-model;
-    private property <bool> refresh-ready: (root.static-catalog || (!root.api-key.is-empty && !root.base-url.is-empty)) && !root.model-discovery-loading && !root.testing;
+    private property <bool> refresh-ready: (root.static-catalog || ((!root.api-key.is-empty || root.provider == LlmProvider.custom) && !root.base-url.is-empty)) && !root.model-discovery-loading && !root.testing;
     private property <image> provider-icon: root.provider == LlmProvider.deepseek ? @image-url("../../icons/providers/llm/deepseek.png") : root.provider == LlmProvider.qwen ? @image-url("../../icons/providers/qwen.png") : root.provider == LlmProvider.volcengine-ark ? @image-url("../../icons/providers/volcengine.png") : root.provider == LlmProvider.sensenova ? @image-url("../../icons/providers/llm/sensenova.png") : root.provider == LlmProvider.openai ? @image-url("../../icons/providers/llm/openai.png") : root.provider == LlmProvider.kimi ? @image-url("../../icons/providers/llm/kimi.png") : root.provider == LlmProvider.gemini ? @image-url("../../icons/providers/llm/gemini.png") : root.provider == LlmProvider.openrouter ? @image-url("../../icons/providers/llm/openrouter.png") : root.provider == LlmProvider.zhipu-glm ? @image-url("../../icons/providers/llm/zhipu-glm.png") : root.provider == LlmProvider.minimax ? @image-url("../../icons/providers/llm/minimax.png") : root.provider == LlmProvider.siliconflow ? @image-url("../../icons/providers/llm/siliconflow.svg") : root.provider == LlmProvider.stepfun ? @image-url("../../icons/providers/llm/stepfun.svg") : @image-url("../../icons/lucide/plus.svg");
     private property <string> action-label: root.testing ? @tr("models.test.testing" => "Testing…") : root.configured && !root.dirty && !root.llm-enabled ? @tr("models.test-and-enable" => "Test and enable") : @tr("models.test-and-use" => "Test and use");
     changed provider => {
@@ -453,14 +454,14 @@ export component LlmConfigurationModal inherits Rectangle {
             background: refresh-touch.has-hover && self.control-enabled ? AppColors.brand-soft : transparent;
             opacity: self.control-enabled ? 1 : 0.55;
             accessible-role: button;
-            accessible-label: root.model-discovery-loading ? @tr("models.fetch.loading-accessible" => "Refreshing models") : @tr("models.fetch.action" => "Refresh list");
+            accessible-label: root.model-discovery-loading ? @tr("models.fetch.loading-accessible" => "Refreshing models") : root.static-catalog ? @tr("models.fetch.presets-action" => "Preset models") : @tr("models.asr.fetch.action" => "Get models");
             accessible-enabled: self.control-enabled;
             accessible-action-default => { if self.control-enabled { root.refresh-models(); } }
-            Text { x: 4px; width: 66px; text: root.model-discovery-loading ? @tr("models.fetch.loading" => "Refreshing…") : @tr("models.fetch.action" => "Refresh list"); color: AppColors.brand-strong; font-size: 9px; font-weight: 650; horizontal-alignment: right; vertical-alignment: center; overflow: elide; }
+            Text { x: 4px; width: 66px; text: root.model-discovery-loading ? @tr("models.fetch.loading" => "Refreshing…") : root.static-catalog ? @tr("models.fetch.presets-action" => "Preset models") : @tr("models.asr.fetch.action" => "Get models"); color: AppColors.brand-strong; font-size: 9px; font-weight: 650; horizontal-alignment: right; vertical-alignment: center; overflow: elide; }
             Image { visible: !root.model-discovery-loading; x: 76px; y: 8px; width: 12px; height: 12px; source: @image-url("../../icons/lucide/refresh-cw.svg"); colorize: AppColors.brand; }
             refresh-touch := TouchArea { enabled: parent.control-enabled; mouse-cursor: self.enabled ? pointer : default; clicked => { root.refresh-models(); } }
         }
-        Text { x: 24px; y: 246px; width: dialog.panel-width - 48px; text: root.refresh-ready ? root.model-discovery-status : root.base-url.is-empty ? @tr("models.fetch.enter-service-url" => "Enter a service URL first") : root.api-key.is-empty ? @tr("models.fetch.enter-api-key" => "Enter an API key first") : ""; color: AppColors.text-muted; font-size: 8px; overflow: elide; }
+        Text { x: 24px; y: 246px; width: dialog.panel-width - 48px; text: root.refresh-ready || root.model-discovery-loading ? root.model-discovery-status : root.base-url.is-empty ? @tr("models.fetch.enter-service-url" => "Enter a service URL first") : root.api-key.is-empty ? @tr("models.fetch.enter-api-key" => "Enter an API key first") : root.model-discovery-status; color: root.model-discovery-error ? AppColors.danger : AppColors.text-muted; font-size: 8px; overflow: elide; }
 
         model-panel := Rectangle {
             private property <bool> show-fallback-model: root.available-models.length == 0
@@ -510,6 +511,7 @@ export component LlmConfigurationModal inherits Rectangle {
                 activated => {
                     root.manual-previous-model = root.selected-model;
                     root.manual-model-value = "";
+                    root.selected-model = "";
                     root.show-manual-model-entry = true;
                 }
             }

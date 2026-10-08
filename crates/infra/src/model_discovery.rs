@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use reqwest::{
-    Client, StatusCode,
+    Client, StatusCode, Url,
     header::{CONTENT_TYPE, HeaderValue},
     redirect::Policy,
 };
@@ -41,8 +41,9 @@ pub async fn discover_models(
     endpoint: &str,
     api_key: &str,
 ) -> Result<Vec<String>, ModelDiscoveryError> {
+    let endpoint = discovery_endpoint(endpoint)?;
     let api_key = api_key.trim();
-    if api_key.is_empty() {
+    if api_key.is_empty() && !template_app::provider_is_local(endpoint.as_str()) {
         return Err(ModelDiscoveryError::MissingApiKey);
     }
     let _ = rustls::crypto::ring::default_provider().install_default();
@@ -52,13 +53,13 @@ pub async fn discover_models(
         .timeout(DISCOVERY_TIMEOUT)
         .build()
         .map_err(transport_error)?;
-    let response = client
+    let mut request = client
         .get(endpoint)
-        .header(CONTENT_TYPE, HeaderValue::from_static("application/json"))
-        .bearer_auth(api_key)
-        .send()
-        .await
-        .map_err(transport_error)?;
+        .header(CONTENT_TYPE, HeaderValue::from_static("application/json"));
+    if !api_key.is_empty() {
+        request = request.bearer_auth(api_key);
+    }
+    let response = request.send().await.map_err(transport_error)?;
     match response.status() {
         status if status.is_success() => {}
         StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => {
@@ -99,6 +100,21 @@ pub async fn discover_models(
         return Err(ModelDiscoveryError::Empty);
     }
     Ok(models)
+}
+
+fn discovery_endpoint(endpoint: &str) -> Result<Url, ModelDiscoveryError> {
+    let endpoint = Url::parse(endpoint)
+        .map_err(|_| ModelDiscoveryError::Protocol("invalid model list URL".to_owned()))?;
+    if !matches!(endpoint.scheme(), "http" | "https")
+        || !endpoint.username().is_empty()
+        || endpoint.password().is_some()
+        || endpoint.fragment().is_some()
+    {
+        return Err(ModelDiscoveryError::Protocol(
+            "invalid model list URL".to_owned(),
+        ));
+    }
+    Ok(endpoint)
 }
 
 fn transport_error(error: impl std::fmt::Display) -> ModelDiscoveryError {

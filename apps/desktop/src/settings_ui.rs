@@ -1,9 +1,11 @@
 use std::sync::Arc;
 
 use slint::{ComponentHandle, SharedString};
+#[cfg(test)]
+use template_app::LlmProviderPreset;
 #[cfg(any(target_os = "macos", test))]
 use template_app::ProviderConfigStore;
-use template_app::{LlmProviderPreset, provider_is_local};
+use template_app::provider_is_local;
 #[cfg(target_os = "macos")]
 use template_app::{MicrophoneAuthorization, MicrophonePermissionProvider};
 #[cfg(test)]
@@ -12,10 +14,9 @@ use template_app::{ProviderCatalog, ProviderInstance, llm_consent_required};
 use template_infra::AppEnvironment;
 use template_infra::JsonSettingsStore;
 
-use crate::ui::{
-    AppWindow, LlmProvider as UiLlmProvider, SystemSpeechStatus as UiSystemSpeechStatus,
-    Translations,
-};
+#[cfg(test)]
+use crate::ui::LlmProvider as UiLlmProvider;
+use crate::ui::{AppWindow, SystemSpeechStatus as UiSystemSpeechStatus, Translations};
 
 #[cfg(target_os = "macos")]
 use template_infra::{
@@ -30,6 +31,12 @@ mod llm_configuration;
 mod llm_enablement;
 mod loaded_settings;
 mod model_discovery;
+mod provider_mapping;
+use provider_mapping::VOLCENGINE_ASR_1_MODEL;
+use provider_mapping::{
+    VOLCENGINE_ASR_2_MODEL, VOLCENGINE_LEGACY_MODEL, VOLCENGINE_MODELS, provider_preset,
+    ui_provider,
+};
 mod provider_connection;
 mod provider_key_page;
 #[cfg(test)]
@@ -43,48 +50,8 @@ use llm_enablement::llm_configuration_ready;
 use llm_enablement::{persist_llm_consent, test_and_enable_llm};
 use loaded_settings::apply_loaded_settings;
 
-const VOLCENGINE_ASR_1_MODEL: &str = "volc.bigasr.sauc.duration";
-const VOLCENGINE_ASR_2_MODEL: &str = "volc.seedasr.sauc.duration";
-const VOLCENGINE_LEGACY_MODEL: &str = "bigmodel_async";
-const VOLCENGINE_MODELS: [&str; 2] = [VOLCENGINE_ASR_2_MODEL, VOLCENGINE_ASR_1_MODEL];
 #[cfg(test)]
 const CHAT_COMPLETIONS_TYPE: &str = "openai_compatible";
-
-fn provider_preset(provider: UiLlmProvider) -> LlmProviderPreset {
-    match provider {
-        UiLlmProvider::Sensenova => LlmProviderPreset::SenseNova,
-        UiLlmProvider::Deepseek => LlmProviderPreset::DeepSeek,
-        UiLlmProvider::Qwen => LlmProviderPreset::Qwen,
-        UiLlmProvider::VolcengineArk => LlmProviderPreset::VolcengineArk,
-        UiLlmProvider::Openai => LlmProviderPreset::OpenAi,
-        UiLlmProvider::Kimi => LlmProviderPreset::Kimi,
-        UiLlmProvider::Gemini => LlmProviderPreset::Gemini,
-        UiLlmProvider::Openrouter => LlmProviderPreset::OpenRouter,
-        UiLlmProvider::ZhipuGlm => LlmProviderPreset::ZhipuGlm,
-        UiLlmProvider::Minimax => LlmProviderPreset::MiniMax,
-        UiLlmProvider::Siliconflow => LlmProviderPreset::SiliconFlow,
-        UiLlmProvider::Stepfun => LlmProviderPreset::StepFun,
-        UiLlmProvider::Custom => LlmProviderPreset::Custom,
-    }
-}
-
-fn ui_provider(provider: LlmProviderPreset) -> UiLlmProvider {
-    match provider {
-        LlmProviderPreset::SenseNova => UiLlmProvider::Sensenova,
-        LlmProviderPreset::DeepSeek => UiLlmProvider::Deepseek,
-        LlmProviderPreset::Qwen => UiLlmProvider::Qwen,
-        LlmProviderPreset::VolcengineArk => UiLlmProvider::VolcengineArk,
-        LlmProviderPreset::OpenAi => UiLlmProvider::Openai,
-        LlmProviderPreset::Kimi => UiLlmProvider::Kimi,
-        LlmProviderPreset::Gemini => UiLlmProvider::Gemini,
-        LlmProviderPreset::OpenRouter => UiLlmProvider::Openrouter,
-        LlmProviderPreset::ZhipuGlm => UiLlmProvider::ZhipuGlm,
-        LlmProviderPreset::MiniMax => UiLlmProvider::Minimax,
-        LlmProviderPreset::SiliconFlow => UiLlmProvider::Siliconflow,
-        LlmProviderPreset::StepFun => UiLlmProvider::Stepfun,
-        LlmProviderPreset::Custom => UiLlmProvider::Custom,
-    }
-}
 
 pub fn wire(ui: &AppWindow, store: Arc<JsonSettingsStore>) {
     asr_provider_cards::apply(ui);

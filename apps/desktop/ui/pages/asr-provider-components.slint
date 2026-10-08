@@ -547,7 +547,7 @@ export component AsrConfigurationModal inherits Rectangle {
             width: dialog.panel-width - 62px;
             height: 246px;
             viewport-width: self.width;
-            viewport-height: 230px;
+            viewport-height: root.provider == AsrProvider.custom && root.available-models.length > 0 ? 274px : 230px;
             vertical-scrollbar-policy: ScrollBarPolicy.always-off;
             horizontal-scrollbar-policy: ScrollBarPolicy.always-off;
 
@@ -624,7 +624,7 @@ export component AsrConfigurationModal inherits Rectangle {
             x: 0px;
             y: 0px;
             width: form-scroll.viewport-width;
-            height: 230px;
+            height: root.available-models.length > 0 ? 274px : 230px;
             background: transparent;
 
             Text { x: 0px; y: 0px; text: @tr("models.base-url" => "Service URL"); color: AppColors.text; font-size: 11px; font-weight: 650; }
@@ -694,8 +694,8 @@ export component AsrConfigurationModal inherits Rectangle {
                 font-size: 9px;
                 overflow: elide;
             }
-            if root.available-models.length == 0: ModalTextField {
-                x: 0px; y: 176px; width: parent.width; value <=> root.custom-model; placeholder: "whisper-1"; accessible-name: @tr("models.model-field" => "Model"); error: root.error-field == AsrConfigurationField.model;
+            ModalTextField {
+                x: 0px; y: root.available-models.length > 0 ? 220px : 176px; width: parent.width; value <=> root.custom-model; placeholder: @tr("models.model-id.placeholder" => "Enter the model ID from your provider"); accessible-name: @tr("models.model-field" => "Model"); error: root.error-field == AsrConfigurationField.model;
             }
             if root.available-models.length > 0: Rectangle {
                 x: 0px;
@@ -709,11 +709,11 @@ export component AsrConfigurationModal inherits Rectangle {
                     width: parent.width;
                     height: parent.height;
                     model: root.available-models;
-                    current-value: root.custom-model;
+                    current-value <=> root.custom-model;
                     selected(value) => { root.custom-model = value; }
                 }
             }
-            if root.error-field == AsrConfigurationField.model: Text { x: 0px; y: 217px; width: parent.width; text: root.status-message; color: AppColors.danger; font-size: 9px; overflow: elide; }
+            if root.error-field == AsrConfigurationField.model: Text { x: 0px; y: root.available-models.length > 0 ? 261px : 217px; width: parent.width; text: root.status-message; color: AppColors.danger; font-size: 9px; overflow: elide; }
 
         }
         }

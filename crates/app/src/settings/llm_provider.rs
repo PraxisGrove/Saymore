@@ -144,6 +144,24 @@ impl LlmProviderPreset {
         self.profile().model_list_url
     }
 
+    /// Resolves the model directory for the configured compatible API root.
+    /// Full completion/transcription URLs share the same sibling directory.
+    pub fn model_list_url_for(self, base_url: &str) -> String {
+        if self != Self::Custom {
+            return self.model_list_url().to_owned();
+        }
+        let base = base_url.trim().trim_end_matches('/');
+        let base = base
+            .strip_suffix("/chat/completions")
+            .or_else(|| base.strip_suffix("/audio/transcriptions"))
+            .unwrap_or(base);
+        if base.ends_with("/models") {
+            base.to_owned()
+        } else {
+            format!("{base}/models")
+        }
+    }
+
     pub const fn recommended_models(self) -> &'static [&'static str] {
         self.profile().recommended_models
     }

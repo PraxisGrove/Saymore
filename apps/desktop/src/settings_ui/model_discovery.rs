@@ -1,12 +1,18 @@
-use std::sync::Arc;
+use std::sync::{
+    Arc,
+    atomic::{AtomicU64, Ordering},
+};
 
-use chrono::Utc;
 use slint::{ComponentHandle, ModelRc, SharedString, VecModel};
-use template_app::{LlmProviderPreset, ProviderCatalog, ProviderConfigStore};
+use template_app::LlmProviderPreset;
 use template_infra::{JsonSettingsStore, ModelDiscoveryError, discover_models};
 
 use super::{VOLCENGINE_MODELS, provider_preset};
+
+#[path = "model_discovery/catalog.rs"]
+mod catalog;
 use crate::ui::{AppWindow, AsrProvider as UiAsrProvider, Translations};
+pub(super) use catalog::restore_llm_model_catalog;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum DiscoveryTarget {
@@ -22,56 +28,37 @@ struct DiscoveryRequest {
 }
 
 pub(super) fn wire(ui: &AppWindow, store: Arc<JsonSettingsStore>) {
+    let generation = Arc::new(AtomicU64::new(0));
+    let invalidate_ui = ui.as_weak();
+    let invalidate_generation = Arc::clone(&generation);
+    ui.on_invalidate_model_discovery(move || {
+        invalidate_generation.fetch_add(1, Ordering::Relaxed);
+        if let Some(ui) = invalidate_ui.upgrade() {
+            ui.set_model_discovery_loading(false);
+            ui.set_model_discovery_error(false);
+            ui.set_model_discovery_status(SharedString::default());
+        }
+    });
     let discovery_ui = ui.as_weak();
     let discovery_store = Arc::clone(&store);
     ui.on_refresh_models(move || {
         let Some(ui) = discovery_ui.upgrade() else {
             return;
         };
+        if ui.get_model_discovery_loading() {
+            return;
+        }
         if let Some(request) = prepare_discovery(&ui) {
-            start_discovery(&ui, Arc::clone(&discovery_store), request);
+            start_discovery(
+                &ui,
+                Arc::clone(&discovery_store),
+                request,
+                Arc::clone(&generation),
+            );
         }
     });
 
-    let selection_ui = ui.as_weak();
-    ui.on_select_llm_model(move |provider, model| {
-        let Some(ui) = selection_ui.upgrade() else {
-            return;
-        };
-        let provider = provider_preset(provider);
-        let Ok(catalog) = store.load_catalog() else {
-            apply_selection_error(&ui);
-            return;
-        };
-        let Some(settings) = catalog.llm_provider_settings(provider) else {
-            apply_selection_error(&ui);
-            return;
-        };
-        let model_list_url = if provider == LlmProviderPreset::Custom {
-            model_list_endpoint(&settings.base_url)
-        } else {
-            provider.model_list_url().to_owned()
-        };
-        match store.select_cached_llm_model(provider, &model_list_url, settings.profile, &model) {
-            Ok(true) => {
-                ui.set_llm_saved_model(model.trim().into());
-                ui.set_llm_config_dirty(
-                    ui.get_llm_draft_api_key() != ui.get_llm_saved_api_key()
-                        || ui.get_llm_draft_base_url() != ui.get_llm_saved_base_url()
-                        || ui.get_llm_draft_model() != ui.get_llm_saved_model(),
-                );
-            }
-            Ok(false) | Err(_) => apply_selection_error(&ui),
-        }
-    });
-}
-
-fn apply_selection_error(ui: &AppWindow) {
-    ui.set_llm_draft_error(true);
-    ui.set_llm_config_status(
-        ui.global::<Translations>()
-            .get_common_configuration_load_failed(),
-    );
+    catalog::wire_selection(ui, store);
 }
 
 fn prepare_discovery(ui: &AppWindow) -> Option<DiscoveryRequest> {
@@ -98,10 +85,14 @@ fn prepare_discovery(ui: &AppWindow) -> Option<DiscoveryRequest> {
             target,
             recommended_models(provider, &ui.get_llm_draft_model()),
         );
+        ui.set_model_discovery_status(ui.global::<Translations>().get_models_fetch_presets());
         return None;
     }
     let api_key = selected_api_key(ui, tab);
-    if api_key.trim().is_empty() {
+    if api_key.trim().is_empty()
+        && !(target == DiscoveryTarget::Llm(LlmProviderPreset::Custom)
+            && template_app::provider_is_local(&ui.get_llm_draft_base_url()))
+    {
         discovery_input_error(
             ui,
             ui.global::<Translations>().get_models_fetch_enter_api_key(),
@@ -136,7 +127,7 @@ fn prepare_discovery(ui: &AppWindow) -> Option<DiscoveryRequest> {
 }
 
 fn model_list_endpoint(base_url: &str) -> String {
-    format!("{}/models", base_url.trim().trim_end_matches('/'))
+    LlmProviderPreset::Custom.model_list_url_for(base_url)
 }
 
 fn recommended_models(provider: LlmProviderPreset, selected_model: &str) -> Vec<String> {
@@ -169,7 +160,13 @@ fn discovery_input_error(ui: &AppWindow, status: SharedString) {
     ui.set_model_discovery_error(false);
 }
 
-fn start_discovery(ui: &AppWindow, store: Arc<JsonSettingsStore>, request: DiscoveryRequest) {
+fn start_discovery(
+    ui: &AppWindow,
+    store: Arc<JsonSettingsStore>,
+    request: DiscoveryRequest,
+    generation: Arc<AtomicU64>,
+) {
+    let request_generation = generation.fetch_add(1, Ordering::Relaxed).wrapping_add(1);
     ui.set_model_discovery_loading(true);
     ui.set_model_discovery_error(false);
     ui.set_model_discovery_status(ui.global::<Translations>().get_models_fetching());
@@ -185,11 +182,13 @@ fn start_discovery(ui: &AppWindow, store: Arc<JsonSettingsStore>, request: Disco
                     runtime.block_on(discover_models(&request.endpoint, &request.api_key))
                 });
             let _ = request_ui.upgrade_in_event_loop(move |ui| {
-                if !request_is_current(&ui, &request) {
+                if generation.load(Ordering::Relaxed) != request_generation
+                    || !request_is_current(&ui, &request)
+                {
                     return;
                 }
                 match result {
-                    Ok(models) => apply_discovered_models(&ui, &store, &request, models),
+                    Ok(models) => catalog::apply_discovered_models(&ui, &store, &request, models),
                     Err(error) => apply_error(&ui, error),
                 }
             });
@@ -202,38 +201,6 @@ fn start_discovery(ui: &AppWindow, store: Arc<JsonSettingsStore>, request: Disco
     }
 }
 
-fn apply_discovered_models(
-    ui: &AppWindow,
-    store: &JsonSettingsStore,
-    request: &DiscoveryRequest,
-    models: Vec<String>,
-) {
-    let selected = selected_model(ui, request.target, &models);
-    let persistence = match request.target {
-        DiscoveryTarget::Llm(provider) => store.cache_llm_model_catalog(
-            provider,
-            &request.endpoint,
-            provider.profile().chat_completions,
-            models.clone(),
-            &selected,
-            Utc::now().timestamp_millis(),
-        ),
-        DiscoveryTarget::Volcengine | DiscoveryTarget::CustomAsr => Ok(true),
-    };
-    apply_models(ui, request.target, models);
-    if !matches!(persistence, Ok(true)) {
-        tracing::warn!(
-            target: "saymore::diagnostics",
-            event = "llm.model_catalog_save_failed"
-        );
-        ui.set_model_discovery_error(true);
-        ui.set_model_discovery_status(
-            ui.global::<Translations>()
-                .get_common_configuration_load_failed(),
-        );
-    }
-}
-
 fn target_is_current(ui: &AppWindow, target: DiscoveryTarget) -> bool {
     match target {
         DiscoveryTarget::Volcengine => false,
@@ -241,7 +208,9 @@ fn target_is_current(ui: &AppWindow, target: DiscoveryTarget) -> bool {
             ui.get_model_tab() == 0 && ui.get_asr_provider() == UiAsrProvider::Custom
         }
         DiscoveryTarget::Llm(provider) => {
-            ui.get_model_tab() == 1 && provider_preset(ui.get_llm_provider()) == provider
+            ui.get_model_tab() == 1
+                && ui.get_llm_modal_visible()
+                && provider_preset(ui.get_llm_provider()) == provider
         }
     }
 }
@@ -303,45 +272,6 @@ fn apply_model_list(ui: &AppWindow, models: Vec<String>) {
     );
 }
 
-pub(super) fn restore_llm_model_catalog(
-    ui: &AppWindow,
-    catalog: &ProviderCatalog,
-    provider: LlmProviderPreset,
-) {
-    let Some(settings) = catalog.llm_provider_settings(provider) else {
-        set_model_list(ui, recommended_models(provider, &ui.get_llm_draft_model()));
-        return;
-    };
-    let endpoint = if provider == LlmProviderPreset::Custom {
-        model_list_endpoint(&settings.base_url)
-    } else {
-        provider.model_list_url().to_owned()
-    };
-    let Some(cached) = catalog.llm_model_catalog(provider, &endpoint, settings.profile) else {
-        let mut models = provider
-            .recommended_models()
-            .iter()
-            .map(ToString::to_string)
-            .collect::<Vec<_>>();
-        if !settings.model.trim().is_empty() && !models.iter().any(|model| model == &settings.model)
-        {
-            models.push(settings.model);
-        }
-        set_model_list(ui, models);
-        return;
-    };
-    ui.set_llm_draft_model(SharedString::from(cached.selected_model));
-    set_model_list(ui, cached.models);
-}
-
-fn set_model_list(ui: &AppWindow, models: Vec<String>) {
-    let models = models
-        .into_iter()
-        .map(SharedString::from)
-        .collect::<Vec<_>>();
-    ui.set_available_models(ModelRc::new(VecModel::from(models)));
-}
-
 fn apply_error(ui: &AppWindow, error: ModelDiscoveryError) {
     let translations = ui.global::<Translations>();
     let status = match error {
@@ -369,6 +299,21 @@ mod tests {
             "https://asr.example/v1/models",
             model_list_endpoint("  https://asr.example/v1///  ")
         );
+    }
+
+    #[test]
+    fn model_discovery_accepts_the_same_full_urls_as_provider_configuration() {
+        for base_url in [
+            "https://provider.example/v1",
+            "https://provider.example/v1/chat/completions/",
+            "https://provider.example/v1/audio/transcriptions/",
+            "https://provider.example/v1/models/",
+        ] {
+            assert_eq!(
+                "https://provider.example/v1/models",
+                model_list_endpoint(base_url)
+            );
+        }
     }
 
     #[test]

@@ -3597,3 +3597,11 @@ msgstr ""
 msgctxt "update.notification.action"
 msgid "View update"
 msgstr ""
+
+msgctxt "models.fetch.presets-action"
+msgid "Preset models"
+msgstr ""
+
+msgctxt "models.fetch.presets-status"
+msgid "Preset models; you can also enter a model ID manually"
+msgstr ""

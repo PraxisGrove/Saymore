@@ -38,14 +38,29 @@ Run doctests with Cargo because nextest does not execute doctests:
 cargo test --workspace --doc
 ```
 
-The `models_navigation` Slint integration test uses a custom main-thread test
-executable and is excluded from Nextest discovery. Run it explicitly with:
+The `models_navigation` and `model_discovery_runtime` Slint integration tests
+use custom main-thread executables and are excluded from Nextest discovery. The
+discovery test exercises the production callback wiring against a local HTTP
+service, including fetching, manual entry, failure preservation, caching, and
+invalidation. Run them explicitly with:
 
 ```bash
-cargo test -p saymore-desktop --test models_navigation
+cargo test -p saymore-desktop --test models_navigation --test model_discovery_runtime
 ```
 
-CI runs this GUI test on macOS, where a windowing environment is available.
+CI runs these GUI tests on macOS, where a windowing environment is available.
+
+## Live Model Directory Acceptance
+
+On macOS, an explicitly ignored test can validate the current user's saved
+DeepSeek and custom-compatible providers through the production discovery
+adapter. It only sends `GET /models`; it does not change provider settings or
+send transcripts. Output contains counts and error categories, never keys or
+response bodies. Run it only when real-service acceptance is requested:
+
+```bash
+cargo test -p template-infra --test model_discovery_live -- --ignored --nocapture
+```
 
 ## AI-Assisted Changes
 

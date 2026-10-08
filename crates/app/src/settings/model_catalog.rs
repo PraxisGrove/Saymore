@@ -208,6 +208,34 @@ mod tests {
     use super::*;
 
     #[test]
+    fn saving_a_model_with_a_full_completion_url_updates_the_cached_selection() {
+        let mut catalog = ProviderCatalog::default();
+        let provider = LlmProviderPreset::Custom;
+        let base_url = "https://proxy.example/v1/chat/completions";
+        let endpoint = provider.model_list_url_for(base_url);
+        catalog.save_custom_llm_provider_config(base_url, "key", "model-a");
+        assert!(catalog.cache_llm_model_catalog(
+            provider,
+            &endpoint,
+            ChatCompletionsProfile::Portable,
+            vec!["model-a".to_owned(), "model-b".to_owned()],
+            "model-a",
+            123
+        ));
+
+        catalog.save_custom_llm_provider_config(base_url, "key", "model-b");
+
+        assert_eq!(
+            Some(LlmModelCatalog {
+                models: vec!["model-a".to_owned(), "model-b".to_owned()],
+                selected_model: "model-b".to_owned(),
+                refreshed_at_ms: 123,
+            }),
+            catalog.llm_model_catalog(provider, &endpoint, ChatCompletionsProfile::Portable)
+        );
+    }
+
+    #[test]
     fn portable_catalogs_remain_separate_for_siliconflow_and_stepfun() {
         let mut catalog = ProviderCatalog::default();
         for (preset, models) in [

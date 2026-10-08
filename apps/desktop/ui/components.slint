@@ -419,14 +419,13 @@ export component AppSelect inherits Rectangle {
         vertical-alignment: center;
         overflow: elide;
     }
-    Text {
+    Image {
         x: parent.width - 26px;
+        y: (parent.height - self.height) / 2;
         width: 16px;
-        text: "⌄";
-        color: AppColors.text-muted;
-        font-size: 14px;
-        horizontal-alignment: center;
-        vertical-alignment: center;
+        height: 16px;
+        source: @image-url("../icons/lucide/chevron-down.svg");
+        colorize: AppColors.text-muted;
     }
     select-touch := TouchArea { mouse-cursor: pointer; clicked => { select-popup.show(); } }
 

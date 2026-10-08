@@ -65,8 +65,12 @@ Desktop startup is shared across macOS and Windows. It resolves application
 paths, opens provider settings and local storage, loads local settings, and
 wires the shared Slint settings, history, dictionary, statistics, ASR, and
 dictation completion modules before platform-specific capabilities are attached.
-LLM model discovery results live inside the owning Provider instance in that
-same Provider catalog. Each cached directory is scoped by its model-list
+Background model-list refreshes carry a generation identity. Changing the
+provider, credentials, or dialog invalidates that generation so an older
+response cannot update the UI or storage. Compatible service roots and full
+completion or transcription URLs resolve to the same sibling model-list
+endpoint. LLM model discovery results live inside the owning Provider instance
+in that same Provider catalog. Each cached directory is scoped by its model-list
 endpoint and chat-completions profile, and stores the selected model and refresh
 timestamp. The JSON adapter updates the catalog under one lock and atomically
 replaces the file only after a successful refresh; failed refreshes leave both
