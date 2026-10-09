@@ -88,7 +88,7 @@ impl ShortcutCaptureTarget {
     fn ui_error_index(self) -> i32 {
         match self {
             Self::Add => -1,
-            Self::Replace(index) => i32::try_from(index).map_or(i32::MAX, |value| value),
+            Self::Replace(index) => i32::try_from(index).unwrap_or(i32::MAX),
         }
     }
 }

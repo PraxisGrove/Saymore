@@ -69,8 +69,10 @@ fn read_samples(path: &Path) -> Result<Vec<i16>, Box<dyn Error>> {
             return Err(io::Error::new(io::ErrorKind::InvalidData, "odd PCM byte count").into());
         }
         return Ok(bytes
-            .chunks_exact(2)
-            .map(|bytes| i16::from_le_bytes([bytes[0], bytes[1]]))
+            .as_chunks::<2>()
+            .0
+            .iter()
+            .map(|bytes| i16::from_le_bytes(*bytes))
             .collect());
     }
     let wave = Wave::read(path_text(path)?).ok_or_else(|| {

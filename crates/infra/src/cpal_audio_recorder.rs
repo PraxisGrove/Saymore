@@ -552,7 +552,7 @@ fn normalize_peak_level(peak: f32) -> f32 {
 }
 
 fn elapsed_ms(duration: Duration) -> u64 {
-    u64::try_from(duration.as_millis()).map_or(u64::MAX, |milliseconds| milliseconds)
+    u64::try_from(duration.as_millis()).unwrap_or(u64::MAX)
 }
 
 #[cfg(test)]

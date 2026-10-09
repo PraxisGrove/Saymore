@@ -34,8 +34,10 @@ fn standard_audio_samples() -> Result<Vec<i16>, String> {
         return Err("the bundled probe audio has an invalid byte length".to_owned());
     }
     Ok(STANDARD_AUDIO
-        .chunks_exact(2)
-        .map(|bytes| i16::from_le_bytes([bytes[0], bytes[1]]))
+        .as_chunks::<2>()
+        .0
+        .iter()
+        .map(|bytes| i16::from_le_bytes(*bytes))
         .collect())
 }
 

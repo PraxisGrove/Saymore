@@ -14,7 +14,7 @@ license-file = "LICENSE"
 version = "0.2.0"
 
 [workspace.dependencies]
-async-trait = "0.1"
+async-trait = "0.1.92"
 aes-gcm = "0.10.3"
 cpal = "0.18.1"
 chrono = { version = "0.4", default-features = false, features = ["clock", "unstable-locales"] }

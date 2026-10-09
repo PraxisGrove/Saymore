@@ -732,16 +732,14 @@ mod tests {
             let data_start = offset + 8;
             let data_end = data_start.saturating_add(size);
             if id == b"data" {
-                return wav
+                return Ok(wav
                     .get(data_start..data_end)
                     .ok_or(())?
-                    .chunks_exact(2)
-                    .map(|bytes| {
-                        <[u8; 2]>::try_from(bytes)
-                            .map(i16::from_le_bytes)
-                            .map_err(|_| ())
-                    })
-                    .collect();
+                    .as_chunks::<2>()
+                    .0
+                    .iter()
+                    .map(|bytes| i16::from_le_bytes(*bytes))
+                    .collect());
             }
             offset = data_end.saturating_add(size % 2);
         }

@@ -57,6 +57,12 @@ must invoke the Rust tasks or their underlying Cargo commands directly.
 
 ## Desktop Toolchain
 
+The repository pins Rust 1.99.0 in `rust-toolchain.toml`, including Rustfmt and
+Clippy. CI installs the same version in `.github/workflows/ci.yaml`. Update both
+pins together when upgrading Rust, then run the required gates with that
+toolchain. A passing local gate on an older compiler does not validate the
+Clippy rules used by CI.
+
 The target desktop app is compiled through Cargo and Slint. Node.js, pnpm,
 React, TypeScript, Vite, and Tauri are not part of the production toolchain.
 
