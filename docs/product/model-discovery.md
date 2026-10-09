@@ -99,3 +99,18 @@ Local screenshot evidence lives under `target/model-acceptance/` (excluded from
 Git): `speech-synced.png`, `qwen-presets.png`, and `polishing-latest.png`. The
 visual fixture is not registered in Cargo and its process is stopped after
 retesting. The production application bundle was not repackaged or replaced.
+
+## Push Verification — 2026-10-09
+
+The full pre-push gate initially passed compilation, Nextest, doc tests, Clippy,
+release builds, and size checks, but dependency auditing blocked the push.
+Compatible patches update `h2` to 0.4.16, `rustls` to 0.23.45, `webbrowser` to
+1.2.2, and the withdrawn `chacha20` version to 0.10.2. Rustls also updates its
+required `rustls-webpki` patch to 0.103.15. Cargo regenerated the lockfile; no
+model-provider behavior changed in this fix.
+
+After the dependency update, every required pre-push gate passed. Both
+main-thread model UI tests passed again, and the read-only live adapter test
+again returned 2 DeepSeek models and 28 custom-compatible models. The final diff
+was reviewed against repository standards and the originating model-list
+request. The preset-only provider limitations above remain unchanged.

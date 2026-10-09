@@ -27,7 +27,7 @@ rusqlite = { version = "0.37.0", features = ["bundled"] }
 raw-window-handle = "0.6"
 rfd = "0.17"
 reqwest = { version = "0.13.4", default-features = false, features = ["json", "multipart", "rustls-no-provider", "stream"] }
-rustls = { version = "0.23.42", default-features = false, features = ["ring", "std"] }
+rustls = { version = "0.23.45", default-features = false, features = ["ring", "std"] }
 httpmock = "0.8.3"
 ico = "0.4"
 image = { version = "0.25", default-features = false, features = ["png"] }
