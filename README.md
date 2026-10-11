@@ -94,7 +94,7 @@ defines the complete data, provider, and feature boundaries.
 
 | Platform      | Package                                                                                                                                                            |
 | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **macOS 12+** | A signed and notarized universal DMG for Apple Silicon and Intel Macs is available from [GitHub Releases](https://github.com/PraxisGrove/Saymore/releases/latest). |
+| **macOS 13+** | A signed and notarized universal DMG for Apple Silicon and Intel Macs is available from [GitHub Releases](https://github.com/PraxisGrove/Saymore/releases/latest). |
 | **Windows**   | A current-user NSIS installer is available from [GitHub Releases](https://github.com/PraxisGrove/Saymore/releases/latest).                                         |
 
 Each direct release includes `SHA256SUMS` for artifact verification. A Mac App

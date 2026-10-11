@@ -199,7 +199,7 @@ fn info_plist(spec: &BundleSpec<'_>) -> String {
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>CFBundleShortVersionString</key><string>{version}</string>
   <key>CFBundleVersion</key><string>1</string>
-  <key>LSMinimumSystemVersion</key><string>12.0</string>
+  <key>LSMinimumSystemVersion</key><string>13.0</string>
   <key>NSHighResolutionCapable</key><true/>
   <key>NSMicrophoneUsageDescription</key><string>{MICROPHONE_USAGE_DESCRIPTION_EN}</string>
   <key>NSSpeechRecognitionUsageDescription</key><string>{SPEECH_USAGE_DESCRIPTION_EN}</string>
