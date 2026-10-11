@@ -3,6 +3,7 @@
 mod appearance;
 mod audio_recording;
 mod cancelled_recording;
+mod cloud_asr_preset;
 mod dictation_completion;
 mod dictation_session;
 mod dictionary_assist;
@@ -11,6 +12,7 @@ mod dictionary_revision;
 mod feedback_sound;
 mod final_text_processing;
 mod history_revision;
+pub mod licensing;
 mod local_settings_mutation;
 mod local_storage_usage;
 mod provider_configuration;
@@ -31,6 +33,7 @@ pub use audio_recording::{
     convert_interleaved_f32_to_pcm16,
 };
 pub use cancelled_recording::CancelledRecordingStore;
+pub use cloud_asr_preset::CloudAsrPreset;
 pub use dictation_completion::{
     CompletedDictation, DictationCompletion, DictationCompletionAdapters, DictationCompletionClock,
     DictationCompletionError, DictationCompletionPolicy, DictationCompletionResult,
