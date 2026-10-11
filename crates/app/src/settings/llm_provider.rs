@@ -190,6 +190,34 @@ impl LlmProviderPreset {
             profile: self.profile().chat_completions,
         }
     }
+
+    /// Refinement settings with the key taken from the saved value, or from
+    /// `SAYMORE_LLM_API_KEY` / the preset's own variable (e.g. `OPENAI_API_KEY`).
+    /// Returns `None` when no key is available anywhere.
+    pub fn settings_from_saved_or_env(
+        self,
+        saved_api_key: &str,
+    ) -> Option<ChatCompletionsLlmSettings> {
+        self.settings_from_saved_or_env_with(saved_api_key, |name| std::env::var(name).ok())
+    }
+
+    pub fn settings_from_saved_or_env_with(
+        self,
+        saved_api_key: &str,
+        env: impl Fn(&str) -> Option<String>,
+    ) -> Option<ChatCompletionsLlmSettings> {
+        let saved = saved_api_key.trim();
+        let key = if saved.is_empty() {
+            ["SAYMORE_LLM_API_KEY", self.profile().api_key_environment]
+                .into_iter()
+                .filter_map(&env)
+                .map(|v| v.trim().to_owned())
+                .find(|v| !v.is_empty())?
+        } else {
+            saved.to_owned()
+        };
+        Some(self.settings(&key))
+    }
 }
 
 const SENSENOVA_PROFILE: LlmProviderProfile = LlmProviderProfile {
@@ -335,3 +363,27 @@ const CUSTOM_PROFILE: LlmProviderProfile = LlmProviderProfile {
     api_key_environment: "SAYMORE_LLM_API_KEY",
     chat_completions: ChatCompletionsProfile::Portable,
 };
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod env_key_tests {
+    use super::LlmProviderPreset;
+
+    #[test]
+    fn openai_refinement_key_from_env() {
+        let env = |n: &str| (n == "OPENAI_API_KEY").then(|| "sk-x".to_owned());
+        let s = LlmProviderPreset::OpenAi
+            .settings_from_saved_or_env_with("", env)
+            .unwrap();
+        assert_eq!(s.api_key, "sk-x");
+        assert!(
+            LlmProviderPreset::OpenAi
+                .settings_from_saved_or_env_with("", |_| None)
+                .is_none()
+        );
+        let s = LlmProviderPreset::OpenAi
+            .settings_from_saved_or_env_with("saved", env)
+            .unwrap();
+        assert_eq!(s.api_key, "saved");
+    }
+}
