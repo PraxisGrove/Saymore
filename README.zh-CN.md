@@ -86,7 +86,7 @@ Provider 与功能边界。
 
 | 平台          | 安装包                                                                                                                                         |
 | ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| **macOS 13+** | [GitHub Releases](https://github.com/PraxisGrove/Saymore/releases/latest) 提供经过签名和公证、同时支持 Apple Silicon 与 Intel Mac 的通用 DMG。 |
+| **macOS 12+** | [GitHub Releases](https://github.com/PraxisGrove/Saymore/releases/latest) 提供经过签名和公证、同时支持 Apple Silicon 与 Intel Mac 的通用 DMG。 |
 | **Windows**   | [GitHub Releases](https://github.com/PraxisGrove/Saymore/releases/latest) 提供面向当前用户安装的 NSIS 安装程序。                               |
 
 每个直接发布版本都附带 `SHA256SUMS`，可用于校验下载文件。Mac App Store 版本仍在
