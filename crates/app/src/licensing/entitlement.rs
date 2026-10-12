@@ -1,7 +1,7 @@
 //! Provider-independent trial and entitlement rules (approved pricing design):
 //! - 14-day full trial from first launch, no card.
-//! - After the trial, dictation stays free; refinement and the personal
-//!   dictionary pause, but dictionary data is kept.
+//! - After the trial, dictation and the personal dictionary stay free; only
+//!   refinement pauses.
 //! - A license unlocks everything on up to 3 devices and includes 12 months of
 //!   updates; after that the installed version keeps working.
 //! - A deactivated / over-limit device keeps free dictation.
@@ -34,9 +34,9 @@ pub enum Entitlement {
 impl Entitlement {
     pub fn allows(self, feature: Feature) -> bool {
         match (self, feature) {
-            (_, Feature::Dictation) => true,
-            (Self::TrialEnded, _) => false,
-            _ => true,
+            (_, Feature::Dictation | Feature::PersonalDictionary) => true,
+            (Self::TrialEnded, Feature::Refinement) => false,
+            (_, Feature::Refinement) => true,
         }
     }
 
@@ -75,7 +75,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn trial_runs_fourteen_days_then_dictation_only() {
+    fn trial_runs_fourteen_days_then_only_refinement_pauses() {
         assert_eq!(
             entitlement_at(0, 0, None),
             Entitlement::Trial { days_left: 14 }
@@ -88,7 +88,7 @@ mod tests {
         assert_eq!(ended, Entitlement::TrialEnded);
         assert!(ended.allows(Feature::Dictation));
         assert!(!ended.allows(Feature::Refinement));
-        assert!(!ended.allows(Feature::PersonalDictionary));
+        assert!(ended.allows(Feature::PersonalDictionary));
     }
 
     #[test]
@@ -99,6 +99,7 @@ mod tests {
         };
         let e = entitlement_at(0, 999 * DAY, Some(&rec));
         assert!(e.allows(Feature::Refinement));
+        assert!(e.allows(Feature::PersonalDictionary));
         assert!(e.covers_build(100 + 365 * DAY));
         assert!(!e.covers_build(100 + 366 * DAY));
         let revoked = LicenseRecord {
