@@ -58,7 +58,8 @@ must invoke the Rust tasks or their underlying Cargo commands directly.
 ## Desktop Toolchain
 
 The repository pins Rust 1.99.0 in `rust-toolchain.toml`, including Rustfmt and
-Clippy. CI installs the same version in `.github/workflows/ci.yaml`. Update both
+Clippy. CI and release packaging install the same version in
+`.github/workflows/ci.yaml` and `.github/workflows/release.yaml`. Update all
 pins together when upgrading Rust, then run the required gates with that
 toolchain. A passing local gate on an older compiler does not validate the
 Clippy rules used by CI.

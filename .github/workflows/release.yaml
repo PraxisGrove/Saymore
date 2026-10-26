@@ -146,8 +146,9 @@ jobs:
           fi
 
       - name: Setup Rust targets
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@master
         with:
+          toolchain: 1.99.0
           targets: aarch64-apple-darwin,x86_64-apple-darwin
 
       - name: Install release tools
@@ -262,7 +263,9 @@ jobs:
         with:
           ref: ${{ needs.plan.outputs.source-sha }}
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.99.0
 
       - name: Install NSIS
         run: choco install nsis --yes --no-progress

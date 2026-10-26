@@ -34,6 +34,12 @@ before packaging starts. CI checks, tests, and lints all workspace targets on
 both macOS and Windows, then builds the production desktop binary in release
 mode. Dependency policy runs separately on Ubuntu.
 
+Packaging installs Rust 1.99.0, matching `rust-toolchain.toml` and CI. Both
+macOS targets must be installed for that exact toolchain; installing them only
+for the moving `stable` channel leaves the pinned compiler without the Intel
+standard library when the versions differ. Update the release toolchain pins
+together with the repository and CI pins when upgrading Rust.
+
 ## Artifacts
 
 - macOS builds both Apple Silicon and Intel targets, combines them into one
