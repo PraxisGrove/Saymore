@@ -128,3 +128,18 @@ reliably retain their Accessibility authorization.
 The publish step is idempotent. If the version tag was pushed but creating or
 uploading the GitHub Release failed, rerun the same workflow. It rebuilds from
 the tagged commit, then creates or repairs the Release assets.
+
+### October 26, 2026 manual packaging recovery
+
+[The manual release run](https://github.com/PraxisGrove/Saymore/actions/runs/40285450233)
+produced the Windows installer but failed to compile the Intel macOS target. The
+moving `stable` action installed targets for Rust 1.99.1 while Cargo used the
+repository's pinned 1.99.0 compiler. Both packaging jobs now install the pinned
+version explicitly. Local standard-library probes succeeded for both macOS
+architectures with Rust 1.99.0.
+
+The recovery push also encountered new RustSec advisories. The lockfile updates
+Rustls to 0.23.46, rustls-webpki to 0.103.16, Tokio to 1.53.3, and webpki-roots
+to 1.0.10. Dependency auditing passes with those patches. The release still
+requires the complete push gate and successful CI for the repaired source commit
+before another manual packaging run.
