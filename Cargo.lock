@@ -5206,7 +5206,7 @@ dependencies = [
 
 [[package]]
 name = "saymore-desktop"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "chrono",
  "httpmock",
@@ -5970,7 +5970,7 @@ dependencies = [
 
 [[package]]
 name = "template-app"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "async-trait",
  "chrono",
@@ -5986,7 +5986,7 @@ dependencies = [
 
 [[package]]
 name = "template-infra"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "accessibility-sys",
  "aes-gcm",
@@ -7620,7 +7620,7 @@ checksum = "ec7a2a501ed189703dba8b08142f057e887dfc4b2cc4db2d343ac6376ba3e0b9"
 
 [[package]]
 name = "xtask"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "ico",
  "image",
