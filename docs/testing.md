@@ -97,10 +97,57 @@ on a clean x64 machine and record results for:
 - upgrade over a prior version with settings, encrypted history, dictionary, and
   downloaded models preserved;
 - Notepad, Word, and a Chromium editor, including Chinese and mixed text;
-- high-DPI movement across displays, Chinese user paths, and long model paths;
+- model-page text clarity and high-DPI movement across displays using the
+  [visual acceptance procedure](#windows-model-page-visual-acceptance), Chinese
+  user paths, and long model paths;
 - uninstall and portable removal with application data intentionally retained;
 - Authenticode, SmartScreen reputation, and the active antivirus product.
 
 Automation on a development machine is evidence for the deterministic portion,
 not a substitute for the clean-machine, reputation, microphone, or third-party
 application checks.
+
+### Windows model-page visual acceptance
+
+Run the packaged release EXE with the production FemtoVG renderer and normal
+Windows font fallback. Remove test overrides such as `SLINT_SCALE_FACTOR` and
+Windows compatibility-mode DPI overrides. Record the app version, Windows build,
+display resolution, display scaling, Windows text-size setting, and GPU/driver.
+Use the display's native resolution and the default text-size setting for the
+baseline; record any additional accessibility text-size checks separately.
+
+Cover 100%, 125%, and 150% display scaling on a low-density display, plus 200%
+on a high-density display where available. Mark unavailable combinations as not
+tested. For each combination, check Simplified Chinese and English in light and
+dark appearance at the default 920 × 700 logical window size and the minimum 820
+× 560 size supported by the Models page:
+
+- Open both Transcription and Polishing. Check provider names, source labels,
+  summaries, status badges, and the polishing enablement label and helper.
+- Open Qwen3-ASR, Whisper, SenseVoiceSmall, and Paraformer details. Check
+  metadata, download size, runtime memory, device status, download actions, and
+  usage tips. Cover not-downloaded, downloading, paused, installed,
+  activation-pending, and failure states; include a three-digit download
+  percentage and a long error.
+- On Paraformer, check both punctuation modes, missing and installed punctuation
+  models, download progress, and an error. Check recognition-test idle, running,
+  success, and failure states. Use a disposable test profile for downloads and
+  failure setup; do not corrupt or delete a user's installed models.
+- Verify that enlarged text has no clipped strokes or overlapping controls.
+  Standard status and action labels must fit. Long descriptions and errors must
+  wrap, and the dialog must scroll to the final usage tip. Provider names and
+  summaries may elide at narrow widths, but must not collide with badges or
+  icons.
+- Move the window between displays with different scaling in both directions,
+  with a local-model dialog open and closed. Compare with a fresh launch on each
+  display: text must redraw at the destination scale without persistent blur,
+  incorrect geometry, or a restart requirement.
+
+Capture lossless PNG screenshots at original pixel dimensions after animations
+settle. Inspect them at 1:1 alongside the live app; do not judge clarity from a
+resized chat preview or a recompressed JPEG. Background dimming under a modal is
+expected and is not a blur failure. Capture the unobscured page and the dialog
+separately. Record pass/fail/not-tested for every scale, locale, appearance, and
+cross-display case, attach screenshots, and keep Windows visual acceptance
+pending until this matrix has actually run. macOS GUI tests validate shared
+navigation and compilation, not Windows rasterization or DPI behavior.

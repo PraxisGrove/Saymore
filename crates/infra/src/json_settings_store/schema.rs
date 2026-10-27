@@ -249,6 +249,13 @@ pub(super) fn catalog_to_settings(
     catalog: ProviderCatalog,
 ) -> Result<SaymoreSettings, SettingsStoreError> {
     validate_catalog(&catalog)?;
+    Ok(SaymoreSettings {
+        asr: catalog_asr_settings(&catalog)?,
+        llm: catalog_llm_settings(&catalog)?,
+    })
+}
+
+fn catalog_asr_settings(catalog: &ProviderCatalog) -> Result<AsrSettings, SettingsStoreError> {
     let active_asr = catalog.active.asr.as_deref();
     let volcengine = match catalog
         .asr_providers
@@ -283,6 +290,13 @@ pub(super) fn catalog_to_settings(
         }
         None => OpenAiCompatibleAsrSettings::default(),
     };
+    Ok(AsrSettings {
+        volcengine,
+        openai_compatible,
+    })
+}
+
+fn catalog_llm_settings(catalog: &ProviderCatalog) -> Result<LlmSettings, SettingsStoreError> {
     let active_llm = catalog.active.llm.as_deref();
     let llm_provider = active_provider(&catalog.llm_providers, active_llm).or_else(|| {
         catalog
@@ -327,15 +341,9 @@ pub(super) fn catalog_to_settings(
         }
         None => (false, String::new(), ChatCompletionsLlmSettings::default()),
     };
-    Ok(SaymoreSettings {
-        asr: AsrSettings {
-            volcengine,
-            openai_compatible,
-        },
-        llm: LlmSettings {
-            enabled,
-            confirmed_base_url,
-            chat_completions,
-        },
+    Ok(LlmSettings {
+        enabled,
+        confirmed_base_url,
+        chat_completions,
     })
 }

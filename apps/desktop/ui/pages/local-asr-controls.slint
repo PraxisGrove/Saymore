@@ -1,0 +1,279 @@
+import { AppColors } from "../color-system.slint";
+
+export enum LocalModelDownloadState {
+    not-downloaded,
+    queued,
+    downloading,
+    paused,
+    cancelling,
+    downloaded,
+}
+
+export enum PunctuationMode {
+    llm,
+    local,
+}
+
+export component LocalModelSummaryPill inherits Rectangle {
+    in property <image> icon;
+    in property <string> label;
+
+    width: 104px;
+    height: 36px;
+    border-radius: 18px;
+    background: AppColors.surface-faint;
+
+    Image {
+        x: 12px;
+        y: 9px;
+        width: 18px;
+        height: 18px;
+        source: root.icon;
+        colorize: AppColors.text-muted;
+    }
+    Text {
+        x: 38px;
+        width: parent.width - 44px;
+        text: root.label;
+        color: AppColors.text;
+        font-size: 12px;
+        font-weight: 600;
+        vertical-alignment: center;
+        overflow: elide;
+    }
+}
+
+export component LocalModelBusySpinner inherits Image {
+    in property <bool> running: false;
+    in property <brush> tint: AppColors.brand-strong;
+    private property <angle> angle: 0deg;
+
+    source: @image-url("../../icons/lucide/refresh-cw.svg");
+    colorize: root.tint;
+    opacity: root.running ? 1 : 0;
+    transform-origin: { x: root.width / 2, y: root.height / 2 };
+    transform-rotation: root.angle;
+    animate opacity { duration: 120ms; easing: ease-out; }
+    states [
+        spinning when root.running: {
+            angle: 360deg;
+            in {
+                animate angle { duration: 800ms; iteration-count: -1; easing: linear; }
+            }
+        }
+    ]
+}
+
+export component LocalModelMetric inherits Rectangle {
+    in property <image> icon;
+    in property <string> label;
+    in property <string> value;
+    in property <length> content-offset: 0px;
+    in property <bool> muted-value: false;
+    in property <bool> live-value: false;
+    background: transparent;
+
+    Image {
+        x: root.content-offset;
+        y: 5px;
+        width: 14px;
+        height: 14px;
+        source: root.icon;
+        colorize: AppColors.text-muted;
+    }
+    metric-label := Text {
+        x: root.content-offset + 22px;
+        y: 2px;
+        text: root.label;
+        color: AppColors.text;
+        font-size: 12px;
+        font-weight: 700;
+    }
+    metric-value := Text {
+        x: root.content-offset + 22px;
+        y: 27px;
+        height: 18px;
+        width: max(0px, root.width - self.x);
+        text: root.value;
+        color: root.muted-value ? AppColors.text-muted : AppColors.ink;
+        font-size: 12px;
+        font-weight: 600;
+        overflow: elide;
+    }
+    if root.live-value: Rectangle {
+        x: root.content-offset + 4px;
+        y: 32px;
+        width: 6px;
+        height: 6px;
+        border-radius: 3px;
+        background: AppColors.success;
+    }
+}
+
+export component LocalModelActionButton inherits Rectangle {
+    in property <string> label;
+    in property <string> hover-label;
+    in property <bool> enabled: true;
+    in property <bool> primary: false;
+    in property <bool> danger: false;
+    in property <bool> pending: false;
+    callback activated();
+
+    private property <bool> showing-hover-action: root.hover-label != "" && button-touch.has-hover;
+
+    width: max(110px, button-label.preferred-width + (root.pending ? 38px : 24px));
+    height: 32px;
+    border-radius: 7px;
+    border-width: root.primary || root.pending || root.danger ? 0px : 1px;
+    border-color: root.danger ? AppColors.danger : AppColors.border;
+    background: !root.enabled && !root.pending ? AppColors.surface-muted
+        : root.pending && root.showing-hover-action ? AppColors.brand
+        : root.pending ? AppColors.brand-soft
+        : root.primary ? (button-touch.has-hover ? AppColors.brand-hover : AppColors.brand)
+        : button-touch.has-hover ? (root.danger ? AppColors.danger-soft : AppColors.surface)
+        : root.danger ? AppColors.danger-soft : AppColors.surface;
+    opacity: root.enabled || root.pending ? 1 : 0.55;
+    animate background { duration: 120ms; easing: ease-out; }
+    animate opacity { duration: 80ms; easing: ease-out; }
+    accessible-role: button;
+    accessible-label: root.showing-hover-action ? root.hover-label : root.label;
+    accessible-enabled: root.enabled;
+    accessible-action-default => { if root.enabled { root.activated(); } }
+
+    button-label := Text {
+        x: root.pending && !root.showing-hover-action ? 22px : 0px;
+        width: root.pending && !root.showing-hover-action ? parent.width - 26px : parent.width;
+        text: root.showing-hover-action ? root.hover-label : root.label;
+        color: !root.enabled && !root.pending ? AppColors.text-muted
+            : root.showing-hover-action ? AppColors.on-brand
+            : root.pending ? AppColors.brand-strong
+            : root.primary ? AppColors.on-brand
+            : root.danger ? AppColors.danger : AppColors.text;
+        font-size: 12px;
+        font-weight: 650;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+    LocalModelBusySpinner {
+        x: 8px;
+        y: (root.height - self.height) / 2;
+        width: 12px;
+        height: 12px;
+        running: root.pending && !root.showing-hover-action;
+    }
+    button-touch := TouchArea {
+        enabled: root.enabled;
+        mouse-cursor: self.enabled ? pointer : default;
+        clicked => { root.activated(); }
+    }
+}
+
+export component LocalModelSelectionControl inherits Rectangle {
+    in property <LocalModelDownloadState> download-state;
+    in property <bool> selected: false;
+    in property <bool> enabled: false;
+    in property <bool> pending: false;
+    callback activated();
+
+    private property <string> label: root.pending
+        ? @tr("models.asr.selection.activating" => "Switching")
+        : root.selected
+        ? @tr("models.asr.selection.current" => "Current")
+        : root.download-state == LocalModelDownloadState.downloading
+            ? @tr("models.asr.local.downloading" => "Downloading")
+            : root.download-state == LocalModelDownloadState.paused
+                ? @tr("models.asr.local.paused" => "Paused")
+                : root.download-state == LocalModelDownloadState.cancelling
+                    ? @tr("models.asr.local.cancelling" => "Cancelling")
+            : root.download-state == LocalModelDownloadState.downloaded
+                ? @tr("models.asr.local.downloaded" => "Downloaded")
+                : @tr("models.asr.local.not-downloaded" => "Not downloaded");
+
+    width: max(132px, selection-label.preferred-width + 44px);
+    height: 34px;
+    background: transparent;
+    accessible-role: switch;
+    accessible-label: root.selected
+        ? @tr("models.asr.selection.current-accessible" => "Current provider")
+        : root.label;
+    accessible-enabled: root.enabled && !root.pending;
+    accessible-checked: root.selected;
+    accessible-action-default => { if root.enabled && !root.pending { root.activated(); } }
+
+    Rectangle {
+        x: 0px;
+        y: 9px;
+        width: 28px;
+        height: 16px;
+        border-radius: 8px;
+        background: root.pending ? AppColors.brand
+            : root.selected ? AppColors.success
+            : selection-touch.has-hover && root.enabled ? AppColors.selected
+            : AppColors.chart-neutral;
+        opacity: root.pending || root.selected || root.enabled ? 1 : 0.5;
+        animate background { duration: 150ms; easing: ease-out; }
+
+        Rectangle {
+            visible: !root.pending;
+            x: root.selected ? 14px : 2px;
+            y: 2px;
+            width: 12px;
+            height: 12px;
+            border-radius: 6px;
+            background: AppColors.surface;
+            animate x { duration: 160ms; easing: ease-out; }
+        }
+        LocalModelBusySpinner {
+            x: 8px;
+            y: 2px;
+            width: 12px;
+            height: 12px;
+            running: root.pending;
+            tint: AppColors.on-brand;
+        }
+    }
+    selection-label := Text {
+        x: 36px;
+        width: parent.width - 36px;
+        text: root.label;
+        color: root.pending ? AppColors.brand-strong
+            : root.selected ? AppColors.success
+            : root.enabled ? AppColors.text : AppColors.text-muted;
+        font-size: 12px;
+        font-weight: 600;
+        vertical-alignment: center;
+        overflow: elide;
+    }
+    selection-touch := TouchArea {
+        enabled: root.enabled && !root.pending;
+        mouse-cursor: root.enabled ? pointer : default;
+        clicked => { root.activated(); }
+    }
+    Rectangle {
+        x: 0px;
+        y: 31px;
+        width: parent.width;
+        height: 3px;
+        border-radius: 2px;
+        background: AppColors.selected;
+        opacity: root.pending ? 1 : 0;
+        clip: true;
+        animate opacity { duration: 120ms; easing: ease-out; }
+
+        Rectangle {
+            x: -36px;
+            width: 36px;
+            height: parent.height;
+            border-radius: 2px;
+            background: AppColors.brand;
+            states [
+                moving when root.pending: {
+                    x: root.width;
+                    in {
+                        animate x { duration: 720ms; iteration-count: -1; easing: linear; }
+                    }
+                }
+            ]
+        }
+    }
+}

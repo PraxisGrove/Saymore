@@ -378,28 +378,7 @@ fn run_wired_desktop(
 ) -> Result<(), Box<dyn Error>> {
     let first_recording = Arc::new(AtomicBool::new(true));
     let paused = Arc::new(AtomicBool::new(bootstrap.local_settings.dictation_paused));
-    delivery_runtime::wire_result_actions(&windows.result_overlay);
-    dictionary_added_overlay::wire(&windows.ui, &windows.dictionary_added_overlay);
-    asr_configuration_prompt::wire(&windows.ui, &windows.asr_configuration_overlay);
-    let dismiss_limit = windows.recording_limit_overlay.as_weak();
-    windows.recording_limit_overlay.on_acknowledged(move || {
-        if let Some(overlay) = dismiss_limit.upgrade() {
-            let _ = overlay.hide();
-        }
-    });
-    let pause_recording = recording_actions::wire(
-        &windows.ui,
-        &windows.overlay,
-        &windows.result_overlay,
-        &windows.recording_limit_overlay,
-        recording_actions::RecordingActionRuntime {
-            recorder: Arc::clone(&core.recorder),
-            session: Arc::clone(&core.session),
-            cancelled: Arc::clone(&core.cancelled),
-            dictation: core.dictation.clone(),
-            feedback_sounds_enabled: Arc::clone(&core.feedback_sounds_enabled),
-        },
-    );
+    let pause_recording = wire_macos_recording_actions(&windows, &core);
     let overlays = DictationOverlays::new(
         &windows.overlay,
         &windows.result_overlay,
@@ -459,6 +438,32 @@ fn run_wired_desktop(
     drop(core.feedback_sounds_enabled);
     drop(core.mute_system_audio_enabled);
     Ok(())
+}
+
+#[cfg(target_os = "macos")]
+fn wire_macos_recording_actions(windows: &DesktopWindows, core: &WiredCore) -> impl Fn() + 'static {
+    delivery_runtime::wire_result_actions(&windows.result_overlay);
+    dictionary_added_overlay::wire(&windows.ui, &windows.dictionary_added_overlay);
+    asr_configuration_prompt::wire(&windows.ui, &windows.asr_configuration_overlay);
+    let dismiss_limit = windows.recording_limit_overlay.as_weak();
+    windows.recording_limit_overlay.on_acknowledged(move || {
+        if let Some(overlay) = dismiss_limit.upgrade() {
+            let _ = overlay.hide();
+        }
+    });
+    recording_actions::wire(
+        &windows.ui,
+        &windows.overlay,
+        &windows.result_overlay,
+        &windows.recording_limit_overlay,
+        recording_actions::RecordingActionRuntime {
+            recorder: Arc::clone(&core.recorder),
+            session: Arc::clone(&core.session),
+            cancelled: Arc::clone(&core.cancelled),
+            dictation: core.dictation.clone(),
+            feedback_sounds_enabled: Arc::clone(&core.feedback_sounds_enabled),
+        },
+    )
 }
 
 fn prepare_overlay_windows<const N: usize>(windows: [&slint::Window; N]) {

@@ -168,14 +168,7 @@ fn process_command(database: &mut Database, command: Command) -> bool {
             consent_fingerprint,
             completed_at_ms,
             response,
-        } => send_result(
-            response,
-            settings::record_vocabulary_suggestion_success(
-                &database.connection,
-                &consent_fingerprint,
-                completed_at_ms,
-            ),
-        ),
+        } => record_vocabulary_success(database, consent_fingerprint, completed_at_ms, response),
         Command::RecordDiagnosticEvent { event, response } => send_result(
             response,
             diagnostics::record(&mut database.connection, &event),
@@ -187,10 +180,7 @@ fn process_command(database: &mut Database, command: Command) -> bool {
             period_start,
             period_end,
             response,
-        } => send_result(
-            response,
-            usage::snapshot(database, period_start, period_end),
-        ),
+        } => respond_usage_snapshot(database, period_start, period_end, response),
         Command::ListDictionary(response) => {
             send_result(response, dictionary::list(&database.connection))
         }
@@ -207,20 +197,14 @@ fn process_command(database: &mut Database, command: Command) -> bool {
             canonical,
             now_ms,
             response,
-        } => send_result(
-            response,
-            dictionary::update(&mut database.connection, &id, &canonical, now_ms),
-        ),
+        } => update_dictionary_entry(database, id, canonical, now_ms, response),
         Command::DeleteDictionary { id, response } => {
             send_result(response, dictionary::delete(&mut database.connection, &id))
         }
         Command::RecordDictionaryObservation {
             observation,
             response,
-        } => send_result(
-            response,
-            dictionary_learning::record(&mut database.connection, observation),
-        ),
+        } => record_dictionary_observation(database, observation, response),
         Command::ListDictionaryCandidateEvidence(response) => send_result(
             response,
             dictionary_learning::list_evidence(&database.connection),
@@ -249,6 +233,58 @@ fn process_command(database: &mut Database, command: Command) -> bool {
         Command::Shutdown => return false,
     }
     true
+}
+
+fn record_vocabulary_success(
+    database: &Database,
+    consent_fingerprint: String,
+    completed_at_ms: i64,
+    response: SyncSender<Result<bool, StorageError>>,
+) {
+    send_result(
+        response,
+        settings::record_vocabulary_suggestion_success(
+            &database.connection,
+            &consent_fingerprint,
+            completed_at_ms,
+        ),
+    );
+}
+
+fn respond_usage_snapshot(
+    database: &mut Database,
+    period_start: chrono::NaiveDate,
+    period_end: chrono::NaiveDate,
+    response: SyncSender<Result<UsageSnapshot, StorageError>>,
+) {
+    send_result(
+        response,
+        usage::snapshot(database, period_start, period_end),
+    );
+}
+
+fn update_dictionary_entry(
+    database: &mut Database,
+    id: String,
+    canonical: String,
+    now_ms: i64,
+    response: SyncSender<Result<DictionaryEntry, StorageError>>,
+) {
+    send_result(
+        response,
+        dictionary::update(&mut database.connection, &id, &canonical, now_ms),
+    );
+}
+
+fn record_dictionary_observation(
+    database: &mut Database,
+    observation: NewDictionaryObservation,
+    response: SyncSender<Result<DictionaryLearningOutcome, StorageError>>,
+) {
+    send_result(
+        response,
+        dictionary_learning::record(&mut database.connection, observation),
+    );
 }
 
 fn process_history_command(database: &mut Database, command: HistoryCommand) {

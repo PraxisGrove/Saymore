@@ -9,7 +9,7 @@ import {
 import {
     AsrProviderCard,
     ProviderStatusTone,
-} from "asr-provider-components.slint";
+} from "asr-provider-card.slint";
 
 export component SpeechRecognitionPage inherits Rectangle {
     in property <bool> focus-config: false;
@@ -53,7 +53,7 @@ export component SpeechRecognitionPage inherits Rectangle {
     private property <int> provider-row-count: (root.provider-cards.length + 1) / 2;
     private property <length> provider-content-height: root.provider-row-count == 0
         ? 0px
-        : root.provider-row-count * 108px - 12px;
+        : root.provider-row-count * 120px - 12px;
 
     background: transparent;
     init => {
@@ -73,7 +73,7 @@ export component SpeechRecognitionPage inherits Rectangle {
 
         for card[card-index] in root.provider-cards: AsrProviderCard {
             x: Math.mod(card-index, 2) == 0 ? 0px : (provider-list.viewport-width + 16px) / 2;
-            y: Math.floor(card-index / 2) * 108px;
+            y: Math.floor(card-index / 2) * 120px;
             width: (provider-list.viewport-width - 16px) / 2;
             recommended: card.kind == AsrProviderCardKind.paraformer
                 || card.kind == AsrProviderCardKind.volcengine;

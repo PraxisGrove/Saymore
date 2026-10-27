@@ -68,7 +68,11 @@ Windows maps UI and monospaced text to Segoe UI and Consolas; macOS maps them to
 PingFang SC and Menlo. The Slint windows receive this mapping from the desktop
 composition layer before they are shown. Font sizes, weights, and layout remain
 shared across platforms unless a separately validated platform exception is
-required.
+required. Model provider cards and local-model dialogs use at least 11 logical
+pixels for supporting text and 12–13 logical pixels for primary labels, values,
+and actions. Wrapped descriptions and scrollable dialog bodies must accommodate
+these sizes without shrinking text to fit. Validate Windows clarity with the
+[model-page visual acceptance procedure](testing.md#windows-model-page-visual-acceptance).
 
 ## Platform Integration
 

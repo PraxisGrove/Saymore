@@ -88,25 +88,8 @@ pub(crate) fn wire_core_services(
         &windows.microphone_permission_overlay,
         Arc::clone(&microphone),
     );
-    settings_ui::wire(&windows.ui, Arc::clone(&bootstrap.settings_store));
-    #[cfg(any(target_os = "macos", target_os = "windows"))]
-    crate::local_model_runtime::wire(
-        &windows.ui,
-        Arc::clone(&bootstrap.settings_store),
-        Arc::clone(&bootstrap.local_storage),
-        bootstrap.paths.models_directory(),
-        Arc::clone(&dictation.asr),
-    )?;
-    let settings_store: Arc<dyn LocalSettingsStore> = bootstrap.local_storage.clone();
-    let local_settings_runtime = local_settings_runtime::LocalSettingsRuntime::new(Arc::new(
-        LocalSettingsMutator::new(settings_store),
-    ))?;
+    let local_settings_runtime = wire_settings_runtime(bootstrap, windows, &dictation)?;
     let local_settings = local_settings_runtime.handle();
-    i18n::wire(
-        &windows.ui,
-        local_settings.clone(),
-        windows.language_context,
-    );
     let onboarding_deliverer: Arc<dyn TextDeliverer> = deliverer.clone();
     let onboarding = crate::onboarding::OnboardingRuntime::new(
         &windows.ui,
@@ -117,25 +100,7 @@ pub(crate) fn wire_core_services(
         Arc::clone(&microphone),
         onboarding_deliverer,
     )?;
-    let overlay_appearance = appearance_ui::OverlayAppearanceTargets::new(
-        &windows.overlay,
-        &windows.result_overlay,
-        &windows.recording_limit_overlay,
-        &windows.dictionary_added_overlay,
-        &windows.microphone_intro_overlay,
-        &windows.microphone_permission_overlay,
-        &windows.asr_configuration_overlay,
-    );
-    #[cfg(target_os = "macos")]
-    let overlay_appearance =
-        overlay_appearance.with_accessibility(&windows.accessibility_permission_overlay);
-    appearance_ui::wire(
-        &windows.ui,
-        onboarding.window(),
-        overlay_appearance,
-        &bootstrap.local_settings,
-        local_settings.clone(),
-    );
+    wire_appearance(bootstrap, windows, &onboarding, local_settings.clone());
     wire_local_features(
         bootstrap,
         windows,
@@ -162,6 +127,55 @@ pub(crate) fn wire_core_services(
         local_settings,
         _local_settings_runtime: local_settings_runtime,
     })
+}
+
+fn wire_settings_runtime(
+    bootstrap: &DesktopBootstrap,
+    windows: &DesktopWindows,
+    dictation: &DictationRuntime,
+) -> Result<local_settings_runtime::LocalSettingsRuntime, Box<dyn Error>> {
+    settings_ui::wire(&windows.ui, Arc::clone(&bootstrap.settings_store));
+    #[cfg(any(target_os = "macos", target_os = "windows"))]
+    crate::local_model_runtime::wire(
+        &windows.ui,
+        Arc::clone(&bootstrap.settings_store),
+        Arc::clone(&bootstrap.local_storage),
+        bootstrap.paths.models_directory(),
+        Arc::clone(&dictation.asr),
+    )?;
+    let settings_store: Arc<dyn LocalSettingsStore> = bootstrap.local_storage.clone();
+    let runtime = local_settings_runtime::LocalSettingsRuntime::new(Arc::new(
+        LocalSettingsMutator::new(settings_store),
+    ))?;
+    i18n::wire(&windows.ui, runtime.handle(), windows.language_context);
+    Ok(runtime)
+}
+
+fn wire_appearance(
+    bootstrap: &DesktopBootstrap,
+    windows: &DesktopWindows,
+    onboarding: &crate::onboarding::OnboardingRuntime,
+    settings: local_settings_runtime::LocalSettingsHandle,
+) {
+    let overlay_appearance = appearance_ui::OverlayAppearanceTargets::new(
+        &windows.overlay,
+        &windows.result_overlay,
+        &windows.recording_limit_overlay,
+        &windows.dictionary_added_overlay,
+        &windows.microphone_intro_overlay,
+        &windows.microphone_permission_overlay,
+        &windows.asr_configuration_overlay,
+    );
+    #[cfg(target_os = "macos")]
+    let overlay_appearance =
+        overlay_appearance.with_accessibility(&windows.accessibility_permission_overlay);
+    appearance_ui::wire(
+        &windows.ui,
+        onboarding.window(),
+        overlay_appearance,
+        &bootstrap.local_settings,
+        settings,
+    );
 }
 
 fn wire_local_features(

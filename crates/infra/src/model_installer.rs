@@ -376,15 +376,7 @@ impl VerifiedModelInstaller {
             return self.finish_artifact(&partial, &complete, artifact);
         }
 
-        let url = if artifact.remote_path.starts_with("https://") {
-            artifact.remote_path.clone()
-        } else {
-            format!("{}/{}", self.manifest.base_url, artifact.remote_path)
-        };
-        let mut request = self.client.get(url);
-        if existing > 0 {
-            request = request.header(RANGE, format!("bytes={existing}-"));
-        }
+        let request = self.artifact_request(artifact, existing);
         let response = tokio::select! {
             () = control.cancellation.cancelled() => return control.check(),
             response = request.send() => response.map_err(download_error)?,
@@ -430,6 +422,19 @@ impl VerifiedModelInstaller {
         }
         self.finish_artifact(&partial, &complete, artifact)?;
         self.report_progress(staging, &on_progress)
+    }
+
+    fn artifact_request(&self, artifact: &ModelArtifact, existing: u64) -> reqwest::RequestBuilder {
+        let url = if artifact.remote_path.starts_with("https://") {
+            artifact.remote_path.clone()
+        } else {
+            format!("{}/{}", self.manifest.base_url, artifact.remote_path)
+        };
+        let mut request = self.client.get(url);
+        if existing > 0 {
+            request = request.header(RANGE, format!("bytes={existing}-"));
+        }
+        request
     }
 
     fn finish_artifact(

@@ -11,10 +11,15 @@ pub(super) fn apply(connection: &mut Connection) -> Result<(), StorageError> {
     let version: u32 = connection
         .query_row("PRAGMA user_version", [], |row| row.get(0))
         .map_err(unavailable)?;
-    let fresh_install = version == 0;
     if version > CURRENT_SCHEMA_VERSION {
         return Err(StorageError::NewerSchema(version));
     }
+    apply_initial_migrations(connection, version)?;
+    apply_recent_migrations(connection, version)
+}
+
+fn apply_initial_migrations(connection: &mut Connection, version: u32) -> Result<(), StorageError> {
+    let fresh_install = version == 0;
     if version == 0 {
         migrate_settings(connection)?;
     }
@@ -54,6 +59,11 @@ pub(super) fn apply(connection: &mut Connection) -> Result<(), StorageError> {
     if version < 13 {
         add_onboarding_state(connection, fresh_install)?;
     }
+    Ok(())
+}
+
+fn apply_recent_migrations(connection: &mut Connection, version: u32) -> Result<(), StorageError> {
+    let fresh_install = version == 0;
     if version < 14 {
         recent::add_dictionary_candidate_evidence(connection)?;
     }

@@ -2,281 +2,8 @@ import { AsrProviderCardKind, ModalShell, ModalSize } from "../components.slint"
 import { AppColors } from "../color-system.slint";
 import { RecognitionTestPanel } from "asr-recognition-test.slint";
 
-export enum LocalModelDownloadState {
-    not-downloaded,
-    queued,
-    downloading,
-    paused,
-    cancelling,
-    downloaded,
-}
-
-export enum PunctuationMode {
-    llm,
-    local,
-}
-
-component LocalModelSummaryPill inherits Rectangle {
-    in property <image> icon;
-    in property <string> label;
-
-    width: 104px;
-    height: 36px;
-    border-radius: 18px;
-    background: AppColors.surface-faint;
-
-    Image {
-        x: 12px;
-        y: 9px;
-        width: 18px;
-        height: 18px;
-        source: root.icon;
-        colorize: AppColors.text-muted;
-    }
-    Text {
-        x: 38px;
-        width: parent.width - 44px;
-        text: root.label;
-        color: AppColors.text;
-        font-size: 12px;
-        font-weight: 600;
-        vertical-alignment: center;
-        overflow: elide;
-    }
-}
-
-component LocalModelBusySpinner inherits Image {
-    in property <bool> running: false;
-    in property <brush> tint: AppColors.brand-strong;
-    private property <angle> angle: 0deg;
-
-    source: @image-url("../../icons/lucide/refresh-cw.svg");
-    colorize: root.tint;
-    opacity: root.running ? 1 : 0;
-    transform-origin: { x: root.width / 2, y: root.height / 2 };
-    transform-rotation: root.angle;
-    animate opacity { duration: 120ms; easing: ease-out; }
-    states [
-        spinning when root.running: {
-            angle: 360deg;
-            in {
-                animate angle { duration: 800ms; iteration-count: -1; easing: linear; }
-            }
-        }
-    ]
-}
-
-component LocalModelMetric inherits Rectangle {
-    in property <image> icon;
-    in property <string> label;
-    in property <string> value;
-    in property <length> content-offset: 0px;
-    in property <bool> muted-value: false;
-    in property <bool> live-value: false;
-    background: transparent;
-
-    Image {
-        x: root.content-offset;
-        y: 5px;
-        width: 14px;
-        height: 14px;
-        source: root.icon;
-        colorize: AppColors.text-muted;
-    }
-    metric-label := Text {
-        x: root.content-offset + 22px;
-        y: 2px;
-        text: root.label;
-        color: AppColors.text;
-        font-size: 10px;
-        font-weight: 700;
-    }
-    metric-value := Text {
-        x: root.content-offset + 22px;
-        y: 27px;
-        height: 13px;
-        text: root.value;
-        color: root.muted-value ? AppColors.text-muted : AppColors.ink;
-        font-size: 11px;
-        font-weight: 600;
-    }
-    if root.live-value: Rectangle {
-        x: root.content-offset + 4px;
-        y: 32px;
-        width: 6px;
-        height: 6px;
-        border-radius: 3px;
-        background: AppColors.success;
-    }
-}
-
-component LocalModelActionButton inherits Rectangle {
-    in property <string> label;
-    in property <string> hover-label;
-    in property <bool> enabled: true;
-    in property <bool> primary: false;
-    in property <bool> danger: false;
-    in property <bool> pending: false;
-    callback activated();
-
-    private property <bool> showing-hover-action: root.hover-label != "" && button-touch.has-hover;
-
-    width: 90px;
-    height: 32px;
-    border-radius: 7px;
-    border-width: root.primary || root.pending || root.danger ? 0px : 1px;
-    border-color: root.danger ? AppColors.danger : AppColors.border;
-    background: !root.enabled && !root.pending ? AppColors.surface-muted
-        : root.pending && root.showing-hover-action ? AppColors.brand
-        : root.pending ? AppColors.brand-soft
-        : root.primary ? (button-touch.has-hover ? AppColors.brand-hover : AppColors.brand)
-        : button-touch.has-hover ? (root.danger ? AppColors.danger-soft : AppColors.surface)
-        : root.danger ? AppColors.danger-soft : AppColors.surface;
-    opacity: root.enabled || root.pending ? 1 : 0.55;
-    animate background { duration: 120ms; easing: ease-out; }
-    animate opacity { duration: 80ms; easing: ease-out; }
-    accessible-role: button;
-    accessible-label: root.showing-hover-action ? root.hover-label : root.label;
-    accessible-enabled: root.enabled;
-    accessible-action-default => { if root.enabled { root.activated(); } }
-
-    button-label := Text {
-        x: root.pending && !root.showing-hover-action ? 22px : 0px;
-        width: root.pending && !root.showing-hover-action ? parent.width - 26px : parent.width;
-        text: root.showing-hover-action ? root.hover-label : root.label;
-        color: !root.enabled && !root.pending ? AppColors.text-muted
-            : root.showing-hover-action ? AppColors.on-brand
-            : root.pending ? AppColors.brand-strong
-            : root.primary ? AppColors.on-brand
-            : root.danger ? AppColors.danger : AppColors.text;
-        font-size: 10px;
-        font-weight: 650;
-        horizontal-alignment: center;
-        vertical-alignment: center;
-    }
-    LocalModelBusySpinner {
-        x: 8px;
-        y: (root.height - self.height) / 2;
-        width: 12px;
-        height: 12px;
-        running: root.pending && !root.showing-hover-action;
-    }
-    button-touch := TouchArea {
-        enabled: root.enabled;
-        mouse-cursor: self.enabled ? pointer : default;
-        clicked => { root.activated(); }
-    }
-}
-
-component LocalModelSelectionControl inherits Rectangle {
-    in property <LocalModelDownloadState> download-state;
-    in property <bool> selected: false;
-    in property <bool> enabled: false;
-    in property <bool> pending: false;
-    callback activated();
-
-    private property <string> label: root.pending
-        ? @tr("models.asr.selection.activating" => "Switching")
-        : root.selected
-        ? @tr("models.asr.selection.current" => "Current")
-        : root.download-state == LocalModelDownloadState.downloading
-            ? @tr("models.asr.local.downloading" => "Downloading")
-            : root.download-state == LocalModelDownloadState.paused
-                ? @tr("models.asr.local.paused" => "Paused")
-                : root.download-state == LocalModelDownloadState.cancelling
-                    ? @tr("models.asr.local.cancelling" => "Cancelling")
-            : root.download-state == LocalModelDownloadState.downloaded
-                ? @tr("models.asr.local.downloaded" => "Downloaded")
-                : @tr("models.asr.local.not-downloaded" => "Not downloaded");
-
-    width: 116px;
-    height: 34px;
-    background: transparent;
-    accessible-role: switch;
-    accessible-label: root.selected
-        ? @tr("models.asr.selection.current-accessible" => "Current provider")
-        : root.label;
-    accessible-enabled: root.enabled && !root.pending;
-    accessible-checked: root.selected;
-    accessible-action-default => { if root.enabled && !root.pending { root.activated(); } }
-
-    Rectangle {
-        x: 0px;
-        y: 9px;
-        width: 28px;
-        height: 16px;
-        border-radius: 8px;
-        background: root.pending ? AppColors.brand
-            : root.selected ? AppColors.success
-            : selection-touch.has-hover && root.enabled ? AppColors.selected
-            : AppColors.chart-neutral;
-        opacity: root.pending || root.selected || root.enabled ? 1 : 0.5;
-        animate background { duration: 150ms; easing: ease-out; }
-
-        Rectangle {
-            visible: !root.pending;
-            x: root.selected ? 14px : 2px;
-            y: 2px;
-            width: 12px;
-            height: 12px;
-            border-radius: 6px;
-            background: AppColors.surface;
-            animate x { duration: 160ms; easing: ease-out; }
-        }
-        LocalModelBusySpinner {
-            x: 8px;
-            y: 2px;
-            width: 12px;
-            height: 12px;
-            running: root.pending;
-            tint: AppColors.on-brand;
-        }
-    }
-    Text {
-        x: 36px;
-        width: parent.width - 36px;
-        text: root.label;
-        color: root.pending ? AppColors.brand-strong
-            : root.selected ? AppColors.success
-            : root.enabled ? AppColors.text : AppColors.text-muted;
-        font-size: 10px;
-        font-weight: 600;
-        vertical-alignment: center;
-        overflow: elide;
-    }
-    selection-touch := TouchArea {
-        enabled: root.enabled && !root.pending;
-        mouse-cursor: root.enabled ? pointer : default;
-        clicked => { root.activated(); }
-    }
-    Rectangle {
-        x: 0px;
-        y: 31px;
-        width: parent.width;
-        height: 3px;
-        border-radius: 2px;
-        background: AppColors.selected;
-        opacity: root.pending ? 1 : 0;
-        clip: true;
-        animate opacity { duration: 120ms; easing: ease-out; }
-
-        Rectangle {
-            x: -36px;
-            width: 36px;
-            height: parent.height;
-            border-radius: 2px;
-            background: AppColors.brand;
-            states [
-                moving when root.pending: {
-                    x: 116px;
-                    in {
-                        animate x { duration: 720ms; iteration-count: -1; easing: linear; }
-                    }
-                }
-            ]
-        }
-    }
-}
+import { LocalModelDownloadState, PunctuationMode, LocalModelSummaryPill, LocalModelMetric, LocalModelActionButton, LocalModelSelectionControl } from "local-asr-controls.slint";
+export { LocalModelDownloadState, PunctuationMode } from "local-asr-controls.slint";
 
 export component LocalAsrModelModal inherits Rectangle {
     in property <AsrProviderCardKind> kind: AsrProviderCardKind.qwen3-asr;
@@ -444,11 +171,11 @@ export component LocalAsrModelModal inherits Rectangle {
                         ? @tr("models.asr.local.subtitle.sensevoice" => "Lightweight five-language model · Final only · INT8")
                     : @tr("models.asr.local.subtitle.pending" => "Open source · Verification pending");
                 color: AppColors.text-muted;
-                font-size: 10px;
+                font-size: 12px;
                 overflow: elide;
             }
             LocalModelSelectionControl {
-                x: 378px;
+                x: dialog.panel-width - self.width - 54px;
                 y: 16px;
                 download-state: root.download-state;
                 selected: root.selected;
@@ -502,7 +229,7 @@ export component LocalAsrModelModal inherits Rectangle {
                     x: parent.width / 3;
                     width: parent.width / 3;
                     height: parent.height;
-                    content-offset: 31px;
+                    content-offset: 12px;
                     icon: @image-url("../../icons/lucide/memory-stick.svg");
                     label: root.showing-live-memory
                         ? @tr("models.asr.local.memory-current" => "Memory")
@@ -515,7 +242,7 @@ export component LocalAsrModelModal inherits Rectangle {
                     x: parent.width * 2 / 3;
                     width: parent.width / 3;
                     height: parent.height;
-                    content-offset: 76px;
+                    content-offset: 12px;
                     icon: @image-url("../../icons/lucide/badge-check.svg");
                     label: @tr("models.asr.local.compatibility" => "Device");
                     value: root.adapter-ready
@@ -538,13 +265,13 @@ export component LocalAsrModelModal inherits Rectangle {
                 x: 28px;
                 y: root.kind == AsrProviderCardKind.paraformer ? 166px : 132px;
                 width: 486px;
-                height: 78px;
+                height: model-detail.y + model-detail.height + 12px;
                 background: transparent;
 
                 Image { x: 12px; y: 10px; width: 15px; height: 15px; source: @image-url("../../icons/lucide/package-check.svg"); colorize: AppColors.text-muted; }
-                Text { x: 34px; y: 9px; text: @tr("models.asr.local.model-files" => "Files"); color: AppColors.text; font-size: 11px; font-weight: 700; }
+                Text { x: 34px; y: 9px; text: @tr("models.asr.local.model-files" => "Files"); color: AppColors.text; font-size: 12px; font-weight: 700; }
                 model-action := LocalModelActionButton {
-                    x: 380px;
+                    x: parent.width - self.width - 16px;
                     y: 13px;
                     visible: !root.cancelling;
                     label: root.action-label;
@@ -560,7 +287,7 @@ export component LocalAsrModelModal inherits Rectangle {
                     }
                 }
                 if root.queued || root.downloading || root.paused: Rectangle {
-                    x: 328px;
+                    x: model-action.x - self.width - 8px;
                     y: 13px;
                     width: 46px;
                     height: 32px;
@@ -573,7 +300,7 @@ export component LocalAsrModelModal inherits Rectangle {
                         height: parent.height;
                         text: @tr("models.asr.local.cancel" => "Cancel");
                         color: cancel-touch.has-hover ? AppColors.danger : AppColors.text-muted;
-                        font-size: 10px;
+                        font-size: 12px;
                         font-weight: 650;
                         horizontal-alignment: right;
                         vertical-alignment: center;
@@ -583,12 +310,12 @@ export component LocalAsrModelModal inherits Rectangle {
                         clicked => { root.cancel-download-requested(root.kind); }
                     }
                 }
-                Text { x: 34px; y: 31px; width: max(0px, model-action.x - 46px); text: root.model-status; color: AppColors.ink; font-size: 10px; font-weight: 600; overflow: elide; }
-                Text { x: 34px; y: 51px; width: max(0px, model-action.x - 46px); text: root.model-detail; color: root.operation-error != "" ? AppColors.danger : AppColors.text-muted; font-size: 8px; overflow: elide; }
+                Text { x: 34px; y: 56px; width: parent.width - 50px; text: root.model-status; color: AppColors.ink; font-size: 12px; font-weight: 600; overflow: elide; }
+                model-detail := Text { x: 34px; y: 78px; width: parent.width - 50px; height: max(32px, self.preferred-height); text: root.model-detail; color: root.operation-error != "" ? AppColors.danger : AppColors.text-muted; font-size: 11px; wrap: word-wrap; }
                 if root.downloading || root.paused: Rectangle {
-                    x: 380px;
-                    y: 53px;
-                    width: 90px;
+                    x: model-action.x;
+                    y: 49px;
+                    width: model-action.width;
                     height: 4px;
                     border-radius: 2px;
                     background: AppColors.selected;
@@ -605,24 +332,24 @@ export component LocalAsrModelModal inherits Rectangle {
                     }
                 }
                 if root.cancelling: LocalModelActionButton {
-                    x: 380px;
-                    y: 43px;
+                    x: parent.width - self.width - 16px;
+                    y: 13px;
                     label: @tr("models.asr.local.cancelling" => "Cancelling");
                     enabled: false;
                     pending: true;
                 }
             }
 
-            Rectangle {
+            punctuation-settings := Rectangle {
                 visible: root.kind == AsrProviderCardKind.paraformer;
                 x: 28px;
-                y: 246px;
+                y: model-files.y + model-files.height + 12px;
                 width: 486px;
-                height: 96px;
+                height: max(108px, punctuation-description.y + punctuation-description.height + 12px);
                 background: transparent;
 
                 Image { x: 12px; y: 12px; width: 14px; height: 14px; source: @image-url("../../icons/lucide/message-square-text.svg"); colorize: AppColors.text-muted; }
-                Text { x: 32px; y: 7px; text: @tr("models.asr.punctuation.title" => "Punctuation"); color: AppColors.text; font-size: 11px; font-weight: 700; }
+                Text { x: 32px; y: 7px; text: @tr("models.asr.punctuation.title" => "Punctuation"); color: AppColors.text; font-size: 12px; font-weight: 700; }
                 Text {
                     x: 32px; y: 31px; width: 300px;
                     text: root.punctuation-mode == PunctuationMode.llm
@@ -636,34 +363,34 @@ export component LocalAsrModelModal inherits Rectangle {
                         : root.punctuation-mode == PunctuationMode.local && root.punctuation-download-state == LocalModelDownloadState.downloaded ? AppColors.success
                         : root.punctuation-mode == PunctuationMode.llm && !root.llm-enabled ? AppColors.warning
                         : AppColors.text;
-                    font-size: 10px; font-weight: 650; overflow: elide;
+                    font-size: 12px; font-weight: 650; overflow: elide;
                 }
                 punctuation-description := Text {
-                    x: 32px; y: 50px; width: 300px;
-                    height: root.punctuation-error != "" ? 20px : 10px;
+                    x: 32px; y: 54px; width: 280px;
+                    height: max(36px, self.preferred-height);
                     text: root.punctuation-error != "" ? root.punctuation-error
                         : root.punctuation-mode == PunctuationMode.llm
                             ? @tr("models.asr.punctuation.llm-description" => "LLM adds punctuation and improves sentence breaks.")
                             : root.punctuation-download-state == LocalModelDownloadState.downloaded
                                 ? @tr("models.asr.punctuation.local-description" => "Offline · {} on disk{}", root.punctuation-installed-size, root.punctuation-runtime-live ? @tr("models.asr.punctuation.loaded" => " · loaded") : "")
                                 : @tr("models.asr.punctuation.download-description" => "Download {} to restore punctuation fully offline.", root.punctuation-download-size);
-                    color: AppColors.text-muted; font-size: 8px; wrap: word-wrap; overflow: elide;
+                    color: AppColors.text-muted; font-size: 11px; wrap: word-wrap; overflow: elide;
                 }
 
                 Rectangle {
-                    x: 380px; y: 0px; width: 90px; height: 28px;
+                    x: parent.width - self.width - 16px; y: 0px; width: 112px; height: 28px;
                     border-radius: 14px; background: AppColors.surface-faint;
                     Rectangle {
-                        x: root.punctuation-mode == PunctuationMode.llm ? 2px : 45px;
-                        y: 2px; width: 43px; height: 24px; border-radius: 12px;
+                        x: root.punctuation-mode == PunctuationMode.llm ? 2px : 56px;
+                        y: 2px; width: 54px; height: 24px; border-radius: 12px;
                         border-width: 1px; border-color: AppColors.border;
                         background: AppColors.surface;
                         animate x { duration: 150ms; easing: ease-out; }
                     }
-                    Text { x: 0px; width: 45px; height: parent.height; text: "LLM"; color: root.punctuation-mode == PunctuationMode.llm ? AppColors.brand-strong : AppColors.text-muted; font-size: 9px; font-weight: 650; horizontal-alignment: center; vertical-alignment: center; }
-                    Text { x: 45px; width: 45px; height: parent.height; text: @tr("models.asr.punctuation.local" => "Local"); color: root.punctuation-mode == PunctuationMode.local ? AppColors.brand-strong : AppColors.text-muted; font-size: 9px; font-weight: 650; horizontal-alignment: center; vertical-alignment: center; }
+                    Text { x: 0px; width: 56px; height: parent.height; text: "LLM"; color: root.punctuation-mode == PunctuationMode.llm ? AppColors.brand-strong : AppColors.text-muted; font-size: 11px; font-weight: 650; horizontal-alignment: center; vertical-alignment: center; }
+                    Text { x: 56px; width: 56px; height: parent.height; text: @tr("models.asr.punctuation.local" => "Local"); color: root.punctuation-mode == PunctuationMode.local ? AppColors.brand-strong : AppColors.text-muted; font-size: 11px; font-weight: 650; horizontal-alignment: center; vertical-alignment: center; }
                     Rectangle {
-                        x: 0px; y: -8px; width: 45px; height: 44px; background: transparent;
+                        x: 0px; y: -8px; width: 56px; height: 44px; background: transparent;
                         accessible-role: tab;
                         accessible-label: "LLM";
                         accessible-enabled: !root.punctuation-pending && root.punctuation-download-state != LocalModelDownloadState.downloading;
@@ -675,7 +402,7 @@ export component LocalAsrModelModal inherits Rectangle {
                         TouchArea { enabled: !root.punctuation-pending && root.punctuation-download-state != LocalModelDownloadState.downloading; mouse-cursor: self.enabled ? pointer : default; clicked => { root.punctuation-mode-requested(PunctuationMode.llm); } }
                     }
                     Rectangle {
-                        x: 45px; y: -8px; width: 45px; height: 44px; background: transparent;
+                        x: 56px; y: -8px; width: 56px; height: 44px; background: transparent;
                         accessible-role: tab;
                         accessible-label: @tr("models.asr.punctuation.local" => "Local");
                         accessible-enabled: !root.punctuation-pending && root.punctuation-download-state != LocalModelDownloadState.downloading;
@@ -688,16 +415,16 @@ export component LocalAsrModelModal inherits Rectangle {
                     }
                 }
                 if root.punctuation-mode == PunctuationMode.llm && !root.llm-enabled: Rectangle {
-                    x: 380px; y: 31px; width: 90px; height: 44px; background: transparent;
+                    x: parent.width - self.width - 16px; y: 31px; width: 130px; height: 44px; background: transparent;
                     accessible-role: button;
                     accessible-label: @tr("models.asr.punctuation.open-llm" => "Enable LLM");
                     accessible-action-default => { root.open-llm-settings(); }
-                    Text { x: 5px; y: 8px; width: 45px; height: 28px; text: @tr("models.asr.punctuation.open-llm" => "Enable LLM"); color: AppColors.brand-strong; font-size: 10px; font-weight: 650; horizontal-alignment: right; vertical-alignment: center; }
-                    Image { x: 58px; y: 16px; width: 12px; height: 12px; source: @image-url("../../icons/lucide/arrow-right.svg"); colorize: AppColors.brand; }
+                    Text { x: 5px; y: 8px; width: 100px; height: 28px; text: @tr("models.asr.punctuation.open-llm" => "Enable LLM"); color: AppColors.brand-strong; font-size: 12px; font-weight: 650; horizontal-alignment: right; vertical-alignment: center; }
+                    Image { x: 108px; y: 16px; width: 12px; height: 12px; source: @image-url("../../icons/lucide/arrow-right.svg"); colorize: AppColors.brand; }
                     TouchArea { mouse-cursor: pointer; clicked => { root.open-llm-settings(); } }
                 }
                 if root.punctuation-mode == PunctuationMode.local && root.punctuation-download-state != LocalModelDownloadState.downloaded: LocalModelActionButton {
-                    x: 380px; y: 42px; height: 28px;
+                    x: parent.width - self.width - 16px; y: 42px; height: 32px;
                     label: root.punctuation-download-state == LocalModelDownloadState.downloading
                         ? @tr("models.asr.local.downloading-percent" => "Downloading {}%", round(root.punctuation-download-progress * 100))
                         : @tr("models.asr.punctuation.download-enable" => "Download & enable");
@@ -707,8 +434,8 @@ export component LocalAsrModelModal inherits Rectangle {
                     activated => { root.punctuation-download-requested(); }
                 }
                 if root.punctuation-mode == PunctuationMode.local && root.punctuation-download-state == LocalModelDownloadState.downloaded: Rectangle {
-                    x: 380px; y: 42px; width: 90px; height: 28px; background: transparent;
-                    Text { width: parent.width; height: parent.height; text: @tr("models.asr.punctuation.delete" => "Delete local model"); color: delete-punctuation.has-hover ? AppColors.danger : AppColors.text-muted; font-size: 9px; horizontal-alignment: center; vertical-alignment: center; }
+                    x: parent.width - self.width - 16px; y: 42px; width: 130px; height: 32px; background: transparent;
+                    Text { width: parent.width; height: parent.height; text: @tr("models.asr.punctuation.delete" => "Delete local model"); color: delete-punctuation.has-hover ? AppColors.danger : AppColors.text-muted; font-size: 11px; horizontal-alignment: center; vertical-alignment: center; }
                     delete-punctuation := TouchArea { mouse-cursor: pointer; clicked => { root.punctuation-delete-requested(); } }
                 }
             }
@@ -716,8 +443,8 @@ export component LocalAsrModelModal inherits Rectangle {
             recognition-test := RecognitionTestPanel {
                 x: 28px;
                 y: root.kind == AsrProviderCardKind.paraformer
-                    ? 336px
-                    : 222px;
+                    ? punctuation-settings.y + punctuation-settings.height + 12px
+                    : model-files.y + model-files.height + 16px;
                 width: 486px;
                 background: AppColors.surface-faint;
                 testing: root.testing;
@@ -731,14 +458,12 @@ export component LocalAsrModelModal inherits Rectangle {
 
             usage-tip := Text {
                 x: 28px;
-                y: root.kind == AsrProviderCardKind.paraformer
-                    ? recognition-test.y + recognition-test.height + 10px
-                    : 330px;
+                y: recognition-test.y + recognition-test.height + 16px;
                 width: dialog.panel-width - 56px;
-                height: root.kind == AsrProviderCardKind.paraformer ? 20px : 36px;
+                height: max(36px, self.preferred-height);
                 text: root.usage-tip;
                 color: AppColors.text;
-                font-size: 10px;
+                font-size: 12px;
                 vertical-alignment: center;
                 wrap: word-wrap;
             }
@@ -820,6 +545,7 @@ export component LocalModelDownloadFailureDialog inherits Rectangle {
             width: parent.width;
             height: parent.height;
             size: ModalSize.compact;
+            panel-height-override: root.insufficient-space ? 264px : 220px;
             close-requested => { root.later(); }
 
             Rectangle {
@@ -855,13 +581,13 @@ export component LocalModelDownloadFailureDialog inherits Rectangle {
                 height: 62px;
                 text: root.detail;
                 color: AppColors.text-muted;
-                font-size: 10px;
+                font-size: 12px;
                 wrap: word-wrap;
                 overflow: elide;
             }
             if root.insufficient-space: LocalModelActionButton {
                 x: 24px;
-                y: failure-shell.panel-height - 54px;
+                y: failure-shell.panel-height - 98px;
                 label: @tr("models.asr.local.download-failure.manage-space" => "Manage space");
                 activated => { root.manage-space(); }
             }

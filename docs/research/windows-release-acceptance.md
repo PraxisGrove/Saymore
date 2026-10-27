@@ -76,7 +76,12 @@ The canonical clean-machine and packaged-application checklist lives in the
 [Windows release candidate matrix](../testing.md#windows-release-candidate-matrix).
 The remaining blockers are Authenticode signing and SmartScreen reputation,
 clean-machine installation, microphone capture, Word and Chromium delivery,
-multi-display DPI behavior, and upgrade and uninstall data retention.
+multi-display DPI behavior, model-page text clarity, and upgrade and uninstall
+data retention. The
+[model-page visual acceptance procedure](../testing.md#windows-model-page-visual-acceptance)
+requires original-size PNG evidence for Chinese and English, both appearances,
+and Windows display scaling. The larger model-page fonts have not yet completed
+that Windows visual matrix; shared macOS GUI checks do not close this item.
 
 Automation on a development workstation is evidence for deterministic behavior,
 not a substitute for microphone, reputation, clean-machine, or third-party

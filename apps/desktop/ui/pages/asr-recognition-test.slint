@@ -25,7 +25,7 @@ export component RecognitionTestPanel inherits Rectangle {
         y: 9px;
         text: @tr("models.test.title" => "Test");
         color: AppColors.text;
-        font-size: 11px;
+        font-size: 12px;
         font-weight: 700;
     }
     Text {
@@ -33,13 +33,13 @@ export component RecognitionTestPanel inherits Rectangle {
         y: 29px;
         text: @tr("models.test.fixed-audio" => "3.9-sec sample");
         color: AppColors.text-muted;
-        font-size: 9px;
+        font-size: 11px;
     }
 
     if root.has-result: HorizontalLayout {
         x: 16px;
         y: 45px;
-        width: parent.width - 152px;
+        width: parent.width - 168px;
         height: 18px;
         spacing: 6px;
         cross-axis-alignment: center;
@@ -74,17 +74,17 @@ export component RecognitionTestPanel inherits Rectangle {
     if root.has-result && !root.transcript.is-empty: Text {
         x: 16px;
         y: 69px;
-        width: parent.width - 152px;
+        width: parent.width - 168px;
         text: @tr("models.test.transcript" => "Transcript: {}", root.transcript);
         color: AppColors.text;
-        font-size: 10px;
+        font-size: 12px;
         overflow: elide;
     }
 
     Rectangle {
-        x: parent.width - 106px;
+        x: parent.width - 122px;
         y: root.has-result ? 45px : 16px;
-        width: 90px;
+        width: 106px;
         height: 32px;
         border-radius: 7px;
         border-width: 0px;
@@ -107,7 +107,7 @@ export component RecognitionTestPanel inherits Rectangle {
                 text: root.action-label;
                 color: !root.ready || root.testing ? AppColors.text-muted
                     : root.action-emphasized ? AppColors.brand-strong : AppColors.text;
-                font-size: 10px;
+                font-size: 12px;
                 font-weight: 650;
                 vertical-alignment: center;
                 overflow: elide;
