@@ -44,7 +44,13 @@ while the output guard permits only listed canonical technical terms and
 continues to protect existing URLs, commands, versions, and technical fragments.
 OpenAI-compatible transcription providers receive those spellings as the bounded
 `prompt` field; the Volcengine and macOS Speech adapters use their native hint
-mechanisms.
+mechanisms. Local Qwen3-ASR uses sherpa-onnx 1.13.4's per-stream `hotwords`
+option (comma-separated terms in the model's system prompt), reusing the loaded
+model across dictations. Each session snapshots a deduplicated list bounded to
+128 UTF-8 bytes to limit pressure on the pinned decoder's shared 512-token
+context; empty terms and terms containing control characters are omitted. Hinted
+sessions use overlapping 20-second audio segments instead of 30-second segments
+to leave context space for the vocabulary prompt.
 
 Final LLM refinement is owned by `FinalTextProcessor` in `app`. Its provider
 budget grows with transcript length (8 s plus 40 ms per character, capped at 60

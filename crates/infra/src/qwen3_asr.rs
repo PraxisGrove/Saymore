@@ -10,8 +10,11 @@ use template_app::{
     StreamingSpeechRecognizer,
 };
 
+mod hotwords;
+
 const SAMPLE_RATE: i32 = 16_000;
 const MAX_SEGMENT_SAMPLES: usize = 30 * SAMPLE_RATE as usize;
+const HINTED_SEGMENT_SAMPLES: usize = 20 * SAMPLE_RATE as usize;
 const SEGMENT_OVERLAP_SAMPLES: usize = SAMPLE_RATE as usize;
 const MODEL_FILES: [(&str, u64); 6] = [
     ("conv_frontend.onnx", 48_080_441),
@@ -68,11 +71,12 @@ impl Qwen3AsrSpeechRecognizer {
 impl StreamingSpeechRecognizer for Qwen3AsrSpeechRecognizer {
     fn start(
         &self,
-        _hints: SpeechRecognitionHints,
+        hints: SpeechRecognitionHints,
         _on_partial: Arc<dyn Fn(String) + Send + Sync>,
     ) -> Result<Box<dyn StreamingRecognitionSession>, SpeechRecognitionError> {
         Ok(Box::new(Qwen3Session {
             decoder: Arc::clone(&self.decoder),
+            hotwords: hotwords::from_hints(&hints),
             samples: Mutex::new(Vec::new()),
         }))
     }
@@ -116,7 +120,7 @@ fn path_text(path: &Path) -> Result<String, SpeechRecognitionError> {
 }
 
 trait Qwen3Decoder: Send + Sync {
-    fn decode(&self, samples: &[i16]) -> Result<String, SpeechRecognitionError>;
+    fn decode(&self, samples: &[i16], hotwords: &str) -> Result<String, SpeechRecognitionError>;
 }
 
 struct SherpaQwen3Decoder {
@@ -124,9 +128,12 @@ struct SherpaQwen3Decoder {
 }
 
 impl Qwen3Decoder for SherpaQwen3Decoder {
-    fn decode(&self, samples: &[i16]) -> Result<String, SpeechRecognitionError> {
+    fn decode(&self, samples: &[i16], hotwords: &str) -> Result<String, SpeechRecognitionError> {
         let recognizer = self.recognizer.lock().map_err(lock_error)?;
         let stream = recognizer.create_stream();
+        // Qwen3 consumes this option as CSV in its system prompt (sherpa-onnx 1.13.4).
+        // The generic create_stream_with_hotwords API only supports transducers.
+        stream.set_option("hotwords", hotwords);
         stream.accept_waveform(SAMPLE_RATE, &pcm_f32(samples));
         recognizer.decode(&stream);
         Ok(stream
@@ -138,6 +145,7 @@ impl Qwen3Decoder for SherpaQwen3Decoder {
 
 struct Qwen3Session {
     decoder: Arc<dyn Qwen3Decoder>,
+    hotwords: String,
     samples: Mutex<Vec<i16>>,
 }
 
@@ -154,11 +162,20 @@ impl StreamingRecognitionSession for Qwen3Session {
                 "Qwen3-ASR received no audio".to_owned(),
             ));
         }
+        // Reserve decoder context for hotwords instead of letting sherpa truncate audio.
+        let segment_samples = if self.hotwords.is_empty() {
+            MAX_SEGMENT_SAMPLES
+        } else {
+            HINTED_SEGMENT_SAMPLES
+        };
         let mut transcript = String::new();
         let mut start: usize = 0;
         loop {
-            let end = start.saturating_add(MAX_SEGMENT_SAMPLES).min(samples.len());
-            append_segment(&mut transcript, &self.decoder.decode(&samples[start..end])?);
+            let end = start.saturating_add(segment_samples).min(samples.len());
+            append_segment(
+                &mut transcript,
+                &self.decoder.decode(&samples[start..end], &self.hotwords)?,
+            );
             if end == samples.len() {
                 break;
             }
@@ -271,12 +288,70 @@ mod tests {
     }
 
     impl Qwen3Decoder for FakeDecoder {
-        fn decode(&self, samples: &[i16]) -> Result<String, SpeechRecognitionError> {
+        fn decode(
+            &self,
+            samples: &[i16],
+            _hotwords: &str,
+        ) -> Result<String, SpeechRecognitionError> {
             self.calls.fetch_add(1, Ordering::Relaxed);
             self.decoded_samples
                 .fetch_add(samples.len(), Ordering::Relaxed);
             Ok("segment".to_owned())
         }
+    }
+
+    struct HintDecoder(Mutex<Vec<(String, usize)>>);
+
+    impl Qwen3Decoder for HintDecoder {
+        fn decode(
+            &self,
+            samples: &[i16],
+            hotwords: &str,
+        ) -> Result<String, SpeechRecognitionError> {
+            self.0
+                .lock()
+                .map_err(lock_error)?
+                .push((hotwords.to_owned(), samples.len()));
+            Ok("segment".to_owned())
+        }
+    }
+
+    #[test]
+    fn snapshots_hotwords_for_every_segment_without_leaking_between_sessions()
+    -> Result<(), SpeechRecognitionError> {
+        let decoder = Arc::new(HintDecoder(Mutex::new(Vec::new())));
+        let recognizer = Qwen3AsrSpeechRecognizer::with_decoder(decoder.clone());
+        let first = recognizer.start(
+            SpeechRecognitionHints::from_terms(vec!["Saymore".to_owned(), "声墨".to_owned()]),
+            Arc::new(|_| {}),
+        )?;
+        let second = recognizer.start(
+            SpeechRecognitionHints::from_terms(vec!["Slint".to_owned()]),
+            Arc::new(|_| {}),
+        )?;
+        let empty = recognizer.start(SpeechRecognitionHints::default(), Arc::new(|_| {}))?;
+        first.push_audio(vec![1; MAX_SEGMENT_SAMPLES + 1])?;
+        second.push_audio(vec![1; 1_600])?;
+        empty.push_audio(vec![1; 1_600])?;
+        second.finish()?;
+        first.finish()?;
+        empty.finish()?;
+        assert_eq!(
+            vec![
+                ("Slint".to_owned(), 1_600),
+                (
+                    concat!("Saymore,", "声墨").to_owned(),
+                    HINTED_SEGMENT_SAMPLES
+                ),
+                (
+                    concat!("Saymore,", "声墨").to_owned(),
+                    MAX_SEGMENT_SAMPLES + 1 - HINTED_SEGMENT_SAMPLES + SEGMENT_OVERLAP_SAMPLES,
+                ),
+                (String::new(), 1_600),
+            ],
+            *decoder.0.lock().map_err(lock_error)?
+        );
+        Ok(())
     }
 
     #[test]
