@@ -201,6 +201,7 @@ pub async fn identify_vocabulary_suggestions(
             transcript,
             language: None,
             relevant_terms: Vec::new(),
+            timeout: crate::LLM_REQUEST_TIMEOUT,
         })
         .await?;
     parse_vocabulary_suggestion_response(&response, samples)
@@ -624,6 +625,13 @@ mod tests {
             &self,
             _id: &str,
             _final_text: &str,
+        ) -> Result<(), StorageError> {
+            Ok(())
+        }
+        fn record_history_refinement(
+            &self,
+            _id: &str,
+            _update: crate::HistoryRefinementUpdate,
         ) -> Result<(), StorageError> {
             Ok(())
         }

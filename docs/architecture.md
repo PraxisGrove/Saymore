@@ -42,6 +42,23 @@ final LLM refinement. A non-empty personal dictionary also allows short
 transcripts through refinement so phonetic ASR substitutions can be corrected,
 while the output guard permits only listed canonical technical terms and
 continues to protect existing URLs, commands, versions, and technical fragments.
+OpenAI-compatible transcription providers receive those spellings as the bounded
+`prompt` field; the Volcengine and macOS Speech adapters use their native hint
+mechanisms.
+
+Final LLM refinement is owned by `FinalTextProcessor` in `app`. Its provider
+budget grows with transcript length (8 s plus 40 ms per character, capped at 60
+s) so long dictations are not routinely cut off, and adapters apply that
+per-request budget instead of a fixed client timeout. A completion truncated by
+the token limit is a protocol failure and falls back to the transcript. The
+locally persisted `RefinementStrength` (light, standard, thorough; light by
+default) only appends stronger cleanup rules to the same instructions; every
+strength keeps the preservation contract and the same output validation.
+Repeated transient failures pause automatic refinement for five minutes. A
+user-requested re-polish from history (`retry_history_refinement`) bypasses that
+pause and the short-text gate, polishes the saved recognized text with the
+current provider and strength, and updates the encrypted history record only
+when the output passes validation.
 
 Home-page usage totals cross the application-owned `UsageStore` port as
 privacy-safe duration and character-count aggregates. SQLite records each saved

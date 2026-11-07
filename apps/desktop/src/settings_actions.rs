@@ -49,6 +49,7 @@ mod shortcut;
 mod audio;
 use audio::{set_feedback_sounds_enabled, set_mute_system_audio_enabled};
 mod diagnostics;
+mod polishing;
 
 #[cfg(target_os = "windows")]
 #[path = "settings_actions/windows_shortcut.rs"]
@@ -145,6 +146,7 @@ pub fn wire(
     ui.on_set_copy_to_clipboard(move |enabled| {
         set_copy_to_clipboard(clipboard_ui.clone(), clipboard_settings.clone(), enabled);
     });
+    polishing::wire_polishing_strength(ui, settings.clone());
 
     wire_platform_settings(
         ui,
@@ -171,6 +173,7 @@ pub fn wire(
         ui.set_feedback_sounds_enabled(settings.feedback_sounds_enabled);
         ui.set_mute_system_audio_enabled(settings.mute_system_audio_enabled);
         ui.set_copy_to_clipboard(settings.copy_to_clipboard);
+        ui.set_polishing_strength(polishing::ui_strength(settings.refinement_strength));
         feedback_sounds_enabled.store(settings.feedback_sounds_enabled, Ordering::Release);
         mute_system_audio_enabled.store(settings.mute_system_audio_enabled, Ordering::Release);
     }

@@ -199,6 +199,25 @@ pub(super) fn add_system_audio_mute_setting(
     transaction.commit().map_err(unavailable)
 }
 
+pub(super) fn add_refinement_strength_setting(
+    connection: &mut Connection,
+) -> Result<(), StorageError> {
+    let transaction = connection.transaction().map_err(unavailable)?;
+    if !app_settings_has_column(&transaction, "refinement_strength")? {
+        transaction
+            .execute_batch(
+                "ALTER TABLE app_settings
+                 ADD COLUMN refinement_strength TEXT NOT NULL DEFAULT 'light'
+                 CHECK (refinement_strength IN ('light', 'standard', 'thorough'));",
+            )
+            .map_err(unavailable)?;
+    }
+    transaction
+        .execute_batch("PRAGMA user_version = 26;")
+        .map_err(unavailable)?;
+    transaction.commit().map_err(unavailable)
+}
+
 pub(super) fn add_diagnostic_events(connection: &mut Connection) -> Result<(), StorageError> {
     let transaction = connection.transaction().map_err(unavailable)?;
     transaction

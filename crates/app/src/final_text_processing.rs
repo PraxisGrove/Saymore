@@ -8,7 +8,10 @@ use tokio_util::sync::CancellationToken;
 use crate::refinement_policy::validate_refinement;
 use crate::refinement_prompt::instructions_for;
 
-const REFINEMENT_TIMEOUT: Duration = Duration::from_secs(8);
+/// Default budget for one LLM request that does not rewrite a full transcript.
+pub const LLM_REQUEST_TIMEOUT: Duration = Duration::from_secs(8);
+const REFINEMENT_TIMEOUT_PER_CHAR: Duration = Duration::from_millis(40);
+const MAX_REFINEMENT_TIMEOUT: Duration = Duration::from_secs(60);
 const FAILURE_PAUSE: Duration = Duration::from_secs(5 * 60);
 const FAILURE_THRESHOLD: u8 = 3;
 const MIN_CJK_REFINEMENT_UNITS: usize = 12;
@@ -20,6 +23,8 @@ pub struct LlmRefinementRequest {
     pub transcript: String,
     pub language: Option<String>,
     pub relevant_terms: Vec<RefinementTerm>,
+    /// Upper bound for the whole provider request, including the response body.
+    pub timeout: Duration,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -28,10 +33,42 @@ pub enum RefinementMode {
     Enabled,
 }
 
+/// How far the LLM may move away from the literal transcript while polishing.
+///
+/// Every strength keeps the same preservation contract and output validation;
+/// stronger levels only allow more cleanup, rephrasing, and reorganization.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum RefinementStrength {
+    #[default]
+    Light,
+    Standard,
+    Thorough,
+}
+
+impl RefinementStrength {
+    pub const fn storage_value(self) -> &'static str {
+        match self {
+            Self::Light => "light",
+            Self::Standard => "standard",
+            Self::Thorough => "thorough",
+        }
+    }
+
+    pub fn from_storage_value(value: &str) -> Option<Self> {
+        match value {
+            "light" => Some(Self::Light),
+            "standard" => Some(Self::Standard),
+            "thorough" => Some(Self::Thorough),
+            _ => None,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FinalTextRequest {
     pub transcript: String,
     pub refinement: RefinementMode,
+    pub strength: RefinementStrength,
     pub language: Option<String>,
     pub relevant_terms: Vec<RefinementTerm>,
 }
@@ -41,6 +78,7 @@ impl FinalTextRequest {
         Self {
             transcript: transcript.into(),
             refinement,
+            strength: RefinementStrength::default(),
             language: None,
             relevant_terms: Vec::new(),
         }
@@ -72,6 +110,9 @@ pub struct RefinementEvaluation {
 pub enum RefinementEvaluationMode {
     ProductionPolicy,
     ForceProvider,
+    /// The user explicitly asked to polish again, so neither the short-text
+    /// gate nor a failure pause may silently skip the provider call.
+    UserRetry,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -190,6 +231,21 @@ impl FinalTextProcessor {
         .map(|evaluation| evaluation.processed)
     }
 
+    pub async fn retry(
+        &self,
+        request: FinalTextRequest,
+        cancellation: CancellationToken,
+    ) -> Result<ProcessedText, FinalTextProcessingError> {
+        self.execute(
+            request,
+            cancellation,
+            RefinementEvaluationMode::UserRetry,
+            || {},
+        )
+        .await
+        .map(|evaluation| evaluation.processed)
+    }
+
     pub async fn evaluate(
         &self,
         request: FinalTextRequest,
@@ -235,7 +291,9 @@ impl FinalTextProcessor {
                 refinement: RefinementStatus::FellBack(RefinementFallbackReason::NotConfigured),
             }));
         };
-        if let Some(reason) = self.circuit.lock().await.bypass_reason(Instant::now()) {
+        if mode != RefinementEvaluationMode::UserRetry
+            && let Some(reason) = self.circuit.lock().await.bypass_reason(Instant::now())
+        {
             reject_cancelled(&cancellation)?;
             return Ok(evaluation_without_provider(ProcessedText {
                 text,
@@ -244,19 +302,18 @@ impl FinalTextProcessor {
         }
         let fallback_text = text.clone();
         let relevant_terms = request.relevant_terms;
+        let timeout = refinement_timeout(&text);
         let provider_request = LlmRefinementRequest {
-            instructions: instructions_for(&text),
+            instructions: instructions_for(&text, request.strength),
             transcript: text,
             language: request.language,
             relevant_terms: relevant_terms.clone(),
+            timeout,
         };
         on_provider_attempt();
         let refined = tokio::select! {
             () = cancellation.cancelled() => return Err(FinalTextProcessingError::Cancelled),
-            result = tokio::time::timeout(
-                REFINEMENT_TIMEOUT,
-                provider.refine(provider_request),
-            ) => result,
+            result = tokio::time::timeout(timeout, provider.refine(provider_request)) => result,
         };
         self.complete_provider_attempt(refined, fallback_text, &relevant_terms, &cancellation)
             .await
@@ -317,6 +374,15 @@ impl FinalTextProcessor {
             }
         }
     }
+}
+
+/// Longer transcripts produce longer completions, so the budget grows with the
+/// transcript instead of silently falling back whenever the user speaks longer.
+pub fn refinement_timeout(transcript: &str) -> Duration {
+    let chars = u32::try_from(transcript.chars().count()).unwrap_or(u32::MAX);
+    LLM_REQUEST_TIMEOUT
+        .saturating_add(REFINEMENT_TIMEOUT_PER_CHAR.saturating_mul(chars))
+        .min(MAX_REFINEMENT_TIMEOUT)
 }
 
 fn evaluation_without_provider(processed: ProcessedText) -> RefinementEvaluation {

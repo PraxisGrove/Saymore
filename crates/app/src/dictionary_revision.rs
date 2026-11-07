@@ -32,6 +32,7 @@ pub async fn review_final_text_revision(
             transcript,
             language: Some(language.to_owned()),
             relevant_terms: Vec::new(),
+            timeout: crate::LLM_REQUEST_TIMEOUT,
         })
         .await?;
     parse_dictionary_revision_response(&response, final_text)

@@ -7,8 +7,8 @@ use crate::{
     DictionaryStore, FinalTextProcessingError, FinalTextRequest, HistoryDelivery,
     HistoryRefinement, NewHistoryRecord, PcmRecording, ProcessedText, RecordingError,
     RefinementEvaluation, RefinementFallbackReason, RefinementMode, RefinementStatus,
-    SpeechRecognitionError, StorageError, StreamingRecognitionSession, TextDeliverer,
-    TextDeliveryError, TextDeliveryOutcome, dictionary_terms_for_refinement,
+    RefinementStrength, SpeechRecognitionError, StorageError, StreamingRecognitionSession,
+    TextDeliverer, TextDeliveryError, TextDeliveryOutcome, dictionary_terms_for_refinement,
     normalize_standard_spellings,
 };
 
@@ -113,6 +113,7 @@ pub enum DictationHistoryPolicy {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DictationCompletionPolicy {
     pub refinement: RefinementMode,
+    pub refinement_strength: RefinementStrength,
     pub history: DictationHistoryPolicy,
 }
 
@@ -259,14 +260,16 @@ impl DictationCompletion {
         }
 
         let policy = self.adapters.policy.load_policy();
-        let refinement = match &policy {
-            Ok(policy) => policy.refinement.clone(),
-            Err(DictationPolicyError::Unavailable(_)) => RefinementMode::Disabled,
+        let (refinement, strength) = match &policy {
+            Ok(policy) => (policy.refinement.clone(), policy.refinement_strength),
+            Err(DictationPolicyError::Unavailable(_)) => {
+                (RefinementMode::Disabled, RefinementStrength::default())
+            }
         };
         let terms =
             dictionary_terms_for_refinement(self.adapters.dictionary.as_ref()).unwrap_or_default();
         let (mut processed, llm_refined_text) =
-            self.process_transcript(id, transcript.clone(), refinement, terms.clone());
+            self.process_transcript(id, transcript.clone(), refinement, strength, terms.clone());
         processed.text = normalize_standard_spellings(&processed.text, &terms);
 
         let delivery = self.adapters.deliverer.deliver(&processed.text);
@@ -295,6 +298,7 @@ impl DictationCompletion {
         id: DictationSessionId,
         transcript: String,
         refinement: RefinementMode,
+        strength: RefinementStrength,
         relevant_terms: Vec<crate::RefinementTerm>,
     ) -> (ProcessedText, Option<String>) {
         if refinement == RefinementMode::Disabled {
@@ -308,6 +312,7 @@ impl DictationCompletion {
         }
         let fallback_text = transcript.clone();
         let mut request = FinalTextRequest::new(transcript, refinement);
+        request.strength = strength;
         request.language = Some(inferred_transcript_language(&request.transcript).to_owned());
         request.relevant_terms = relevant_terms;
         match self.adapters.refiner.refine(id, request) {
@@ -419,7 +424,7 @@ fn finalize_transcript(
     }
 }
 
-fn inferred_transcript_language(text: &str) -> &'static str {
+pub(crate) fn inferred_transcript_language(text: &str) -> &'static str {
     if text.chars().any(
         |character| matches!(character as u32, 0x3400..=0x4DBF | 0x4E00..=0x9FFF | 0xF900..=0xFAFF),
     ) {

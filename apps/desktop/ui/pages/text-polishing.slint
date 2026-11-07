@@ -1,4 +1,4 @@
-import { LlmProvider, LlmProviderConfigurationState } from "../components.slint";
+import { LlmProvider, LlmProviderConfigurationState, PolishingStrength } from "../components.slint";
 import { AppColors } from "../color-system.slint";
 import { ScrollView } from "std-widgets.slint";
 
@@ -19,6 +19,27 @@ component ProviderStatus inherits Rectangle {
         horizontal-alignment: center;
         vertical-alignment: center;
     }
+}
+
+component StrengthOption inherits Rectangle {
+    in property <string> label;
+    in property <bool> selected;
+    callback activated();
+    border-radius: 6px;
+    background: root.selected ? AppColors.surface : option-touch.has-hover ? AppColors.selected : transparent;
+    accessible-role: button;
+    accessible-label: root.label;
+    accessible-checked: root.selected;
+    accessible-action-default => { root.activated(); }
+    Text {
+        text: root.label;
+        color: root.selected ? AppColors.ink : AppColors.text-muted;
+        font-size: 12px;
+        font-weight: root.selected ? 700 : 600;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+    option-touch := TouchArea { mouse-cursor: pointer; clicked => { root.activated(); } }
 }
 
 component LlmProviderCard inherits Rectangle {
@@ -70,11 +91,14 @@ component LlmProviderCard inherits Rectangle {
 
 export component TextPolishingPage inherits Rectangle {
     in property <bool> llm-enabled;
+    in property <PolishingStrength> strength: PolishingStrength.light;
+    in property <string> strength-status;
     in property <bool> testing;
     in property <LlmProvider> current-provider: LlmProvider.sensenova;
     in property <LlmProviderConfigurationState> configured;
     callback toggle-enabled();
     callback open-provider(LlmProvider);
+    callback select-strength(PolishingStrength);
 
     private property <bool> has-config: root.configured.sensenova || root.configured.deepseek || root.configured.qwen || root.configured.volcengine-ark || root.configured.openai || root.configured.kimi || root.configured.gemini || root.configured.openrouter || root.configured.zhipu-glm || root.configured.minimax || root.configured.siliconflow || root.configured.stepfun || root.configured.custom;
     private property <string> sensenova-status: root.llm-enabled && root.current-provider == LlmProvider.sensenova ? @tr("models.status.connected.plain" => "Connected") : root.configured.sensenova ? @tr("models.status.not-enabled" => "Not enabled") : @tr("models.status.not-configured.plain" => "Not configured");
@@ -131,9 +155,38 @@ export component TextPolishingPage inherits Rectangle {
         switch-touch := TouchArea { enabled: parent.control-enabled; mouse-cursor: self.enabled ? pointer : default; clicked => { root.toggle-enabled(); } }
     }
 
+    Text { x: 0px; y: 84px; width: parent.width - 244px; text: @tr("models.polishing.strength" => "Polishing strength"); color: AppColors.text; font-size: 12px; font-weight: 650; overflow: elide; }
+    Text {
+        x: 0px;
+        y: 104px;
+        width: parent.width - 244px;
+        text: !root.strength-status.is-empty ? root.strength-status
+            : root.strength == PolishingStrength.thorough ? @tr("models.polishing.strength.thorough.helper" => "Rewrites into concise, well-organized text")
+            : root.strength == PolishingStrength.standard ? @tr("models.polishing.strength.standard.helper" => "Removes filler words and smooths sentences")
+            : @tr("models.polishing.strength.light.helper" => "Fixes punctuation and obvious errors, keeps your wording");
+        color: root.strength-status.is-empty ? AppColors.text-muted : AppColors.danger;
+        font-size: 11px;
+        overflow: elide;
+    }
+    Rectangle {
+        x: parent.width - 228px;
+        y: 84px;
+        width: 228px;
+        height: 32px;
+        border-radius: 8px;
+        background: AppColors.surface-subtle;
+        HorizontalLayout {
+            padding: 2px;
+            spacing: 2px;
+            StrengthOption { label: @tr("models.polishing.strength.light" => "Light"); selected: root.strength == PolishingStrength.light; activated => { root.select-strength(PolishingStrength.light); } }
+            StrengthOption { label: @tr("models.polishing.strength.standard" => "Standard"); selected: root.strength == PolishingStrength.standard; activated => { root.select-strength(PolishingStrength.standard); } }
+            StrengthOption { label: @tr("models.polishing.strength.thorough" => "Thorough"); selected: root.strength == PolishingStrength.thorough; activated => { root.select-strength(PolishingStrength.thorough); } }
+        }
+    }
+
     provider-list := ScrollView {
         x: 0px;
-        y: 80px;
+        y: 136px;
         width: parent.width;
         height: max(0px, parent.height - self.y);
         viewport-width: self.width;

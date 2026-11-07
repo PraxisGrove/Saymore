@@ -2,7 +2,7 @@ use chrono::NaiveDate;
 use thiserror::Error;
 use unicode_normalization::UnicodeNormalization;
 
-use crate::{ColorSchemePreference, ThemeId};
+use crate::{ColorSchemePreference, RefinementStrength, ThemeId};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum HistoryRetention {
@@ -135,6 +135,7 @@ pub struct LocalSettings {
     pub copy_to_clipboard: bool,
     pub show_in_dock: bool,
     pub dictation_paused: bool,
+    pub refinement_strength: RefinementStrength,
     pub dictation_shortcuts: Vec<String>,
     pub onboarding_status: OnboardingStatus,
     pub onboarding_step: OnboardingStep,
@@ -160,6 +161,7 @@ impl Default for LocalSettings {
             copy_to_clipboard: false,
             show_in_dock: true,
             dictation_paused: false,
+            refinement_strength: RefinementStrength::Light,
             dictation_shortcuts: vec!["right-command".to_owned()],
             onboarding_status: OnboardingStatus::NotStarted,
             onboarding_step: OnboardingStep::Welcome,
@@ -249,6 +251,14 @@ pub struct HistoryRecord {
     pub asr_provider_id: Option<String>,
     pub llm_provider_id: Option<String>,
     pub asr_model: Option<String>,
+    pub llm_model: Option<String>,
+}
+
+/// A later, user-requested refinement of one saved dictation.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct HistoryRefinementUpdate {
+    pub refined_text: String,
+    pub llm_provider_id: Option<String>,
     pub llm_model: Option<String>,
 }
 
@@ -358,6 +368,16 @@ pub trait HistoryStore: Send + Sync {
     /// Implementations must preserve the original ASR and refinement fields and
     /// reject an unknown record identity.
     fn update_history_final_text(&self, id: &str, final_text: &str) -> Result<(), StorageError>;
+    /// Records a successful user-requested refinement retry.
+    ///
+    /// Implementations must replace the final and refined text, mark the
+    /// refinement completed, store the given LLM metadata, preserve the original
+    /// ASR text and delivery state, and reject an unknown record identity.
+    fn record_history_refinement(
+        &self,
+        id: &str,
+        update: HistoryRefinementUpdate,
+    ) -> Result<(), StorageError>;
     fn history_page(
         &self,
         cursor: Option<HistoryCursor>,

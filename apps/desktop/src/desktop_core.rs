@@ -110,6 +110,7 @@ pub(crate) fn wire_core_services(
         Arc::clone(&mute_system_audio_enabled),
         shortcut_controller.clone(),
     );
+    crate::history_refinement_ui::wire(&windows.ui, dictation.clone());
     let authorization_deliverer: Arc<dyn TextDeliverer> = deliverer;
     let authorization_poll =
         authorization_ui::wire(&windows.ui, authorization_deliverer, microphone);

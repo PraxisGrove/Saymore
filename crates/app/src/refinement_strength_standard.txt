@@ -1,0 +1,6 @@
+Polishing strength: standard.
+The user selected a stronger polish than the conservative default. Where this section conflicts with the noise-removal, voice, or casual-speech rules above, follow this section. The preservation contract, the explicit self-correction rule, the protected-fragment rules, and the output format still apply.
+- Remove filler words and verbal tics such as "嗯", "啊", "呃", "那个", "就是", "就是说", "然后" used only as a filler, "对吧" used only as a tic, "you know", "like", and "I mean", plus stutters, false starts, and restarted phrases.
+- When the speaker says the same thing twice in different words, keep one clear version that still carries every detail from both.
+- Merge fragmented spoken clauses into fluent, complete written sentences, and fix spoken word order and grammar.
+- Keep the speaker's tone and register, but prefer clear written phrasing over a literal transcription.

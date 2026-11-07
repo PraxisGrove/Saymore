@@ -6,6 +6,7 @@ import {
     LlmProvider,
     LlmProviderConfigurationState,
     ModalShell,
+    PolishingStrength,
     ModalSize,
     SystemSpeechStatus,
 } from "../components.slint";
@@ -178,6 +179,8 @@ export component ModelsPage inherits Rectangle {
     in-out property <bool> asr-config-dirty: false;
     in-out property <AsrConfigurationField> asr-error-field: AsrConfigurationField.none;
     in-out property <bool> llm-enabled;
+    in property <PolishingStrength> polishing-strength: PolishingStrength.light;
+    in property <string> polishing-strength-status;
     in-out property <LlmProvider> llm-provider: LlmProvider.sensenova;
     in property <LlmProvider> active-llm-provider: LlmProvider.sensenova;
     in property <LlmProviderConfigurationState> llm-provider-configured;
@@ -200,6 +203,7 @@ export component ModelsPage inherits Rectangle {
     callback cancel-asr-config();
     callback request-llm-enable();
     callback set-llm-enabled(bool, string);
+    callback set-polishing-strength(PolishingStrength);
     callback save-llm-config(LlmProvider, string, string, string);
     callback select-llm-provider(LlmProvider);
     callback refresh-models();
@@ -287,6 +291,8 @@ export component ModelsPage inherits Rectangle {
         width: parent.width;
         height: parent.height - 140px;
         llm-enabled: root.llm-enabled;
+        strength: root.polishing-strength;
+        strength-status: root.polishing-strength-status;
         testing: root.llm-testing;
         current-provider: root.active-llm-provider;
         configured: root.llm-provider-configured;
@@ -298,5 +304,6 @@ export component ModelsPage inherits Rectangle {
             root.llm-provider = provider;
             root.open-llm-config(provider);
         }
+        select-strength(strength) => { root.set-polishing-strength(strength); }
     }
 }

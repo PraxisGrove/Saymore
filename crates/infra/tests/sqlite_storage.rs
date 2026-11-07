@@ -7,10 +7,11 @@ use std::sync::{
 
 use template_app::{
     ColorSchemePreference, DiagnosticEventStore, DictionaryOrigin, DictionaryStore,
-    HistoryDelivery, HistoryRecord, HistoryRefinement, HistoryRetention, HistoryStore,
-    InstalledModel, InstalledModelStore, LocalSettings, LocalSettingsStore, NewDictionaryEntry,
-    NewHistoryRecord, OnboardingStatus, OnboardingStep, SecretStore, SecretStoreError,
-    StorageError, ThemeId, UiLanguagePreference, UsageStore, VocabularySuggestionSettingsStore,
+    HistoryDelivery, HistoryRecord, HistoryRefinement, HistoryRefinementUpdate, HistoryRetention,
+    HistoryStore, InstalledModel, InstalledModelStore, LocalSettings, LocalSettingsStore,
+    NewDictionaryEntry, NewHistoryRecord, OnboardingStatus, OnboardingStep, RefinementStrength,
+    SecretStore, SecretStoreError, StorageError, ThemeId, UiLanguagePreference, UsageStore,
+    VocabularySuggestionSettingsStore,
 };
 use template_infra::SqliteStorage;
 #[cfg(target_os = "windows")]
@@ -159,6 +160,7 @@ fn settings_are_typed_and_persisted_across_restarts() -> Result<(), Box<dyn std:
         copy_to_clipboard: true,
         show_in_dock: false,
         dictation_paused: true,
+        refinement_strength: RefinementStrength::Thorough,
         dictation_shortcuts: Vec::new(),
         onboarding_status: OnboardingStatus::InProgress,
         onboarding_step: OnboardingStep::Accessibility,
@@ -302,7 +304,7 @@ fn clear_sky_settings_migrate_to_sunlit_gold() -> Result<(), Box<dyn std::error:
     )?;
     let version: u32 = connection.query_row("PRAGMA user_version", [], |row| row.get(0))?;
     assert_eq!("sunlit-gold", stored_theme);
-    assert_eq!(25, version);
+    assert_eq!(26, version);
     Ok(())
 }
 
@@ -985,7 +987,7 @@ fn dictionary_identity_preserves_token_boundaries_across_v3_migration()
 
     let connection = rusqlite::Connection::open(path)?;
     let version: u32 = connection.query_row("PRAGMA user_version", [], |row| row.get(0))?;
-    assert_eq!(25, version);
+    assert_eq!(26, version);
     let spaced_key: String = connection.query_row(
         "SELECT canonical_key FROM dictionary_entries WHERE canonical = 'Open AI'",
         [],
@@ -1148,5 +1150,53 @@ fn model_download_queue_is_idempotent_fifo_and_persistent() -> Result<(), Box<dy
             .collect::<Vec<_>>()
     );
     assert!(store.enqueue_model_download("  ").is_err());
+    Ok(())
+}
+
+#[test]
+fn history_refinement_retry_replaces_polished_text_and_keeps_the_recognized_text()
+-> Result<(), Box<dyn std::error::Error>> {
+    let directory = tempfile::tempdir()?;
+    let store = SqliteStorage::start(
+        directory.path().join("saymore.sqlite3"),
+        Arc::new(MemorySecretStore::default()),
+    )?;
+    let mut record = history_record("retry", 1_000, "原始识别文本");
+    record.raw_asr_text = Some("原始识别文本".to_owned());
+    record.refinement = HistoryRefinement::TimedOut;
+    record.llm_provider_id = None;
+    record.llm_model = None;
+    store.insert_history(record)?;
+
+    store.record_history_refinement(
+        "retry",
+        HistoryRefinementUpdate {
+            refined_text: "润色后的文本。".to_owned(),
+            llm_provider_id: Some("deepseek".to_owned()),
+            llm_model: Some("deepseek-flash".to_owned()),
+        },
+    )?;
+
+    let page = store.history_page(None, 10)?;
+    let saved = page.records.first().ok_or("missing history record")?;
+    assert_eq!("润色后的文本。", saved.final_text);
+    assert_eq!(Some("润色后的文本。".to_owned()), saved.llm_refined_text);
+    assert_eq!(Some("原始识别文本".to_owned()), saved.raw_asr_text);
+    assert_eq!(HistoryRefinement::Completed, saved.refinement);
+    assert_eq!(HistoryDelivery::Delivered, saved.delivery);
+    assert_eq!(Some("deepseek".to_owned()), saved.llm_provider_id);
+    assert_eq!(Some("deepseek-flash".to_owned()), saved.llm_model);
+    assert!(
+        store
+            .record_history_refinement(
+                "missing",
+                HistoryRefinementUpdate {
+                    refined_text: "x".to_owned(),
+                    llm_provider_id: None,
+                    llm_model: None,
+                },
+            )
+            .is_err()
+    );
     Ok(())
 }

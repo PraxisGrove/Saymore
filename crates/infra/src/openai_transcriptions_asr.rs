@@ -19,12 +19,15 @@ const SAMPLE_RATE: u32 = 16_000;
 const MAX_SAMPLES: usize = SAMPLE_RATE as usize * 60 * 30;
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(90);
 const RECOGNITION_TEST_TIMEOUT: Duration = Duration::from_secs(12);
+const MAX_PROMPT_TERMS: usize = 64;
+const MAX_PROMPT_CHARS: usize = 600;
 
 pub struct OpenAiCompatibleSpeechRecognizer {
     client: Client,
     endpoint: Url,
     api_key: String,
     model: String,
+    vocabulary_prompt: Option<String>,
 }
 
 impl OpenAiCompatibleSpeechRecognizer {
@@ -45,6 +48,7 @@ impl OpenAiCompatibleSpeechRecognizer {
             endpoint,
             api_key: settings.api_key.trim().to_owned(),
             model: settings.model.trim().to_owned(),
+            vocabulary_prompt: None,
         })
     }
 
@@ -64,15 +68,15 @@ impl OpenAiCompatibleSpeechRecognizer {
             .file_name("saymore.wav")
             .mime_str("audio/wav")
             .map_err(protocol_error)?;
+        let mut form = Form::new().text("model", self.model.clone());
+        if let Some(prompt) = &self.vocabulary_prompt {
+            form = form.text("prompt", prompt.clone());
+        }
         let response = self
             .client
             .post(self.endpoint.clone())
             .bearer_auth(&self.api_key)
-            .multipart(
-                Form::new()
-                    .text("model", self.model.clone())
-                    .part("file", audio),
-            )
+            .multipart(form.part("file", audio))
             .send()
             .await
             .map_err(transport_error)?;
@@ -94,7 +98,7 @@ impl OpenAiCompatibleSpeechRecognizer {
 impl StreamingSpeechRecognizer for OpenAiCompatibleSpeechRecognizer {
     fn start(
         &self,
-        _hints: SpeechRecognitionHints,
+        hints: SpeechRecognitionHints,
         _on_partial: Arc<dyn Fn(String) + Send + Sync>,
     ) -> Result<Box<dyn StreamingRecognitionSession>, SpeechRecognitionError> {
         Ok(Box::new(OpenAiCompatibleSession {
@@ -102,6 +106,7 @@ impl StreamingSpeechRecognizer for OpenAiCompatibleSpeechRecognizer {
             endpoint: self.endpoint.clone(),
             api_key: self.api_key.clone(),
             model: self.model.clone(),
+            vocabulary_prompt: vocabulary_prompt(&hints),
             samples: Mutex::new(Vec::new()),
         }))
     }
@@ -112,6 +117,7 @@ struct OpenAiCompatibleSession {
     endpoint: Url,
     api_key: String,
     model: String,
+    vocabulary_prompt: Option<String>,
     samples: Mutex<Vec<i16>>,
 }
 
@@ -138,6 +144,7 @@ impl StreamingRecognitionSession for OpenAiCompatibleSession {
             endpoint: self.endpoint,
             api_key: self.api_key,
             model: self.model,
+            vocabulary_prompt: self.vocabulary_prompt,
         };
         let runtime = tokio::runtime::Builder::new_current_thread()
             .enable_all()
@@ -147,6 +154,30 @@ impl StreamingRecognitionSession for OpenAiCompatibleSession {
     }
 
     fn cancel(self: Box<Self>) {}
+}
+
+/// Builds the transcription `prompt` that biases spelling toward dictionary terms.
+///
+/// The list stays short because Whisper-style models only read a bounded
+/// prompt window and treat it as preceding context rather than instructions.
+fn vocabulary_prompt(hints: &SpeechRecognitionHints) -> Option<String> {
+    let mut seen = std::collections::BTreeSet::new();
+    let mut prompt = String::new();
+    for term in hints
+        .terms()
+        .iter()
+        .map(|term| term.trim())
+        .filter(|term| !term.is_empty() && seen.insert(term.to_lowercase()))
+        .take(MAX_PROMPT_TERMS)
+    {
+        let separator = if prompt.is_empty() { "" } else { ", " };
+        if prompt.chars().count() + separator.len() + term.chars().count() > MAX_PROMPT_CHARS {
+            break;
+        }
+        prompt.push_str(separator);
+        prompt.push_str(term);
+    }
+    (!prompt.is_empty()).then_some(prompt)
 }
 
 #[derive(Deserialize)]

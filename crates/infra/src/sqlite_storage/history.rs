@@ -8,7 +8,7 @@ use rusqlite::{Connection, OptionalExtension, params};
 use serde::{Deserialize, Serialize};
 use template_app::{
     HistoryCursor, HistoryDelivery, HistoryPage, HistoryRecord, HistoryRefinement,
-    HistoryRetention, NewHistoryRecord, SecretStore, StorageError,
+    HistoryRefinementUpdate, HistoryRetention, NewHistoryRecord, SecretStore, StorageError,
 };
 
 use super::{Database, invalid, settings, unavailable, usage};
@@ -21,6 +21,14 @@ pub(super) fn update_final_text(
     final_text: &str,
 ) -> Result<(), StorageError> {
     update::update_final_text(database, id, final_text)
+}
+
+pub(super) fn record_refinement(
+    database: &mut Database,
+    id: &str,
+    update: HistoryRefinementUpdate,
+) -> Result<(), StorageError> {
+    update::record_refinement(database, id, update)
 }
 
 pub(super) fn update_delivery(

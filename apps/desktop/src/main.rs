@@ -72,6 +72,7 @@ mod dictation_completion_runtime;
 mod dictation_finish;
 mod dictionary_added_overlay;
 mod feedback_runtime;
+mod history_refinement_ui;
 mod home_stats;
 mod i18n;
 mod local_data_ui;

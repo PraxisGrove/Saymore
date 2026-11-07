@@ -3798,3 +3798,73 @@ msgstr "预置模型"
 msgctxt "models.fetch.presets-status"
 msgid "Preset models; you can also enter a model ID manually"
 msgstr "已显示预置模型，也可手动填写模型 ID"
+
+#: ui/pages/text-polishing.slint
+msgctxt "models.polishing.strength"
+msgid "Polishing strength"
+msgstr "润色力度"
+
+#: ui/pages/text-polishing.slint
+msgctxt "models.polishing.strength.thorough.helper"
+msgid "Rewrites into concise, well-organized text"
+msgstr "重写为简洁、条理清晰的书面文字"
+
+#: ui/pages/text-polishing.slint
+msgctxt "models.polishing.strength.standard.helper"
+msgid "Removes filler words and smooths sentences"
+msgstr "去除口头禅和赘词，让句子更通顺"
+
+#: ui/pages/text-polishing.slint
+msgctxt "models.polishing.strength.light.helper"
+msgid "Fixes punctuation and obvious errors, keeps your wording"
+msgstr "修正标点和明显错误，保留原话"
+
+#: ui/pages/text-polishing.slint
+msgctxt "models.polishing.strength.light"
+msgid "Light"
+msgstr "轻度"
+
+#: ui/pages/text-polishing.slint
+msgctxt "models.polishing.strength.standard"
+msgid "Standard"
+msgstr "标准"
+
+#: ui/pages/text-polishing.slint
+msgctxt "models.polishing.strength.thorough"
+msgid "Thorough"
+msgstr "深度"
+
+#: ui/pages/history.slint
+msgctxt "history.repolish.succeeded"
+msgid "Polished again and copied to the clipboard."
+msgstr "已重新润色并复制到剪贴板。"
+
+#: ui/pages/history.slint
+msgctxt "history.repolish.not-configured"
+msgid "Turn on text polishing and check the provider settings first."
+msgstr "请先开启文本润色并检查服务商设置。"
+
+#: ui/pages/history.slint
+msgctxt "history.repolish.unavailable"
+msgid "The polishing service did not respond. Try again later."
+msgstr "润色服务没有响应，请稍后重试。"
+
+#: ui/pages/history.slint
+msgctxt "history.repolish.rejected"
+msgid "The polished result failed validation and was discarded."
+msgstr "润色结果未通过校验，已丢弃。"
+
+#: ui/pages/history.slint
+msgctxt "history.repolish.failed"
+msgid "Polishing again could not be completed."
+msgstr "重新润色未能完成。"
+
+#: ui/pages/history.slint
+msgctxt "history.repolish.running"
+msgid "Polishing…"
+msgstr "润色中…"
+
+#: ui/pages/history.slint
+msgctxt "history.repolish.action"
+msgid "Polish again"
+msgstr "重新润色"

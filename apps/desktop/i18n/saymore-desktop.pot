@@ -3605,3 +3605,73 @@ msgstr ""
 msgctxt "models.fetch.presets-status"
 msgid "Preset models; you can also enter a model ID manually"
 msgstr ""
+
+#: ui/pages/text-polishing.slint
+msgctxt "models.polishing.strength"
+msgid "Polishing strength"
+msgstr ""
+
+#: ui/pages/text-polishing.slint
+msgctxt "models.polishing.strength.thorough.helper"
+msgid "Rewrites into concise, well-organized text"
+msgstr ""
+
+#: ui/pages/text-polishing.slint
+msgctxt "models.polishing.strength.standard.helper"
+msgid "Removes filler words and smooths sentences"
+msgstr ""
+
+#: ui/pages/text-polishing.slint
+msgctxt "models.polishing.strength.light.helper"
+msgid "Fixes punctuation and obvious errors, keeps your wording"
+msgstr ""
+
+#: ui/pages/text-polishing.slint
+msgctxt "models.polishing.strength.light"
+msgid "Light"
+msgstr ""
+
+#: ui/pages/text-polishing.slint
+msgctxt "models.polishing.strength.standard"
+msgid "Standard"
+msgstr ""
+
+#: ui/pages/text-polishing.slint
+msgctxt "models.polishing.strength.thorough"
+msgid "Thorough"
+msgstr ""
+
+#: ui/pages/history.slint
+msgctxt "history.repolish.succeeded"
+msgid "Polished again and copied to the clipboard."
+msgstr ""
+
+#: ui/pages/history.slint
+msgctxt "history.repolish.not-configured"
+msgid "Turn on text polishing and check the provider settings first."
+msgstr ""
+
+#: ui/pages/history.slint
+msgctxt "history.repolish.unavailable"
+msgid "The polishing service did not respond. Try again later."
+msgstr ""
+
+#: ui/pages/history.slint
+msgctxt "history.repolish.rejected"
+msgid "The polished result failed validation and was discarded."
+msgstr ""
+
+#: ui/pages/history.slint
+msgctxt "history.repolish.failed"
+msgid "Polishing again could not be completed."
+msgstr ""
+
+#: ui/pages/history.slint
+msgctxt "history.repolish.running"
+msgid "Polishing…"
+msgstr ""
+
+#: ui/pages/history.slint
+msgctxt "history.repolish.action"
+msgid "Polish again"
+msgstr ""

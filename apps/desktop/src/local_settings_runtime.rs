@@ -150,6 +150,7 @@ fn settings_change_event(change: &LocalSettingsChange) -> &'static str {
         LocalSettingsChange::SetCopyToClipboard(_) => "settings.clipboard_changed",
         LocalSettingsChange::SetDockVisibility(_) => "settings.dock_visibility_changed",
         LocalSettingsChange::SetDictationPaused(_) => "settings.dictation_pause_changed",
+        LocalSettingsChange::SetRefinementStrength(_) => "settings.refinement_strength_changed",
         LocalSettingsChange::SetDiagnosticsLogging(_) => "settings.diagnostics_logging_changed",
         LocalSettingsChange::ReplaceDictationShortcuts(_) => "settings.shortcuts_changed",
         LocalSettingsChange::SetOnboardingProgress { .. } => "settings.onboarding_changed",

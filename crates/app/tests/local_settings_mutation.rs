@@ -10,7 +10,7 @@ use template_app::{
     ColorSchemePreference, HistoryRetention, LocalSettings, LocalSettingsChange,
     LocalSettingsMutationError, LocalSettingsMutator, LocalSettingsStore,
     LocalSettingsValidationError, MicrophoneSelection, OnboardingStatus, OnboardingStep,
-    StorageError, ThemeId, UiLanguagePreference,
+    RefinementStrength, StorageError, ThemeId, UiLanguagePreference,
 };
 
 struct FakeSettingsStore {
@@ -170,6 +170,12 @@ fn every_change_commits_the_expected_complete_snapshot() {
         (
             LocalSettingsChange::SetCopyToClipboard(true),
             changed(&initial, |settings| settings.copy_to_clipboard = true),
+        ),
+        (
+            LocalSettingsChange::SetRefinementStrength(RefinementStrength::Standard),
+            changed(&initial, |settings| {
+                settings.refinement_strength = RefinementStrength::Standard
+            }),
         ),
         (
             LocalSettingsChange::SetDockVisibility(false),

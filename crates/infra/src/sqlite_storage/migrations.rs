@@ -5,7 +5,7 @@ use super::unavailable;
 
 mod recent;
 
-const CURRENT_SCHEMA_VERSION: u32 = 25;
+const CURRENT_SCHEMA_VERSION: u32 = 26;
 
 pub(super) fn apply(connection: &mut Connection) -> Result<(), StorageError> {
     let version: u32 = connection
@@ -99,6 +99,9 @@ fn apply_recent_migrations(connection: &mut Connection, version: u32) -> Result<
     }
     if version < 25 {
         recent::add_model_download_queue(connection)?;
+    }
+    if version < 26 {
+        recent::add_refinement_strength_setting(connection)?;
     }
     Ok(())
 }

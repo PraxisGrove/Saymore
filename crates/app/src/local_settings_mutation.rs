@@ -4,7 +4,7 @@ use thiserror::Error;
 
 use crate::{
     ColorSchemePreference, HistoryRetention, LocalSettings, LocalSettingsStore, OnboardingStatus,
-    OnboardingStep, StorageError, ThemeId, UiLanguagePreference,
+    OnboardingStep, RefinementStrength, StorageError, ThemeId, UiLanguagePreference,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -32,6 +32,7 @@ pub enum LocalSettingsChange {
     SetCopyToClipboard(bool),
     SetDockVisibility(bool),
     SetDictationPaused(bool),
+    SetRefinementStrength(RefinementStrength),
     SetDiagnosticsLogging(bool),
     ReplaceDictationShortcuts(Vec<String>),
     SetOnboardingProgress {
@@ -171,6 +172,9 @@ fn apply_change(settings: &mut LocalSettings, change: LocalSettingsChange) {
         LocalSettingsChange::SetCopyToClipboard(enabled) => settings.copy_to_clipboard = enabled,
         LocalSettingsChange::SetDockVisibility(visible) => settings.show_in_dock = visible,
         LocalSettingsChange::SetDictationPaused(paused) => settings.dictation_paused = paused,
+        LocalSettingsChange::SetRefinementStrength(strength) => {
+            settings.refinement_strength = strength;
+        }
         LocalSettingsChange::SetDiagnosticsLogging(enabled) => {
             settings.diagnostics_logging_enabled = enabled;
         }

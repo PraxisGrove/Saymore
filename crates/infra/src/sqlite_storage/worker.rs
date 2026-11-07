@@ -118,6 +118,11 @@ pub(super) enum HistoryCommand {
         final_text: String,
         response: SyncSender<Result<(), StorageError>>,
     },
+    RecordRefinement {
+        id: String,
+        update: template_app::HistoryRefinementUpdate,
+        response: SyncSender<Result<(), StorageError>>,
+    },
     Clear(SyncSender<Result<(), StorageError>>),
     Reset(SyncSender<Result<(), StorageError>>),
     Cleanup {
@@ -324,6 +329,11 @@ fn process_history_command(database: &mut Database, command: HistoryCommand) {
             response,
             history::update_final_text(database, &id, &final_text),
         ),
+        HistoryCommand::RecordRefinement {
+            id,
+            update,
+            response,
+        } => send_result(response, history::record_refinement(database, &id, update)),
         HistoryCommand::Clear(response) => {
             let result = usage::backfill_history(database)
                 .and_then(|()| history::clear(&mut database.connection));

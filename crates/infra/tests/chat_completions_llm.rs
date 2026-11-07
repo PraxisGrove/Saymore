@@ -65,6 +65,7 @@ async fn sends_an_openai_compatible_chat_completion_request()
             relevant_terms: vec![template_app::RefinementTerm {
                 canonical: "Typeless".to_owned(),
             }],
+            timeout: template_app::LLM_REQUEST_TIMEOUT,
         })
         .await?;
 
@@ -372,6 +373,39 @@ async fn rejects_success_responses_without_refined_text() -> Result<(), Box<dyn 
         return Err("empty completion content was accepted".into());
     }
     empty.assert_async().await;
+    Ok(())
+}
+
+#[tokio::test]
+async fn rejects_completions_truncated_by_the_token_limit() -> Result<(), Box<dyn std::error::Error>>
+{
+    let server = MockServer::start_async().await;
+    let truncated = server
+        .mock_async(|when, then| {
+            when.method(POST).path("/v1/chat/completions");
+            then.status(200).json_body(serde_json::json!({
+                "choices": [{
+                    "message": {"content": "1. 第一项\n2. 第"},
+                    "finish_reason": "length"
+                }]
+            }));
+        })
+        .await;
+    let provider = ChatCompletionsLlmProvider::new(ChatCompletionsLlmSettings {
+        base_url: server.url("/v1"),
+        api_key: String::new(),
+        model: "test-model".to_owned(),
+        custom_headers: BTreeMap::new(),
+        profile: ChatCompletionsProfile::DeepSeek,
+    })?;
+
+    if !matches!(
+        provider.test_connection().await,
+        Err(LlmProviderError::Protocol(_))
+    ) {
+        return Err("truncated completion content was accepted".into());
+    }
+    truncated.assert_async().await;
     Ok(())
 }
 

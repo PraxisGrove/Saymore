@@ -136,6 +136,20 @@ impl HistoryStore for SqliteStorage {
         })
     }
 
+    fn record_history_refinement(
+        &self,
+        id: &str,
+        update: template_app::HistoryRefinementUpdate,
+    ) -> Result<(), StorageError> {
+        self.request(|response| {
+            Command::History(HistoryCommand::RecordRefinement {
+                id: id.to_owned(),
+                update,
+                response,
+            })
+        })
+    }
+
     fn history_page(
         &self,
         cursor: Option<HistoryCursor>,

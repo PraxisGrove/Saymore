@@ -11,6 +11,7 @@ mod dictionary_learning;
 mod dictionary_revision;
 mod feedback_sound;
 mod final_text_processing;
+mod history_refinement;
 mod history_revision;
 pub mod licensing;
 mod local_settings_mutation;
@@ -64,10 +65,14 @@ pub use dictionary_revision::{
 };
 pub use feedback_sound::{FeedbackSound, FeedbackSoundError, FeedbackSoundPlayer};
 pub use final_text_processing::{
-    FinalTextProcessingError, FinalTextProcessor, FinalTextRequest, LlmProvider, LlmProviderError,
-    LlmRefinementRequest, ProcessedText, RefinementEvaluation, RefinementEvaluationMode,
-    RefinementFallbackReason, RefinementMode, RefinementOutputRejectionReason,
-    RefinementSkipReason, RefinementStatus, RefinementTerm, refinement_needed,
+    FinalTextProcessingError, FinalTextProcessor, FinalTextRequest, LLM_REQUEST_TIMEOUT,
+    LlmProvider, LlmProviderError, LlmRefinementRequest, ProcessedText, RefinementEvaluation,
+    RefinementEvaluationMode, RefinementFallbackReason, RefinementMode,
+    RefinementOutputRejectionReason, RefinementSkipReason, RefinementStatus, RefinementStrength,
+    RefinementTerm, refinement_needed, refinement_timeout,
+};
+pub use history_refinement::{
+    HistoryRefinementRetry, HistoryRefinementRetryError, retry_history_refinement,
 };
 pub use history_revision::{
     FinalTextRevision, FinalTextRevisionState, TextRevisionDiff, TextRevisionEndReason,
@@ -103,11 +108,11 @@ pub use speech_recognition::{
 pub use storage::{
     DailyUsage, DiagnosticEventStore, DictionaryEntry, DictionaryOrigin, DictionaryStore,
     HistoryCursor, HistoryDelivery, HistoryPage, HistoryRecord, HistoryRefinement,
-    HistoryRetention, HistoryStore, InstalledModel, InstalledModelStore, LocalSettings,
-    LocalSettingsStore, ModelDownloadQueueStore, NewDictionaryEntry, NewHistoryRecord,
-    OnboardingStatus, OnboardingStep, QueuedModelDownload, SecretStore, SecretStoreError,
-    StorageError, UiLanguagePreference, UsageSnapshot, UsageStore, dictionary_comparison_key,
-    normalize_language_tag,
+    HistoryRefinementUpdate, HistoryRetention, HistoryStore, InstalledModel, InstalledModelStore,
+    LocalSettings, LocalSettingsStore, ModelDownloadQueueStore, NewDictionaryEntry,
+    NewHistoryRecord, OnboardingStatus, OnboardingStep, QueuedModelDownload, SecretStore,
+    SecretStoreError, StorageError, UiLanguagePreference, UsageSnapshot, UsageStore,
+    dictionary_comparison_key, normalize_language_tag,
 };
 pub use system_audio::{OutputAudioMuteSession, OutputAudioMuter, SystemAudioMuteError};
 pub use text_delivery::{

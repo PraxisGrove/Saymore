@@ -1,13 +1,17 @@
-use std::sync::{
-    Arc,
-    atomic::{AtomicUsize, Ordering},
+use std::{
+    sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    },
+    time::Duration,
 };
 
 use async_trait::async_trait;
 use template_app::{
     FinalTextProcessor, FinalTextRequest, LlmProvider, LlmProviderError, LlmRefinementRequest,
     ProcessedText, RefinementFallbackReason, RefinementMode, RefinementOutputRejectionReason,
-    RefinementStatus, RefinementTerm, normalize_standard_spellings, standard_spelling_occurs,
+    RefinementStatus, RefinementTerm, normalize_standard_spellings, refinement_timeout,
+    standard_spelling_occurs,
 };
 use tokio_util::sync::CancellationToken;
 
@@ -25,6 +29,19 @@ impl LlmProvider for CountingProvider {
 }
 
 struct PendingProvider;
+
+struct DelayedProvider {
+    delay: Duration,
+    result: String,
+}
+
+#[async_trait]
+impl LlmProvider for DelayedProvider {
+    async fn refine(&self, _request: LlmRefinementRequest) -> Result<String, LlmProviderError> {
+        tokio::time::sleep(self.delay).await;
+        Ok(self.result.clone())
+    }
+}
 
 struct CapturingProvider {
     request: std::sync::Mutex<Option<LlmRefinementRequest>>,
@@ -739,8 +756,66 @@ async fn provider_failure_falls_back_to_safely_cleaned_text() {
     );
 }
 
+#[test]
+fn refinement_budget_grows_with_transcript_length_and_stays_bounded() {
+    assert_eq!(
+        (
+            Duration::from_millis(8_400),
+            Duration::from_secs(20),
+            Duration::from_secs(60),
+        ),
+        (
+            refinement_timeout(&"字".repeat(10)),
+            refinement_timeout(&"字".repeat(300)),
+            refinement_timeout(&"字".repeat(10_000)),
+        )
+    );
+}
+
+#[tokio::test]
+async fn provider_receives_the_transcript_scaled_budget() {
+    let provider = Arc::new(CapturingProvider {
+        request: std::sync::Mutex::new(None),
+        result: "unused".to_owned(),
+    });
+    let processor = FinalTextProcessor::configured(provider.clone());
+    let transcript = "字".repeat(300);
+
+    let _ = processor
+        .process(enabled_request(&transcript), CancellationToken::new())
+        .await;
+
+    let captured = provider
+        .request
+        .lock()
+        .ok()
+        .and_then(|request| request.as_ref().map(|request| request.timeout));
+    assert_eq!(Some(refinement_timeout(&transcript)), captured);
+}
+
 #[tokio::test(start_paused = true)]
-async fn provider_request_times_out_after_eight_seconds() {
+async fn long_transcript_is_not_cut_off_at_the_short_budget() {
+    let transcript = "字".repeat(300);
+    let processor = FinalTextProcessor::configured(Arc::new(DelayedProvider {
+        delay: Duration::from_secs(15),
+        result: transcript.clone(),
+    }));
+
+    let result = processor
+        .process(enabled_request(&transcript), CancellationToken::new())
+        .await;
+
+    assert_eq!(
+        Ok(ProcessedText {
+            text: transcript,
+            refinement: RefinementStatus::Completed,
+        }),
+        result
+    );
+}
+
+#[tokio::test(start_paused = true)]
+async fn provider_request_times_out_after_its_budget() {
     let processor = FinalTextProcessor::configured(Arc::new(PendingProvider));
     let transcript = "keep this transcript exactly as it was originally spoken by the user";
 

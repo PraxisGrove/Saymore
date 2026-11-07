@@ -1,9 +1,9 @@
 use rusqlite::{OptionalExtension, params};
-use template_app::{HistoryDelivery, StorageError};
+use template_app::{HistoryDelivery, HistoryRefinement, HistoryRefinementUpdate, StorageError};
 
 use super::{
     Database, EncryptedRow, HistoryPayload, decrypt, delivery_name, encrypt, ensure_key,
-    history_aad, invalid, unavailable, validate_encrypted_row_versions,
+    history_aad, invalid, refinement_name, unavailable, validate_encrypted_row_versions,
 };
 
 pub(super) fn update_final_text(
@@ -13,6 +13,20 @@ pub(super) fn update_final_text(
 ) -> Result<(), StorageError> {
     update_payload(database, id, |payload| {
         payload.final_text = final_text.to_owned();
+    })
+}
+
+pub(super) fn record_refinement(
+    database: &mut Database,
+    id: &str,
+    update: HistoryRefinementUpdate,
+) -> Result<(), StorageError> {
+    update_payload(database, id, |payload| {
+        payload.final_text.clone_from(&update.refined_text);
+        payload.llm_refined_text = Some(update.refined_text);
+        payload.refinement = refinement_name(HistoryRefinement::Completed).to_owned();
+        payload.llm_provider_id = update.llm_provider_id;
+        payload.llm_model = update.llm_model;
     })
 }
 

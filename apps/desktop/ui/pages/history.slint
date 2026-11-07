@@ -20,6 +20,16 @@ export struct HistoryListItem {
     llm-model-full: string,
 }
 
+export enum HistoryRepolishState {
+    idle,
+    running,
+    succeeded,
+    not-configured,
+    unavailable,
+    rejected,
+    failed,
+}
+
 export struct HistoryGroup {
     title: string,
     items: [HistoryListItem],
@@ -239,7 +249,9 @@ export component HistoryDialog inherits Rectangle {
     in-out property <bool> dictionary-assist-consent-visible: false;
     in property <string> dictionary-assist-provider-target: "";
     in property <HistoryListItem> selected-item;
+    in property <HistoryRepolishState> repolish-state: HistoryRepolishState.idle;
     callback copy(string);
+    callback repolish(string, string);
     callback delete-record(string);
     callback clear-all();
     callback reset();
@@ -247,6 +259,13 @@ export component HistoryDialog inherits Rectangle {
 
     property <bool> active: root.detail-visible || root.clear-confirmation-visible || root.reset-confirmation-visible || root.dictionary-assist-consent-visible;
     property <bool> detail-copied: false;
+    property <bool> repolish-available: !root.selected-item.raw-text.is-empty;
+    property <string> repolish-status: root.repolish-state == HistoryRepolishState.succeeded ? @tr("history.repolish.succeeded" => "Polished again and copied to the clipboard.")
+        : root.repolish-state == HistoryRepolishState.not-configured ? @tr("history.repolish.not-configured" => "Turn on text polishing and check the provider settings first.")
+        : root.repolish-state == HistoryRepolishState.unavailable ? @tr("history.repolish.unavailable" => "The polishing service did not respond. Try again later.")
+        : root.repolish-state == HistoryRepolishState.rejected ? @tr("history.repolish.rejected" => "The polished result failed validation and was discarded.")
+        : root.repolish-state == HistoryRepolishState.failed ? @tr("history.repolish.failed" => "Polishing again could not be completed.")
+        : "";
     background: transparent;
     z: 100;
     opacity: self.active ? 1 : 0;
@@ -370,6 +389,28 @@ export component HistoryDialog inherits Rectangle {
                 border-radius: 7px;
                 Text { text: @tr("history.delete-record" => "Delete record"); color: AppColors.danger; font-size: 11px; font-weight: 650; horizontal-alignment: center; vertical-alignment: center; }
                 detail-delete-touch := TouchArea { mouse-cursor: pointer; clicked => { root.detail-visible = false; root.delete-record(root.selected-item.id); } }
+            }
+            if !root.repolish-status.is-empty: Text {
+                x: 96px;
+                y: parent.height - 36px;
+                width: parent.width - 96px - (root.repolish-available ? 240px : 120px);
+                height: 36px;
+                text: root.repolish-status;
+                color: root.repolish-state == HistoryRepolishState.succeeded ? AppColors.success : AppColors.text-muted;
+                font-size: 10px;
+                wrap: word-wrap;
+                vertical-alignment: center;
+            }
+            if root.repolish-available: QuietButton {
+                x: parent.width - 230px;
+                y: parent.height - 36px;
+                width: 110px;
+                label: root.repolish-state == HistoryRepolishState.running ? @tr("history.repolish.running" => "Polishing…") : @tr("history.repolish.action" => "Polish again");
+                activated => {
+                    if root.repolish-state != HistoryRepolishState.running {
+                        root.repolish(root.selected-item.id, root.selected-item.raw-text);
+                    }
+                }
             }
             QuietButton { x: parent.width - 110px; y: parent.height - 36px; width: 110px; label: root.detail-copied ? @tr("common.copied" => "Copied") : @tr("history.copy-content" => "Copy content"); primary: true; success: root.detail-copied; activated => { root.detail-copied = true; root.copy(root.selected-item.id); } }
         }

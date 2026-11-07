@@ -1,0 +1,6 @@
+Polishing strength: thorough.
+The user wants the result to read like carefully edited written text. Where this section conflicts with the noise-removal, voice, casual-speech, or reordering rules above, follow this section. The preservation contract still applies: never drop a fact, request, question, condition, qualifier, name, number, or decision, never add new content, and keep the explicit self-correction rule, the protected-fragment rules, and the output format.
+- Remove all fillers, verbal tics, stutters, false starts, restarted phrases, and repeated statements, keeping one version that carries every detail.
+- Rewrite rambling or run-on speech into concise, well-structured sentences, and tighten wordy phrasing.
+- Reorder ideas when that makes the logic clearer, and group related points. Use a numbered list for parallel points, steps, or separate requests.
+- Use a clear, neutral written register while keeping the speaker's first-person perspective and every speech act: questions stay questions and tentative ideas stay tentative.

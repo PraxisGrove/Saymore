@@ -12,7 +12,7 @@ use template_app::{
     DictionaryOrigin, DictionaryStore, FailedDictation, FinalTextProcessingError, FinalTextRequest,
     FinalTranscriptRefiner, HistoryDelivery, HistoryRefinement, NewDictionaryEntry,
     NewHistoryRecord, OwnedRecognition, PcmRecording, ProcessedText, RefinementEvaluation,
-    RefinementFallbackReason, RefinementMode, RefinementStatus, RefinementTerm,
+    RefinementFallbackReason, RefinementMode, RefinementStatus, RefinementStrength, RefinementTerm,
     RestoredRecordingTranscriber, SpeechRecognitionError, StorageError,
     StreamingRecognitionSession, TextDeliverer, TextDeliveryError, TextDeliveryOutcome,
 };
@@ -293,10 +293,10 @@ fn successful_refinement_is_normalized_before_delivery() {
     let id = DictationSessionId::generate();
     let refined = "我正在使用 openai 完成这个更清晰的口述内容";
     let harness = Harness::new(Scenario {
-        policy: Ok(policy(
-            RefinementMode::Enabled,
-            DictationHistoryPolicy::Disabled,
-        )),
+        policy: Ok(DictationCompletionPolicy {
+            refinement_strength: RefinementStrength::Thorough,
+            ..policy(RefinementMode::Enabled, DictationHistoryPolicy::Disabled)
+        }),
         refinement: Ok(RefinementEvaluation {
             processed: ProcessedText {
                 text: refined.to_owned(),
@@ -328,6 +328,7 @@ fn successful_refinement_is_normalized_before_delivery() {
         vec![FinalTextRequest {
             transcript: transcript.to_owned(),
             refinement: RefinementMode::Enabled,
+            strength: RefinementStrength::Thorough,
             language: Some("zh-Hans".to_owned()),
             relevant_terms: vec![RefinementTerm {
                 canonical: "OpenAI".to_owned(),
@@ -544,6 +545,7 @@ fn policy(
 ) -> DictationCompletionPolicy {
     DictationCompletionPolicy {
         refinement,
+        refinement_strength: RefinementStrength::Light,
         history,
     }
 }

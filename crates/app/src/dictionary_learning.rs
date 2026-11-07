@@ -219,6 +219,7 @@ pub async fn review_dictionary_candidate(
             transcript,
             language: Some(language.to_owned()),
             relevant_terms: Vec::new(),
+            timeout: crate::LLM_REQUEST_TIMEOUT,
         })
         .await?;
     parse_dictionary_candidate_review(&response, canonical)

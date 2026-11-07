@@ -10,10 +10,11 @@ use template_app::{
     review_dictionary_candidate_locally,
 };
 use template_app::{
-    ChatCompletionsLlmSettings, DictationSessionId, DictionaryCandidateReview,
-    FinalTextProcessingError, FinalTextProcessor, FinalTextRequest, RefinementEvaluation,
-    RefinementFallbackReason, RefinementMode, RefinementOutputRejectionReason, RefinementStatus,
-    SaymoreSettings, SettingsStore, local_dictionary_revision_candidates,
+    ChatCompletionsLlmSettings, DictationSessionId, DictionaryCandidateReview, DictionaryStore,
+    FinalTextProcessingError, FinalTextProcessor, FinalTextRequest, HistoryRefinementRetry,
+    HistoryRefinementRetryError, HistoryStore, RefinementEvaluation, RefinementFallbackReason,
+    RefinementMode, RefinementOutputRejectionReason, RefinementStatus, SaymoreSettings,
+    SettingsStore, local_dictionary_revision_candidates, retry_history_refinement,
     review_final_text_revision, text_revision_diffs,
 };
 #[cfg(test)]
@@ -113,6 +114,29 @@ impl RefinementRuntime {
             processed,
             provider_output,
         })
+    }
+
+    pub fn retry_history_refinement<S>(
+        &self,
+        plan: RefinementPlan,
+        storage: &S,
+        retry: HistoryRefinementRetry,
+    ) -> Result<String, HistoryRefinementRetryError>
+    where
+        S: DictionaryStore + HistoryStore,
+    {
+        let processor = self.processor_for(plan.provider);
+        let result = self.runtime.block_on(retry_history_refinement(
+            &processor,
+            storage,
+            storage,
+            retry,
+            CancellationToken::new(),
+        ));
+        if let Err(error) = &result {
+            tracing::warn!(event = "history.repolish_failed", reason = %error);
+        }
+        result
     }
 
     pub fn assess_dictionary_revision(

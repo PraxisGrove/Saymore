@@ -17,7 +17,7 @@ const MAX_REQUEST_BYTES: usize = 256 * 1024;
 const MAX_RESPONSE_BYTES: usize = 1024 * 1024;
 const MIN_COMPLETION_TOKENS: u32 = 32;
 const MAX_COMPLETION_TOKENS: u32 = 8_192;
-const PROVIDER_TIMEOUT: Duration = Duration::from_secs(8);
+const CONNECTION_TEST_TIMEOUT: Duration = Duration::from_secs(8);
 
 pub struct ChatCompletionsLlmProvider {
     client: Client,
@@ -26,11 +26,12 @@ pub struct ChatCompletionsLlmProvider {
     model: String,
     custom_headers: HeaderMap,
     profile: ChatCompletionsProfile,
+    connection_test_timeout: Duration,
 }
 
 impl ChatCompletionsLlmProvider {
     pub fn new(settings: ChatCompletionsLlmSettings) -> Result<Self, LlmProviderError> {
-        Self::with_timeout(settings, PROVIDER_TIMEOUT)
+        Self::with_timeout(settings, CONNECTION_TEST_TIMEOUT)
     }
 
     fn with_timeout(
@@ -47,7 +48,6 @@ impl ChatCompletionsLlmProvider {
         let client = Client::builder()
             .redirect(Policy::none())
             .connect_timeout(timeout)
-            .timeout(timeout)
             .build()
             .map_err(transport_error)?;
         Ok(Self {
@@ -57,6 +57,7 @@ impl ChatCompletionsLlmProvider {
             profile: settings.profile,
             model: settings.model,
             custom_headers,
+            connection_test_timeout: timeout,
         })
     }
 
@@ -66,6 +67,7 @@ impl ChatCompletionsLlmProvider {
             transcript: "Connection test.".to_owned(),
             language: None,
             relevant_terms: Vec::new(),
+            timeout: self.connection_test_timeout,
         })
         .await
         .map(|_| ())
@@ -109,6 +111,7 @@ impl ChatCompletionsLlmProvider {
             .client
             .post(self.endpoint.clone())
             .headers(self.custom_headers.clone())
+            .timeout(request.timeout)
             .json(&body);
         if !self.api_key.trim().is_empty() {
             builder = builder.bearer_auth(&self.api_key);
@@ -119,35 +122,45 @@ impl ChatCompletionsLlmProvider {
         if !status.is_success() {
             return Err(http_error(self.profile, status, &bytes));
         }
-        let completion: ChatCompletionResponse = serde_json::from_slice(&bytes)
-            .map_err(|_| protocol_failure("chat completion response is invalid JSON"))?;
-        if self.profile == ChatCompletionsProfile::MiniMax
-            && let Some(status) = completion
-                .base_resp
-                .as_ref()
-                .filter(|status| status.status_code != 0)
-        {
-            return Err(
-                mapped_provider_error(self.profile, &status.status_code.to_string())
-                    .unwrap_or_else(|| {
-                        LlmProviderError::Protocol(
-                            "MiniMax rejected the chat completion request".to_owned(),
-                        )
-                    }),
-            );
-        }
-        completion
-            .choices
-            .into_iter()
-            .next()
-            .and_then(|choice| choice.message.content)
-            .filter(|content| !content.trim().is_empty())
-            .ok_or_else(|| {
-                LlmProviderError::Protocol(
-                    "chat completion response has no text content".to_owned(),
-                )
-            })
+        completion_text(self.profile, &bytes)
     }
+}
+
+fn completion_text(
+    profile: ChatCompletionsProfile,
+    bytes: &[u8],
+) -> Result<String, LlmProviderError> {
+    let completion: ChatCompletionResponse = serde_json::from_slice(bytes)
+        .map_err(|_| protocol_failure("chat completion response is invalid JSON"))?;
+    if profile == ChatCompletionsProfile::MiniMax
+        && let Some(status) = completion
+            .base_resp
+            .as_ref()
+            .filter(|status| status.status_code != 0)
+    {
+        return Err(
+            mapped_provider_error(profile, &status.status_code.to_string()).unwrap_or_else(|| {
+                LlmProviderError::Protocol(
+                    "MiniMax rejected the chat completion request".to_owned(),
+                )
+            }),
+        );
+    }
+    let choice = completion.choices.into_iter().next();
+    if choice
+        .as_ref()
+        .is_some_and(|choice| choice.finish_reason.as_deref() == Some("length"))
+    {
+        return Err(protocol_failure(
+            "chat completion was truncated by the completion token limit",
+        ));
+    }
+    choice
+        .and_then(|choice| choice.message.content)
+        .filter(|content| !content.trim().is_empty())
+        .ok_or_else(|| {
+            LlmProviderError::Protocol("chat completion response has no text content".to_owned())
+        })
 }
 
 #[async_trait]
@@ -247,6 +260,7 @@ struct MiniMaxBaseResponse {
 #[derive(Deserialize)]
 struct ChatChoice {
     message: ChatResponseMessage,
+    finish_reason: Option<String>,
 }
 
 #[derive(Deserialize)]

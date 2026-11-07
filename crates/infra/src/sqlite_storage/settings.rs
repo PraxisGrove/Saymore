@@ -1,7 +1,7 @@
 use rusqlite::{Connection, OptionalExtension, Row, params};
 use template_app::{
     ColorSchemePreference, HistoryRetention, LocalSettings, OnboardingStatus, OnboardingStep,
-    StorageError, ThemeId, UiLanguagePreference,
+    RefinementStrength, StorageError, ThemeId, UiLanguagePreference,
 };
 
 use super::unavailable;
@@ -18,7 +18,8 @@ pub(super) fn load(connection: &Connection) -> Result<LocalSettings, StorageErro
                     automatic_update_checks, feedback_sounds_enabled,
                     mute_system_audio_enabled,
                     copy_to_clipboard, show_in_dock, dictation_paused,
-                    dictation_shortcuts, onboarding_status, onboarding_step
+                    dictation_shortcuts, onboarding_status, onboarding_step,
+                    refinement_strength
              FROM app_settings WHERE singleton = 1",
             [],
             StoredSettingsRow::read,
@@ -50,6 +51,7 @@ struct StoredSettingsRow {
     dictation_shortcuts: String,
     onboarding_status: String,
     onboarding_step: u8,
+    refinement_strength: String,
 }
 
 impl StoredSettingsRow {
@@ -75,6 +77,7 @@ impl StoredSettingsRow {
             dictation_shortcuts: row.get(17)?,
             onboarding_status: row.get(18)?,
             onboarding_step: row.get(19)?,
+            refinement_strength: row.get(20)?,
         })
     }
 
@@ -112,6 +115,13 @@ impl StoredSettingsRow {
             copy_to_clipboard: self.copy_to_clipboard,
             show_in_dock: self.show_in_dock,
             dictation_paused: self.dictation_paused,
+            refinement_strength: RefinementStrength::from_storage_value(&self.refinement_strength)
+                .ok_or_else(|| {
+                    StorageError::Invalid(format!(
+                        "unsupported refinement strength: {}",
+                        self.refinement_strength
+                    ))
+                })?,
             dictation_shortcuts: decode_shortcuts(&self.dictation_shortcuts),
             onboarding_status: OnboardingStatus::from_storage_value(&self.onboarding_status)
                 .ok_or_else(|| {
@@ -156,7 +166,8 @@ pub(super) fn save(
                 dictation_paused = ?17,
                 dictation_shortcuts = ?18,
                 onboarding_status = ?19,
-                onboarding_step = ?20
+                onboarding_step = ?20,
+                refinement_strength = ?21
              WHERE singleton = 1",
             params![
                 settings.history_enabled,
@@ -179,6 +190,7 @@ pub(super) fn save(
                 encode_shortcuts(&settings.dictation_shortcuts),
                 settings.onboarding_status.storage_value(),
                 settings.onboarding_step.index(),
+                settings.refinement_strength.storage_value(),
             ],
         )
         .map_err(unavailable)?;

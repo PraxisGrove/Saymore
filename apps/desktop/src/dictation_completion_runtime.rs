@@ -9,9 +9,10 @@ use template_app::{
     DictationCompletion, DictationCompletionAdapters, DictationCompletionPolicy,
     DictationCompletionResult, DictationHandoff, DictationHistoryMetadata, DictationHistoryPolicy,
     DictationPolicyError, DictationPolicySource, DictationSessionId, FinalTextProcessingError,
-    FinalTextRequest, FinalTranscriptRefiner, LocalSettingsStore, ProviderCatalog,
-    ProviderInstance, RefinementEvaluation, TextDeliverer, TextDeliveryError, TextDeliveryOutcome,
-    TextRevisionEndReason, TextRevisionObserver,
+    FinalTextRequest, FinalTranscriptRefiner, HistoryRefinementRetry, HistoryRefinementRetryError,
+    LocalSettingsStore, ProviderCatalog, ProviderInstance, RefinementEvaluation, StorageError,
+    TextDeliverer, TextDeliveryError, TextDeliveryOutcome, TextRevisionEndReason,
+    TextRevisionObserver,
 };
 use template_infra::{
     JsonSettingsStore, PARAFORMER_MODEL_ID, QWEN3_ASR_MODEL_ID, SENSE_VOICE_MODEL_ID,
@@ -65,6 +66,31 @@ impl DictationRuntime {
             settings,
             deliverer,
         })
+    }
+
+    /// Polishes a saved dictation again with the current provider and strength.
+    pub(crate) fn retry_history_refinement(
+        &self,
+        history_id: String,
+        transcript: String,
+    ) -> Result<String, HistoryRefinementRetryError> {
+        let strength = self.storage.load_settings()?.refinement_strength;
+        let (provider_settings, catalog) = self
+            .settings
+            .load_settings_snapshot()
+            .map_err(|error| StorageError::Unavailable(error.to_string()))?;
+        let metadata = history_metadata(&catalog);
+        self.refinement.retry_history_refinement(
+            RefinementRuntime::plan_from_settings(&provider_settings),
+            self.storage.as_ref(),
+            HistoryRefinementRetry {
+                history_id,
+                transcript,
+                strength,
+                llm_provider_id: metadata.llm_provider_id,
+                llm_model: metadata.llm_model,
+            },
+        )
     }
 
     pub(crate) fn complete(
@@ -158,6 +184,7 @@ impl DictationPolicySource for CompletionPolicyAdapter {
         *stored_plan = Some(plan);
         Ok(DictationCompletionPolicy {
             refinement,
+            refinement_strength: local_settings.refinement_strength,
             history,
         })
     }

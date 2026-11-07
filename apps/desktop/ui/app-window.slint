@@ -4,11 +4,11 @@ import { ModelConsentDialog, ModelsPage } from "pages/models.slint";
 import { LlmConfigurationModal } from "pages/llm-provider-components.slint";
 import { AsrConfigurationModal, MacOsSpeechModal, UnavailableAsrProviderModal } from "pages/asr-provider-components.slint";
 import { LocalAsrModelModal, LocalModelDownloadFailureDialog, LocalModelDownloadState, PunctuationMode } from "pages/local-asr-model.slint";
-import { HistoryDialog, HistoryGroup, HistoryListItem, HistoryPage, HistoryRetentionOption } from "pages/history.slint";
+import { HistoryDialog, HistoryGroup, HistoryListItem, HistoryPage, HistoryRepolishState, HistoryRetentionOption } from "pages/history.slint";
 import { DictionaryAddDialog, DictionaryDraft, DictionaryEvidenceItem, DictionaryFilterKind, DictionaryListItem, DictionaryPage, DictionaryRow } from "pages/dictionary.slint";
 import { DictionaryEditDialog } from "pages/dictionary-edit.slint";
 import { AudioInputDevice, SettingsPage } from "pages/settings.slint";
-import { AppPage, AsrConfigurationField, AsrProvider, AsrProviderCardKind, AsrProviderCardSpec, LlmProvider, LlmProviderConfigurationState, SettingsSection, SystemSpeechStatus, UiLanguage } from "components.slint";
+import { AppPage, AsrConfigurationField, AsrProvider, AsrProviderCardKind, AsrProviderCardSpec, LlmProvider, LlmProviderConfigurationState, PolishingStrength, SettingsSection, SystemSpeechStatus, UiLanguage } from "components.slint";
 import { AppColors, ColorSchemePreference, ThemeId } from "color-system.slint";
 import { Translations } from "translations.slint";
 import { Typography } from "typography.slint";
@@ -22,6 +22,8 @@ export { AccessibilityPermissionOverlay, AsrConfigurationOverlay, MicrophoneIntr
 export { StatusTray } from "status-tray.slint";
 export { OnboardingWindow } from "onboarding.slint";
 export { LlmProvider } from "components.slint";
+export { PolishingStrength } from "components.slint";
+export { HistoryRepolishState } from "pages/history.slint";
 export { AsrProvider } from "components.slint";
 export { AsrConfigurationField, AsrProviderCardKind, AsrProviderCardSpec, SystemSpeechStatus } from "components.slint";
 export { LocalModelDownloadState } from "pages/local-asr-model.slint";
@@ -240,6 +242,8 @@ export component AppWindow inherits Window {
     in property <string> local-model-download-error: "";
     in property <string> local-model-operation-error: "";
     in-out property <bool> llm-enabled: false;
+    in-out property <PolishingStrength> polishing-strength: PolishingStrength.light;
+    in property <string> polishing-strength-status: "";
     in-out property <LlmProvider> llm-provider: LlmProvider.sensenova;
     in property <LlmProvider> active-llm-provider: LlmProvider.sensenova;
     in-out property <string> llm-draft-api-key: "";
@@ -311,6 +315,7 @@ export component AppWindow inherits Window {
     in-out property <bool> history-clear-confirmation-visible: false;
     in-out property <bool> history-reset-confirmation-visible: false;
     in-out property <HistoryListItem> history-selected-item;
+    in-out property <HistoryRepolishState> history-repolish-state: HistoryRepolishState.idle;
     in property <[DictionaryListItem]> dictionary-items;
     in property <[DictionaryRow]> dictionary-rows;
     in property <[DictionaryDraft]> dictionary-drafts;
@@ -375,6 +380,7 @@ export component AppWindow inherits Window {
     callback cancel-asr-config();
     callback request-llm-enable();
     callback set-llm-enabled(bool, string);
+    callback set-polishing-strength(PolishingStrength);
     callback save-llm-config(LlmProvider, string, string, string);
     callback confirm-llm-config(LlmProvider, string, string, string, string);
     callback select-llm-provider(LlmProvider);
@@ -399,6 +405,7 @@ export component AppWindow inherits Window {
     callback search-history(string);
     callback load-more-history();
     callback copy-history(string);
+    callback repolish-history(string, string);
     callback delete-history(string);
     callback clear-history();
     callback reset-history();
@@ -534,6 +541,8 @@ export component AppWindow inherits Window {
                 asr-config-dirty <=> root.asr-config-dirty;
                 asr-error-field <=> root.asr-error-field;
                 llm-enabled <=> root.llm-enabled;
+                polishing-strength: root.polishing-strength;
+                polishing-strength-status: root.polishing-strength-status;
                 llm-provider <=> root.llm-provider;
                 active-llm-provider: root.active-llm-provider;
                 llm-provider-configured: root.llm-provider-configured;
@@ -566,6 +575,7 @@ export component AppWindow inherits Window {
                 cancel-asr-config => { root.cancel-asr-config(); }
                 request-llm-enable => { root.request-llm-enable(); }
                 set-llm-enabled(enabled, base-url) => { root.set-llm-enabled(enabled, base-url); }
+                set-polishing-strength(strength) => { root.set-polishing-strength(strength); }
                 save-llm-config(provider, api-key, base-url, model) => { root.save-llm-config(provider, api-key, base-url, model); }
                 select-llm-provider(provider) => { root.select-llm-provider(provider); }
                 refresh-models => { root.refresh-models(); }
@@ -621,6 +631,9 @@ export component AppWindow inherits Window {
                     root.current-page = AppPage.models;
                 }
                 show-detail(item) => {
+                    if root.history-repolish-state != HistoryRepolishState.running {
+                        root.history-repolish-state = HistoryRepolishState.idle;
+                    }
                     root.history-selected-item = item;
                     root.history-detail-visible = true;
                 }
@@ -974,7 +987,9 @@ export component AppWindow inherits Window {
         dictionary-assist-consent-visible <=> root.dictionary-assist-consent-visible;
         dictionary-assist-provider-target: root.dictionary-assist-provider-target;
         selected-item: root.history-selected-item;
+        repolish-state: root.history-repolish-state;
         copy(id) => { root.copy-history(id); }
+        repolish(id, transcript) => { root.repolish-history(id, transcript); }
         delete-record(id) => { root.delete-history(id); }
         clear-all => { root.clear-history(); }
         reset => { root.reset-history(); }
