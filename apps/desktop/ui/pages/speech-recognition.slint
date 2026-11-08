@@ -1,6 +1,8 @@
+import { CloudAsrPresets } from "cloud-asr-presets.slint";
 import { ScrollView } from "std-widgets.slint";
 import {
     AsrConfigurationField,
+    CloudAsrService,
     AsrProvider,
     AsrProviderCardKind,
     AsrProviderCardSpec,
@@ -45,6 +47,7 @@ export component SpeechRecognitionPage inherits Rectangle {
     in-out property <bool> pending-test: false;
     in-out property <bool> config-dirty: false;
     in-out property <AsrConfigurationField> error-field: AsrConfigurationField.none;
+    callback configure-cloud(CloudAsrService);
     callback select-provider(AsrProvider);
     callback open-config(AsrProvider);
     callback open-macos-speech-details();
@@ -69,11 +72,17 @@ export component SpeechRecognitionPage inherits Rectangle {
         width: parent.width;
         height: parent.height;
         viewport-width: self.width;
-        viewport-height: max(self.height, root.provider-content-height);
+        viewport-height: max(self.height, cloud-presets.height + 20px + root.provider-content-height);
+
+        cloud-presets := CloudAsrPresets {
+            width: provider-list.viewport-width;
+            testing: root.testing;
+            configure(service) => { root.configure-cloud(service); }
+        }
 
         for card[card-index] in root.provider-cards: AsrProviderCard {
             x: Math.mod(card-index, 2) == 0 ? 0px : (provider-list.viewport-width + 16px) / 2;
-            y: Math.floor(card-index / 2) * 120px;
+            y: cloud-presets.height + 20px + Math.floor(card-index / 2) * 120px;
             width: (provider-list.viewport-width - 16px) / 2;
             recommended: card.kind == AsrProviderCardKind.paraformer
                 || card.kind == AsrProviderCardKind.volcengine;

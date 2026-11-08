@@ -1,6 +1,6 @@
-//! One-click cloud speech recognition presets (OpenAI, Groq).
+//! One-click cloud speech recognition presets (OpenAI, Groq, Mistral).
 //!
-//! Both speak the OpenAI `/audio/transcriptions` protocol, so they reuse the
+//! These services speak the OpenAI `/audio/transcriptions` protocol, so they reuse the
 //! existing OpenAI-compatible recognizer. API keys are never hard-coded: they
 //! come from the user's saved settings, falling back to an environment variable.
 
@@ -10,15 +10,17 @@ use crate::OpenAiCompatibleAsrSettings;
 pub enum CloudAsrPreset {
     OpenAi,
     Groq,
+    Mistral,
 }
 
 impl CloudAsrPreset {
-    pub const ALL: [Self; 2] = [Self::OpenAi, Self::Groq];
+    pub const ALL: [Self; 3] = [Self::OpenAi, Self::Groq, Self::Mistral];
 
     pub fn id(self) -> &'static str {
         match self {
             Self::OpenAi => "openai",
             Self::Groq => "groq",
+            Self::Mistral => "mistral",
         }
     }
 
@@ -26,6 +28,7 @@ impl CloudAsrPreset {
         match self {
             Self::OpenAi => "OpenAI",
             Self::Groq => "Groq",
+            Self::Mistral => "Mistral",
         }
     }
 
@@ -33,20 +36,23 @@ impl CloudAsrPreset {
         match self {
             Self::OpenAi => "https://api.openai.com/v1",
             Self::Groq => "https://api.groq.com/openai/v1",
+            Self::Mistral => "https://api.mistral.ai/v1",
         }
     }
 
     pub fn default_model(self) -> &'static str {
         match self {
-            Self::OpenAi => "gpt-4o-mini-transcribe",
+            Self::OpenAi => "gpt-transcribe",
             Self::Groq => "whisper-large-v3-turbo",
+            Self::Mistral => "voxtral-mini-transcribe-3",
         }
     }
 
     pub fn models(self) -> &'static [&'static str] {
         match self {
-            Self::OpenAi => &["gpt-4o-mini-transcribe", "gpt-4o-transcribe", "whisper-1"],
+            Self::OpenAi => &["gpt-transcribe", "gpt-4o-transcribe", "whisper-1"],
             Self::Groq => &["whisper-large-v3-turbo", "whisper-large-v3"],
+            Self::Mistral => &["voxtral-mini-transcribe-3", "voxtral-small-transcribe-3"],
         }
     }
 
@@ -55,6 +61,7 @@ impl CloudAsrPreset {
         match self {
             Self::OpenAi => &["SAYMORE_OPENAI_API_KEY", "OPENAI_API_KEY"],
             Self::Groq => &["SAYMORE_GROQ_API_KEY", "GROQ_API_KEY"],
+            Self::Mistral => &["SAYMORE_MISTRAL_API_KEY", "MISTRAL_API_KEY"],
         }
     }
 
@@ -62,6 +69,7 @@ impl CloudAsrPreset {
         match self {
             Self::OpenAi => "https://platform.openai.com/api-keys",
             Self::Groq => "https://console.groq.com/keys",
+            Self::Mistral => "https://console.mistral.ai/api-keys",
         }
     }
 
@@ -69,9 +77,12 @@ impl CloudAsrPreset {
         Self::ALL.into_iter().find(|preset| preset.id() == id)
     }
 
-    /// Detects a preset from a configured base URL (trailing slash tolerant).
+    /// Detects a preset from a configured service root or transcription URL.
     pub fn from_base_url(base_url: &str) -> Option<Self> {
         let normalized = base_url.trim().trim_end_matches('/');
+        let normalized = normalized
+            .strip_suffix("/audio/transcriptions")
+            .unwrap_or(normalized);
         Self::ALL
             .into_iter()
             .find(|preset| preset.base_url() == normalized)

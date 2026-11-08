@@ -1,5 +1,6 @@
 import {
     AsrConfigurationField,
+    CloudAsrService,
     AsrProvider,
     AsrProviderCardKind,
     AsrProviderCardSpec,
@@ -197,6 +198,7 @@ export component ModelsPage inherits Rectangle {
     in-out property <bool> model-discovery-error: false;
     in-out property <string> model-discovery-status;
     callback save-asr-config(AsrProvider, string, string, string);
+    callback configure-cloud-asr(CloudAsrService);
     callback select-asr-provider(AsrProvider);
     callback open-macos-speech-details();
     callback open-asr-placeholder(AsrProviderCardKind);
@@ -279,6 +281,7 @@ export component ModelsPage inherits Rectangle {
         pending-test <=> root.asr-pending-test;
         config-dirty <=> root.asr-config-dirty;
         error-field <=> root.asr-error-field;
+        configure-cloud(service) => { root.configure-cloud-asr(service); }
         select-provider(provider) => { root.select-asr-provider(provider); }
         open-macos-speech-details => { root.open-macos-speech-details(); }
         open-placeholder-details(kind) => { root.open-asr-placeholder(kind); }

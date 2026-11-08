@@ -1,0 +1,55 @@
+import { AppColors } from "../color-system.slint";
+
+component NoticeAction inherits Rectangle {
+    in property <string> label;
+    callback activated();
+    width: link-label.preferred-width;
+    height: 24px;
+    background: transparent;
+    link-label := Text {
+        text: root.label;
+        color: AppColors.brand-strong;
+        font-size: 11px;
+        vertical-alignment: center;
+    }
+    accessible-role: button;
+    accessible-label: root.label;
+    accessible-action-default => { root.activated(); }
+    TouchArea { mouse-cursor: pointer; clicked => { root.activated(); } }
+}
+
+export component DictionaryRecognitionNotice inherits Rectangle {
+    in property <bool> polishing-enabled: false;
+    callback open-polishing-settings();
+    callback open-recognition-settings();
+    height: notice-text.preferred-height + 46px;
+    border-radius: 8px;
+    background: AppColors.surface-subtle;
+    notice-text := Text {
+        x: 12px;
+        y: 10px;
+        width: parent.width - 24px;
+        text: root.polishing-enabled
+            ? @tr("dictionary.recognition.polishing" => "This model cannot use dictionary hints during recognition. Text polishing uses your dictionary to correct terms after recognition; results may vary.")
+            : @tr("dictionary.recognition.unsupported" => "This model cannot use dictionary hints during recognition. To correct misrecognized terms, configure text polishing or switch to Qwen3.");
+        color: AppColors.text-muted;
+        font-size: 11px;
+        wrap: word-wrap;
+    }
+    HorizontalLayout {
+        x: 12px;
+        y: notice-text.y + notice-text.height + 4px;
+        width: parent.width - 24px;
+        height: 24px;
+        spacing: 20px;
+        alignment: start;
+        NoticeAction {
+            label: @tr("dictionary.recognition.models" => "Choose recognition model");
+            activated => { root.open-recognition-settings(); }
+        }
+        NoticeAction {
+            label: @tr("dictionary.recognition.settings" => "Text polishing settings");
+            activated => { root.open-polishing-settings(); }
+        }
+    }
+}

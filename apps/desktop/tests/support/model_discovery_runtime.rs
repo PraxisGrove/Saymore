@@ -4,11 +4,15 @@
 mod provider_mapping;
 use provider_mapping::{VOLCENGINE_MODELS, provider_preset};
 
+#[path = "../../src/settings_ui/asr_presets.rs"]
+mod asr_presets;
+
 #[path = "../../src/settings_ui/model_discovery.rs"]
 mod model_discovery;
 
 pub fn wire(ui: &crate::ui::AppWindow, store: std::sync::Arc<template_infra::JsonSettingsStore>) {
     model_discovery::wire(ui, store);
+    asr_presets::wire(ui);
 }
 
 pub fn restore_catalog(ui: &crate::ui::AppWindow, store: &template_infra::JsonSettingsStore) {

@@ -26,6 +26,7 @@ use template_infra::{
 };
 
 mod asr_configuration;
+mod asr_presets;
 mod asr_provider_cards;
 mod llm_configuration;
 mod llm_enablement;
@@ -66,6 +67,7 @@ pub fn wire(ui: &AppWindow, store: Arc<JsonSettingsStore>) {
     });
     model_discovery::wire(ui, Arc::clone(&store));
     asr_configuration::wire(ui, Arc::clone(&store));
+    asr_presets::wire(ui);
     wire_llm(ui, store);
     provider_key_page::wire(ui);
 }

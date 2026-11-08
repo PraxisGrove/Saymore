@@ -3868,3 +3868,33 @@ msgstr "润色中…"
 msgctxt "history.repolish.action"
 msgid "Polish again"
 msgstr "重新润色"
+
+#: ui/pages/dictionary-recognition-notice.slint
+msgctxt "dictionary.recognition.polishing"
+msgid "This model cannot use dictionary hints during recognition. Text polishing uses your dictionary to correct terms after recognition; results may vary."
+msgstr "当前模型不支持识别阶段的词典热词。文本润色会参考词典纠正识别后的用词，效果取决于模型。"
+
+#: ui/pages/dictionary-recognition-notice.slint
+msgctxt "dictionary.recognition.unsupported"
+msgid "This model cannot use dictionary hints during recognition. To correct misrecognized terms, configure text polishing or switch to Qwen3."
+msgstr "当前模型不支持识别阶段的词典热词。需要纠正错词时，请配置文本润色，或切换到 Qwen3。"
+
+#: ui/pages/dictionary-recognition-notice.slint
+msgctxt "dictionary.recognition.settings"
+msgid "Text polishing settings"
+msgstr "文本润色设置"
+
+#: ui/pages/dictionary-recognition-notice.slint
+msgctxt "dictionary.recognition.models"
+msgid "Choose recognition model"
+msgstr "选择识别模型"
+
+#: ui/pages/cloud-asr-presets.slint
+msgctxt "models.asr.presets.title"
+msgid "Quick cloud setup"
+msgstr "云端识别快捷配置"
+
+#: ui/pages/cloud-asr-presets.slint
+msgctxt "models.asr.presets.detail"
+msgid "Fill a preset, enter your API key, then test and save. Saving replaces the compatible API configuration."
+msgstr "选择预设、填写 API Key 后测试并保存。保存将替换现有的兼容 API 配置。"

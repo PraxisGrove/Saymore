@@ -43,14 +43,61 @@ transcripts through refinement so phonetic ASR substitutions can be corrected,
 while the output guard permits only listed canonical technical terms and
 continues to protect existing URLs, commands, versions, and technical fragments.
 OpenAI-compatible transcription providers receive those spellings as the bounded
-`prompt` field; the Volcengine and macOS Speech adapters use their native hint
-mechanisms. Local Qwen3-ASR uses sherpa-onnx 1.13.4's per-stream `hotwords`
+`prompt` field; the recognized Mistral endpoint instead receives repeated
+`context_bias` fields. The Volcengine and macOS Speech adapters use their native
+hint mechanisms. Local Qwen3-ASR uses sherpa-onnx 1.13.4's per-stream `hotwords`
 option (comma-separated terms in the model's system prompt), reusing the loaded
 model across dictations. Each session snapshots a deduplicated list bounded to
 128 UTF-8 bytes to limit pressure on the pinned decoder's shared 512-token
 context; empty terms and terms containing control characters are omitted. Hinted
 sessions use overlapping 20-second audio segments instead of 30-second segments
 to leave context space for the vocabulary prompt.
+
+The pinned sherpa-onnx 1.13.4 SenseVoiceSmall, streaming Paraformer, and local
+Whisper implementations do not support recognition-time dictionary hints. Their
+adapters deliberately use ordinary streams: the generic hotword stream API is
+transducer-only and terminates the native process for these models. Whisper's
+greedy decoder has no initial-prompt path in this version. The
+[dictionary page](../apps/desktop/ui/pages/dictionary.slint) shows this
+limitation when one of these backends is selected and links to recognition model
+selection and text-polishing settings. Dictionary-aware LLM correction after
+recognition remains available when the user enables and configures polishing; it
+does not constitute acoustic biasing and cannot guarantee a correction. This
+notice never enables a provider or sends transcripts on its own.
+
+Upstream evidence for the pinned version:
+[offline hotword stream default](https://github.com/k2-fsa/sherpa-onnx/blob/v1.13.4/sherpa-onnx/csrc/offline-recognizer-impl.h),
+[online hotword stream default](https://github.com/k2-fsa/sherpa-onnx/blob/v1.13.4/sherpa-onnx/csrc/online-recognizer-impl.h),
+[SenseVoice decoder](https://github.com/k2-fsa/sherpa-onnx/blob/v1.13.4/sherpa-onnx/csrc/offline-recognizer-sense-voice-impl.h),
+[Paraformer decoder](https://github.com/k2-fsa/sherpa-onnx/blob/v1.13.4/sherpa-onnx/csrc/online-recognizer-paraformer-impl.h),
+and
+[Whisper decoder](https://github.com/k2-fsa/sherpa-onnx/blob/v1.13.4/sherpa-onnx/csrc/offline-whisper-greedy-search-decoder.cc).
+
+The recognition page offers cloud setup presets for OpenAI (`gpt-transcribe`),
+Groq (`whisper-large-v3-turbo`), and Mistral (`voxtral-mini-transcribe-3`).
+These reuse the single compatible-ASR configuration slot, rather than storing
+three independent sets of credentials. Selecting a preset fills an unsaved
+draft; switching services clears the key, while reopening the same recognized
+service preserves its key and selected model. The existing test-and-save flow
+persists the replacement, and cancellation reloads saved settings. Preset model
+lists contain recommended transcription models and retain a manually entered
+model; unknown compatible endpoints continue to use remote model discovery.
+
+The adapter recognizes official service roots and full transcription URLs.
+OpenAI and Groq uploads are bounded to 25,000,000 bytes including the 44-byte
+mono PCM WAV header; oversized audio is rejected before upload. Groq vocabulary
+prompts also have a conservative 224-byte UTF-8 bound for its 224-token window.
+Other compatible endpoints, including Mistral, retain the existing client-side
+30-minute recording cap; this does not promise acceptance under server-specific
+limits. Dictionary context is deduplicated and bounded to 64 terms and 600
+characters. No authenticated service calls are needed by the regression tests:
+local HTTP mocks cover multipart fields and text responses, while real-service
+availability and recognition quality require a configured account.
+
+Protocol references:
+[OpenAI speech-to-text](https://developers.openai.com/api/docs/guides/speech-to-text),
+[Groq speech-to-text](https://console.groq.com/docs/speech-to-text), and
+[Mistral transcription API](https://docs.mistral.ai/api/endpoint/audio/transcriptions).
 
 Final LLM refinement is owned by `FinalTextProcessor` in `app`. Its provider
 budget grows with transcript length (8 s plus 40 ms per character, capped at 60

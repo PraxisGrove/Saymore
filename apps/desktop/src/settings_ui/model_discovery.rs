@@ -4,7 +4,7 @@ use std::sync::{
 };
 
 use slint::{ComponentHandle, ModelRc, SharedString, VecModel};
-use template_app::LlmProviderPreset;
+use template_app::{CloudAsrPreset, LlmProviderPreset};
 use template_infra::{JsonSettingsStore, ModelDiscoveryError, discover_models};
 
 use super::{VOLCENGINE_MODELS, provider_preset};
@@ -88,6 +88,9 @@ fn prepare_discovery(ui: &AppWindow) -> Option<DiscoveryRequest> {
         ui.set_model_discovery_status(ui.global::<Translations>().get_models_fetch_presets());
         return None;
     }
+    if target == DiscoveryTarget::CustomAsr && apply_known_asr_models(ui) {
+        return None;
+    }
     let api_key = selected_api_key(ui, tab);
     if api_key.trim().is_empty()
         && !(target == DiscoveryTarget::Llm(LlmProviderPreset::Custom)
@@ -124,6 +127,24 @@ fn prepare_discovery(ui: &AppWindow) -> Option<DiscoveryRequest> {
         endpoint: model_list_endpoint(&endpoint),
         api_key: api_key.to_string(),
     })
+}
+
+fn apply_known_asr_models(ui: &AppWindow) -> bool {
+    let Some(preset) = CloudAsrPreset::from_base_url(&ui.get_custom_asr_base_url()) else {
+        return false;
+    };
+    let mut models = preset
+        .models()
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>();
+    let selected = ui.get_custom_asr_model();
+    if !selected.trim().is_empty() && !models.iter().any(|model| model == selected.as_str()) {
+        models.push(selected.to_string());
+    }
+    apply_models(ui, DiscoveryTarget::CustomAsr, models);
+    ui.set_model_discovery_status(ui.global::<Translations>().get_models_fetch_presets());
+    true
 }
 
 fn model_list_endpoint(base_url: &str) -> String {

@@ -1,4 +1,5 @@
 import { ScrollView } from "std-widgets.slint";
+import { DictionaryRecognitionNotice } from "dictionary-recognition-notice.slint";
 import { AppColors } from "../color-system.slint";
 import { ModalShell, ModalSize } from "../components.slint";
 
@@ -219,6 +220,10 @@ component DictionaryState inherits Rectangle {
 }
 
 export component DictionaryPage inherits Rectangle {
+    in property <bool> recognition-hints-unavailable: false;
+    in property <bool> polishing-enabled: false;
+    callback open-polishing-settings();
+    callback open-recognition-settings();
     in property <[DictionaryListItem]> items;
     in property <[DictionaryRow]> rows;
     in property <int> total-count: 0;
@@ -238,6 +243,7 @@ export component DictionaryPage inherits Rectangle {
     callback edit-word(string, string);
     callback delete-word(string);
 
+    property <length> recognition-notice-offset: root.recognition-hints-unavailable ? recognition-notice.height + 12px : 0px;
     property <bool> compact: root.width < 610px;
     property <string> query: "";
     property <bool> search-active: search-input.has-focus || !root.query.is-empty;
@@ -356,13 +362,23 @@ export component DictionaryPage inherits Rectangle {
         TouchArea { width: root.search-active ? 34px : parent.width; mouse-cursor: pointer; clicked => { search-input.focus(); } }
     }
 
-    Text { x: 0px; y: 179px; text: root.count-label; color: AppColors.text; font-size: 12px; font-weight: 650; }
+    recognition-notice := DictionaryRecognitionNotice {
+        x: 0px;
+        y: 168px;
+        width: parent.width;
+        visible: root.recognition-hints-unavailable;
+        polishing-enabled: root.polishing-enabled;
+        open-polishing-settings => { root.open-polishing-settings(); }
+        open-recognition-settings => { root.open-recognition-settings(); }
+    }
+
+    Text { x: 0px; y: 179px + root.recognition-notice-offset; text: root.count-label; color: AppColors.text; font-size: 12px; font-weight: 650; }
 
     if !root.loading && !root.load-failed && root.items.length > 0: ScrollView {
         x: 0px;
-        y: 208px;
+        y: 208px + root.recognition-notice-offset;
         width: parent.width;
-        height: parent.height - 208px;
+        height: max(0px, parent.height - 208px - root.recognition-notice-offset);
         vertical-scrollbar-policy: ScrollBarPolicy.always-off;
         horizontal-scrollbar-policy: ScrollBarPolicy.always-off;
         VerticalLayout {
@@ -400,18 +416,18 @@ export component DictionaryPage inherits Rectangle {
     }
     if root.loading: DictionaryState {
         x: 0px;
-        y: 208px;
+        y: 208px + root.recognition-notice-offset;
         width: parent.width;
-        height: parent.height - 208px;
+        height: max(0px, parent.height - 208px - root.recognition-notice-offset);
         title: @tr("dictionary.loading.title" => "Loading dictionary");
         detail: @tr("dictionary.loading.detail" => "Reading entries stored on this device.");
         icon: @image-url("../../icons/lucide/refresh-cw.svg");
     }
     if root.load-failed: DictionaryState {
         x: 0px;
-        y: 208px;
+        y: 208px + root.recognition-notice-offset;
         width: parent.width;
-        height: parent.height - 208px;
+        height: max(0px, parent.height - 208px - root.recognition-notice-offset);
         title: @tr("dictionary.load-failed.title" => "Dictionary unavailable");
         detail: @tr("dictionary.load-failed.detail" => "Check local storage and try again.");
         icon: @image-url("../../icons/lucide/circle-alert.svg");
@@ -420,9 +436,9 @@ export component DictionaryPage inherits Rectangle {
     }
     if !root.loading && !root.load-failed && root.items.length == 0: DictionaryState {
         x: 0px;
-        y: 208px;
+        y: 208px + root.recognition-notice-offset;
         width: parent.width;
-        height: parent.height - 208px;
+        height: max(0px, parent.height - 208px - root.recognition-notice-offset);
         title: root.query.is-empty ? @tr("dictionary.empty.title" => "No entries yet") : @tr("dictionary.no-results.title" => "No matching entries");
         detail: root.query.is-empty
             ? (root.total-count == 0 ? @tr("dictionary.empty.detail" => "Add an entry so Saymore remembers how you write it.") : @tr("dictionary.filter-empty.detail" => "No entries match this filter."))

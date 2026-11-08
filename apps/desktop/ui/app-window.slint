@@ -8,7 +8,7 @@ import { HistoryDialog, HistoryGroup, HistoryListItem, HistoryPage, HistoryRepol
 import { DictionaryAddDialog, DictionaryDraft, DictionaryEvidenceItem, DictionaryFilterKind, DictionaryListItem, DictionaryPage, DictionaryRow } from "pages/dictionary.slint";
 import { DictionaryEditDialog } from "pages/dictionary-edit.slint";
 import { AudioInputDevice, SettingsPage } from "pages/settings.slint";
-import { AppPage, AsrConfigurationField, AsrProvider, AsrProviderCardKind, AsrProviderCardSpec, LlmProvider, LlmProviderConfigurationState, PolishingStrength, SettingsSection, SystemSpeechStatus, UiLanguage } from "components.slint";
+import { CloudAsrService, AppPage, AsrConfigurationField, AsrProvider, AsrProviderCardKind, AsrProviderCardSpec, LlmProvider, LlmProviderConfigurationState, PolishingStrength, SettingsSection, SystemSpeechStatus, UiLanguage } from "components.slint";
 import { AppColors, ColorSchemePreference, ThemeId } from "color-system.slint";
 import { Translations } from "translations.slint";
 import { Typography } from "typography.slint";
@@ -24,7 +24,7 @@ export { OnboardingWindow } from "onboarding.slint";
 export { LlmProvider } from "components.slint";
 export { PolishingStrength } from "components.slint";
 export { HistoryRepolishState } from "pages/history.slint";
-export { AsrProvider } from "components.slint";
+export { AsrProvider, CloudAsrService } from "components.slint";
 export { AsrConfigurationField, AsrProviderCardKind, AsrProviderCardSpec, SystemSpeechStatus } from "components.slint";
 export { LocalModelDownloadState } from "pages/local-asr-model.slint";
 export { PunctuationMode } from "pages/local-asr-model.slint";
@@ -370,6 +370,7 @@ export component AppWindow inherits Window {
     callback remove-shortcut(int);
     callback rerun-onboarding();
     callback refresh-usage();
+    callback prepare-cloud-asr(CloudAsrService);
     callback save-asr-config(AsrProvider, string, string, string);
     callback select-asr-provider(AsrProvider);
     callback activate-asr-provider(AsrProvider);
@@ -587,6 +588,14 @@ export component AppWindow inherits Window {
                     root.llm-draft-error = false;
                     root.llm-modal-visible = true;
                 }
+                configure-cloud-asr(service) => {
+                    if !root.asr-testing {
+                        root.focus-asr-config = false;
+                        root.asr-modal-original-provider = root.asr-provider;
+                        root.prepare-cloud-asr(service);
+                        root.asr-modal-visible = true;
+                    }
+                }
                 open-asr-config(original-provider) => {
                     root.focus-asr-config = false;
                     root.asr-modal-original-provider = original-provider;
@@ -641,6 +650,10 @@ export component AppWindow inherits Window {
                 show-reset-confirmation => { root.history-reset-confirmation-visible = true; }
             }
             if root.current-page == AppPage.dictionary: DictionaryPage {
+                recognition-hints-unavailable: root.sense-voice-selected || root.paraformer-selected || root.whisper-selected;
+                polishing-enabled: root.llm-enabled;
+                open-polishing-settings => { root.model-tab = 1; root.current-page = AppPage.models; }
+                open-recognition-settings => { root.model-tab = 0; root.current-page = AppPage.models; }
                 width: parent.width;
                 height: parent.height;
                 items: root.dictionary-items;

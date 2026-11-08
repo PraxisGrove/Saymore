@@ -3675,3 +3675,33 @@ msgstr ""
 msgctxt "history.repolish.action"
 msgid "Polish again"
 msgstr ""
+
+#: ui/pages/dictionary-recognition-notice.slint
+msgctxt "dictionary.recognition.polishing"
+msgid "This model cannot use dictionary hints during recognition. Text polishing uses your dictionary to correct terms after recognition; results may vary."
+msgstr ""
+
+#: ui/pages/dictionary-recognition-notice.slint
+msgctxt "dictionary.recognition.unsupported"
+msgid "This model cannot use dictionary hints during recognition. To correct misrecognized terms, configure text polishing or switch to Qwen3."
+msgstr ""
+
+#: ui/pages/dictionary-recognition-notice.slint
+msgctxt "dictionary.recognition.settings"
+msgid "Text polishing settings"
+msgstr ""
+
+#: ui/pages/dictionary-recognition-notice.slint
+msgctxt "dictionary.recognition.models"
+msgid "Choose recognition model"
+msgstr ""
+
+#: ui/pages/cloud-asr-presets.slint
+msgctxt "models.asr.presets.title"
+msgid "Quick cloud setup"
+msgstr ""
+
+#: ui/pages/cloud-asr-presets.slint
+msgctxt "models.asr.presets.detail"
+msgid "Fill a preset, enter your API key, then test and save. Saving replaces the compatible API configuration."
+msgstr ""

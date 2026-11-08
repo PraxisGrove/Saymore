@@ -2,7 +2,7 @@ use std::{cell::Cell, rc::Rc, sync::Arc, time::Duration};
 
 use httpmock::{Method::GET, MockServer};
 use slint::{ComponentHandle, Model, Timer, TimerMode};
-use template_app::{LlmProviderPreset, ProviderConfigStore};
+use template_app::{CloudAsrPreset, LlmProviderPreset, ProviderConfigStore};
 use template_infra::JsonSettingsStore;
 
 #[allow(
@@ -18,6 +18,43 @@ mod ui {
 #[path = "support/model_discovery_runtime.rs"]
 mod settings_ui;
 
+fn check_cloud_asr_presets(ui: &ui::AppWindow, store: &JsonSettingsStore) {
+    let saved = require(store.load_catalog());
+    ui.set_custom_asr_base_url(CloudAsrPreset::OpenAi.base_url().into());
+    ui.set_custom_asr_api_key("old-provider-key".into());
+    ui.set_custom_asr_model("old-model".into());
+    ui.invoke_prepare_cloud_asr(ui::CloudAsrService::Groq);
+    assert_eq!(
+        CloudAsrPreset::Groq.base_url(),
+        ui.get_custom_asr_base_url().as_str()
+    );
+    assert_eq!(
+        CloudAsrPreset::Groq.default_model(),
+        ui.get_custom_asr_model().as_str()
+    );
+    assert!(ui.get_custom_asr_api_key().is_empty());
+    ui.set_custom_asr_api_key("groq-key".into());
+    ui.set_custom_asr_model("whisper-large-v3".into());
+    ui.invoke_prepare_cloud_asr(ui::CloudAsrService::Groq);
+    assert_eq!("groq-key", ui.get_custom_asr_api_key().as_str());
+    assert_eq!("whisper-large-v3", ui.get_custom_asr_model().as_str());
+    ui.set_asr_testing(true);
+    ui.invoke_prepare_cloud_asr(ui::CloudAsrService::Openai);
+    assert_eq!(
+        CloudAsrPreset::Groq.base_url(),
+        ui.get_custom_asr_base_url().as_str()
+    );
+    ui.set_asr_testing(false);
+    assert_eq!(saved, require(store.load_catalog()));
+
+    // Known services offer speech models without fetching unrelated chat models.
+    ui.set_model_tab(0);
+    ui.invoke_refresh_models();
+    assert!(models(ui).contains(&"whisper-large-v3-turbo".to_owned()));
+    assert_eq!("whisper-large-v3", ui.get_custom_asr_model().as_str());
+    assert!(!ui.get_model_discovery_loading());
+}
+
 fn main() {
     let ui = require(ui::AppWindow::new());
     require(ui.show());
@@ -26,6 +63,7 @@ fn main() {
     let store = Arc::new(JsonSettingsStore::at_path(directory.join("providers.json")));
     require(store.ensure_exists());
     settings_ui::wire(&ui, Arc::clone(&store));
+    check_cloud_asr_presets(&ui, &store);
     let server = MockServer::start();
     let mut response = server.mock(|when, then| {
         when.method(GET)
