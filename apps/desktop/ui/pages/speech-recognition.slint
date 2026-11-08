@@ -75,6 +75,8 @@ export component SpeechRecognitionPage inherits Rectangle {
         viewport-height: max(self.height, cloud-presets.height + 20px + root.provider-content-height);
 
         cloud-presets := CloudAsrPresets {
+            x: 0px;
+            y: 0px;
             width: provider-list.viewport-width;
             testing: root.testing;
             configure(service) => { root.configure-cloud(service); }
