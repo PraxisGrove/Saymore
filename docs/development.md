@@ -64,6 +64,9 @@ pins together when upgrading Rust, then run the required gates with that
 toolchain. A passing local gate on an older compiler does not validate the
 Clippy rules used by CI.
 
+macOS CI and release packaging both use GitHub's `macos-15` runner. Keep these
+runner labels aligned and move them together when a hosted image is retired.
+
 The target desktop app is compiled through Cargo and Slint. Node.js, pnpm,
 React, TypeScript, Vite, and Tauri are not part of the production toolchain.
 

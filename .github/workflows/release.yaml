@@ -116,7 +116,7 @@ jobs:
     name: Package macOS universal DMG
     needs: plan
     if: needs.plan.outputs.should-release == 'true'
-    runs-on: macos-14
+    runs-on: macos-15
     env:
       APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
       APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
