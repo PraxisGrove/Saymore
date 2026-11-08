@@ -374,7 +374,7 @@ fn representative_english_terms_are_promoted_to_automatic_entries()
 }
 
 #[test]
-fn llm_approved_chinese_term_uses_the_high_confidence_threshold()
+fn a_high_confidence_user_correction_is_added_without_repeating_the_mistake()
 -> Result<(), Box<dyn std::error::Error>> {
     let directory = tempfile::tempdir()?;
     let store = SqliteStorage::start(
@@ -396,12 +396,15 @@ fn llm_approved_chinese_term_uses_the_high_confidence_threshold()
         assessment,
         observed_at_ms,
     };
-    assert!(matches!(
-        store.record_dictionary_observation(make_observation("one", 20_000))?,
-        DictionaryLearningOutcome::Pending { .. }
-    ));
-    let outcome = store.record_dictionary_observation(make_observation("two", 21_000))?;
+    let outcome = store.record_dictionary_observation(make_observation("one", 20_000))?;
     assert!(matches!(outcome, DictionaryLearningOutcome::Added(_)));
+    assert_eq!(
+        DictionaryLearningOutcome::AlreadyPresent,
+        store.record_dictionary_observation(make_observation("two", 21_000))?
+    );
+    let entries = store.list_dictionary()?;
+    assert_eq!(1, entries.len());
+    assert_eq!(DictionaryOrigin::Automatic, entries[0].origin);
     let evidence = store.list_dictionary_candidate_evidence()?;
     assert_eq!(
         CandidateAssessmentSource::Llm,
@@ -436,6 +439,119 @@ fn an_ordinary_sentence_fragment_is_never_accumulated() -> Result<(), Box<dyn st
     assert_eq!(CandidateDecision::Reject, evidence[0].assessment.decision);
     assert_eq!(0, evidence[0].occurrence_count);
     assert_eq!(0, evidence[0].dictation_count);
+    Ok(())
+}
+
+#[test]
+fn startup_recovers_recent_confirmed_corrections_without_reviving_other_candidates()
+-> Result<(), Box<dyn std::error::Error>> {
+    let directory = tempfile::tempdir()?;
+    let path = directory.path().join("saymore.sqlite3");
+    let secrets = Arc::new(MemorySecretStore::default());
+    let now = i64::try_from(
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)?
+            .as_millis(),
+    )?;
+    let cases = [
+        ("ConfirmedTerm", "llm", "accept", "named_term", 95, 0),
+        ("ThresholdTerm", "llm", "accept", "named_term", 90, 0),
+        ("MediumTerm", "llm", "accept", "named_term", 89, 0),
+        ("LocalTerm", "local", "accept", "named_term", 99, 0),
+        (
+            "SuggestionTerm",
+            "vocabulary_suggestion",
+            "accept",
+            "named_term",
+            99,
+            0,
+        ),
+        ("RejectedTerm", "llm", "reject", "named_term", 99, 0),
+        ("UncertainTerm", "llm", "uncertain", "named_term", 99, 0),
+        (
+            "OrdinaryFragment",
+            "llm",
+            "accept",
+            "ordinary_fragment",
+            99,
+            0,
+        ),
+        ("ExpiredTerm", "llm", "accept", "named_term", 95, 31),
+        ("SuppressedTerm", "llm", "accept", "named_term", 95, 0),
+    ];
+    {
+        let store = SqliteStorage::start(path.clone(), secrets.clone())?;
+        for (term, ..) in cases {
+            let mut input = term_observation(term, format!("old-{term}"), now);
+            input.assessment.source = CandidateAssessmentSource::Llm;
+            input.assessment.confidence = 89;
+            assert!(matches!(
+                store.record_dictionary_observation(input)?,
+                DictionaryLearningOutcome::Pending { .. }
+            ));
+        }
+    }
+    // Recreate candidates saved by the earlier two-correction policy.
+    {
+        let connection = rusqlite::Connection::open(&path)?;
+        for (term, source, decision, kind, confidence, age_days) in cases {
+            let at = now - age_days * 24 * 60 * 60 * 1_000;
+            connection.execute(
+                "UPDATE dictionary_candidate_evidence SET assessment_source = ?1,
+                 decision = ?2, candidate_kind = ?3, confidence = ?4,
+                 last_observed_at_ms = ?5 WHERE canonical = ?6",
+                rusqlite::params![source, decision, kind, confidence, at, term],
+            )?;
+            if decision == "reject" {
+                connection.execute("DELETE FROM term_observations WHERE canonical = ?1", [term])?;
+                continue;
+            }
+            let evidence_kind = if source == "vocabulary_suggestion" {
+                "vocabulary_suggestion"
+            } else {
+                "user_revision"
+            };
+            connection.execute(
+                "UPDATE term_observations SET decision = ?1, confidence = ?2,
+                 observed_at_ms = ?3, evidence_kind = ?4 WHERE canonical = ?5",
+                rusqlite::params![decision, confidence, at, evidence_kind, term],
+            )?;
+        }
+        connection.execute(
+            "INSERT INTO dictionary_suppressions(language, canonical_key, suppressed_until_ms)
+             VALUES ('en', ?1, ?2)",
+            rusqlite::params![
+                template_app::dictionary_comparison_key("SuppressedTerm"),
+                i64::MAX
+            ],
+        )?;
+    }
+    let first_entries = {
+        let store = SqliteStorage::start(path.clone(), secrets.clone())?;
+        let entries = store.list_dictionary()?;
+        let mut words = entries
+            .iter()
+            .map(|entry| entry.canonical.as_str())
+            .collect::<Vec<_>>();
+        words.sort_unstable();
+        assert_eq!(vec!["ConfirmedTerm", "ThresholdTerm"], words);
+        assert!(
+            entries
+                .iter()
+                .all(|entry| entry.origin == DictionaryOrigin::Automatic)
+        );
+        assert_eq!(
+            2,
+            store
+                .list_dictionary_candidate_evidence()?
+                .iter()
+                .filter(|item| item.state == template_app::DictionaryCandidateState::Promoted)
+                .count()
+        );
+        entries
+    };
+    let reopened = SqliteStorage::start(path, secrets)?;
+    assert_eq!(first_entries, reopened.list_dictionary()?);
     Ok(())
 }
 

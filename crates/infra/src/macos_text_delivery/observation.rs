@@ -143,22 +143,14 @@ impl CorrectionObservationTarget {
                     .focused
                     .has_attribute_value(AX_TEXT_INPUT_MARKED_TEXT_MARKER_RANGE_ATTRIBUTE)
                     .unwrap_or(false);
-            match observed {
-                Some(ObservedControlText::Content(edited)) if !marked_text => {
-                    if edited != self.original
-                        && latest_revision.as_deref() != Some(edited.as_str())
-                    {
-                        observer(TextRevisionEvent::Snapshot(edited.clone()));
-                        latest_revision = Some(edited);
-                    }
-                }
-                Some(ObservedControlText::Reset) => {
-                    observer(TextRevisionEvent::Ended(
-                        TextRevisionEndReason::ControlReset,
-                    ));
+            if let Some(event) =
+                revision_event(observed, marked_text, &self.original, &mut latest_revision)
+            {
+                let ended = matches!(event, TextRevisionEvent::Ended(_));
+                observer(event);
+                if ended {
                     return;
                 }
-                Some(ObservedControlText::Content(_)) | None => {}
             }
             if focused == Some(false) {
                 observer(TextRevisionEvent::Ended(TextRevisionEndReason::FocusLost));
@@ -217,6 +209,31 @@ impl CorrectionObservationTarget {
     }
 }
 
+fn revision_event(
+    observed: Option<ObservedControlText>,
+    marked_text: bool,
+    original: &str,
+    latest_revision: &mut Option<String>,
+) -> Option<TextRevisionEvent> {
+    if marked_text {
+        return None;
+    }
+    match observed {
+        Some(ObservedControlText::Content(edited)) => {
+            if edited != original && latest_revision.as_deref() != Some(edited.as_str()) {
+                *latest_revision = Some(edited.clone());
+                Some(TextRevisionEvent::Snapshot(edited))
+            } else {
+                None
+            }
+        }
+        Some(ObservedControlText::Reset) => Some(TextRevisionEvent::Ended(
+            TextRevisionEndReason::ControlReset,
+        )),
+        None => None,
+    }
+}
+
 fn is_input_reset(
     original: &str,
     edited: &str,
@@ -251,6 +268,41 @@ pub(super) fn text_between_anchors(window: &str, prefix: &str, suffix: &str) -> 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn marked_composition_preserves_observation_until_commit_and_reset() {
+        let original = "我们使用千文模型";
+        let mut latest_revision = None;
+        let mut events = Vec::new();
+        for (text, marked_text) in [
+            ("我们使用 qianwen 模型", true),
+            ("", true),
+            ("我们使用千问模型", false),
+            ("", false),
+        ] {
+            let observed = if is_input_reset(original, text, false, None, Some("")) {
+                ObservedControlText::Reset
+            } else {
+                ObservedControlText::Content(text.to_owned())
+            };
+            if let Some(event) =
+                revision_event(Some(observed), marked_text, original, &mut latest_revision)
+            {
+                let ended = matches!(event, TextRevisionEvent::Ended(_));
+                events.push(event);
+                if ended {
+                    break;
+                }
+            }
+        }
+        assert_eq!(
+            events,
+            [
+                TextRevisionEvent::Snapshot("我们使用千问模型".to_owned()),
+                TextRevisionEvent::Ended(TextRevisionEndReason::ControlReset),
+            ]
+        );
+    }
 
     #[test]
     fn input_reset_text_is_not_reported_as_a_correction() {

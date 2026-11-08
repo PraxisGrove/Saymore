@@ -36,7 +36,10 @@ pub(super) fn record(
         return Ok(DictionaryLearningOutcome::Suppressed);
     }
     let evidence = record_evidence(&transaction, &normalized)?;
-    if evidence.high_confidence_dictations < 2 && evidence.dictation_count < 3 {
+    if normalized.assessment.required_evidence() != Some((1, 1))
+        && evidence.high_confidence_dictations < 2
+        && evidence.dictation_count < 3
+    {
         transaction.commit().map_err(unavailable)?;
         return Ok(DictionaryLearningOutcome::Pending {
             occurrence_count: evidence.occurrence_count,
@@ -55,6 +58,52 @@ pub(super) fn record(
         .ok_or_else(|| {
             StorageError::Invalid("automatic dictionary entry was not created".to_owned())
         })
+}
+
+/// Reconsiders recent user corrections retained under an older learning policy.
+pub(super) fn promote_pending(
+    connection: &mut rusqlite::Connection,
+    now_ms: i64,
+) -> Result<(), StorageError> {
+    let pending = list_evidence(connection)?;
+    for candidate in pending.into_iter().filter(|candidate| {
+        candidate.state == DictionaryCandidateState::Pending
+            && candidate.assessment.required_evidence() == Some((1, 1))
+    }) {
+        let observation = connection
+            .query_row(
+                "SELECT dictation_id, observed_at_ms FROM term_observations
+                 WHERE language = ?1 AND canonical_key = ?2
+                   AND evidence_kind = 'user_revision' AND decision = 'accept'
+                   AND confidence >= 90 AND observed_at_ms >= ?3
+                   AND observed_at_ms <= ?4
+                 ORDER BY observed_at_ms DESC LIMIT 1",
+                params![
+                    candidate.language,
+                    dictionary_comparison_key(&candidate.canonical),
+                    now_ms.saturating_sub(OBSERVATION_WINDOW_MS),
+                    now_ms,
+                ],
+                |row| Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?)),
+            )
+            .optional()
+            .map_err(unavailable)?;
+        if let Some((dictation_id, observed_at_ms)) = observation {
+            record(
+                connection,
+                NewDictionaryObservation {
+                    dictation_id,
+                    language: candidate.language,
+                    correction: template_app::DictionaryCorrection {
+                        canonical: candidate.canonical,
+                    },
+                    assessment: candidate.assessment,
+                    observed_at_ms,
+                },
+            )?;
+        }
+    }
+    Ok(())
 }
 
 fn record_evidence(

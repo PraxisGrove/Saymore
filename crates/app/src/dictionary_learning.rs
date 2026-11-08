@@ -48,8 +48,24 @@ pub struct DictionaryCandidateReview {
 }
 
 impl DictionaryCandidateAssessment {
+    /// Minimum occurrences and independent dictations before automatic insertion.
+    /// Accepted LLM reviews of reusable terms at 90% or higher need one explicit
+    /// user correction; local reviews and vocabulary suggestions still repeat.
     pub fn required_evidence(self) -> Option<(u32, u32)> {
         match self.decision {
+            CandidateDecision::Accept
+                if self.source == CandidateAssessmentSource::Llm
+                    && self.confidence >= 90
+                    && matches!(
+                        self.kind,
+                        DictionaryCandidateKind::NamedTerm
+                            | DictionaryCandidateKind::Acronym
+                            | DictionaryCandidateKind::CodeIdentifier
+                            | DictionaryCandidateKind::ProfessionalPhrase
+                    ) =>
+            {
+                Some((1, 1))
+            }
             CandidateDecision::Accept if self.confidence >= HIGH_CONFIDENCE_THRESHOLD => {
                 Some((2, 2))
             }
@@ -385,7 +401,7 @@ pub enum DictionaryLearningOutcome {
     Suppressed,
 }
 
-/// Accumulates local correction evidence and promotes repeated corrections to confirmed entries.
+/// Accumulates correction evidence and promotes confirmed terms to dictionary entries.
 ///
 /// Implementations are expected to keep full surrounding text out of durable storage, count
 /// independent dictations separately, and honor suppression state before creating an entry.

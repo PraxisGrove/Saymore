@@ -381,6 +381,7 @@ fn open_database(path: PathBuf, secrets: Arc<dyn SecretStore>) -> Result<Databas
         )));
     }
     migrations::apply(&mut connection)?;
+    dictionary_learning::promote_pending(&mut connection, history::now_ms())?;
     Ok(Database {
         connection,
         history_key: history::HistoryKeyState::Uninitialized,

@@ -17,7 +17,7 @@ the focused control.
 `Correction observation: Supported` means the focused control exposes both a
 selected range and `AXStringForRange`, which are the prerequisites used by the
 local correction observer. It does not by itself prove the complete workflow
-from dictation through two user corrections, dictionary promotion, and the
+from dictation through user corrections, dictionary promotion, and the
 notification overlay.
 
 After delivery, clearing or submitting the control is not a correction. Before
@@ -35,9 +35,11 @@ correction and ends observation.
 
 On macOS, text exposed through `AXTextInputMarkedRange` or the Web accessibility
 equivalent `AXTextInputMarkedTextMarkerRange` is an in-progress input method
-composition, not a stable correction. The observer pauses its stability window
-while that range exists and starts a fresh window after the input method commits
-the final text.
+composition, not a stable correction. The observer ignores intermediate content
+and temporary reset values while that range exists, then resumes observation
+after the input method commits the final text. A deterministic regression covers
+marked pinyin and an empty intermediate value followed by a committed
+correction; these intermediate values must not end the observation.
 
 Word does not expose `AXSelectedText` as settable for its document editor. This
 does not block dictionary learning: the existing delivery pipeline can use its
@@ -71,9 +73,11 @@ reported as observable.
 
 After WeChat is signed in, focus the File Transfer Assistant message editor and
 run the same probe against the main WeChat PID. For every application marked
-supported above, a complete release check must still perform two independent
-dictations, correct both outputs to the same final term, wait for the edit
-stability window, and confirm that one dictionary entry and one notification are
-produced.
+supported above, a complete release check must still correct a dictated term
+using a Chinese input method and end editing by changing focus, submitting, or
+starting another dictation. An accepted LLM review of a reusable term at 90% or
+higher must add one dictionary entry and show one notification after that first
+correction. Local-only and lower-confidence reviews must still accumulate the
+required independent corrections before adding an entry.
 
 Feishu and Notion were not installed and were intentionally not tested.
