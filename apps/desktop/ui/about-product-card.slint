@@ -22,7 +22,7 @@ export component AboutProductCard inherits Rectangle {
         : AppColors.text-muted;
     private property <bool> update-available: root.update-status == "available";
 
-    height: root.compact ? 176px : 128px;
+    height: action.y + action.height + 12px;
     border-radius: 10px;
     background: AppColors.surface;
 
@@ -60,7 +60,7 @@ export component AboutProductCard inherits Rectangle {
 
     release-notes := Rectangle {
         x: root.compact ? 20px : 86px;
-        y: root.compact ? 132px : 76px;
+        y: action.y;
         width: max(112px, release-notes-text.preferred-width + 52px);
         height: 32px;
         border-radius: 8px;
@@ -104,9 +104,9 @@ export component AboutProductCard inherits Rectangle {
     }
 
     Text {
-        x: root.compact ? 20px : parent.width - 204px;
+        x: root.compact ? 20px : parent.width - self.width - 28px;
         y: root.compact ? 88px : 20px;
-        width: 62px;
+        width: max(62px, self.preferred-width);
         height: 32px;
         text: root.app-version;
         color: root.product-ink;
@@ -117,31 +117,31 @@ export component AboutProductCard inherits Rectangle {
         vertical-alignment: center;
     }
     Rectangle {
-        x: root.compact ? 98px : parent.width - 119px;
-        y: root.compact ? 100px : 32px;
+        x: root.compact ? 20px : parent.width - 240px;
+        y: update-message.y + (update-message.height - self.height) / 2;
         width: 7px;
         height: 7px;
         border-radius: 4px;
         background: root.status-color;
     }
-    Text {
-        x: root.compact ? 112px : parent.width - 118px;
-        y: root.compact ? 88px : 20px;
-        width: root.compact ? parent.width - 132px : 90px;
-        height: 32px;
+    update-message := Text {
+        x: root.compact ? 34px : parent.width - 226px;
+        y: root.compact ? 120px : 52px;
+        width: root.compact ? parent.width - 54px : 198px;
+        height: max(24px, self.preferred-height);
         text: root.status-label;
         color: root.status-color;
         font-family: Typography.ui-font-family;
         font-size: 10px;
         font-weight: 600;
-        horizontal-alignment: right;
+        horizontal-alignment: left;
         vertical-alignment: center;
-        overflow: elide;
+        wrap: word-wrap;
     }
 
     action := Rectangle {
         x: parent.width - self.width - (root.compact ? 20px : 28px);
-        y: root.compact ? 132px : 76px;
+        y: max(root.compact ? 132px : 76px, update-message.y + update-message.height + 12px);
         width: root.update-available ? max(124px, action-text.preferred-width + 38px) : max(91px, action-text.preferred-width + 35px);
         height: 32px;
         border-radius: 8px;
