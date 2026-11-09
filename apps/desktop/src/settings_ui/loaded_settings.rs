@@ -181,6 +181,9 @@ fn apply_loaded_asr(ui: &AppWindow, settings: SaymoreSettings, catalog: &Provide
     } else {
         volcengine.model.as_str()
     }));
+    let custom_kind = super::asr_presets::configured_card_kind(&custom.base_url);
+    ui.set_configured_custom_asr_kind(custom_kind);
+    ui.set_draft_custom_asr_kind(custom_kind);
     ui.set_custom_asr_api_key(SharedString::from(custom.api_key));
     ui.set_custom_asr_base_url(SharedString::from(custom.base_url));
     ui.set_custom_asr_model(SharedString::from(custom.model));

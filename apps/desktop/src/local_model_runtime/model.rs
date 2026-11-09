@@ -78,7 +78,7 @@ impl LocalModel {
     pub(super) fn installed_name(self) -> &'static str {
         match self {
             Self::Paraformer => "Paraformer bilingual zh-en INT8",
-            Self::Whisper => "Whisper large-v3-turbo INT8",
+            Self::Whisper => "Whisper large-v3-turbo Q8_0",
             Self::Qwen3 => "Qwen3-ASR 1.7B INT8",
             Self::SenseVoice => "SenseVoiceSmall INT8",
         }

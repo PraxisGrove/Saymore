@@ -1,7 +1,9 @@
 use slint::{ComponentHandle, SharedString};
 use template_app::CloudAsrPreset;
 
-use crate::ui::{AppWindow, AsrConfigurationField, AsrProvider, CloudAsrService};
+use crate::ui::{
+    AppWindow, AsrConfigurationField, AsrProvider, AsrProviderCardKind, CloudAsrService,
+};
 
 pub(super) fn wire(ui: &AppWindow) {
     let weak_ui = ui.as_weak();
@@ -13,6 +15,8 @@ pub(super) fn wire(ui: &AppWindow) {
             return;
         }
         let preset = preset(service);
+        ui.set_custom_asr_service_name(preset.display_name().into());
+        ui.set_draft_custom_asr_kind(configured_card_kind(preset.base_url()));
         let draft = PresetDraft::new(
             preset,
             &ui.get_custom_asr_base_url(),
@@ -33,6 +37,15 @@ pub(super) fn wire(ui: &AppWindow) {
         ui.set_asr_test_elapsed(SharedString::default());
         ui.set_asr_test_result(SharedString::default());
     });
+}
+
+pub(super) fn configured_card_kind(base_url: &str) -> AsrProviderCardKind {
+    match CloudAsrPreset::from_base_url(base_url) {
+        Some(CloudAsrPreset::OpenAi) => AsrProviderCardKind::Openai,
+        Some(CloudAsrPreset::Groq) => AsrProviderCardKind::Groq,
+        Some(CloudAsrPreset::Mistral) => AsrProviderCardKind::Mistral,
+        None => AsrProviderCardKind::Custom,
+    }
 }
 
 fn preset(service: CloudAsrService) -> CloudAsrPreset {
@@ -72,6 +85,24 @@ impl PresetDraft {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn configured_service_matches_the_saved_endpoint() {
+        for (url, expected) in [
+            (
+                CloudAsrPreset::OpenAi.base_url(),
+                AsrProviderCardKind::Openai,
+            ),
+            (CloudAsrPreset::Groq.base_url(), AsrProviderCardKind::Groq),
+            (
+                CloudAsrPreset::Mistral.base_url(),
+                AsrProviderCardKind::Mistral,
+            ),
+            ("https://example.com/v1", AsrProviderCardKind::Custom),
+        ] {
+            assert_eq!(expected, configured_card_kind(url));
+        }
+    }
 
     #[test]
     fn switching_services_clears_credentials_and_uses_the_new_model() {

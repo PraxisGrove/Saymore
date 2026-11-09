@@ -31,8 +31,12 @@ mod tests;
 
 pub const PARAFORMER_MODEL_ID: &str = "paraformer-zh-en-int8";
 pub const PARAFORMER_MODEL_REVISION: &str = "8e40c43232a1c5c66c82111efc5820d3accca11b";
+// Keep the logical ID stable for persisted download queues and dictation history.
+// Artifact format and quantization are pinned by the revision and manifest.
 pub const WHISPER_MODEL_ID: &str = "whisper-large-v3-turbo-int8";
-pub const WHISPER_MODEL_REVISION: &str = "2ca6ff69fc878651b770880507669577ac41c2ff";
+pub const WHISPER_MODEL_REVISION: &str = "5359861c739e955e79d9a303bcbc70fb988958b1";
+pub(crate) const WHISPER_MODEL_FILE: &str = "ggml-large-v3-turbo-q8_0.bin";
+pub(crate) const WHISPER_MODEL_BYTES: u64 = 874_188_075;
 pub const QWEN3_ASR_MODEL_ID: &str = "qwen3-asr-1.7b-int8";
 pub const QWEN3_ASR_MODEL_REVISION: &str = "cb045ad80b8970c9d411d463e5b78991a566596c";
 pub const SENSE_VOICE_MODEL_ID: &str = "sense-voice-small-int8";

@@ -67,6 +67,15 @@ Clippy rules used by CI.
 macOS CI and release packaging both use GitHub's `macos-15` runner. Keep these
 runner labels aligned and move them together when a hosted image is retired.
 
+Whisper is built from the native whisper.cpp sources bundled by pinned
+`whisper-rs 0.16.0` / `whisper-rs-sys 0.15.0` (whisper.cpp 1.8.3). Local builds
+require CMake and a C/C++ toolchain (Xcode Command Line Tools on macOS, Visual
+Studio C++ build tools on Windows); install CMake before running Cargo. Hosted
+macOS and Windows runners provide these tools. The default backend is CPU;
+`.cargo/config.toml` disables build-host-specific GGML optimization, and Windows
+retains the static MSVC CRT configuration. No Whisper DLL or GPU runtime is
+required by this configuration.
+
 The target desktop app is compiled through Cargo and Slint. Node.js, pnpm,
 React, TypeScript, Vite, and Tauri are not part of the production toolchain.
 

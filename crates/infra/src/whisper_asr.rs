@@ -1,54 +1,59 @@
 use std::{
     fs,
-    path::{Path, PathBuf},
-    sync::{Arc, Mutex},
+    path::Path,
+    sync::{Arc, Mutex, Once},
 };
 
-use sherpa_onnx::{OfflineRecognizer, OfflineRecognizerConfig, OfflineWhisperModelConfig};
 use template_app::{
     SpeechRecognitionError, SpeechRecognitionHints, StreamingRecognitionSession,
     StreamingSpeechRecognizer,
 };
+use whisper_rs::{FullParams, SamplingStrategy, WhisperContext, WhisperContextParameters};
+
+use crate::model_installer::{WHISPER_MODEL_BYTES, WHISPER_MODEL_FILE};
+
+mod hints;
+#[cfg(test)]
+mod tests;
 
 const SAMPLE_RATE: i32 = 16_000;
 const MAX_SEGMENT_SAMPLES: usize = 29 * SAMPLE_RATE as usize;
-const ENCODER_FILE: &str = "turbo-encoder.int8.onnx";
-const ENCODER_BYTES: u64 = 674_716_297;
-const DECODER_FILE: &str = "turbo-decoder.int8.onnx";
-const DECODER_BYTES: u64 = 361_080_764;
-const TOKENS_FILE: &str = "turbo-tokens.txt";
-const TOKENS_BYTES: u64 = 816_730;
+static LOGGING: Once = Once::new();
 
-/// Loads the pinned Whisper large-v3-turbo INT8 artifact for final-result decoding.
+/// Loads Whisper large-v3-turbo with whisper.cpp and per-dictation vocabulary context.
 pub struct WhisperSpeechRecognizer {
     decoder: Arc<dyn WhisperDecoder>,
 }
 
 impl WhisperSpeechRecognizer {
     pub fn load(model_directory: &Path) -> Result<Self, SpeechRecognitionError> {
-        let files = WhisperModelFiles::validate(model_directory)?;
-        let mut config = OfflineRecognizerConfig::default();
-        config.feat_config.feature_dim = 128;
-        config.model_config.whisper = OfflineWhisperModelConfig {
-            encoder: Some(path_text(&files.encoder)?),
-            decoder: Some(path_text(&files.decoder)?),
-            language: None,
-            task: Some("transcribe".to_owned()),
-            tail_paddings: -1,
-            enable_token_timestamps: false,
-            enable_segment_timestamps: false,
-        };
-        config.model_config.tokens = Some(path_text(&files.tokens)?);
-        config.model_config.num_threads = 4;
-        config.model_config.provider = Some("cpu".to_owned());
-        let recognizer = OfflineRecognizer::create(&config).ok_or_else(|| {
-            SpeechRecognitionError::Protocol(
-                "the Whisper runtime could not load the pinned model files".to_owned(),
-            )
-        })?;
+        let model = model_directory.join(WHISPER_MODEL_FILE);
+        match fs::metadata(&model) {
+            Ok(metadata) if metadata.is_file() && metadata.len() == WHISPER_MODEL_BYTES => {}
+            Ok(_) => {
+                return Err(SpeechRecognitionError::Protocol(
+                    "the Whisper model does not match the pinned artifact".to_owned(),
+                ));
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                return Err(SpeechRecognitionError::NotConfigured);
+            }
+            Err(_) => {
+                return Err(SpeechRecognitionError::Transport(
+                    "could not inspect the Whisper model file".to_owned(),
+                ));
+            }
+        }
+        // Native logs may contain paths and vocabulary. Without a logging backend,
+        // whisper-rs' hooks discard them rather than exposing user content.
+        LOGGING.call_once(whisper_rs::install_logging_hooks);
+        let mut parameters = WhisperContextParameters::default();
+        parameters.use_gpu(false);
+        let context = WhisperContext::new_with_params(&model, parameters)
+            .map_err(|error| runtime_error("load the model", error))?;
         Ok(Self {
-            decoder: Arc::new(SherpaWhisperDecoder {
-                recognizer: Mutex::new(recognizer),
+            decoder: Arc::new(CppWhisperDecoder {
+                context: Mutex::new(context),
             }),
         })
     }
@@ -62,94 +67,67 @@ impl WhisperSpeechRecognizer {
 impl StreamingSpeechRecognizer for WhisperSpeechRecognizer {
     fn start(
         &self,
-        _hints: SpeechRecognitionHints,
+        hints: SpeechRecognitionHints,
         _on_partial: Arc<dyn Fn(String) + Send + Sync>,
     ) -> Result<Box<dyn StreamingRecognitionSession>, SpeechRecognitionError> {
         Ok(Box::new(WhisperSession {
             decoder: Arc::clone(&self.decoder),
+            prompt: hints::vocabulary_prompt(hints.terms()),
             samples: Mutex::new(Vec::new()),
         }))
     }
 }
 
-struct WhisperModelFiles {
-    encoder: PathBuf,
-    decoder: PathBuf,
-    tokens: PathBuf,
-}
-
-impl WhisperModelFiles {
-    fn validate(directory: &Path) -> Result<Self, SpeechRecognitionError> {
-        if !directory.is_dir() {
-            return Err(SpeechRecognitionError::NotConfigured);
-        }
-        Ok(Self {
-            encoder: validate_file(directory, ENCODER_FILE, ENCODER_BYTES)?,
-            decoder: validate_file(directory, DECODER_FILE, DECODER_BYTES)?,
-            tokens: validate_file(directory, TOKENS_FILE, TOKENS_BYTES)?,
-        })
-    }
-}
-
-fn validate_file(
-    directory: &Path,
-    name: &str,
-    expected_bytes: u64,
-) -> Result<PathBuf, SpeechRecognitionError> {
-    let path = directory.join(name);
-    let metadata = match fs::metadata(&path) {
-        Ok(metadata) => metadata,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
-            return Err(SpeechRecognitionError::NotConfigured);
-        }
-        Err(error) => {
-            return Err(SpeechRecognitionError::Transport(format!(
-                "could not inspect {}: {error}",
-                path.display()
-            )));
-        }
-    };
-    if !metadata.is_file() || metadata.len() != expected_bytes {
-        return Err(SpeechRecognitionError::Protocol(format!(
-            "{} does not match the pinned Whisper artifact",
-            path.display()
-        )));
-    }
-    Ok(path)
-}
-
-fn path_text(path: &Path) -> Result<String, SpeechRecognitionError> {
-    path.to_str().map(ToOwned::to_owned).ok_or_else(|| {
-        SpeechRecognitionError::Protocol(format!(
-            "the Whisper model path is not valid Unicode: {}",
-            path.display()
-        ))
-    })
-}
-
+/// Decodes one audio segment using only that dictation's bounded vocabulary snapshot.
+/// Implementations must isolate decoder state between calls and never log the prompt.
 trait WhisperDecoder: Send + Sync {
-    fn decode(&self, samples: &[i16]) -> Result<String, SpeechRecognitionError>;
+    fn decode(&self, samples: &[i16], prompt: &str) -> Result<String, SpeechRecognitionError>;
 }
 
-struct SherpaWhisperDecoder {
-    recognizer: Mutex<OfflineRecognizer>,
+struct CppWhisperDecoder {
+    context: Mutex<WhisperContext>,
 }
 
-impl WhisperDecoder for SherpaWhisperDecoder {
-    fn decode(&self, samples: &[i16]) -> Result<String, SpeechRecognitionError> {
-        let recognizer = self.recognizer.lock().map_err(lock_error)?;
-        let stream = recognizer.create_stream();
-        stream.accept_waveform(SAMPLE_RATE, &pcm_f32(samples));
-        recognizer.decode(&stream);
-        Ok(stream
-            .get_result()
-            .map(|result| result.text)
-            .unwrap_or_default())
+impl WhisperDecoder for CppWhisperDecoder {
+    fn decode(&self, samples: &[i16], prompt: &str) -> Result<String, SpeechRecognitionError> {
+        let context = self.context.lock().map_err(lock_error)?;
+        // Whisper's byte-level tokenizer cannot produce more tokens than input
+        // bytes. Allocate that upper bound rather than a smaller token budget.
+        let tokens = context
+            .tokenize(prompt, prompt.len() + 1)
+            .map_err(|error| runtime_error("tokenize vocabulary", error))?;
+        let mut state = context
+            .create_state()
+            .map_err(|error| runtime_error("create decoder state", error))?;
+        let mut parameters = FullParams::new(SamplingStrategy::Greedy { best_of: 1 });
+        parameters.set_n_threads(4);
+        parameters.set_translate(false);
+        parameters.set_language(None);
+        parameters.set_no_context(true);
+        parameters.set_print_special(false);
+        parameters.set_print_progress(false);
+        parameters.set_print_realtime(false);
+        parameters.set_print_timestamps(false);
+        // This is whisper.cpp's initial-prompt token path. The borrowed tokens
+        // live through full(), avoiding the binding's allocating string setter.
+        parameters.set_tokens(&tokens);
+        state
+            .full(parameters, &pcm_f32(samples))
+            .map_err(|error| runtime_error("decode audio", error))?;
+        let mut transcript = String::new();
+        for segment in state.as_iter() {
+            let text = segment
+                .to_str()
+                .map_err(|error| runtime_error("read decoded text", error))?;
+            transcript.push_str(text);
+        }
+        Ok(transcript)
     }
 }
 
 struct WhisperSession {
     decoder: Arc<dyn WhisperDecoder>,
+    prompt: String,
     samples: Mutex<Vec<i16>>,
 }
 
@@ -168,7 +146,10 @@ impl StreamingRecognitionSession for WhisperSession {
         }
         let mut transcript = String::new();
         for segment in samples.chunks(MAX_SEGMENT_SAMPLES) {
-            append_segment(&mut transcript, &self.decoder.decode(segment)?);
+            append_segment(
+                &mut transcript,
+                &self.decoder.decode(segment, &self.prompt)?,
+            );
         }
         if transcript.is_empty() {
             Err(SpeechRecognitionError::Protocol(
@@ -205,94 +186,10 @@ fn pcm_f32(samples: &[i16]) -> Vec<f32> {
         .collect()
 }
 
-fn lock_error(error: impl std::fmt::Display) -> SpeechRecognitionError {
-    SpeechRecognitionError::Transport(format!("Whisper runtime lock failed: {error}"))
+fn runtime_error(operation: &str, error: impl std::fmt::Display) -> SpeechRecognitionError {
+    SpeechRecognitionError::Protocol(format!("Whisper could not {operation}: {error}"))
 }
 
-#[cfg(test)]
-#[allow(clippy::panic_in_result_fn)]
-mod tests {
-    use std::sync::atomic::{AtomicUsize, Ordering};
-
-    use super::*;
-
-    #[test]
-    fn long_audio_is_decoded_without_losing_samples() -> Result<(), SpeechRecognitionError> {
-        let decoded_samples = Arc::new(AtomicUsize::new(0));
-        let recognizer = WhisperSpeechRecognizer::with_decoder(Arc::new(FakeDecoder {
-            calls: Arc::new(AtomicUsize::new(0)),
-            decoded_samples: Arc::clone(&decoded_samples),
-        }));
-        let partials = Arc::new(AtomicUsize::new(0));
-        let captured = Arc::clone(&partials);
-        let session = recognizer.start(
-            SpeechRecognitionHints::default(),
-            Arc::new(move |_| {
-                captured.fetch_add(1, Ordering::Relaxed);
-            }),
-        )?;
-        let total_samples = MAX_SEGMENT_SAMPLES + 1_600;
-
-        session.push_audio(vec![1; total_samples])?;
-        let transcript = session.finish()?;
-
-        assert_eq!(total_samples, decoded_samples.load(Ordering::Relaxed));
-        assert_eq!("segment segment", transcript);
-        assert_eq!(0, partials.load(Ordering::Relaxed));
-        Ok(())
-    }
-
-    #[test]
-    fn cancellation_does_not_decode_buffered_audio() -> Result<(), SpeechRecognitionError> {
-        let calls = Arc::new(AtomicUsize::new(0));
-        let recognizer = WhisperSpeechRecognizer::with_decoder(Arc::new(FakeDecoder {
-            calls: Arc::clone(&calls),
-            decoded_samples: Arc::new(AtomicUsize::new(0)),
-        }));
-        let session = recognizer.start(SpeechRecognitionHints::default(), Arc::new(|_| {}))?;
-        session.push_audio(vec![1; 1_600])?;
-
-        session.cancel();
-
-        assert_eq!(0, calls.load(Ordering::Relaxed));
-        Ok(())
-    }
-
-    #[test]
-    fn empty_audio_is_rejected_without_decoding() -> Result<(), SpeechRecognitionError> {
-        let calls = Arc::new(AtomicUsize::new(0));
-        let recognizer = WhisperSpeechRecognizer::with_decoder(Arc::new(FakeDecoder {
-            calls: Arc::clone(&calls),
-            decoded_samples: Arc::new(AtomicUsize::new(0)),
-        }));
-        let session = recognizer.start(SpeechRecognitionHints::default(), Arc::new(|_| {}))?;
-
-        assert!(matches!(
-            session.finish(),
-            Err(SpeechRecognitionError::Protocol(_))
-        ));
-        assert_eq!(0, calls.load(Ordering::Relaxed));
-        Ok(())
-    }
-
-    #[test]
-    fn joins_chinese_segments_without_inserting_spaces() {
-        let mut transcript = "你好".to_owned();
-        append_segment(&mut transcript, "世界");
-        assert_eq!("你好世界", transcript);
-    }
-
-    struct FakeDecoder {
-        calls: Arc<AtomicUsize>,
-        decoded_samples: Arc<AtomicUsize>,
-    }
-
-    impl WhisperDecoder for FakeDecoder {
-        fn decode(&self, samples: &[i16]) -> Result<String, SpeechRecognitionError> {
-            self.calls.fetch_add(1, Ordering::Relaxed);
-            self.decoded_samples
-                .fetch_add(samples.len(), Ordering::Relaxed);
-            Ok("segment".to_owned())
-        }
-    }
+fn lock_error(_error: impl std::fmt::Display) -> SpeechRecognitionError {
+    SpeechRecognitionError::Transport("Whisper runtime lock was poisoned".to_owned())
 }

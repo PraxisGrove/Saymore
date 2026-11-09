@@ -20,10 +20,20 @@ mod settings_ui;
 
 fn check_cloud_asr_presets(ui: &ui::AppWindow, store: &JsonSettingsStore) {
     let saved = require(store.load_catalog());
+    ui.set_configured_custom_asr_kind(ui::AsrProviderCardKind::Openai);
     ui.set_custom_asr_base_url(CloudAsrPreset::OpenAi.base_url().into());
     ui.set_custom_asr_api_key("old-provider-key".into());
     ui.set_custom_asr_model("old-model".into());
     ui.invoke_prepare_cloud_asr(ui::CloudAsrService::Groq);
+    assert_eq!("Groq", ui.get_custom_asr_service_name().as_str());
+    assert_eq!(
+        ui::AsrProviderCardKind::Groq,
+        ui.get_draft_custom_asr_kind()
+    );
+    assert_eq!(
+        ui::AsrProviderCardKind::Openai,
+        ui.get_configured_custom_asr_kind()
+    );
     assert_eq!(
         CloudAsrPreset::Groq.base_url(),
         ui.get_custom_asr_base_url().as_str()

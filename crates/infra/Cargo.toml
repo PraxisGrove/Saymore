@@ -30,6 +30,7 @@ reqwest = { workspace = true }
 rusqlite = { workspace = true }
 rustls = { workspace = true }
 sherpa-onnx = { workspace = true }
+whisper-rs = { workspace = true }
 tar = { workspace = true }
 tokio = { workspace = true }
 tokio-util = { workspace = true }

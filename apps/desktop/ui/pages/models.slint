@@ -171,6 +171,7 @@ export component ModelsPage inherits Rectangle {
     in-out property <string> custom-asr-base-url;
     in-out property <string> custom-asr-model;
     in property <bool> custom-asr-configured;
+    in property <AsrProviderCardKind> configured-custom-asr-kind: AsrProviderCardKind.custom;
     in property <bool> asr-configured;
     in property <bool> asr-config-error;
     in-out property <bool> asr-draft-error: false;
@@ -274,6 +275,7 @@ export component ModelsPage inherits Rectangle {
         custom-base-url <=> root.custom-asr-base-url;
         custom-model <=> root.custom-asr-model;
         custom-configured: root.custom-asr-configured;
+        configured-custom-kind: root.configured-custom-asr-kind;
         config-error: root.asr-config-error;
         draft-error <=> root.asr-draft-error;
         config-status: root.asr-config-status;

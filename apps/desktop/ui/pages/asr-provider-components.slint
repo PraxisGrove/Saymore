@@ -233,6 +233,7 @@ component ModalSecretField inherits Rectangle {
 
 export component AsrConfigurationModal inherits Rectangle {
     in property <AsrProvider> provider: AsrProvider.volcengine;
+    in property <string> service-name;
     in-out property <string> volcengine-api-key;
     in-out property <string> volcengine-model;
     in-out property <string> custom-api-key;
@@ -296,8 +297,11 @@ export component AsrConfigurationModal inherits Rectangle {
             height: 38px;
             source: root.provider == AsrProvider.volcengine
                 ? @image-url("../../icons/providers/volcengine.png")
+                : root.service-name == "OpenAI" ? @image-url("../../icons/providers/openai.png")
+                : root.service-name == "Groq" ? @image-url("../../icons/providers/groq.svg")
+                : root.service-name == "Mistral" ? @image-url("../../icons/providers/mistral.svg")
                 : @image-url("../../icons/lucide/plus.svg");
-            colorize: root.provider == AsrProvider.custom ? AppColors.ink : transparent;
+            colorize: root.provider == AsrProvider.custom && root.service-name != "Mistral" ? AppColors.ink : transparent;
             image-fit: contain;
         }
         Text {
@@ -306,7 +310,8 @@ export component AsrConfigurationModal inherits Rectangle {
             width: dialog.panel-width - 252px;
             text: root.provider == AsrProvider.volcengine
                 ? @tr("models.asr.volcengine.dialog-title" => "Configure Volcengine")
-                : @tr("models.asr.custom.dialog-title" => "Configure custom ASR");
+                : root.service-name.is-empty ? @tr("models.asr.custom.dialog-title" => "Configure custom ASR")
+                : @tr("models.asr.service.dialog-title" => "Configure {}", root.service-name);
             color: AppColors.ink;
             font-size: 18px;
             font-weight: 700;
@@ -325,7 +330,8 @@ export component AsrConfigurationModal inherits Rectangle {
             width: dialog.panel-width - 252px;
             text: root.provider == AsrProvider.volcengine
                 ? @tr("models.asr.volcengine.dialog-subtitle" => "Run a standard audio recognition test before enabling this provider.")
-                : @tr("models.asr.custom.dialog-subtitle" => "OpenAI-compatible audio transcription endpoint");
+                : root.service-name.is-empty ? @tr("models.asr.custom.dialog-subtitle" => "OpenAI-compatible audio transcription endpoint")
+                : @tr("models.asr.service.dialog-subtitle" => "Saving replaces your current compatible service configuration.");
             color: AppColors.text-muted;
             font-size: 10px;
             overflow: elide;
@@ -752,7 +758,7 @@ export component UnavailableAsrProviderModal inherits Rectangle {
         : @tr("models.asr.placeholder.local-subtitle" => "Local model adapter is not yet connected");
     private property <string> download-size: root.kind == AsrProviderCardKind.qwen3-asr ? "2.24 GB"
         : root.kind == AsrProviderCardKind.paraformer ? "226.21 MB"
-        : root.kind == AsrProviderCardKind.whisper-large-v3-turbo ? "988.59 MB" : "—";
+        : root.kind == AsrProviderCardKind.whisper-large-v3-turbo ? "833.69 MB" : "—";
     private property <string> memory: root.kind == AsrProviderCardKind.qwen3-asr ? "~4.3 GB"
         : root.kind == AsrProviderCardKind.paraformer ? "~503 MB"
         : root.kind == AsrProviderCardKind.whisper-large-v3-turbo ? "~2.15 GB" : "—";

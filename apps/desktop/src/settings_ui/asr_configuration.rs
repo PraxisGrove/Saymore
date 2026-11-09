@@ -439,6 +439,9 @@ fn apply_provider_status(ui: &AppWindow, store: &JsonSettingsStore, provider: Ui
         }
         UiAsrProvider::Custom => {
             let settings = settings.asr.openai_compatible;
+            let kind = super::asr_presets::configured_card_kind(&settings.base_url);
+            ui.set_configured_custom_asr_kind(kind);
+            ui.set_draft_custom_asr_kind(kind);
             !settings.api_key.trim().is_empty()
                 && !settings.base_url.trim().is_empty()
                 && !settings.model.trim().is_empty()

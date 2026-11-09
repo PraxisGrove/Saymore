@@ -527,6 +527,16 @@ msgctxt "models.asr.custom.dialog-title"
 msgid "Configure custom ASR"
 msgstr ""
 
+#: ui/pages/asr-provider-components.slint
+msgctxt "models.asr.service.dialog-title"
+msgid "Configure {}"
+msgstr ""
+
+#: ui/pages/asr-provider-components.slint
+msgctxt "models.asr.service.dialog-subtitle"
+msgid "Saving replaces your current compatible service configuration."
+msgstr ""
+
 #: ui/pages/asr-provider-components.slint:538
 msgctxt "models.asr.volcengine.dialog-subtitle"
 msgid "Run a standard audio recognition test before enabling this provider."
@@ -3683,7 +3693,7 @@ msgstr ""
 
 #: ui/pages/dictionary-recognition-notice.slint
 msgctxt "dictionary.recognition.unsupported"
-msgid "This model cannot use dictionary hints during recognition. To correct misrecognized terms, configure text polishing or switch to Qwen3."
+msgid "This model cannot use dictionary hints during recognition. To correct misrecognized terms, configure text polishing or switch to Whisper or Qwen3."
 msgstr ""
 
 #: ui/pages/dictionary-recognition-notice.slint
@@ -3694,14 +3704,4 @@ msgstr ""
 #: ui/pages/dictionary-recognition-notice.slint
 msgctxt "dictionary.recognition.models"
 msgid "Choose recognition model"
-msgstr ""
-
-#: ui/pages/cloud-asr-presets.slint
-msgctxt "models.asr.presets.title"
-msgid "Quick cloud setup"
-msgstr ""
-
-#: ui/pages/cloud-asr-presets.slint
-msgctxt "models.asr.presets.detail"
-msgid "Fill a preset, enter your API key, then test and save. Saving replaces the compatible API configuration."
 msgstr ""

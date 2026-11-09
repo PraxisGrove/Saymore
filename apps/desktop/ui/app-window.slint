@@ -167,6 +167,9 @@ export component AppWindow inherits Window {
     in-out property <string> custom-asr-base-url: "";
     in-out property <string> custom-asr-model: "";
     in property <bool> custom-asr-configured: false;
+    in property <AsrProviderCardKind> configured-custom-asr-kind: AsrProviderCardKind.custom;
+    in-out property <string> custom-asr-service-name;
+    in-out property <AsrProviderCardKind> draft-custom-asr-kind: AsrProviderCardKind.custom;
     in property <bool> asr-configured: false;
     in property <bool> asr-home-available: false;
     in property <bool> asr-config-error: false;
@@ -533,6 +536,7 @@ export component AppWindow inherits Window {
                 custom-asr-base-url <=> root.custom-asr-base-url;
                 custom-asr-model <=> root.custom-asr-model;
                 custom-asr-configured: root.custom-asr-configured;
+                configured-custom-asr-kind: root.configured-custom-asr-kind;
                 asr-configured: root.asr-configured;
                 asr-config-error: root.asr-config-error;
                 asr-draft-error <=> root.asr-draft-error;
@@ -597,6 +601,8 @@ export component AppWindow inherits Window {
                     }
                 }
                 open-asr-config(original-provider) => {
+                    root.custom-asr-service-name = "";
+                    root.draft-custom-asr-kind = root.configured-custom-asr-kind;
                     root.focus-asr-config = false;
                     root.asr-modal-original-provider = original-provider;
                     root.asr-test-succeeded = false;
@@ -650,7 +656,7 @@ export component AppWindow inherits Window {
                 show-reset-confirmation => { root.history-reset-confirmation-visible = true; }
             }
             if root.current-page == AppPage.dictionary: DictionaryPage {
-                recognition-hints-unavailable: root.sense-voice-selected || root.paraformer-selected || root.whisper-selected;
+                recognition-hints-unavailable: root.sense-voice-selected || root.paraformer-selected;
                 polishing-enabled: root.llm-enabled;
                 open-polishing-settings => { root.model-tab = 1; root.current-page = AppPage.models; }
                 open-recognition-settings => { root.model-tab = 0; root.current-page = AppPage.models; }
@@ -822,14 +828,16 @@ export component AppWindow inherits Window {
         width: parent.width;
         height: parent.height;
         provider: root.asr-provider;
+        service-name: root.custom-asr-service-name;
         volcengine-api-key <=> root.asr-api-key;
         volcengine-model <=> root.asr-model;
         custom-api-key <=> root.custom-asr-api-key;
         custom-base-url <=> root.custom-asr-base-url;
         custom-model <=> root.custom-asr-model;
         configured: root.asr-provider == AsrProvider.volcengine
-            ? root.volcengine-asr-configured : root.custom-asr-configured;
-        selected: root.cloud-asr-selected && root.active-asr-provider == root.asr-provider;
+            ? root.volcengine-asr-configured
+            : root.custom-asr-configured && root.draft-custom-asr-kind == root.configured-custom-asr-kind;
+        selected: self.configured && root.cloud-asr-selected && root.active-asr-provider == root.asr-provider;
         selection-enabled: self.configured && !self.selected && !root.asr-config-dirty && !root.asr-testing;
         dirty: root.asr-config-dirty;
         testing: root.asr-testing;

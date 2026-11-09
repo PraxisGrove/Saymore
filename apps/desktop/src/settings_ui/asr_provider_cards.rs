@@ -103,6 +103,9 @@ fn provider_cards(platform: DesktopPlatform) -> Vec<AsrProviderCardSpec> {
             unavailable(AsrProviderCardKind::SenseVoiceSmall)
         },
         available(AsrProviderCardKind::Volcengine),
+        available(AsrProviderCardKind::Openai),
+        available(AsrProviderCardKind::Groq),
+        available(AsrProviderCardKind::Mistral),
         available(AsrProviderCardKind::Custom),
     ]);
     cards
@@ -131,9 +134,9 @@ mod tests {
         for platform in [DesktopPlatform::MacOs, DesktopPlatform::Windows] {
             let cards = provider_cards(platform);
             let expected_count = if matches!(platform, DesktopPlatform::MacOs) {
-                8
+                11
             } else {
-                7
+                10
             };
             assert_eq!(expected_count, cards.len());
             assert_eq!(1, cards.iter().filter(|card| !card.available).count());
@@ -152,6 +155,9 @@ mod tests {
                 AsrProviderCardKind::Qwen3Asr,
                 AsrProviderCardKind::SenseVoiceSmall,
                 AsrProviderCardKind::Volcengine,
+                AsrProviderCardKind::Openai,
+                AsrProviderCardKind::Groq,
+                AsrProviderCardKind::Mistral,
                 AsrProviderCardKind::Custom,
             ],
             macos.iter().map(|card| card.kind).collect::<Vec<_>>()
@@ -166,6 +172,9 @@ mod tests {
                 AsrProviderCardKind::Qwen3Asr,
                 AsrProviderCardKind::SenseVoiceSmall,
                 AsrProviderCardKind::Volcengine,
+                AsrProviderCardKind::Openai,
+                AsrProviderCardKind::Groq,
+                AsrProviderCardKind::Mistral,
                 AsrProviderCardKind::Custom,
             ],
             windows.iter().map(|card| card.kind).collect::<Vec<_>>()

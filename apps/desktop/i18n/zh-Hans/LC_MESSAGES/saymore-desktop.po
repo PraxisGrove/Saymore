@@ -495,6 +495,16 @@ msgctxt "models.asr.custom.dialog-title"
 msgid "Configure custom ASR"
 msgstr "配置自定义 ASR"
 
+#: ui/pages/asr-provider-components.slint
+msgctxt "models.asr.service.dialog-title"
+msgid "Configure {}"
+msgstr "配置 {}"
+
+#: ui/pages/asr-provider-components.slint
+msgctxt "models.asr.service.dialog-subtitle"
+msgid "Saving replaces your current compatible service configuration."
+msgstr "保存将替换现有的兼容接口服务配置。"
+
 #: ui/pages/asr-provider-components.slint:538
 msgctxt "models.asr.volcengine.dialog-subtitle"
 msgid "Run a standard audio recognition test before enabling this provider."
@@ -3876,8 +3886,8 @@ msgstr "当前模型不支持识别阶段的词典热词。文本润色会参考
 
 #: ui/pages/dictionary-recognition-notice.slint
 msgctxt "dictionary.recognition.unsupported"
-msgid "This model cannot use dictionary hints during recognition. To correct misrecognized terms, configure text polishing or switch to Qwen3."
-msgstr "当前模型不支持识别阶段的词典热词。需要纠正错词时，请配置文本润色，或切换到 Qwen3。"
+msgid "This model cannot use dictionary hints during recognition. To correct misrecognized terms, configure text polishing or switch to Whisper or Qwen3."
+msgstr "当前模型不支持识别阶段的词典热词。需要纠正错词时，请配置文本润色，或切换到 Whisper、Qwen3。"
 
 #: ui/pages/dictionary-recognition-notice.slint
 msgctxt "dictionary.recognition.settings"
@@ -3888,13 +3898,3 @@ msgstr "文本润色设置"
 msgctxt "dictionary.recognition.models"
 msgid "Choose recognition model"
 msgstr "选择识别模型"
-
-#: ui/pages/cloud-asr-presets.slint
-msgctxt "models.asr.presets.title"
-msgid "Quick cloud setup"
-msgstr "云端识别快捷配置"
-
-#: ui/pages/cloud-asr-presets.slint
-msgctxt "models.asr.presets.detail"
-msgid "Fill a preset, enter your API key, then test and save. Saving replaces the compatible API configuration."
-msgstr "选择预设、填写 API Key 后测试并保存。保存将替换现有的兼容 API 配置。"

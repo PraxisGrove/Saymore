@@ -53,11 +53,29 @@ context; empty terms and terms containing control characters are omitted. Hinted
 sessions use overlapping 20-second audio segments instead of 30-second segments
 to leave context space for the vocabulary prompt.
 
-The pinned sherpa-onnx 1.13.4 SenseVoiceSmall, streaming Paraformer, and local
-Whisper implementations do not support recognition-time dictionary hints. Their
-adapters deliberately use ordinary streams: the generic hotword stream API is
-transducer-only and terminates the native process for these models. Whisper's
-greedy decoder has no initial-prompt path in this version. The
+Local Whisper uses CPU whisper.cpp through pinned `whisper-rs 0.16.0` rather
+than sherpa-onnx. Each dictation snapshots canonical vocabulary, trims and
+case-insensitively deduplicates it, omits control-containing terms, and keeps
+whole terms within 192 UTF-8 bytes. This conservative byte budget stays below
+the 224-token initial-prompt window. Every 29-second audio segment receives the
+same vocabulary through whisper.cpp's `prompt_tokens` initial-context path;
+fresh decoder state prevents previous dictations from leaking into recognition.
+Vocabulary biases decoding without forcing a spelling or guaranteeing accuracy.
+Native Whisper/GGML logs are discarded to avoid exposing paths or vocabulary.
+
+Whisper downloads the pinned `ggml-large-v3-turbo-q8_0.bin` artifact
+(874,188,075 bytes) with size and SHA-256 verification. Its new revision
+isolates it from the previous three-file ONNX installation, which is retained
+but cannot be used by the new engine. Existing Whisper users must download and
+select the new model. The logical provider and model IDs remain stable for
+persisted history and queues. See the
+[Whisper engine migration](research/whisper-dictionary-engine-migration.md) for
+artifact provenance and acceptance evidence.
+
+The pinned sherpa-onnx 1.13.4 SenseVoiceSmall and streaming Paraformer
+implementations do not support recognition-time dictionary hints. Their adapters
+deliberately use ordinary streams: the generic hotword stream API is
+transducer-only and terminates the native process for these models. The
 [dictionary page](../apps/desktop/ui/pages/dictionary.slint) shows this
 limitation when one of these backends is selected and links to recognition model
 selection and text-polishing settings. Dictionary-aware LLM correction after
@@ -69,19 +87,21 @@ Upstream evidence for the pinned version:
 [offline hotword stream default](https://github.com/k2-fsa/sherpa-onnx/blob/v1.13.4/sherpa-onnx/csrc/offline-recognizer-impl.h),
 [online hotword stream default](https://github.com/k2-fsa/sherpa-onnx/blob/v1.13.4/sherpa-onnx/csrc/online-recognizer-impl.h),
 [SenseVoice decoder](https://github.com/k2-fsa/sherpa-onnx/blob/v1.13.4/sherpa-onnx/csrc/offline-recognizer-sense-voice-impl.h),
-[Paraformer decoder](https://github.com/k2-fsa/sherpa-onnx/blob/v1.13.4/sherpa-onnx/csrc/online-recognizer-paraformer-impl.h),
-and
-[Whisper decoder](https://github.com/k2-fsa/sherpa-onnx/blob/v1.13.4/sherpa-onnx/csrc/offline-whisper-greedy-search-decoder.cc).
+[Paraformer decoder](https://github.com/k2-fsa/sherpa-onnx/blob/v1.13.4/sherpa-onnx/csrc/online-recognizer-paraformer-impl.h).
 
-The recognition page offers cloud setup presets for OpenAI (`gpt-transcribe`),
-Groq (`whisper-large-v3-turbo`), and Mistral (`voxtral-mini-transcribe-3`).
-These reuse the single compatible-ASR configuration slot, rather than storing
-three independent sets of credentials. Selecting a preset fills an unsaved
-draft; switching services clears the key, while reopening the same recognized
-service preserves its key and selected model. The existing test-and-save flow
-persists the replacement, and cancellation reloads saved settings. Preset model
-lists contain recommended transcription models and retain a manually entered
-model; unknown compatible endpoints continue to use remote model discovery.
+The recognition page lists OpenAI (`gpt-transcribe`), Groq
+(`whisper-large-v3-turbo`), and Mistral (`voxtral-mini-transcribe-3`) as
+provider cards in the same grid as local models and other services. Selecting a
+card opens its configuration dialog; there is no separate quick-setup section.
+Configured and current badges identify the saved compatible service, not an
+unsaved draft. These reuse the single compatible-ASR configuration slot, rather
+than storing three independent sets of credentials. Selecting a preset fills an
+unsaved draft; switching services clears the key, while reopening the same
+recognized service preserves its key and selected model. The existing
+test-and-save flow persists the replacement, and cancellation reloads saved
+settings. Preset model lists contain recommended transcription models and retain
+a manually entered model; unknown compatible endpoints continue to use remote
+model discovery.
 
 The adapter recognizes official service roots and full transcription URLs.
 OpenAI and Groq uploads are bounded to 25,000,000 bytes including the 44-byte
@@ -172,8 +192,8 @@ in `infra` loads its pinned INT8 files once, then creates an isolated online
 sherpa-onnx stream for each dictation session. Audio pushes emit only changed
 non-empty partials; finishing drains final decoding and rejects an empty result.
 The Whisper large-v3-turbo and Qwen3-ASR 1.7B implementations instead buffer
-session PCM and use pinned sherpa-onnx offline recognizers at finish, with
-ordered segmentation and no fabricated partial results. Qwen3-ASR uses a
+session PCM and decode at finish using whisper.cpp and sherpa-onnx respectively,
+with ordered segmentation and no fabricated partial results. Qwen3-ASR uses a
 one-second overlap plus conservative transcript-boundary deduplication for audio
 longer than 30 seconds so hard cuts do not repeat or truncate words.
 Cancellation drops any local-model session without finalizing it. The macOS

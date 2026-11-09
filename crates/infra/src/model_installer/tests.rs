@@ -391,6 +391,122 @@ fn same_size_corruption_is_not_treated_as_installed() -> Result<(), Box<dyn std:
     Ok(())
 }
 
+#[test]
+fn whisper_download_request_pins_the_ggml_artifact_and_resume_offset()
+-> Result<(), Box<dyn std::error::Error>> {
+    let directory = tempfile::tempdir()?;
+    let installer = VerifiedModelInstaller::whisper_large_v3_turbo(directory.path().to_path_buf())?;
+    let [artifact] = installer.manifest.downloads.as_slice() else {
+        return Err("Whisper must download exactly one GGML file".into());
+    };
+    let request = installer.artifact_request(artifact, 123).build()?;
+
+    assert_eq!(
+        "https://huggingface.co/ggerganov/whisper.cpp/resolve/5359861c739e955e79d9a303bcbc70fb988958b1/ggml-large-v3-turbo-q8_0.bin",
+        request.url().as_str()
+    );
+    assert_eq!("bytes=123-", request.headers()[RANGE]);
+    assert_eq!(874_188_075, installer.download_size_bytes());
+    assert_eq!(
+        "317eb69c11673c9de1e1f0d459b253999804ec71ac4c23c17ecf5fbe24e259a1",
+        artifact.sha256
+    );
+    Ok(())
+}
+
+#[tokio::test]
+async fn whisper_reinstalls_ggml_without_reusing_or_removing_the_onnx_installation()
+-> Result<(), Box<dyn std::error::Error>> {
+    let directory = tempfile::tempdir()?;
+    let root = directory.path().join("models");
+    let legacy = ModelManifest::direct(
+        "whisper-large-v3-turbo-int8",
+        "2ca6ff69fc878651b770880507669577ac41c2ff",
+        "https://example.invalid",
+        vec![
+            test_artifact("turbo-encoder.int8.onnx", b"encoder"),
+            test_artifact("turbo-decoder.int8.onnx", b"decoder"),
+            test_artifact("turbo-tokens.txt", b"tokens"),
+        ],
+    );
+    let old_installer = VerifiedModelInstaller::new(root.clone(), legacy)?;
+    let old_path = old_installer.model_directory();
+    fs::create_dir_all(&old_path)?;
+    for (artifact, contents) in old_installer.manifest.artifacts.iter().zip([
+        b"encoder".as_slice(),
+        b"decoder".as_slice(),
+        b"tokens".as_slice(),
+    ]) {
+        fs::write(old_path.join(&artifact.local_path), contents)?;
+    }
+    assert!(old_installer.is_installed());
+    // A valid old marker must not establish availability of the new artifact.
+    write_verification_marker(&old_path, &old_installer.manifest)?;
+    let old_marker = fs::read(old_path.join(VERIFICATION_MARKER))?;
+    fs::create_dir_all(old_installer.staging_directory())?;
+    fs::write(
+        old_installer
+            .staging_directory()
+            .join("turbo-encoder.int8.onnx.part"),
+        b"partial",
+    )?;
+
+    let mut installer = VerifiedModelInstaller::whisper_large_v3_turbo(root)?;
+    assert_ne!(old_path, installer.model_directory());
+    assert!(!installer.is_installed());
+    assert_eq!(0, installer.partial_download_progress()?.downloaded_bytes);
+    assert_eq!(0, installer.installed_size_bytes()?);
+
+    let server = MockServer::start_async().await;
+    let download = server
+        .mock_async(|when, then| {
+            when.method(GET)
+                .path("/ggml-large-v3-turbo-q8_0.bin")
+                .header("range", "bytes=2-");
+            then.status(206).body("c");
+        })
+        .await;
+    installer.manifest.base_url = server.base_url();
+    // Substitute only model bytes to exercise the real layout without a large download.
+    let artifact = test_artifact("ggml-large-v3-turbo-q8_0.bin", b"abc");
+    installer.manifest.downloads = vec![artifact.clone()];
+    installer.manifest.artifacts = vec![artifact];
+    fs::create_dir_all(installer.model_directory())?;
+    fs::write(
+        installer.model_directory().join(VERIFICATION_MARKER),
+        &old_marker,
+    )?;
+    assert!(!installer.is_installed());
+    fs::create_dir_all(installer.staging_directory())?;
+    fs::write(
+        installer
+            .staging_directory()
+            .join("ggml-large-v3-turbo-q8_0.bin.part"),
+        b"ab",
+    )?;
+
+    let installed = installer.install(Arc::new(|_| {})).await?;
+
+    download.assert_async().await;
+    assert_eq!(
+        b"abc",
+        fs::read(installed.join("ggml-large-v3-turbo-q8_0.bin"))?.as_slice()
+    );
+    assert!(installer.is_installed());
+    assert!(!installed.join("turbo-encoder.int8.onnx").exists());
+    assert_eq!(old_marker, fs::read(old_path.join(VERIFICATION_MARKER))?);
+    assert!(
+        old_installer
+            .staging_directory()
+            .join("turbo-encoder.int8.onnx.part")
+            .exists()
+    );
+    installer.remove()?;
+    assert!(!installer.is_installed());
+    assert!(old_path.join("turbo-encoder.int8.onnx").exists());
+    Ok(())
+}
+
 fn test_artifact(name: &str, contents: &[u8]) -> ModelArtifact {
     let mut digest = Sha256::new();
     digest.update(contents);

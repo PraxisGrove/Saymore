@@ -2,6 +2,11 @@
 
 调研日期：2026-08-03
 
+> 历史记录：Whisper 已为识别阶段词典提示迁移至 whisper.cpp / GGML Q8_0。
+> 当前制品、运行时和迁移契约见
+> [Whisper 词典引擎迁移](whisper-dictionary-engine-migration.md)。本文保留原
+> ONNX 调研依据，不再作为当前下载和运行时契约。
+
 范围：为 Saymore 的 macOS 本地听写锁定可由现有 `sherpa-onnx 1.13.4` Rust
 运行时直接加载的 Whisper large-v3-turbo 制品，并核查文件身份、量化方式、
 下载恢复能力、许可、来源链与中国大陆下载风险。外部事实只采用 OpenAI、

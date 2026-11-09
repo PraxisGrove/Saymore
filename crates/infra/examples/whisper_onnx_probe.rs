@@ -46,7 +46,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         installer.installed_size_bytes()?
     );
     println!("Audio: {}", arguments.wave.display());
-    println!("Loading the pinned INT8 Whisper through the production adapter...");
+    println!("Loading the pinned Q8_0 Whisper through the production whisper.cpp adapter...");
     let memory_before = current_process_resident_memory_bytes();
     let load_started = Instant::now();
     let recognizer = WhisperSpeechRecognizer::load(&model)?;
@@ -62,8 +62,9 @@ fn main() -> Result<(), Box<dyn Error>> {
             .and_then(|(before, after)| after.checked_sub(before))
     );
 
-    let first = transcribe_once(&recognizer, &samples, 1)?;
-    let second = transcribe_once(&recognizer, &samples, 2)?;
+    let hints = SpeechRecognitionHints::from_terms(arguments.terms);
+    let first = transcribe_once(&recognizer, &samples, 1, hints.clone())?;
+    let second = transcribe_once(&recognizer, &samples, 2, hints)?;
     if compact(&first.text) != compact(&second.text) {
         return Err(io::Error::other(format!(
             "consecutive sessions disagreed: {:?} / {:?}",
@@ -95,6 +96,7 @@ struct Arguments {
     models_root: PathBuf,
     wave: PathBuf,
     expected: Option<String>,
+    terms: Vec<String>,
 }
 
 impl Arguments {
@@ -106,13 +108,14 @@ impl Arguments {
             .next()
             .map(|value| value.into_string().map_err(|_| usage()))
             .transpose()?;
-        if arguments.next().is_some() {
-            return Err(usage());
-        }
+        let terms = arguments
+            .map(|value| value.into_string().map_err(|_| usage()))
+            .collect::<Result<Vec<_>, _>>()?;
         Ok(Self {
             models_root,
             wave,
-            expected,
+            expected: expected.filter(|text| text != "-"),
+            terms,
         })
     }
 }
@@ -126,13 +129,14 @@ fn transcribe_once(
     recognizer: &WhisperSpeechRecognizer,
     samples: &[i16],
     run_number: usize,
+    hints: SpeechRecognitionHints,
 ) -> Result<Transcription, Box<dyn Error>> {
     println!(
         "\nRun {run_number}: {:.2}s, {} input chunks",
         samples.len() as f64 / f64::from(SAMPLE_RATE),
         samples.len().div_ceil(CHUNK_SAMPLES)
     );
-    let session = recognizer.start(SpeechRecognitionHints::default(), Arc::new(|_| {}))?;
+    let session = recognizer.start(hints, Arc::new(|_| {}))?;
     let started = Instant::now();
     for chunk in samples.chunks(CHUNK_SAMPLES) {
         session.push_audio(chunk.to_vec())?;
@@ -167,6 +171,6 @@ fn path_text(path: &Path) -> Result<&str, io::Error> {
 fn usage() -> io::Error {
     io::Error::new(
         io::ErrorKind::InvalidInput,
-        "usage: whisper_onnx_probe MODELS_ROOT WAVE_PATH [EXPECTED_TEXT]",
+        "usage: whisper_onnx_probe MODELS_ROOT WAVE_PATH [EXPECTED_TEXT_OR_-] [DICTIONARY_TERM ...]",
     )
 }

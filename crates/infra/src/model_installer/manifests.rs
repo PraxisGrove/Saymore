@@ -1,7 +1,6 @@
 use super::*;
 
 const PARAFORMER_BASE_URL: &str = "https://huggingface.co/csukuangfj/sherpa-onnx-streaming-paraformer-bilingual-zh-en/resolve/8e40c43232a1c5c66c82111efc5820d3accca11b";
-const WHISPER_BASE_URL: &str = "https://huggingface.co/csukuangfj/sherpa-onnx-whisper-turbo/resolve/2ca6ff69fc878651b770880507669577ac41c2ff";
 const QWEN3_ASR_BASE_URL: &str = "https://www.modelscope.cn/models/zengshuishui/Qwen3-ASR-onnx/resolve/cb045ad80b8970c9d411d463e5b78991a566596c";
 const PUNCTUATION_BASE_URL: &str =
     "https://github.com/k2-fsa/sherpa-onnx/releases/download/punctuation-models";
@@ -40,24 +39,14 @@ impl ModelManifest {
         Self::direct(
             WHISPER_MODEL_ID,
             WHISPER_MODEL_REVISION,
-            WHISPER_BASE_URL,
-            vec![
-                artifact(
-                    "turbo-encoder.int8.onnx",
-                    674_716_297,
-                    "b02dcdf54f348741e93fe732b67d933c8dcb6735655f710640143081db38878b",
-                ),
-                artifact(
-                    "turbo-decoder.int8.onnx",
-                    361_080_764,
-                    "20accd02388482eb3a46bd615631adfdc85e1eb2c7db9ea3f02a40ffe6b81547",
-                ),
-                artifact(
-                    "turbo-tokens.txt",
-                    816_730,
-                    "b34b360dbb493e781e479794586d661700670d65564001f23024971d1f2fa126",
-                ),
-            ],
+            &format!(
+                "https://huggingface.co/ggerganov/whisper.cpp/resolve/{WHISPER_MODEL_REVISION}"
+            ),
+            vec![artifact(
+                WHISPER_MODEL_FILE,
+                WHISPER_MODEL_BYTES,
+                "317eb69c11673c9de1e1f0d459b253999804ec71ac4c23c17ecf5fbe24e259a1",
+            )],
         )
     }
 
