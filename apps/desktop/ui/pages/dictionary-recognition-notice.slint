@@ -31,7 +31,7 @@ export component DictionaryRecognitionNotice inherits Rectangle {
         width: parent.width - 24px;
         text: root.polishing-enabled
             ? @tr("dictionary.recognition.polishing" => "This model cannot use dictionary hints during recognition. Text polishing uses your dictionary to correct terms after recognition; results may vary.")
-            : @tr("dictionary.recognition.unsupported" => "This model cannot use dictionary hints during recognition. To correct misrecognized terms, configure text polishing or switch to Whisper or Qwen3.");
+            : @tr("dictionary.recognition.unsupported" => "This model cannot use dictionary hints during recognition. Configure text polishing or choose a model that supports dictionary hints to help correct terms.");
         color: AppColors.text-muted;
         font-size: 11px;
         wrap: word-wrap;

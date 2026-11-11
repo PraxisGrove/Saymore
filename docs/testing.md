@@ -124,15 +124,18 @@ dark appearance at the default 920 × 700 logical window size and the minimum 82
 
 - Open both Transcription and Polishing. Check provider names, source labels,
   summaries, status badges, and the polishing enablement label and helper.
-- Open Qwen3-ASR, Whisper, SenseVoiceSmall, and Paraformer details. Check
-  metadata, download size, runtime memory, device status, download actions, and
-  usage tips. Cover not-downloaded, downloading, paused, installed,
-  activation-pending, and failure states; include a three-digit download
-  percentage and a long error.
-- On Paraformer, check both punctuation modes, missing and installed punctuation
-  models, download progress, and an error. Check recognition-test idle, running,
-  success, and failure states. Use a disposable test profile for downloads and
-  failure setup; do not corrupt or delete a user's installed models.
+- Open Qwen3-ASR, Whisper, SenseVoiceSmall, SeACo-Paraformer, Zipformer, and
+  Moonshine details. Check metadata, download size, runtime memory, device
+  status, download actions, and usage tips. Cover not-downloaded, downloading,
+  paused, installed, activation-pending, and failure states; include a
+  three-digit download percentage and a long error.
+- Check SeACo's verified local import instead of a download action, and use the
+  English self-test for Moonshine. Check recognition-test idle, running,
+  success, and failure states. On upgrade from streaming Paraformer, verify that
+  its old selection clears without fallback, old history remains readable, and
+  model and punctuation files remain counted and manually removable from storage
+  settings. Include incomplete old downloads in cleanup acceptance. Use a
+  disposable test profile; do not corrupt or delete a user's installed models.
 - Verify that enlarged text has no clipped strokes or overlapping controls.
   Standard status and action labels must fit. Long descriptions and errors must
   wrap, and the dialog must scroll to the final usage tip. Provider names and

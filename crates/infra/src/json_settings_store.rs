@@ -8,9 +8,10 @@ use std::{
 
 use template_app::{
     AsrProviderConfiguration, AsrSettings, ChatCompletionsProfile, LlmProviderConfiguration,
-    LlmProviderPreset, LlmSettings, OpenAiCompatibleAsrSettings, ProviderCatalog,
-    ProviderConfigStore, ProviderConfigurationStore, ProviderDataConsent, ProviderInstance,
-    SaymoreSettings, SettingsStore, SettingsStoreError, VolcengineAsrSettings,
+    LlmProviderPreset, LlmSettings, OpenAiCompatibleAsrSettings, PARAFORMER_PROVIDER_ID,
+    PARAFORMER_PROVIDER_TYPE, ProviderCatalog, ProviderConfigStore, ProviderConfigurationStore,
+    ProviderDataConsent, ProviderInstance, SaymoreSettings, SettingsStore, SettingsStoreError,
+    VolcengineAsrSettings,
 };
 use uuid::Uuid;
 
@@ -180,8 +181,15 @@ impl JsonSettingsStore {
             }
             3 => {
                 let stored: StoredCatalog = serde_json::from_value(value).map_err(json_error)?;
-                let catalog = stored.into_catalog();
+                let mut catalog = stored.into_catalog();
+                let retired_asr_selected = retired_asr_is_active(&catalog);
+                if retired_asr_selected {
+                    catalog.active.asr = None;
+                }
                 validate_catalog(&catalog)?;
+                if retired_asr_selected {
+                    self.save_catalog_unlocked(&catalog)?;
+                }
                 Ok(catalog)
             }
             other => Err(SettingsStoreError::Invalid(format!(
@@ -481,7 +489,21 @@ fn endpoint_fingerprint(base_url: &str) -> String {
     )
 }
 
+fn retired_asr_is_active(catalog: &ProviderCatalog) -> bool {
+    catalog.active.asr.as_deref().is_some_and(|active| {
+        active == PARAFORMER_PROVIDER_ID
+            || catalog.asr_providers.iter().any(|provider| {
+                provider.id == active && provider.provider_type == PARAFORMER_PROVIDER_TYPE
+            })
+    })
+}
+
 fn validate_catalog(catalog: &ProviderCatalog) -> Result<(), SettingsStoreError> {
+    if retired_asr_is_active(catalog) {
+        return Err(SettingsStoreError::Invalid(
+            "streaming Paraformer is retired and cannot be selected".to_owned(),
+        ));
+    }
     let mut ids = std::collections::BTreeSet::new();
     for provider in catalog
         .asr_providers

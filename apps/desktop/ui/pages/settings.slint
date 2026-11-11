@@ -522,8 +522,13 @@ export component SettingsPage inherits Rectangle {
     in property <float> storage-diagnostics-visual-share: 0;
     in property <float> storage-other-visual-share: 0;
     in property <string> local-models-total-usage: "0 MB";
+    in property <string> local-model-operation-error;
     in property <string> qwen3-storage-usage: "0 MB";
     in property <string> sense-voice-storage-usage: "0 MB";
+    in property <string> seaco-storage-usage: "0 MB";
+    in property <string> zipformer-storage-usage: "0 MB";
+    in property <string> moonshine-storage-usage: "0 MB";
+    in property <float> other-models-share: 0;
     in property <string> whisper-storage-usage: "0 MB";
     in property <string> paraformer-storage-usage: "0 MB";
     in property <string> punctuation-storage-usage: "0 MB";
@@ -534,7 +539,6 @@ export component SettingsPage inherits Rectangle {
     in property <float> punctuation-model-share: 0;
     in property <bool> paraformer-downloaded: false;
     in property <string> paraformer-installed-size: "";
-    in property <bool> paraformer-selected: false;
     in property <bool> paraformer-pending: false;
     in property <bool> whisper-downloaded: false;
     in property <string> whisper-installed-size: "";
@@ -548,6 +552,18 @@ export component SettingsPage inherits Rectangle {
     in property <string> sense-voice-installed-size;
     in property <bool> sense-voice-selected: false;
     in property <bool> sense-voice-pending: false;
+    in property <bool> seaco-downloaded: false;
+    in property <string> seaco-installed-size;
+    in property <bool> seaco-selected: false;
+    in property <bool> seaco-pending: false;
+    in property <bool> zipformer-downloaded: false;
+    in property <string> zipformer-installed-size;
+    in property <bool> zipformer-selected: false;
+    in property <bool> zipformer-pending: false;
+    in property <bool> moonshine-downloaded: false;
+    in property <string> moonshine-installed-size;
+    in property <bool> moonshine-selected: false;
+    in property <bool> moonshine-pending: false;
     in property <bool> punctuation-downloaded: false;
     in property <string> punctuation-installed-size: "";
     in property <bool> punctuation-pending: false;
@@ -612,7 +628,7 @@ export component SettingsPage inherits Rectangle {
     private property <length> shortcut-extra-height: max(0, root.shortcut-labels.length - 1) * 48px;
     private property <string> section-title: root.current-section == SettingsSection.general ? @tr("settings.section.general" => "General") : root.current-section == SettingsSection.shortcuts-audio ? @tr("settings.section.shortcuts-audio" => "Shortcuts & Audio") : root.current-section == SettingsSection.delivery-permissions ? @tr("settings.section.delivery-permissions" => "Delivery & Permissions") : root.current-section == SettingsSection.privacy-history ? (root.local-models-visible ? @tr("settings.storage.local-models-title" => "Local speech models") : @tr("settings.section.privacy-data" => "Privacy & Data")) : @tr("settings.section.about-updates" => "About & Updates");
     private property <string> section-detail: root.current-section == SettingsSection.general ? @tr("settings.general.detail" => "Control how Saymore starts, appears, and looks on this device.") : root.current-section == SettingsSection.shortcuts-audio ? @tr("settings.shortcuts-audio.detail" => "Choose how voice input starts and how audio feedback works.") : root.current-section == SettingsSection.delivery-permissions ? @tr("settings.delivery-permissions.detail" => "Choose how recognized text is delivered and review system permissions.") : root.current-section == SettingsSection.privacy-history ? (root.local-models-visible ? @tr("settings.storage.local-models-detail" => "Review installed model usage and free space you no longer need.") : @tr("settings.privacy-data.detail" => "Review local data storage and manage diagnostics.")) : @tr("settings.about-updates.detail" => "View version information, update status, and product links.");
-    private property <length> content-height: root.current-section == SettingsSection.general ? (root.compact ? (root.show-dock-setting ? 925px : 833px) : 750px) : root.current-section == SettingsSection.shortcuts-audio ? (root.compact ? 736px : 518px) + root.shortcut-extra-height : root.current-section == SettingsSection.delivery-permissions ? (root.compact ? 790px : 570px) : root.current-section == SettingsSection.privacy-history ? 690px : (root.compact ? 790px : 600px);
+    private property <length> content-height: root.current-section == SettingsSection.general ? (root.compact ? (root.show-dock-setting ? 925px : 833px) : 750px) : root.current-section == SettingsSection.shortcuts-audio ? (root.compact ? 736px : 518px) + root.shortcut-extra-height : root.current-section == SettingsSection.delivery-permissions ? (root.compact ? 790px : 570px) : root.current-section == SettingsSection.privacy-history ? (root.local-models-visible ? 750px + ((root.seaco-downloaded ? 1 : 0) + (root.zipformer-downloaded ? 1 : 0) + (root.moonshine-downloaded ? 1 : 0)) * 84px : 690px) : (root.compact ? 790px : 600px);
     private property <string> export-button-label: root.diagnostics-export-status == "exporting" ? @tr("settings.diagnostics.exporting" => "Exporting…") : root.diagnostics-export-status == "success" ? @tr("settings.diagnostics.exported" => "Exported") : root.diagnostics-export-status == "failed" ? @tr("settings.diagnostics.export-again" => "Export again") : @tr("settings.diagnostics.export-report" => "Export report");
     private property <string> update-button-label: root.update-status == "checking" ? @tr("settings.update.checking" => "Checking…") : root.update-status == "failed" ? @tr("settings.update.check-again" => "Check again") : @tr("settings.update.check" => "Check updates");
     private property <string> update-message: root.update-status == "checking" ? @tr("settings.update.checking-detail" => "Checking for updates…") : root.update-status == "latest" ? @tr("settings.update.latest" => "You’re up to date") : root.update-status == "available" ? @tr("settings.update.available" => "Saymore {} is available", root.update-version) : root.update-status == "failed" ? root.update-detail : @tr("settings.update.not-checked" => "Updates have not been checked yet");
@@ -632,7 +648,9 @@ export component SettingsPage inherits Rectangle {
                 y: 40px;
                 width: root.compact ? max(0px, parent.width - 40px) : min(parent.width, 880px);
                 title: root.section-title;
-                detail: root.section-detail;
+                detail: root.current-section == SettingsSection.privacy-history
+                    && root.local-models-visible && root.local-model-operation-error != ""
+                    ? root.local-model-operation-error : root.section-detail;
                 left-aligned: root.current-section == SettingsSection.privacy-history;
             }
             settings-scroll := Flickable {
@@ -849,7 +867,6 @@ export component SettingsPage inherits Rectangle {
                             local-models-total: root.local-models-total-usage;
                             paraformer-installed: root.paraformer-downloaded;
                             paraformer-size: root.paraformer-storage-usage;
-                            paraformer-active: root.paraformer-selected;
                             paraformer-pending: root.paraformer-pending;
                             whisper-installed: root.whisper-downloaded;
                             whisper-size: root.whisper-storage-usage;
@@ -863,6 +880,19 @@ export component SettingsPage inherits Rectangle {
                             sense-voice-size: root.sense-voice-storage-usage;
                             sense-voice-active: root.sense-voice-selected;
                             sense-voice-pending: root.sense-voice-pending;
+                            seaco-installed: root.seaco-downloaded;
+                            seaco-size: root.seaco-storage-usage;
+                            seaco-active: root.seaco-selected;
+                            seaco-pending: root.seaco-pending;
+                            zipformer-installed: root.zipformer-downloaded;
+                            zipformer-size: root.zipformer-storage-usage;
+                            zipformer-active: root.zipformer-selected;
+                            zipformer-pending: root.zipformer-pending;
+                            moonshine-installed: root.moonshine-downloaded;
+                            moonshine-size: root.moonshine-storage-usage;
+                            moonshine-active: root.moonshine-selected;
+                            moonshine-pending: root.moonshine-pending;
+                            other-models-share: root.other-models-share;
                             punctuation-installed: root.punctuation-downloaded;
                             punctuation-size: root.punctuation-storage-usage;
                             punctuation-pending: root.punctuation-pending;

@@ -150,17 +150,10 @@ fn apply_loaded_asr(ui: &AppWindow, settings: SaymoreSettings, catalog: &Provide
         && !custom.base_url.trim().is_empty()
         && !custom.model.trim().is_empty();
     let custom_active = custom.enabled;
-    let paraformer_active = catalog.paraformer_is_active();
-    let whisper_active = catalog.whisper_is_active();
-    let qwen3_active = catalog.qwen3_asr_is_active();
-    let sense_voice_active = catalog.sense_voice_is_active();
-    ui.set_paraformer_selected(paraformer_active);
-    ui.set_whisper_selected(whisper_active);
-    ui.set_qwen3_asr_selected(qwen3_active);
-    ui.set_sense_voice_selected(sense_voice_active);
+    let local_active = apply_local_asr_selection(ui, catalog);
     let macos_speech_active = catalog.macos_speech_is_active();
     let macos_speech_ready = super::apply_macos_speech_state(ui, macos_speech_active);
-    let configured = if sense_voice_active || qwen3_active || whisper_active || paraformer_active {
+    let configured = if local_active {
         true
     } else if macos_speech_active {
         macos_speech_ready
@@ -192,17 +185,8 @@ fn apply_loaded_asr(ui: &AppWindow, settings: SaymoreSettings, catalog: &Provide
     apply_status(
         ui,
         configured,
-        !whisper_active
-            && !paraformer_active
-            && !macos_speech_active
-            && !custom_active
-            && invalid_api_key,
-        if !whisper_active
-            && !paraformer_active
-            && !macos_speech_active
-            && !custom_active
-            && invalid_api_key
-        {
+        !local_active && !macos_speech_active && !custom_active && invalid_api_key,
+        if !local_active && !macos_speech_active && !custom_active && invalid_api_key {
             translations.get_models_invalid_api_key()
         } else if configured {
             translations.get_models_configured()
@@ -211,6 +195,27 @@ fn apply_loaded_asr(ui: &AppWindow, settings: SaymoreSettings, catalog: &Provide
         },
     );
     configured
+}
+
+fn apply_local_asr_selection(ui: &AppWindow, catalog: &ProviderCatalog) -> bool {
+    let whisper_active = catalog.whisper_is_active();
+    let qwen3_active = catalog.qwen3_asr_is_active();
+    let sense_voice_active = catalog.sense_voice_is_active();
+    ui.set_whisper_selected(whisper_active);
+    ui.set_qwen3_asr_selected(qwen3_active);
+    ui.set_sense_voice_selected(sense_voice_active);
+    let seaco_active = catalog.seaco_is_active();
+    let zipformer_active = catalog.zipformer_is_active();
+    let moonshine_active = catalog.moonshine_is_active();
+    ui.set_seaco_selected(seaco_active);
+    ui.set_zipformer_selected(zipformer_active);
+    ui.set_moonshine_selected(moonshine_active);
+    sense_voice_active
+        || qwen3_active
+        || whisper_active
+        || seaco_active
+        || zipformer_active
+        || moonshine_active
 }
 
 fn selected_cloud_asr_provider(

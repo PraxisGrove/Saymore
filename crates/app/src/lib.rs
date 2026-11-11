@@ -94,12 +94,13 @@ pub use refinement_terms::{
 };
 pub use settings::{
     ActiveProviders, AsrSettings, ChatCompletionsLlmSettings, ChatCompletionsProfile,
-    LlmModelCatalog, LlmProviderPreset, LlmProviderProfile, LlmSettings,
-    OpenAiCompatibleAsrSettings, PARAFORMER_PROVIDER_ID, PARAFORMER_PROVIDER_TYPE,
-    ParaformerPunctuationMode, ProviderCatalog, ProviderConfigStore, ProviderDataConsent,
-    ProviderInstance, QWEN3_ASR_PROVIDER_ID, QWEN3_ASR_PROVIDER_TYPE, SENSE_VOICE_PROVIDER_ID,
-    SENSE_VOICE_PROVIDER_TYPE, SaymoreSettings, SettingsStore, SettingsStoreError,
-    VolcengineAsrSettings, WHISPER_PROVIDER_ID, WHISPER_PROVIDER_TYPE,
+    LlmModelCatalog, LlmProviderPreset, LlmProviderProfile, LlmSettings, MOONSHINE_PROVIDER_ID,
+    MOONSHINE_PROVIDER_TYPE, OpenAiCompatibleAsrSettings, PARAFORMER_PROVIDER_ID,
+    PARAFORMER_PROVIDER_TYPE, ProviderCatalog, ProviderConfigStore, ProviderDataConsent,
+    ProviderInstance, QWEN3_ASR_PROVIDER_ID, QWEN3_ASR_PROVIDER_TYPE, SEACO_PROVIDER_ID,
+    SEACO_PROVIDER_TYPE, SENSE_VOICE_PROVIDER_ID, SENSE_VOICE_PROVIDER_TYPE, SaymoreSettings,
+    SettingsStore, SettingsStoreError, VolcengineAsrSettings, WHISPER_PROVIDER_ID,
+    WHISPER_PROVIDER_TYPE, ZIPFORMER_PROVIDER_ID, ZIPFORMER_PROVIDER_TYPE,
 };
 pub use speech_recognition::{
     SpeechRecognitionError, SpeechRecognitionHints, StreamingRecognitionSession,

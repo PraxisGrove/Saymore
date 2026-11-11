@@ -1,0 +1,225 @@
+{
+  "date": "2026-11-09",
+  "platform": "macOS-15.5-arm64-arm-64bit",
+  "cases": [
+    {
+      "fixture": "official-hotword",
+      "pcm_sha256": "02ade4747579e2ff37a5a3cfe19dd68a68fc594ced3b031c21a45e9d5404c381",
+      "terms": [
+        "魔搭",
+        "达摩院"
+      ],
+      "report": {
+        "audio_seconds": 7.9249375,
+        "baseline_stable_after_hints": true,
+        "dictionary_term_count": 2,
+        "model_load_ms": 3267.746,
+        "runs": [
+          {
+            "case": "baseline_before",
+            "embedding_count": 1,
+            "embedding_dimension": 512,
+            "embedding_ms": 5.026542,
+            "inference_ms": 229.804125,
+            "peak_resident_bytes": 1564393472,
+            "text": "国务院发展研究中心市场经济研究所副所长邓玉松认为"
+          },
+          {
+            "case": "with_dictionary",
+            "embedding_count": 3,
+            "embedding_dimension": 512,
+            "embedding_ms": 2.328666,
+            "inference_ms": 208.343959,
+            "peak_resident_bytes": 1564393472,
+            "text": "国务院发展研究中心市场经济研究所副所长邓玉松认为"
+          },
+          {
+            "case": "baseline_after",
+            "embedding_count": 1,
+            "embedding_dimension": 512,
+            "embedding_ms": 1.150875,
+            "inference_ms": 277.360541,
+            "peak_resident_bytes": 1564393472,
+            "text": "国务院发展研究中心市场经济研究所副所长邓玉松认为"
+          }
+        ]
+      }
+    },
+    {
+      "fixture": "rare-terms",
+      "pcm_sha256": "5e47e7ace7a4048153a7d8ee3f249503946d771ab9dc6e4d9a3ad72142e512d1",
+      "terms": [
+        "熵舟",
+        "声澈",
+        "弈澜",
+        "砺言"
+      ],
+      "report": {
+        "audio_seconds": 13.57725,
+        "baseline_stable_after_hints": true,
+        "dictionary_term_count": 4,
+        "model_load_ms": 2113.963458,
+        "runs": [
+          {
+            "case": "baseline_before",
+            "embedding_count": 1,
+            "embedding_dimension": 512,
+            "embedding_ms": 12.224875,
+            "inference_ms": 706.741667,
+            "peak_resident_bytes": 1411710976,
+            "text": "今天商周团队正在测试声澈引擎请把一兰项目的结果交给利研科技商周声澈一兰力研都是这次测试的专有名称"
+          },
+          {
+            "case": "with_dictionary",
+            "embedding_count": 5,
+            "embedding_dimension": 512,
+            "embedding_ms": 4.322792,
+            "inference_ms": 1925.240959,
+            "peak_resident_bytes": 1412431872,
+            "text": "今天商周团队正在测试声澈引擎请把一兰项目的结果交给利研科技商周声澈一兰力研都是这次测试的专有名称"
+          },
+          {
+            "case": "baseline_after",
+            "embedding_count": 1,
+            "embedding_dimension": 512,
+            "embedding_ms": 7.024708,
+            "inference_ms": 719.7055,
+            "peak_resident_bytes": 1412431872,
+            "text": "今天商周团队正在测试声澈引擎请把一兰项目的结果交给利研科技商周声澈一兰力研都是这次测试的专有名称"
+          }
+        ]
+      }
+    },
+    {
+      "fixture": "standard-zh",
+      "pcm_sha256": "8ecd2eef78513de8db0a544223b207c0a63797c58b44447bd7f30633aa2880d4",
+      "terms": [
+        "Saymore",
+        "思源黑体"
+      ],
+      "report": {
+        "audio_seconds": 3.859,
+        "baseline_stable_after_hints": true,
+        "dictionary_term_count": 2,
+        "model_load_ms": 3075.033875,
+        "runs": [
+          {
+            "case": "baseline_before",
+            "embedding_count": 1,
+            "embedding_dimension": 512,
+            "embedding_ms": 6.943167,
+            "inference_ms": 282.145625,
+            "peak_resident_bytes": 1393721344,
+            "text": "可以通过语音进行人机交互"
+          },
+          {
+            "case": "with_dictionary",
+            "embedding_count": 2,
+            "embedding_dimension": 512,
+            "embedding_ms": 2.762417,
+            "inference_ms": 154.792167,
+            "peak_resident_bytes": 1393721344,
+            "text": "可以通过语音进行人机交互"
+          },
+          {
+            "case": "baseline_after",
+            "embedding_count": 1,
+            "embedding_dimension": 512,
+            "embedding_ms": 1.360208,
+            "inference_ms": 169.856417,
+            "peak_resident_bytes": 1393721344,
+            "text": "可以通过语音进行人机交互"
+          }
+        ]
+      }
+    },
+    {
+      "fixture": "moda",
+      "pcm_sha256": "ed3feb3011c25050bffcf7e350ec3ca7ed570aa04b7c8ea2b56d7f88da4ba825",
+      "terms": [
+        "魔搭",
+        "达摩院",
+        "张伟"
+      ],
+      "report": {
+        "audio_seconds": 5.1195,
+        "baseline_stable_after_hints": true,
+        "dictionary_term_count": 3,
+        "model_load_ms": 3488.714833,
+        "runs": [
+          {
+            "case": "baseline_before",
+            "embedding_count": 1,
+            "embedding_dimension": 512,
+            "embedding_ms": 77.061209,
+            "inference_ms": 647.877208,
+            "peak_resident_bytes": 1337835520,
+            "text": "欢迎来到摩哒社区达摩院的张伟正在介绍语音识别"
+          },
+          {
+            "case": "with_dictionary",
+            "embedding_count": 4,
+            "embedding_dimension": 512,
+            "embedding_ms": 3.535291,
+            "inference_ms": 660.188083,
+            "peak_resident_bytes": 1337835520,
+            "text": "欢迎来到魔搭社区达摩院的张伟正在介绍语音识别"
+          },
+          {
+            "case": "baseline_after",
+            "embedding_count": 1,
+            "embedding_dimension": 512,
+            "embedding_ms": 17.069209,
+            "inference_ms": 359.357417,
+            "peak_resident_bytes": 1337835520,
+            "text": "欢迎来到摩哒社区达摩院的张伟正在介绍语音识别"
+          }
+        ]
+      }
+    },
+    {
+      "fixture": "moda",
+      "pcm_sha256": "ed3feb3011c25050bffcf7e350ec3ca7ed570aa04b7c8ea2b56d7f88da4ba825",
+      "terms": [
+        "达摩院",
+        "张伟",
+        "魔搭"
+      ],
+      "report": {
+        "audio_seconds": 5.1195,
+        "baseline_stable_after_hints": true,
+        "dictionary_term_count": 3,
+        "model_load_ms": 3605.608459,
+        "runs": [
+          {
+            "case": "baseline_before",
+            "embedding_count": 1,
+            "embedding_dimension": 512,
+            "embedding_ms": 4.4225,
+            "inference_ms": 779.774791,
+            "peak_resident_bytes": 1215119360,
+            "text": "欢迎来到摩哒社区达摩院的张伟正在介绍语音识别"
+          },
+          {
+            "case": "with_dictionary",
+            "embedding_count": 4,
+            "embedding_dimension": 512,
+            "embedding_ms": 5.900708,
+            "inference_ms": 450.532334,
+            "peak_resident_bytes": 1215119360,
+            "text": "欢迎来到魔搭社区达摩院的张伟正在介绍语音识别"
+          },
+          {
+            "case": "baseline_after",
+            "embedding_count": 1,
+            "embedding_dimension": 512,
+            "embedding_ms": 1.379375,
+            "inference_ms": 300.514917,
+            "peak_resident_bytes": 1215119360,
+            "text": "欢迎来到摩哒社区达摩院的张伟正在介绍语音识别"
+          }
+        ]
+      }
+    }
+  ]
+}

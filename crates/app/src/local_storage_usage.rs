@@ -4,6 +4,9 @@ pub struct LocalModelStorageUsage {
     pub whisper_bytes: u64,
     pub qwen3_asr_bytes: u64,
     pub sense_voice_bytes: u64,
+    pub seaco_bytes: u64,
+    pub zipformer_bytes: u64,
+    pub moonshine_bytes: u64,
     pub punctuation_bytes: u64,
 }
 
@@ -13,6 +16,9 @@ impl LocalModelStorageUsage {
             .saturating_add(self.whisper_bytes)
             .saturating_add(self.qwen3_asr_bytes)
             .saturating_add(self.sense_voice_bytes)
+            .saturating_add(self.seaco_bytes)
+            .saturating_add(self.zipformer_bytes)
+            .saturating_add(self.moonshine_bytes)
             .saturating_add(self.punctuation_bytes)
     }
 }

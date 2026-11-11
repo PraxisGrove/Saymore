@@ -15,9 +15,15 @@ use thiserror::Error;
 use tokio_util::sync::CancellationToken;
 
 mod artifact_files;
+mod complementary_manifests;
+mod local_import;
 mod manifests;
+mod seaco_manifest;
 mod sense_voice_manifest;
+mod transfer;
 mod verification;
+
+pub use seaco_manifest::{SEACO_MODEL_ID, SEACO_MODEL_REVISION};
 
 use artifact_files::{
     download_error, extract_tar_bzip2_member, file_matches, file_size, filesystem_error,
@@ -29,6 +35,7 @@ use verification::{verification_marker_matches, write_verification_marker};
 #[cfg(test)]
 mod tests;
 
+/// Legacy identity retained for stored history and explicit file cleanup.
 pub const PARAFORMER_MODEL_ID: &str = "paraformer-zh-en-int8";
 pub const PARAFORMER_MODEL_REVISION: &str = "8e40c43232a1c5c66c82111efc5820d3accca11b";
 // Keep the logical ID stable for persisted download queues and dictation history.
@@ -41,6 +48,10 @@ pub const QWEN3_ASR_MODEL_ID: &str = "qwen3-asr-1.7b-int8";
 pub const QWEN3_ASR_MODEL_REVISION: &str = "cb045ad80b8970c9d411d463e5b78991a566596c";
 pub const SENSE_VOICE_MODEL_ID: &str = "sense-voice-small-int8";
 pub const SENSE_VOICE_MODEL_REVISION: &str = "2365baeacb507f821a0c8120fcee3d484dba7a07";
+pub const ZIPFORMER_MODEL_ID: &str = "zipformer-bilingual-zh-en-int8";
+pub const ZIPFORMER_MODEL_REVISION: &str = "98590b7ed6443e77b714204da2757d75e1a642f4";
+pub const MOONSHINE_MODEL_ID: &str = "moonshine-tiny-en-int8";
+pub const MOONSHINE_MODEL_REVISION: &str = "bf2b762c076d8ea61e2af0b3851c9564fb77552e";
 pub const PUNCTUATION_MODEL_ID: &str = "ct-transformer-zh-en-punctuation-int8";
 pub const PUNCTUATION_MODEL_REVISION: &str = "2024-04-12-int8";
 const DOWNLOAD_RETRIES: usize = 3;
@@ -140,6 +151,7 @@ struct ModelManifest {
 #[derive(Clone)]
 enum ModelPreparation {
     Direct,
+    LocalImport,
     TarBzip2 {
         archive_local_path: String,
         member_path: String,
@@ -187,10 +199,6 @@ pub struct VerifiedModelInstaller {
 }
 
 impl VerifiedModelInstaller {
-    pub fn paraformer(models_root: PathBuf) -> Result<Self, ModelInstallError> {
-        Self::new(models_root, ModelManifest::paraformer())
-    }
-
     pub fn whisper_large_v3_turbo(models_root: PathBuf) -> Result<Self, ModelInstallError> {
         Self::new(models_root, ModelManifest::whisper_large_v3_turbo())
     }
@@ -201,6 +209,18 @@ impl VerifiedModelInstaller {
 
     pub fn sense_voice_small(models_root: PathBuf) -> Result<Self, ModelInstallError> {
         Self::new(models_root, ModelManifest::sense_voice_small())
+    }
+
+    pub fn zipformer(models_root: PathBuf) -> Result<Self, ModelInstallError> {
+        Self::new(models_root, ModelManifest::zipformer())
+    }
+
+    pub fn moonshine(models_root: PathBuf) -> Result<Self, ModelInstallError> {
+        Self::new(models_root, ModelManifest::moonshine())
+    }
+
+    pub fn seaco_paraformer(models_root: PathBuf) -> Result<Self, ModelInstallError> {
+        Self::new(models_root, ModelManifest::seaco_paraformer())
     }
 
     pub fn punctuation(models_root: PathBuf) -> Result<Self, ModelInstallError> {
@@ -232,6 +252,11 @@ impl VerifiedModelInstaller {
     /// Exact number of bytes transferred for a fresh install of the pinned artifacts.
     pub fn download_size_bytes(&self) -> u64 {
         self.manifest.total_bytes()
+    }
+
+    /// Total pinned artifact size, including models prepared by local import.
+    pub fn model_size_bytes(&self) -> u64 {
+        self.manifest.installed_bytes()
     }
 
     /// Current logical size of all regular files in this model's installed directory.
@@ -284,6 +309,11 @@ impl VerifiedModelInstaller {
         on_progress: Arc<dyn Fn(ModelDownloadProgress) + Send + Sync>,
         control: ModelInstallControl,
     ) -> Result<PathBuf, ModelInstallError> {
+        if matches!(self.manifest.preparation, ModelPreparation::LocalImport) {
+            return Err(ModelInstallError::Activation(
+                "This model requires importing a verified local model directory".to_owned(),
+            ));
+        }
         let mut retries = 0;
         loop {
             control.check()?;
@@ -346,122 +376,13 @@ impl VerifiedModelInstaller {
         Ok(self.model_directory())
     }
 
-    async fn download_artifact(
-        &self,
-        staging: &Path,
-        artifact: &ModelArtifact,
-        on_progress: Arc<dyn Fn(ModelDownloadProgress) + Send + Sync>,
-        control: &ModelInstallControl,
-    ) -> Result<(), ModelInstallError> {
-        control.check()?;
-        let complete = staging.join(&artifact.local_path);
-        if file_matches(&complete, artifact)? {
-            self.report_progress(staging, &on_progress)?;
-            return Ok(());
-        }
-        remove_file_if_present(&complete)?;
-        let partial = complete.with_extension(format!(
-            "{}part",
-            complete
-                .extension()
-                .and_then(|extension| extension.to_str())
-                .map(|extension| format!("{extension}."))
-                .unwrap_or_default()
-        ));
-        if let Some(parent) = partial.parent() {
-            fs::create_dir_all(parent).map_err(filesystem_error)?;
-        }
-        let existing = file_size(&partial)?;
-        if existing > artifact.bytes {
-            remove_file_if_present(&partial)?;
-        }
-        let existing = file_size(&partial)?;
-        if existing == artifact.bytes {
-            return self.finish_artifact(&partial, &complete, artifact);
-        }
-
-        let request = self.artifact_request(artifact, existing);
-        let response = tokio::select! {
-            () = control.cancellation.cancelled() => return control.check(),
-            response = request.send() => response.map_err(download_error)?,
-        };
-        let append = existing > 0 && response.status() == StatusCode::PARTIAL_CONTENT;
-        if !append && !response.status().is_success() {
-            return Err(ModelInstallError::Download(format!(
-                "{} returned HTTP {}",
-                artifact.local_path,
-                response.status()
-            )));
-        }
-        let mut file = open_partial(&partial, append)?;
-        let mut written = if append { existing } else { 0 };
-        let mut stream = response.bytes_stream();
-        loop {
-            let chunk = tokio::select! {
-                () = control.cancellation.cancelled() => return control.check(),
-                chunk = stream.next() => chunk,
-            };
-            let Some(chunk) = chunk else {
-                break;
-            };
-            let chunk = chunk.map_err(download_error)?;
-            written = written.saturating_add(chunk.len() as u64);
-            if written > artifact.bytes {
-                return Err(ModelInstallError::Integrity(format!(
-                    "{} exceeded its fixed size",
-                    artifact.local_path
-                )));
-            }
-            file.write_all(&chunk).map_err(filesystem_error)?;
-            self.report_progress(staging, &on_progress)?;
-            control.check()?;
-        }
-        file.sync_all().map_err(filesystem_error)?;
-        drop(file);
-        if written != artifact.bytes {
-            return Err(ModelInstallError::Download(format!(
-                "{} ended at {written} of {} bytes",
-                artifact.local_path, artifact.bytes
-            )));
-        }
-        self.finish_artifact(&partial, &complete, artifact)?;
-        self.report_progress(staging, &on_progress)
-    }
-
-    fn artifact_request(&self, artifact: &ModelArtifact, existing: u64) -> reqwest::RequestBuilder {
-        let url = if artifact.remote_path.starts_with("https://") {
-            artifact.remote_path.clone()
-        } else {
-            format!("{}/{}", self.manifest.base_url, artifact.remote_path)
-        };
-        let mut request = self.client.get(url);
-        if existing > 0 {
-            request = request.header(RANGE, format!("bytes={existing}-"));
-        }
-        request
-    }
-
-    fn finish_artifact(
-        &self,
-        partial: &Path,
-        complete: &Path,
-        artifact: &ModelArtifact,
-    ) -> Result<(), ModelInstallError> {
-        if !file_matches(partial, artifact)? {
-            remove_file_if_present(partial)?;
-            return Err(ModelInstallError::Integrity(format!(
-                "{} SHA-256 does not match the pinned manifest",
-                artifact.local_path
-            )));
-        }
-        fs::rename(partial, complete).map_err(filesystem_error)
-    }
-
     fn ensure_space(&self, staging: &Path) -> Result<(), ModelInstallError> {
         let downloaded = staged_bytes(staging, &self.manifest)?;
         let extraction_bytes = match &self.manifest.preparation {
             ModelPreparation::Direct => 0,
-            ModelPreparation::TarBzip2 { .. } => self.manifest.installed_bytes(),
+            ModelPreparation::LocalImport | ModelPreparation::TarBzip2 { .. } => {
+                self.manifest.installed_bytes()
+            }
         };
         let required = self
             .manifest
@@ -476,18 +397,6 @@ impl VerifiedModelInstaller {
                 available_bytes: available,
             });
         }
-        Ok(())
-    }
-
-    fn report_progress(
-        &self,
-        staging: &Path,
-        on_progress: &Arc<dyn Fn(ModelDownloadProgress) + Send + Sync>,
-    ) -> Result<(), ModelInstallError> {
-        on_progress(ModelDownloadProgress {
-            downloaded_bytes: staged_bytes(staging, &self.manifest)?,
-            total_bytes: self.manifest.total_bytes(),
-        });
         Ok(())
     }
 

@@ -1,0 +1,33 @@
+--- a/third_party/openfst/src/include/fst/bi-table.h
++++ b/third_party/openfst/src/include/fst/bi-table.h
+@@ -320 +320 @@
+-      : selector_(new S(table.s_)), fp_(new FP(*table.fp_)),
++      : selector_(new S(*table.selector_)), fp_(new FP(*table.fp_)),
+--- a/src/precomp.h
++++ b/src/precomp.h
+@@ -28,3 +27,0 @@
+-#if defined(__APPLE__)
+-#include <onnxruntime/onnxruntime_cxx_api.h>
+-#else
+@@ -32,0 +30 @@
++#if !defined(__APPLE__)
+--- a/include/offline-stream.h
++++ b/include/offline-stream.h
+@@ -9,0 +10 @@
++#include "com-define.h"
+@@ -12 +12,0 @@
+-#include "com-define.h"
+--- a/src/paraformer.cpp
++++ b/src/paraformer.cpp
+@@ -512 +512,10 @@
+-        auto encoder_out_lens = outputTensor[1].GetTensorMutableData<int64_t>();
++        const auto length_type = outputTensor[1].GetTensorTypeAndShapeInfo().GetElementType();
++        int64_t encoder_out_length = 0;
++        if (length_type == ONNX_TENSOR_ELEMENT_DATA_TYPE_INT32) {
++            encoder_out_length = outputTensor[1].GetTensorMutableData<int32_t>()[0];
++        } else if (length_type == ONNX_TENSOR_ELEMENT_DATA_TYPE_INT64) {
++            encoder_out_length = outputTensor[1].GetTensorMutableData<int64_t>()[0];
++        } else {
++            throw std::runtime_error("unexpected token_num element type");
++        }
++        const int64_t* encoder_out_lens = &encoder_out_length;

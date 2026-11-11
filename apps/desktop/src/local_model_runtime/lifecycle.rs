@@ -17,19 +17,23 @@ pub(super) trait ModelRuntime: Send + Sync {
 impl ModelRuntime for AsrSessionController {
     fn prepare(&self, model: LocalModel) -> Result<Option<u64>, SpeechRecognitionError> {
         match model {
-            LocalModel::Paraformer => self.prepare_paraformer(),
             LocalModel::Whisper => self.prepare_whisper(),
             LocalModel::Qwen3 => self.prepare_qwen3(),
             LocalModel::SenseVoice => self.prepare_sense_voice(),
+            LocalModel::Seaco => self.prepare_seaco(),
+            LocalModel::Zipformer => self.prepare_zipformer(),
+            LocalModel::Moonshine => self.prepare_moonshine(),
         }
     }
 
     fn clear(&self, model: LocalModel) {
         match model {
-            LocalModel::Paraformer => self.clear_paraformer(),
             LocalModel::Whisper => self.clear_whisper(),
             LocalModel::Qwen3 => self.clear_qwen3(),
             LocalModel::SenseVoice => self.clear_sense_voice(),
+            LocalModel::Seaco => self.clear_seaco(),
+            LocalModel::Zipformer => self.clear_zipformer(),
+            LocalModel::Moonshine => self.clear_moonshine(),
         }
     }
 }

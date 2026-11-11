@@ -228,6 +228,9 @@ fn active_asr_model(active_id: Option<&str>, providers: &[ProviderInstance]) -> 
             template_app::WHISPER_PROVIDER_ID => WHISPER_MODEL_ID,
             template_app::QWEN3_ASR_PROVIDER_ID => QWEN3_ASR_MODEL_ID,
             template_app::SENSE_VOICE_PROVIDER_ID => SENSE_VOICE_MODEL_ID,
+            template_app::SEACO_PROVIDER_ID => template_infra::SEACO_MODEL_ID,
+            template_app::ZIPFORMER_PROVIDER_ID => template_infra::ZIPFORMER_MODEL_ID,
+            template_app::MOONSHINE_PROVIDER_ID => template_infra::MOONSHINE_MODEL_ID,
             _ => return None,
         };
         Some(model.to_owned())
@@ -454,8 +457,8 @@ mod tests {
     fn history_metadata_records_model_ids_for_built_in_asr_providers() {
         let mut macos = ProviderCatalog::default();
         macos.select_macos_speech_provider();
-        let mut paraformer = ProviderCatalog::default();
-        paraformer.select_paraformer_provider();
+        let mut zipformer = ProviderCatalog::default();
+        zipformer.select_zipformer_provider();
         let mut whisper = ProviderCatalog::default();
         whisper.select_whisper_provider();
         let mut qwen3 = ProviderCatalog::default();
@@ -464,7 +467,7 @@ mod tests {
         sense_voice.select_sense_voice_provider();
         let cases = [
             (macos, MACOS_DICTATION_MODEL_ID),
-            (paraformer, PARAFORMER_MODEL_ID),
+            (zipformer, template_infra::ZIPFORMER_MODEL_ID),
             (whisper, WHISPER_MODEL_ID),
             (qwen3, QWEN3_ASR_MODEL_ID),
             (sense_voice, SENSE_VOICE_MODEL_ID),

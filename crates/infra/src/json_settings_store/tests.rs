@@ -9,6 +9,8 @@ use super::*;
 use std::os::unix::fs::PermissionsExt;
 use template_app::{ActiveProviders, ChatCompletionsLlmSettings, LlmProviderPreset};
 
+mod migration;
+
 static TEST_ID: AtomicUsize = AtomicUsize::new(0);
 
 #[test]
@@ -325,110 +327,6 @@ fn saving_llm_enablement_preserves_the_cached_model_catalog() {
 }
 
 #[test]
-fn migrates_version_one_settings_with_default_llm_configuration() {
-    let directory = test_directory();
-    let path = directory.join("config.json");
-    assert!(fs::create_dir_all(&directory).is_ok());
-    assert!(
-        fs::write(
-            &path,
-            r#"{
-                "version": 1,
-                "asr": {
-                    "volcengine": {
-                        "enabled": true,
-                        "api_key": "existing-key",
-                        "model": "existing-model"
-                    }
-                }
-            }"#,
-        )
-        .is_ok()
-    );
-    let store = JsonSettingsStore::at_path(path.clone());
-    let settings = store.load();
-    assert_eq!(
-        Ok(SaymoreSettings {
-            asr: AsrSettings {
-                volcengine: VolcengineAsrSettings {
-                    enabled: true,
-                    api_key: "existing-key".to_owned(),
-                    model: "existing-model".to_owned(),
-                },
-                ..AsrSettings::default()
-            },
-            llm: LlmSettings::default(),
-        }),
-        settings
-    );
-    let Ok(migrated) = fs::read_to_string(&path) else {
-        panic!("migrated provider config should remain readable");
-    };
-    let Ok(migrated): Result<serde_json::Value, _> = serde_json::from_str(&migrated) else {
-        panic!("migrated provider config should be valid JSON");
-    };
-    assert_eq!(Some(3), migrated["version"].as_u64());
-    assert_eq!(Some(1), migrated["asr_providers"].as_array().map(Vec::len));
-    let first_id = migrated["asr_providers"][0]["id"].clone();
-    assert_eq!(settings, store.load());
-    let Ok(reloaded): Result<serde_json::Value, _> = fs::read_to_string(&path)
-        .map_err(serde_json::Error::io)
-        .and_then(|contents| serde_json::from_str(&contents))
-    else {
-        panic!("reloaded provider config should be valid JSON");
-    };
-    assert_eq!(first_id, reloaded["asr_providers"][0]["id"]);
-    let _ = fs::remove_dir_all(directory);
-}
-
-#[test]
-fn keeps_an_inactive_legacy_llm_configuration_available() {
-    let directory = test_directory();
-    let path = directory.join("config.json");
-    assert!(fs::create_dir_all(&directory).is_ok());
-    assert!(
-        fs::write(
-            &path,
-            r#"{
-                "version": 2,
-                "llm": {
-                    "enabled": false,
-                    "confirmed_base_url": "https://token.sensenova.cn/v1",
-                    "chat_completions": {
-                        "base_url": "https://token.sensenova.cn/v1",
-                        "api_key": "test-key",
-                        "model": "sensenova-6.7-flash-lite"
-                    }
-                }
-            }"#,
-        )
-        .is_ok()
-    );
-    let store = JsonSettingsStore::at_path(path);
-
-    let Ok(settings) = store.load() else {
-        panic!("inactive LLM settings should remain readable after migration");
-    };
-
-    assert!(!settings.llm.enabled);
-    assert_eq!(
-        "https://token.sensenova.cn/v1",
-        settings.llm.chat_completions.base_url
-    );
-    assert_eq!(
-        "sensenova-6.7-flash-lite",
-        settings.llm.chat_completions.model
-    );
-    assert_eq!("test-key", settings.llm.chat_completions.api_key);
-    assert_eq!(
-        "https://token.sensenova.cn/v1",
-        settings.llm.confirmed_base_url
-    );
-
-    let _ = fs::remove_dir_all(directory);
-}
-
-#[test]
 fn round_trips_multiple_and_unknown_provider_instances() {
     let directory = test_directory();
     let path = directory.join("config.json");
@@ -590,7 +488,7 @@ fn disabling_llm_preserves_the_selected_local_asr_provider() {
         api_key: "volcengine-key".to_owned(),
         model: "volc.seedasr.sauc.duration".to_owned(),
     });
-    catalog.select_paraformer_provider();
+    catalog.select_zipformer_provider();
     catalog.save_llm_provider_config(LlmProviderPreset::DeepSeek, "deepseek-key");
     catalog.select_llm_provider(LlmProviderPreset::DeepSeek);
     assert_eq!(Ok(()), store.save_catalog(&catalog));
@@ -612,7 +510,7 @@ fn disabling_llm_preserves_the_selected_local_asr_provider() {
     let Ok(catalog) = store.load_catalog() else {
         panic!("disabled provider catalog should be readable");
     };
-    assert!(catalog.paraformer_is_active());
+    assert!(catalog.zipformer_is_active());
     assert!(
         store
             .load()
@@ -730,7 +628,7 @@ fn persists_macos_speech_selection_without_removing_cloud_configuration() {
 }
 
 #[test]
-fn persists_paraformer_selection_without_removing_cloud_configuration() {
+fn persists_zipformer_selection_without_removing_cloud_configuration() {
     let directory = test_directory();
     let store = JsonSettingsStore::at_path(directory.join("config.json"));
     let mut catalog = ProviderCatalog::default();
@@ -739,14 +637,14 @@ fn persists_paraformer_selection_without_removing_cloud_configuration() {
         api_key: "saved-key".to_owned(),
         model: "saved-model".to_owned(),
     });
-    catalog.select_paraformer_provider();
+    catalog.select_zipformer_provider();
 
     assert_eq!(Ok(()), store.save_catalog(&catalog));
     let Ok(reloaded) = store.load_catalog() else {
-        panic!("Paraformer provider catalog should be readable");
+        panic!("Zipformer provider catalog should be readable");
     };
 
-    assert!(reloaded.paraformer_is_active());
+    assert!(reloaded.zipformer_is_active());
     assert_eq!(2, reloaded.asr_providers.len());
     assert_eq!(
         Some("saved-key"),
@@ -817,53 +715,6 @@ fn rejects_active_provider_from_the_wrong_partition() {
         store.save_catalog(&catalog),
         Err(SettingsStoreError::Invalid(_))
     ));
-    let _ = fs::remove_dir_all(directory);
-}
-
-#[test]
-fn legacy_endpoint_only_consent_does_not_enable_llm() {
-    let directory = test_directory();
-    let path = directory.join("config.json");
-    assert!(fs::create_dir_all(&directory).is_ok());
-    assert!(
-        fs::write(
-            &path,
-            r#"{
-                "version": 3,
-                "active": {"llm": "llm-one"},
-                "llm_providers": [{
-                    "id": "llm-one",
-                    "name": "LLM",
-                    "type": "openai_compatible",
-                    "config": {
-                        "base_url": "https://llm.example/v1",
-                        "api_key": "key",
-                        "model": "model"
-                    },
-                    "data_consent": {"fingerprint": "endpoint:https://llm.example/v1"}
-                }]
-            }"#,
-        )
-        .is_ok()
-    );
-
-    let store = JsonSettingsStore::at_path(path);
-    let Ok(settings) = store.load() else {
-        panic!("provider settings should remain readable");
-    };
-    assert!(!settings.llm.enabled);
-    assert!(settings.llm.confirmed_base_url.is_empty());
-    let _ = fs::remove_dir_all(directory);
-}
-
-#[test]
-fn rejects_unknown_config_versions() {
-    let directory = test_directory();
-    let path = directory.join("config.json");
-    assert!(fs::create_dir_all(&directory).is_ok());
-    assert!(fs::write(&path, r#"{"version":99,"asr":{}}"#).is_ok());
-    let store = JsonSettingsStore::at_path(path);
-    assert!(matches!(store.load(), Err(SettingsStoreError::Invalid(_))));
     let _ = fs::remove_dir_all(directory);
 }
 

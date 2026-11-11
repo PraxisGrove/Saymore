@@ -490,7 +490,7 @@ mod tests {
         let coordinator = DownloadCoordinator::default();
         coordinator.enqueue(LocalModel::Whisper);
         coordinator.enqueue(LocalModel::Qwen3);
-        coordinator.enqueue(LocalModel::Paraformer);
+        coordinator.enqueue(LocalModel::Zipformer);
         let ready = coordinator.take_ready();
         assert_eq!(
             vec![LocalModel::Whisper, LocalModel::Qwen3],
@@ -499,17 +499,17 @@ mod tests {
         let generation = ready[0].1;
         assert!(coordinator.take_ready().is_empty());
         assert!(coordinator.finish(LocalModel::Whisper, generation));
-        assert_eq!(LocalModel::Paraformer, coordinator.take_ready()[0].0);
+        assert_eq!(LocalModel::Zipformer, coordinator.take_ready()[0].0);
     }
 
     #[test]
     fn stale_completion_cannot_remove_a_newer_task() {
         let coordinator = DownloadCoordinator::default();
-        coordinator.enqueue(LocalModel::Paraformer);
+        coordinator.enqueue(LocalModel::Zipformer);
         let generation = coordinator.take_ready()[0].1;
 
-        assert!(!coordinator.finish(LocalModel::Paraformer, generation + 1));
-        assert!(coordinator.is_current(LocalModel::Paraformer, generation));
+        assert!(!coordinator.finish(LocalModel::Zipformer, generation + 1));
+        assert!(coordinator.is_current(LocalModel::Zipformer, generation));
     }
 
     #[test]
@@ -533,10 +533,10 @@ mod tests {
                     model_id: LocalModel::Qwen3.id().to_owned(),
                 },
                 QueuedModelDownload {
-                    model_id: LocalModel::Paraformer.id().to_owned(),
+                    model_id: LocalModel::Zipformer.id().to_owned(),
                 },
                 QueuedModelDownload {
-                    model_id: "unknown-model".to_owned(),
+                    model_id: template_infra::PARAFORMER_MODEL_ID.to_owned(),
                 },
                 QueuedModelDownload {
                     model_id: LocalModel::SenseVoice.id().to_owned(),
@@ -546,9 +546,12 @@ mod tests {
         );
         let coordinator = DownloadCoordinator::default();
 
-        assert_eq!(vec![LocalModel::Qwen3, LocalModel::Paraformer], plan.paused);
+        assert_eq!(vec![LocalModel::Qwen3, LocalModel::Zipformer], plan.paused);
         assert_eq!(
-            vec!["unknown-model", LocalModel::SenseVoice.id()],
+            vec![
+                template_infra::PARAFORMER_MODEL_ID,
+                LocalModel::SenseVoice.id()
+            ],
             plan.stale_ids
         );
         assert!(coordinator.take_ready().is_empty());
@@ -556,7 +559,7 @@ mod tests {
         coordinator.enqueue(plan.paused[1]);
         let ready = coordinator.take_ready();
         assert_eq!(1, ready.len());
-        assert_eq!(LocalModel::Paraformer, ready[0].0);
+        assert_eq!(LocalModel::Zipformer, ready[0].0);
     }
 
     #[test]

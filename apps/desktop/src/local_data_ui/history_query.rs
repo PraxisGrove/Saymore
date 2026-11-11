@@ -292,6 +292,9 @@ fn history_asr_model<'a>(
         Some(PARAFORMER_MODEL_ID) => Some(HistoryAsrModel::Named(PARAFORMER_LABEL)),
         Some(QWEN3_ASR_MODEL_ID) => Some(HistoryAsrModel::Named(QWEN3_ASR_LABEL)),
         Some(SENSE_VOICE_MODEL_ID) => Some(HistoryAsrModel::Named(SENSE_VOICE_LABEL)),
+        Some(template_infra::SEACO_MODEL_ID) => Some(HistoryAsrModel::Named("SeACo-Paraformer")),
+        Some(template_infra::ZIPFORMER_MODEL_ID) => Some(HistoryAsrModel::Named("Zipformer")),
+        Some(template_infra::MOONSHINE_MODEL_ID) => Some(HistoryAsrModel::Named("Moonshine")),
         Some(WHISPER_MODEL_ID) => Some(HistoryAsrModel::Whisper),
         Some(VOLCENGINE_ASR_1_MODEL) => Some(HistoryAsrModel::VolcengineV1),
         Some(VOLCENGINE_ASR_2_MODEL | VOLCENGINE_LEGACY_MODEL) => {
@@ -303,6 +306,11 @@ fn history_asr_model<'a>(
             Some(PARAFORMER_PROVIDER_ID) => Some(HistoryAsrModel::Named(PARAFORMER_LABEL)),
             Some(QWEN3_ASR_PROVIDER_ID) => Some(HistoryAsrModel::Named(QWEN3_ASR_LABEL)),
             Some(SENSE_VOICE_PROVIDER_ID) => Some(HistoryAsrModel::Named(SENSE_VOICE_LABEL)),
+            Some(template_app::SEACO_PROVIDER_ID) => {
+                Some(HistoryAsrModel::Named("SeACo-Paraformer"))
+            }
+            Some(template_app::ZIPFORMER_PROVIDER_ID) => Some(HistoryAsrModel::Named("Zipformer")),
+            Some(template_app::MOONSHINE_PROVIDER_ID) => Some(HistoryAsrModel::Named("Moonshine")),
             Some(WHISPER_PROVIDER_ID) => Some(HistoryAsrModel::Whisper),
             _ => None,
         },

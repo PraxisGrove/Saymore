@@ -2,14 +2,15 @@ import { AsrProviderCardKind, ModalShell, ModalSize } from "../components.slint"
 import { AppColors } from "../color-system.slint";
 import { RecognitionTestPanel } from "asr-recognition-test.slint";
 
-import { LocalModelDownloadState, PunctuationMode, LocalModelSummaryPill, LocalModelMetric, LocalModelActionButton, LocalModelSelectionControl } from "local-asr-controls.slint";
-export { LocalModelDownloadState, PunctuationMode } from "local-asr-controls.slint";
+import { LocalModelDownloadState, LocalModelSummaryPill, LocalModelMetric, LocalModelActionButton, LocalModelSelectionControl } from "local-asr-controls.slint";
+export { LocalModelDownloadState } from "local-asr-controls.slint";
 
 export component LocalAsrModelModal inherits Rectangle {
     in property <AsrProviderCardKind> kind: AsrProviderCardKind.qwen3-asr;
     in property <LocalModelDownloadState> download-state: LocalModelDownloadState.not-downloaded;
     in property <float> download-progress: 0;
     in property <bool> download-supported: false;
+    in property <bool> import-supported: false;
     in property <bool> adapter-ready: false;
     in property <bool> selected: false;
     in property <bool> selection-pending: false;
@@ -24,17 +25,8 @@ export component LocalAsrModelModal inherits Rectangle {
     in property <string> test-elapsed;
     in property <string> test-result;
     in property <string> download-error;
-    in property <bool> llm-enabled: false;
-    in property <PunctuationMode> punctuation-mode: PunctuationMode.llm;
-    in property <LocalModelDownloadState> punctuation-download-state: LocalModelDownloadState.not-downloaded;
-    in property <float> punctuation-download-progress: 0;
-    in property <string> punctuation-download-size: "";
-    in property <string> punctuation-installed-size: "";
-    in property <bool> punctuation-runtime-live: false;
-    in property <string> punctuation-runtime-memory: "";
-    in property <bool> punctuation-pending: false;
-    in property <string> punctuation-error: "";
     callback cancelled();
+    callback import-requested();
     callback download-requested(AsrProviderCardKind);
     callback pause-requested(AsrProviderCardKind);
     callback cancel-download-requested(AsrProviderCardKind);
@@ -42,26 +34,25 @@ export component LocalAsrModelModal inherits Rectangle {
     callback select-provider(AsrProviderCardKind);
     callback run-test(AsrProviderCardKind);
     callback refresh-runtime-memory(AsrProviderCardKind);
-    callback punctuation-mode-requested(PunctuationMode);
-    callback punctuation-download-requested();
-    callback punctuation-delete-requested();
-    callback open-llm-settings();
 
     private property <float> bounded-progress: max(0, min(1, root.download-progress));
     private property <int> progress-percent: round(root.bounded-progress * 100);
     private property <string> title: root.kind == AsrProviderCardKind.qwen3-asr ? "Qwen3-ASR 1.7B"
-        : root.kind == AsrProviderCardKind.paraformer ? "Paraformer-zh"
         : root.kind == AsrProviderCardKind.sense-voice-small ? "SenseVoiceSmall"
+        : root.kind == AsrProviderCardKind.seaco-paraformer ? "SeACo-Paraformer"
+        : root.kind == AsrProviderCardKind.zipformer ? "Zipformer"
+        : root.kind == AsrProviderCardKind.moonshine ? "Moonshine"
         : "Whisper large-v3-turbo";
     private property <string> memory-estimate: root.kind == AsrProviderCardKind.qwen3-asr ? "4.3 GB"
-        : root.kind == AsrProviderCardKind.paraformer ? "503 MB"
         : root.kind == AsrProviderCardKind.sense-voice-small ? "573 MB"
+        : root.kind == AsrProviderCardKind.seaco-paraformer || root.kind == AsrProviderCardKind.zipformer || root.kind == AsrProviderCardKind.moonshine ? ""
         : "2.15 GB";
     private property <bool> showing-live-memory: !root.selection-pending && root.runtime-memory-live && root.runtime-memory-usage != "";
     private property <string> memory-display: root.selection-pending
         ? @tr("models.asr.local.memory-loading" => "Loading model…")
         : root.showing-live-memory
         ? root.runtime-memory-usage
+        : root.memory-estimate == "" ? @tr("models.asr.local.memory-unmeasured" => "Not measured")
         : @tr("models.asr.local.memory-approximate" => "Approx. {}", root.memory-estimate);
     private property <bool> installed: root.download-state == LocalModelDownloadState.downloaded;
     private property <bool> queued: root.download-state == LocalModelDownloadState.queued;
@@ -88,7 +79,9 @@ export component LocalAsrModelModal inherits Rectangle {
             ? @tr("models.asr.local.activation-loading" => "Loading the model into memory")
         : root.download-error != ""
         ? root.download-error
-        : !root.download-supported
+        : root.kind == AsrProviderCardKind.seaco-paraformer && !root.installed && !root.downloading
+            ? @tr("models.asr.local.seaco.import-detail" => "Choose a local SeACo ONNX model folder. A matching public download is not available.")
+        : !root.download-supported && !root.import-supported
         ? @tr("models.asr.placeholder.download-disabled" => "No verified download source or production adapter is available.")
         : root.downloading
             ? @tr("models.asr.local.progress-detail" => "{}% of {}", root.progress-percent, root.download-size)
@@ -109,20 +102,27 @@ export component LocalAsrModelModal inherits Rectangle {
         : root.paused ? @tr("models.asr.local.continue" => "Continue")
         : root.cancelling ? @tr("models.asr.local.cancelling" => "Cancelling")
         : root.installed ? @tr("models.asr.local.delete" => "Delete")
+        : root.kind == AsrProviderCardKind.seaco-paraformer
+            ? @tr("models.asr.local.import" => "Import model")
         : @tr("models.asr.local.download-action" => "Download");
     private property <bool> action-enabled: root.cancelling || root.queued ? false
         : root.installed
         ? !root.selected && !root.selection-pending
+        : root.kind == AsrProviderCardKind.seaco-paraformer ? root.import-supported
         : root.download-supported;
-    private property <string> output-mode: root.kind == AsrProviderCardKind.paraformer
+    private property <string> output-mode: root.kind == AsrProviderCardKind.zipformer
         ? @tr("models.asr.local.output.streaming" => "Streaming")
         : @tr("models.asr.local.output.non-streaming" => "Final only");
-    private property <string> usage-tip: root.kind == AsrProviderCardKind.paraformer
-        ? @tr("models.asr.local.usage-tip.paraformer" => "Lightweight live Chinese and Chinese-English dictation. Best with an LLM.")
-        : root.kind == AsrProviderCardKind.whisper-large-v3-turbo
+    private property <string> usage-tip: root.kind == AsrProviderCardKind.whisper-large-v3-turbo
             ? @tr("models.asr.local.usage-tip.whisper" => "Multilingual dictation with higher memory use. Text appears after speaking.")
         : root.kind == AsrProviderCardKind.sense-voice-small
             ? @tr("models.asr.local.usage-tip.sensevoice" => "Lightweight five-language transcription. Final text only.")
+        : root.kind == AsrProviderCardKind.seaco-paraformer
+            ? @tr("models.asr.local.usage-tip.seaco" => "Offline Chinese recognition with native dictionary hints. Import a compatible ONNX export to begin.")
+        : root.kind == AsrProviderCardKind.zipformer
+            ? @tr("models.asr.local.usage-tip.zipformer" => "Streaming Chinese-English recognition with native dictionary hints. Dictionary hints may improve term recognition; results vary.")
+        : root.kind == AsrProviderCardKind.moonshine
+            ? @tr("models.asr.local.usage-tip.moonshine" => "Tiny English-only model. Final text only; recognition-time dictionary hints are not supported.")
             : @tr("models.asr.local.usage-tip.qwen3" => "Handles dialects, multiple languages, and complex speech. Needs a stronger device.");
 
     modal-focus := FocusScope {
@@ -146,8 +146,10 @@ export component LocalAsrModelModal inherits Rectangle {
                 height: 42px;
                 source: root.kind == AsrProviderCardKind.qwen3-asr
                     ? @image-url("../../icons/providers/qwen.png")
-                    : root.kind == AsrProviderCardKind.paraformer || root.kind == AsrProviderCardKind.sense-voice-small
+                    : root.kind == AsrProviderCardKind.sense-voice-small || root.kind == AsrProviderCardKind.seaco-paraformer
                         ? @image-url("../../icons/providers/funasr.png")
+                        : root.kind == AsrProviderCardKind.zipformer || root.kind == AsrProviderCardKind.moonshine
+                            ? @image-url("../../icons/lucide/mic.svg")
                         : @image-url("../../icons/providers/openai.png");
                 image-fit: contain;
             }
@@ -165,7 +167,11 @@ export component LocalAsrModelModal inherits Rectangle {
                 x: 80px;
                 y: 45px;
                 width: dialog.panel-width - 276px;
-                text: root.download-supported
+                text: root.kind == AsrProviderCardKind.seaco-paraformer
+                    ? @tr("models.asr.local.subtitle.import" => "Local import · Chinese · Dictionary hints")
+                    : root.kind == AsrProviderCardKind.zipformer
+                        ? @tr("models.asr.local.subtitle.zipformer" => "INT8 encoder · ZH · EN · Dictionary hints")
+                    : root.download-supported
                     ? @tr("models.asr.local.subtitle.verified" => "Open source · Verified")
                     : root.kind == AsrProviderCardKind.sense-voice-small
                         ? @tr("models.asr.local.subtitle.sensevoice" => "Lightweight five-language model · Final only · INT8")
@@ -199,19 +205,23 @@ export component LocalAsrModelModal inherits Rectangle {
                 x: 281px;
                 y: 8px;
                 icon: @image-url("../../icons/lucide/book-open.svg");
-                label: root.kind == AsrProviderCardKind.paraformer
-                    ? @tr("models.asr.summary.chinese-english" => "ZH · EN")
-                    : root.kind == AsrProviderCardKind.whisper-large-v3-turbo
+                label: root.kind == AsrProviderCardKind.whisper-large-v3-turbo
                         ? @tr("models.asr.summary.multilingual" => "Multilingual")
                     : root.kind == AsrProviderCardKind.qwen3-asr
                         ? @tr("models.asr.summary.chinese-dialects" => "ZH · Dialects")
+                    : root.kind == AsrProviderCardKind.seaco-paraformer
+                        ? @tr("models.asr.summary.chinese" => "Chinese")
+                    : root.kind == AsrProviderCardKind.zipformer
+                        ? @tr("models.asr.summary.chinese-english" => "ZH · EN")
+                    : root.kind == AsrProviderCardKind.moonshine
+                        ? @tr("models.asr.summary.english" => "English")
                     : @tr("models.asr.summary.five-languages" => "ZH · EN · JA · KO · YUE");
             }
             LocalModelSummaryPill { x: 410px; y: 8px; icon: @image-url("../../icons/lucide/file-text.svg"); label: root.output-mode; }
 
             metrics := Rectangle {
                 x: 28px;
-                y: root.kind == AsrProviderCardKind.paraformer ? 61px : 68px;
+                y: 68px;
                 width: 486px;
                 height: 52px;
                 background: transparent;
@@ -222,7 +232,9 @@ export component LocalAsrModelModal inherits Rectangle {
                     height: parent.height;
                     content-offset: 12px;
                     icon: @image-url("../../icons/lucide/download.svg");
-                    label: @tr("models.asr.local.download-size" => "Download");
+                    label: root.kind == AsrProviderCardKind.seaco-paraformer
+                        ? @tr("models.asr.local.model-size" => "Model size")
+                        : @tr("models.asr.local.download-size" => "Download");
                     value: root.download-size;
                 }
                 LocalModelMetric {
@@ -252,18 +264,9 @@ export component LocalAsrModelModal inherits Rectangle {
                 }
             }
 
-            if root.kind == AsrProviderCardKind.paraformer: Text {
-                x: 40px;
-                y: 144px;
-                text: @tr("models.asr.local.model-settings" => "Model settings");
-                color: AppColors.text-muted;
-                font-size: 12px;
-                font-weight: 500;
-            }
-
             model-files := Rectangle {
                 x: 28px;
-                y: root.kind == AsrProviderCardKind.paraformer ? 166px : 132px;
+                y: 132px;
                 width: 486px;
                 height: model-detail.y + model-detail.height + 12px;
                 background: transparent;
@@ -283,6 +286,7 @@ export component LocalAsrModelModal inherits Rectangle {
                     activated => {
                         if root.installed { root.delete-requested(root.kind); }
                         else if root.downloading { root.pause-requested(root.kind); }
+                        else if root.kind == AsrProviderCardKind.seaco-paraformer { root.import-requested(); }
                         else { root.download-requested(root.kind); }
                     }
                 }
@@ -340,111 +344,9 @@ export component LocalAsrModelModal inherits Rectangle {
                 }
             }
 
-            punctuation-settings := Rectangle {
-                visible: root.kind == AsrProviderCardKind.paraformer;
-                x: 28px;
-                y: model-files.y + model-files.height + 12px;
-                width: 486px;
-                height: max(108px, punctuation-description.y + punctuation-description.height + 12px);
-                background: transparent;
-
-                Image { x: 12px; y: 12px; width: 14px; height: 14px; source: @image-url("../../icons/lucide/message-square-text.svg"); colorize: AppColors.text-muted; }
-                Text { x: 32px; y: 7px; text: @tr("models.asr.punctuation.title" => "Punctuation"); color: AppColors.text; font-size: 12px; font-weight: 700; }
-                Text {
-                    x: 32px; y: 31px; width: 300px;
-                    text: root.punctuation-mode == PunctuationMode.llm
-                        ? root.llm-enabled
-                            ? @tr("models.asr.punctuation.llm-enabled" => "LLM polishing is enabled")
-                            : @tr("models.asr.punctuation.llm-disabled" => "LLM is not enabled")
-                        : root.punctuation-download-state == LocalModelDownloadState.downloaded
-                            ? @tr("models.asr.punctuation.local-enabled" => "Local punctuation enabled")
-                            : @tr("models.asr.punctuation.local-missing" => "Local model not downloaded");
-                    color: root.punctuation-error != "" ? AppColors.danger
-                        : root.punctuation-mode == PunctuationMode.local && root.punctuation-download-state == LocalModelDownloadState.downloaded ? AppColors.success
-                        : root.punctuation-mode == PunctuationMode.llm && !root.llm-enabled ? AppColors.warning
-                        : AppColors.text;
-                    font-size: 12px; font-weight: 650; overflow: elide;
-                }
-                punctuation-description := Text {
-                    x: 32px; y: 54px; width: 280px;
-                    height: max(36px, self.preferred-height);
-                    text: root.punctuation-error != "" ? root.punctuation-error
-                        : root.punctuation-mode == PunctuationMode.llm
-                            ? @tr("models.asr.punctuation.llm-description" => "LLM adds punctuation and improves sentence breaks.")
-                            : root.punctuation-download-state == LocalModelDownloadState.downloaded
-                                ? @tr("models.asr.punctuation.local-description" => "Offline · {} on disk{}", root.punctuation-installed-size, root.punctuation-runtime-live ? @tr("models.asr.punctuation.loaded" => " · loaded") : "")
-                                : @tr("models.asr.punctuation.download-description" => "Download {} to restore punctuation fully offline.", root.punctuation-download-size);
-                    color: AppColors.text-muted; font-size: 11px; wrap: word-wrap; overflow: elide;
-                }
-
-                Rectangle {
-                    x: parent.width - self.width - 16px; y: 0px; width: 112px; height: 28px;
-                    border-radius: 14px; background: AppColors.surface-faint;
-                    Rectangle {
-                        x: root.punctuation-mode == PunctuationMode.llm ? 2px : 56px;
-                        y: 2px; width: 54px; height: 24px; border-radius: 12px;
-                        border-width: 1px; border-color: AppColors.border;
-                        background: AppColors.surface;
-                        animate x { duration: 150ms; easing: ease-out; }
-                    }
-                    Text { x: 0px; width: 56px; height: parent.height; text: "LLM"; color: root.punctuation-mode == PunctuationMode.llm ? AppColors.brand-strong : AppColors.text-muted; font-size: 11px; font-weight: 650; horizontal-alignment: center; vertical-alignment: center; }
-                    Text { x: 56px; width: 56px; height: parent.height; text: @tr("models.asr.punctuation.local" => "Local"); color: root.punctuation-mode == PunctuationMode.local ? AppColors.brand-strong : AppColors.text-muted; font-size: 11px; font-weight: 650; horizontal-alignment: center; vertical-alignment: center; }
-                    Rectangle {
-                        x: 0px; y: -8px; width: 56px; height: 44px; background: transparent;
-                        accessible-role: tab;
-                        accessible-label: "LLM";
-                        accessible-enabled: !root.punctuation-pending && root.punctuation-download-state != LocalModelDownloadState.downloading;
-                        accessible-action-default => {
-                            if !root.punctuation-pending && root.punctuation-download-state != LocalModelDownloadState.downloading {
-                                root.punctuation-mode-requested(PunctuationMode.llm);
-                            }
-                        }
-                        TouchArea { enabled: !root.punctuation-pending && root.punctuation-download-state != LocalModelDownloadState.downloading; mouse-cursor: self.enabled ? pointer : default; clicked => { root.punctuation-mode-requested(PunctuationMode.llm); } }
-                    }
-                    Rectangle {
-                        x: 56px; y: -8px; width: 56px; height: 44px; background: transparent;
-                        accessible-role: tab;
-                        accessible-label: @tr("models.asr.punctuation.local" => "Local");
-                        accessible-enabled: !root.punctuation-pending && root.punctuation-download-state != LocalModelDownloadState.downloading;
-                        accessible-action-default => {
-                            if !root.punctuation-pending && root.punctuation-download-state != LocalModelDownloadState.downloading {
-                                root.punctuation-mode-requested(PunctuationMode.local);
-                            }
-                        }
-                        TouchArea { enabled: !root.punctuation-pending && root.punctuation-download-state != LocalModelDownloadState.downloading; mouse-cursor: self.enabled ? pointer : default; clicked => { root.punctuation-mode-requested(PunctuationMode.local); } }
-                    }
-                }
-                if root.punctuation-mode == PunctuationMode.llm && !root.llm-enabled: Rectangle {
-                    x: parent.width - self.width - 16px; y: 31px; width: 130px; height: 44px; background: transparent;
-                    accessible-role: button;
-                    accessible-label: @tr("models.asr.punctuation.open-llm" => "Enable LLM");
-                    accessible-action-default => { root.open-llm-settings(); }
-                    Text { x: 5px; y: 8px; width: 100px; height: 28px; text: @tr("models.asr.punctuation.open-llm" => "Enable LLM"); color: AppColors.brand-strong; font-size: 12px; font-weight: 650; horizontal-alignment: right; vertical-alignment: center; }
-                    Image { x: 108px; y: 16px; width: 12px; height: 12px; source: @image-url("../../icons/lucide/arrow-right.svg"); colorize: AppColors.brand; }
-                    TouchArea { mouse-cursor: pointer; clicked => { root.open-llm-settings(); } }
-                }
-                if root.punctuation-mode == PunctuationMode.local && root.punctuation-download-state != LocalModelDownloadState.downloaded: LocalModelActionButton {
-                    x: parent.width - self.width - 16px; y: 42px; height: 32px;
-                    label: root.punctuation-download-state == LocalModelDownloadState.downloading
-                        ? @tr("models.asr.local.downloading-percent" => "Downloading {}%", round(root.punctuation-download-progress * 100))
-                        : @tr("models.asr.punctuation.download-enable" => "Download & enable");
-                    primary: root.punctuation-download-state != LocalModelDownloadState.downloading;
-                    pending: root.punctuation-download-state == LocalModelDownloadState.downloading;
-                    enabled: !root.punctuation-pending && root.punctuation-download-state != LocalModelDownloadState.downloading;
-                    activated => { root.punctuation-download-requested(); }
-                }
-                if root.punctuation-mode == PunctuationMode.local && root.punctuation-download-state == LocalModelDownloadState.downloaded: Rectangle {
-                    x: parent.width - self.width - 16px; y: 42px; width: 130px; height: 32px; background: transparent;
-                    Text { width: parent.width; height: parent.height; text: @tr("models.asr.punctuation.delete" => "Delete local model"); color: delete-punctuation.has-hover ? AppColors.danger : AppColors.text-muted; font-size: 11px; horizontal-alignment: center; vertical-alignment: center; }
-                    delete-punctuation := TouchArea { mouse-cursor: pointer; clicked => { root.punctuation-delete-requested(); } }
-                }
-            }
-
             recognition-test := RecognitionTestPanel {
                 x: 28px;
-                y: root.kind == AsrProviderCardKind.paraformer
-                    ? punctuation-settings.y + punctuation-settings.height + 12px
-                    : model-files.y + model-files.height + 16px;
+                y: model-files.y + model-files.height + 16px;
                 width: 486px;
                 background: AppColors.surface-faint;
                 testing: root.testing;

@@ -82,11 +82,6 @@ fn provider_cards(platform: DesktopPlatform) -> Vec<AsrProviderCardSpec> {
         });
     }
     cards.extend([
-        if platform.local_models_available() {
-            available(AsrProviderCardKind::Paraformer)
-        } else {
-            unavailable(AsrProviderCardKind::Paraformer)
-        },
         if platform.whisper_available() {
             available(AsrProviderCardKind::WhisperLargeV3Turbo)
         } else {
@@ -101,6 +96,21 @@ fn provider_cards(platform: DesktopPlatform) -> Vec<AsrProviderCardSpec> {
             available(AsrProviderCardKind::SenseVoiceSmall)
         } else {
             unavailable(AsrProviderCardKind::SenseVoiceSmall)
+        },
+        if platform.local_models_available() {
+            available(AsrProviderCardKind::SeacoParaformer)
+        } else {
+            unavailable(AsrProviderCardKind::SeacoParaformer)
+        },
+        if platform.local_models_available() {
+            available(AsrProviderCardKind::Zipformer)
+        } else {
+            unavailable(AsrProviderCardKind::Zipformer)
+        },
+        if platform.local_models_available() {
+            available(AsrProviderCardKind::Moonshine)
+        } else {
+            unavailable(AsrProviderCardKind::Moonshine)
         },
         available(AsrProviderCardKind::Volcengine),
         available(AsrProviderCardKind::Openai),
@@ -134,9 +144,9 @@ mod tests {
         for platform in [DesktopPlatform::MacOs, DesktopPlatform::Windows] {
             let cards = provider_cards(platform);
             let expected_count = if matches!(platform, DesktopPlatform::MacOs) {
-                11
+                13
             } else {
-                10
+                12
             };
             assert_eq!(expected_count, cards.len());
             assert_eq!(1, cards.iter().filter(|card| !card.available).count());
@@ -150,10 +160,12 @@ mod tests {
             vec![
                 AsrProviderCardKind::SaymoreCloud,
                 AsrProviderCardKind::MacosDictation,
-                AsrProviderCardKind::Paraformer,
                 AsrProviderCardKind::WhisperLargeV3Turbo,
                 AsrProviderCardKind::Qwen3Asr,
                 AsrProviderCardKind::SenseVoiceSmall,
+                AsrProviderCardKind::SeacoParaformer,
+                AsrProviderCardKind::Zipformer,
+                AsrProviderCardKind::Moonshine,
                 AsrProviderCardKind::Volcengine,
                 AsrProviderCardKind::Openai,
                 AsrProviderCardKind::Groq,
@@ -167,10 +179,12 @@ mod tests {
         assert_eq!(
             vec![
                 AsrProviderCardKind::SaymoreCloud,
-                AsrProviderCardKind::Paraformer,
                 AsrProviderCardKind::WhisperLargeV3Turbo,
                 AsrProviderCardKind::Qwen3Asr,
                 AsrProviderCardKind::SenseVoiceSmall,
+                AsrProviderCardKind::SeacoParaformer,
+                AsrProviderCardKind::Zipformer,
+                AsrProviderCardKind::Moonshine,
                 AsrProviderCardKind::Volcengine,
                 AsrProviderCardKind::Openai,
                 AsrProviderCardKind::Groq,
@@ -182,39 +196,46 @@ mod tests {
     }
 
     #[test]
-    fn sense_voice_is_the_last_local_model_before_cloud_apis() {
+    fn moonshine_is_the_last_local_model_before_cloud_apis() {
         for platform in [DesktopPlatform::MacOs, DesktopPlatform::Windows] {
             let cards = provider_cards(platform);
-            let sense_voice_index = cards
+            let moonshine_index = cards
                 .iter()
-                .position(|card| card.kind == AsrProviderCardKind::SenseVoiceSmall);
+                .position(|card| card.kind == AsrProviderCardKind::Moonshine);
             let volcengine_index = cards
                 .iter()
                 .position(|card| card.kind == AsrProviderCardKind::Volcengine);
             assert_eq!(
-                sense_voice_index.and_then(|index| index.checked_add(1)),
+                moonshine_index.and_then(|index| index.checked_add(1)),
                 volcengine_index
             );
             assert!(
-                sense_voice_index.is_some_and(|index| {
+                moonshine_index.is_some_and(|index| {
                     cards[index].available == platform.sense_voice_available()
                 }),
-                "SenseVoice availability must match the local sherpa runtime"
+                "Moonshine availability must match the local sherpa runtime"
             );
         }
     }
 
     #[test]
-    fn paraformer_is_available_on_supported_desktop_platforms() {
-        for (platform, expected) in [
-            (DesktopPlatform::MacOs, true),
-            (DesktopPlatform::Windows, true),
-            (DesktopPlatform::Other, false),
+    fn additional_models_are_available_on_supported_platforms() {
+        for platform in [
+            DesktopPlatform::MacOs,
+            DesktopPlatform::Windows,
+            DesktopPlatform::Other,
         ] {
-            let paraformer = provider_cards(platform)
-                .into_iter()
-                .find(|card| card.kind == AsrProviderCardKind::Paraformer);
-            assert_eq!(expected, paraformer.is_some_and(|card| card.available));
+            let cards = provider_cards(platform);
+            for kind in [
+                AsrProviderCardKind::SeacoParaformer,
+                AsrProviderCardKind::Zipformer,
+                AsrProviderCardKind::Moonshine,
+            ] {
+                assert_eq!(
+                    platform.local_models_available(),
+                    cards.iter().any(|card| card.kind == kind && card.available)
+                );
+            }
         }
     }
 

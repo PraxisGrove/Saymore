@@ -3,9 +3,10 @@ use std::{fs, io, path::Path};
 use template_app::{LocalModelStorageUsage, LocalStorageUsage, StorageError};
 
 use crate::{
-    PARAFORMER_MODEL_ID, PARAFORMER_MODEL_REVISION, PUNCTUATION_MODEL_ID,
-    PUNCTUATION_MODEL_REVISION, QWEN3_ASR_MODEL_ID, QWEN3_ASR_MODEL_REVISION, SENSE_VOICE_MODEL_ID,
-    SENSE_VOICE_MODEL_REVISION, WHISPER_MODEL_ID, WHISPER_MODEL_REVISION,
+    MOONSHINE_MODEL_ID, MOONSHINE_MODEL_REVISION, QWEN3_ASR_MODEL_ID, QWEN3_ASR_MODEL_REVISION,
+    RetiredAsrModel, SEACO_MODEL_ID, SEACO_MODEL_REVISION, SENSE_VOICE_MODEL_ID,
+    SENSE_VOICE_MODEL_REVISION, WHISPER_MODEL_ID, WHISPER_MODEL_REVISION, ZIPFORMER_MODEL_ID,
+    ZIPFORMER_MODEL_REVISION,
 };
 
 /// Returns the size of regular files managed beneath the application's data directory.
@@ -34,11 +35,7 @@ pub fn local_storage_usage(directory: &Path) -> Result<LocalStorageUsage, Storag
         .saturating_add(recognition_data_bytes)
         .saturating_add(diagnostic_logs_bytes);
     let models = LocalModelStorageUsage {
-        paraformer_bytes: model_usage(
-            &models_directory,
-            PARAFORMER_MODEL_ID,
-            PARAFORMER_MODEL_REVISION,
-        )?,
+        paraformer_bytes: RetiredAsrModel::Paraformer.storage_bytes(&models_directory)?,
         whisper_bytes: model_usage(&models_directory, WHISPER_MODEL_ID, WHISPER_MODEL_REVISION)?,
         qwen3_asr_bytes: model_usage(
             &models_directory,
@@ -50,11 +47,18 @@ pub fn local_storage_usage(directory: &Path) -> Result<LocalStorageUsage, Storag
             SENSE_VOICE_MODEL_ID,
             SENSE_VOICE_MODEL_REVISION,
         )?,
-        punctuation_bytes: model_usage(
+        seaco_bytes: model_usage(&models_directory, SEACO_MODEL_ID, SEACO_MODEL_REVISION)?,
+        zipformer_bytes: model_usage(
             &models_directory,
-            PUNCTUATION_MODEL_ID,
-            PUNCTUATION_MODEL_REVISION,
+            ZIPFORMER_MODEL_ID,
+            ZIPFORMER_MODEL_REVISION,
         )?,
+        moonshine_bytes: model_usage(
+            &models_directory,
+            MOONSHINE_MODEL_ID,
+            MOONSHINE_MODEL_REVISION,
+        )?,
+        punctuation_bytes: RetiredAsrModel::Punctuation.storage_bytes(&models_directory)?,
     };
     Ok(LocalStorageUsage {
         total_bytes,

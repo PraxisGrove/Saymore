@@ -11,12 +11,19 @@ mod dictionary_files;
 mod local_inference_device;
 mod model_discovery;
 mod model_installer;
+mod moonshine_asr;
 mod offline_punctuation;
 mod openai_transcriptions_asr;
-mod paraformer_asr;
 mod process_memory;
 mod qwen3_asr;
+mod retired_asr_models;
+mod seaco_asr;
 mod sense_voice_asr;
+mod zipformer_asr;
+
+pub use moonshine_asr::MoonshineSpeechRecognizer;
+pub use seaco_asr::SeacoSpeechRecognizer;
+pub use zipformer_asr::ZipformerSpeechRecognizer;
 mod storage_usage;
 mod system_clock;
 
@@ -197,18 +204,20 @@ pub use dictionary_files::{DictionaryFileError, DictionaryFileReport, Dictionary
 pub use local_inference_device::{LocalInferenceDevice, local_inference_device};
 pub use model_discovery::{ModelDiscoveryError, discover_models};
 pub use model_installer::{
-    ModelDownloadProgress, ModelInstallControl, ModelInstallError, ModelInstallInterruption,
-    PARAFORMER_MODEL_ID, PARAFORMER_MODEL_REVISION, PUNCTUATION_MODEL_ID,
-    PUNCTUATION_MODEL_REVISION, QWEN3_ASR_MODEL_ID, QWEN3_ASR_MODEL_REVISION, SENSE_VOICE_MODEL_ID,
-    SENSE_VOICE_MODEL_REVISION, VerifiedModelInstaller, WHISPER_MODEL_ID, WHISPER_MODEL_REVISION,
+    MOONSHINE_MODEL_ID, MOONSHINE_MODEL_REVISION, ModelDownloadProgress, ModelInstallControl,
+    ModelInstallError, ModelInstallInterruption, PARAFORMER_MODEL_ID, PARAFORMER_MODEL_REVISION,
+    PUNCTUATION_MODEL_ID, PUNCTUATION_MODEL_REVISION, QWEN3_ASR_MODEL_ID, QWEN3_ASR_MODEL_REVISION,
+    SEACO_MODEL_ID, SEACO_MODEL_REVISION, SENSE_VOICE_MODEL_ID, SENSE_VOICE_MODEL_REVISION,
+    VerifiedModelInstaller, WHISPER_MODEL_ID, WHISPER_MODEL_REVISION, ZIPFORMER_MODEL_ID,
+    ZIPFORMER_MODEL_REVISION,
 };
 pub use offline_punctuation::OfflinePunctuationRestorer;
 pub use openai_transcriptions_asr::OpenAiCompatibleSpeechRecognizer;
-pub use paraformer_asr::ParaformerSpeechRecognizer;
 #[cfg(any(target_os = "macos", target_os = "windows"))]
 pub use platform_secret_store::PlatformSecretStore;
 pub use process_memory::current_process_resident_memory_bytes;
 pub use qwen3_asr::Qwen3AsrSpeechRecognizer;
+pub use retired_asr_models::RetiredAsrModel;
 pub use sense_voice_asr::SenseVoiceSpeechRecognizer;
 pub use sqlite_storage::{SqliteStorage, read_dictionary_snapshot};
 pub use storage_usage::{directory_usage_bytes, local_storage_usage};

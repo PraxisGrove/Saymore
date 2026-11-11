@@ -1637,14 +1637,6 @@ msgctxt "models.asr.local.output.non-streaming"
 msgid "Final only"
 msgstr "非流式"
 
-#: ui/pages/local-asr-model.slint:387
-msgctxt "models.asr.local.usage-tip.paraformer"
-msgid ""
-"Lightweight live Chinese and Chinese-English dictation. Best with an LLM."
-msgstr ""
-"Tips：适合中文和中英混说的日常听写，边说边出字，模型更轻量。建议搭配 LLM 模型"
-"使用。"
-
 #: ui/pages/local-asr-model.slint:389
 msgctxt "models.asr.local.usage-tip.whisper"
 msgid ""
@@ -1705,11 +1697,6 @@ msgctxt "models.asr.local.memory-current"
 msgid "Memory"
 msgstr "当前占用"
 
-#: ui/pages/local-asr-model.slint:524
-msgctxt "models.asr.local.model-settings"
-msgid "Model settings"
-msgstr "模型设置"
-
 #: ui/pages/local-asr-model.slint:544
 msgctxt "models.asr.local.pause"
 msgid "Pause"
@@ -1719,71 +1706,6 @@ msgstr "暂停"
 msgctxt "models.asr.local.cancel"
 msgid "Cancel"
 msgstr "取消"
-
-#: ui/pages/local-asr-model.slint:618
-msgctxt "models.asr.punctuation.title"
-msgid "Punctuation"
-msgstr "标点处理"
-
-#: ui/pages/local-asr-model.slint:623
-msgctxt "models.asr.punctuation.llm-enabled"
-msgid "LLM polishing is enabled"
-msgstr "LLM 润色已开启"
-
-#: ui/pages/local-asr-model.slint:624
-msgctxt "models.asr.punctuation.llm-disabled"
-msgid "LLM is not enabled"
-msgstr "当前未开启 LLM"
-
-#: ui/pages/local-asr-model.slint:626
-msgctxt "models.asr.punctuation.local-enabled"
-msgid "Local punctuation enabled"
-msgstr "本地标点已启用"
-
-#: ui/pages/local-asr-model.slint:627
-msgctxt "models.asr.punctuation.local-missing"
-msgid "Local model not downloaded"
-msgstr "本地模型未下载"
-
-#: ui/pages/local-asr-model.slint:639
-msgctxt "models.asr.punctuation.llm-description"
-msgid "LLM adds punctuation and improves sentence breaks."
-msgstr "Paraformer 原始输出不含标点；开启后可补全标点并优化断句。"
-
-#: ui/pages/local-asr-model.slint:641
-msgctxt "models.asr.punctuation.local-description"
-msgid "Offline · {} on disk{}"
-msgstr "全程离线 · 磁盘占用 {}{}"
-
-#: ui/pages/local-asr-model.slint:641
-msgctxt "models.asr.punctuation.loaded"
-msgid " · loaded"
-msgstr " · 已加载"
-
-#: ui/pages/local-asr-model.slint:642
-msgctxt "models.asr.punctuation.download-description"
-msgid "Download {} to restore punctuation fully offline."
-msgstr "下载 {} 后可全程离线补全标点。"
-
-#: ui/pages/local-asr-model.slint:657 ui/pages/local-asr-model.slint:673
-msgctxt "models.asr.punctuation.local"
-msgid "Local"
-msgstr "本地"
-
-#: ui/pages/local-asr-model.slint:686 ui/pages/local-asr-model.slint:688
-msgctxt "models.asr.punctuation.open-llm"
-msgid "Enable LLM"
-msgstr "前往开启"
-
-#: ui/pages/local-asr-model.slint:696
-msgctxt "models.asr.punctuation.download-enable"
-msgid "Download & enable"
-msgstr "下载并启用"
-
-#: ui/pages/local-asr-model.slint:704
-msgctxt "models.asr.punctuation.delete"
-msgid "Delete local model"
-msgstr "删除本地模型"
 
 #: ui/pages/local-asr-model.slint:838
 msgctxt "models.asr.local.download-failure.title"
@@ -1947,16 +1869,6 @@ msgctxt "settings.storage.installed-speech-models"
 msgid "Installed speech models"
 msgstr "已安装语音模型"
 
-#: ui/pages/privacy-data.slint:245
-msgctxt "settings.storage.paraformer-active"
-msgid "Streaming recognition · Current"
-msgstr "流式识别 · 当前使用"
-
-#: ui/pages/privacy-data.slint:245
-msgctxt "settings.storage.offline-recognition"
-msgid "Bilingual · Offline recognition"
-msgstr "中英双语 · 离线识别"
-
 #: ui/pages/privacy-data.slint:246 ui/pages/privacy-data.slint:247
 msgctxt "settings.storage.multilingual-offline"
 msgid "Multilingual · Offline recognition"
@@ -1971,11 +1883,6 @@ msgstr "尚未安装本地语音模型"
 msgctxt "settings.storage.auxiliary-model"
 msgid "Auxiliary model"
 msgstr "辅助模型"
-
-#: ui/pages/privacy-data.slint:258
-msgctxt "settings.storage.punctuation-detail"
-msgid "For Paraformer · Local punctuation restoration"
-msgstr "仅用于 Paraformer · 本地标点恢复"
 
 #: ui/pages/privacy-data.slint:262
 msgctxt "settings.storage.no-auxiliary-model"
@@ -3886,8 +3793,8 @@ msgstr "当前模型不支持识别阶段的词典热词。文本润色会参考
 
 #: ui/pages/dictionary-recognition-notice.slint
 msgctxt "dictionary.recognition.unsupported"
-msgid "This model cannot use dictionary hints during recognition. To correct misrecognized terms, configure text polishing or switch to Whisper or Qwen3."
-msgstr "当前模型不支持识别阶段的词典热词。需要纠正错词时，请配置文本润色，或切换到 Whisper、Qwen3。"
+msgid "This model cannot use dictionary hints during recognition. Configure text polishing or choose a model that supports dictionary hints to help correct terms."
+msgstr "当前模型不支持识别阶段的词典提示。可配置文本润色，或选择支持词典提示的模型，帮助纠正术语。"
 
 #: ui/pages/dictionary-recognition-notice.slint
 msgctxt "dictionary.recognition.settings"
@@ -3898,3 +3805,68 @@ msgstr "文本润色设置"
 msgctxt "dictionary.recognition.models"
 msgid "Choose recognition model"
 msgstr "选择识别模型"
+
+#: ui/pages/local-asr-model.slint
+msgctxt "models.asr.local.memory-unmeasured"
+msgid "Not measured"
+msgstr "尚未测量"
+
+#: ui/pages/local-asr-model.slint
+msgctxt "models.asr.local.seaco.import-detail"
+msgid "Choose a local SeACo ONNX model folder. A matching public download is not available."
+msgstr "选择本地 SeACo ONNX 模型文件夹。目前没有匹配的公开下载资源。"
+
+#: ui/pages/local-asr-model.slint
+msgctxt "models.asr.local.import"
+msgid "Import model"
+msgstr "导入模型"
+
+#: ui/pages/local-asr-model.slint
+msgctxt "models.asr.local.usage-tip.seaco"
+msgid "Offline Chinese recognition with native dictionary hints. Import a compatible ONNX export to begin."
+msgstr "离线中文识别，原生支持个人词典提示。请先导入兼容的 ONNX 导出模型。"
+
+#: ui/pages/local-asr-model.slint
+msgctxt "models.asr.local.usage-tip.zipformer"
+msgid "Streaming Chinese-English recognition with native dictionary hints. Dictionary hints may improve term recognition; results vary."
+msgstr "中英双语流式识别，原生支持个人词典提示。词典提示可能改善术语识别，实际效果因内容而异。"
+
+#: ui/pages/local-asr-model.slint
+msgctxt "models.asr.local.usage-tip.moonshine"
+msgid "Tiny English-only model. Final text only; recognition-time dictionary hints are not supported."
+msgstr "轻量英语模型，仅在说完后输出文字，不支持识别阶段的词典提示。"
+
+#: ui/pages/local-asr-model.slint
+msgctxt "models.asr.local.subtitle.import"
+msgid "Local import · Chinese · Dictionary hints"
+msgstr "本地导入 · 中文 · 词典提示"
+
+#: ui/pages/local-asr-model.slint
+msgctxt "models.asr.summary.chinese"
+msgid "Chinese"
+msgstr "中文"
+
+#: ui/pages/local-asr-model.slint
+msgctxt "models.asr.summary.english"
+msgid "English"
+msgstr "英语"
+
+#: ui/pages/local-asr-model.slint
+msgctxt "models.asr.local.model-size"
+msgid "Model size"
+msgstr "模型大小"
+
+#: ui/pages/speech-recognition.slint
+msgctxt "models.asr.local.import-ready"
+msgid "Import model files to use offline"
+msgstr "导入模型文件，即可离线使用"
+
+#: ui/pages/local-asr-model.slint
+msgctxt "models.asr.local.subtitle.zipformer"
+msgid "INT8 encoder · ZH · EN · Dictionary hints"
+msgstr "INT8 编码器 · 中英双语 · 词典提示"
+
+#: ui/pages/privacy-data.slint:260 ui/pages/privacy-data.slint:276
+msgctxt "settings.storage.retired-model"
+msgid "Retired · Files can be deleted"
+msgstr "已停用 · 可删除文件"

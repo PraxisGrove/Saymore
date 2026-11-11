@@ -44,7 +44,7 @@ fn provider_change_during_loading_discards_the_new_runtime() {
     let result = activate(settings.as_ref(), &runtime, LocalModel::Qwen3);
 
     assert_eq!(Err(LifecycleError::ProviderChanged), result);
-    assert!(settings.catalog().paraformer_is_active());
+    assert!(settings.catalog().zipformer_is_active());
     assert_eq!(vec!["prepare:qwen3", "clear:qwen3"], runtime.events());
 }
 
@@ -138,6 +138,39 @@ fn deletion_releases_runtime_removes_files_and_deletes_metadata() {
     assert!(installed.models().is_empty());
 }
 
+#[test]
+fn added_models_preserve_atomic_selection_and_active_deletion_protection() {
+    for model in [
+        LocalModel::Seaco,
+        LocalModel::Zipformer,
+        LocalModel::Moonshine,
+    ] {
+        let settings = FakeSettings::with_active(LocalModel::Whisper);
+        let failed = FakeRuntime::failing_prepare();
+        assert!(activate(&settings, &failed, model).is_err());
+        assert!(settings.catalog().whisper_is_active());
+
+        let runtime = FakeRuntime::default();
+        assert!(activate(&settings, &runtime, model).is_ok());
+        assert!(model.is_active(&settings.catalog()));
+        assert!(!settings.catalog().whisper_is_active());
+        assert_eq!(
+            vec![
+                format!("prepare:{}", short_name(model)),
+                "clear:whisper".to_owned()
+            ],
+            runtime.events()
+        );
+        let files = FakeFiles::default();
+        let installed = FakeInstalledModels::with_model(model);
+        assert!(matches!(
+            delete(&settings, &installed, &runtime, &files, model),
+            Err(LifecycleError::ActiveModelCannotBeDeleted { .. })
+        ));
+        assert!(!files.removed());
+    }
+}
+
 #[derive(Default)]
 struct FakeSettings {
     catalog: Mutex<ProviderCatalog>,
@@ -227,7 +260,7 @@ impl ModelRuntime for FakeRuntime {
         if let Some(settings) = &self.change_provider
             && let Ok(mut catalog) = settings.catalog.lock()
         {
-            LocalModel::Paraformer.select(&mut catalog);
+            LocalModel::Zipformer.select(&mut catalog);
         }
         if self.fail_prepare {
             Err(SpeechRecognitionError::Protocol("load failed".to_owned()))
@@ -313,9 +346,11 @@ impl ModelFiles for FakeFiles {
 
 fn short_name(model: LocalModel) -> &'static str {
     match model {
-        LocalModel::Paraformer => "paraformer",
         LocalModel::Whisper => "whisper",
         LocalModel::Qwen3 => "qwen3",
         LocalModel::SenseVoice => "sense-voice",
+        LocalModel::Seaco => "seaco",
+        LocalModel::Zipformer => "zipformer",
+        LocalModel::Moonshine => "moonshine",
     }
 }

@@ -76,6 +76,22 @@ macOS and Windows runners provide these tools. The default backend is CPU;
 retains the static MSVC CRT configuration. No Whisper DLL or GPU runtime is
 required by this configuration.
 
+SeACo-Paraformer uses pinned Rust `ort` bindings in alternative-backend mode,
+initialized from `OrtGetApiBase` in sherpa-onnx's existing linked ONNX Runtime.
+Do not enable ORT's separate download/load-dynamic defaults: the app must retain
+one native ORT runtime and no extra inference DLL deployment. `kaldi-fbank`
+provides a Rust Kaldi-compatible frontend, avoiding a production FunASR/Python
+installation. Upstream runtime logging is silenced so model paths and dictionary
+contents do not enter diagnostics. SeACo model preparation remains a separate
+research/export operation; the app imports only the pinned verified ONNX files.
+
+Zipformer and Moonshine use the existing sherpa-onnx dependency. Zipformer uses
+an INT8 encoder and FP32 decoder/joiner because the all-INT8 combination
+repeated characters on the bundled Chinese fixture. Moonshine's activation and
+manual recognition test use `assets/asr-test/standard-en.pcm`; its fixture
+provenance is recorded beside the PCM file. No native Python inference
+dependency is added.
+
 The target desktop app is compiled through Cargo and Slint. Node.js, pnpm,
 React, TypeScript, Vite, and Tauri are not part of the production toolchain.
 

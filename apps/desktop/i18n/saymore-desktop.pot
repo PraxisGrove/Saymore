@@ -1747,12 +1747,6 @@ msgctxt "models.asr.local.output.non-streaming"
 msgid "Final only"
 msgstr ""
 
-#: ui/pages/local-asr-model.slint:387
-msgctxt "models.asr.local.usage-tip.paraformer"
-msgid ""
-"Lightweight live Chinese and Chinese-English dictation. Best with an LLM."
-msgstr ""
-
 #: ui/pages/local-asr-model.slint:389
 msgctxt "models.asr.local.usage-tip.whisper"
 msgid ""
@@ -1811,11 +1805,6 @@ msgctxt "models.asr.local.memory-current"
 msgid "Memory"
 msgstr ""
 
-#: ui/pages/local-asr-model.slint:524
-msgctxt "models.asr.local.model-settings"
-msgid "Model settings"
-msgstr ""
-
 #: ui/pages/local-asr-model.slint:544
 msgctxt "models.asr.local.pause"
 msgid "Pause"
@@ -1824,71 +1813,6 @@ msgstr ""
 #: ui/pages/local-asr-model.slint:562 ui/pages/local-asr-model.slint:567
 msgctxt "models.asr.local.cancel"
 msgid "Cancel"
-msgstr ""
-
-#: ui/pages/local-asr-model.slint:618
-msgctxt "models.asr.punctuation.title"
-msgid "Punctuation"
-msgstr ""
-
-#: ui/pages/local-asr-model.slint:623
-msgctxt "models.asr.punctuation.llm-enabled"
-msgid "LLM polishing is enabled"
-msgstr ""
-
-#: ui/pages/local-asr-model.slint:624
-msgctxt "models.asr.punctuation.llm-disabled"
-msgid "LLM is not enabled"
-msgstr ""
-
-#: ui/pages/local-asr-model.slint:626
-msgctxt "models.asr.punctuation.local-enabled"
-msgid "Local punctuation enabled"
-msgstr ""
-
-#: ui/pages/local-asr-model.slint:627
-msgctxt "models.asr.punctuation.local-missing"
-msgid "Local model not downloaded"
-msgstr ""
-
-#: ui/pages/local-asr-model.slint:639
-msgctxt "models.asr.punctuation.llm-description"
-msgid "LLM adds punctuation and improves sentence breaks."
-msgstr ""
-
-#: ui/pages/local-asr-model.slint:641
-msgctxt "models.asr.punctuation.local-description"
-msgid "Offline · {} on disk{}"
-msgstr ""
-
-#: ui/pages/local-asr-model.slint:641
-msgctxt "models.asr.punctuation.loaded"
-msgid " · loaded"
-msgstr ""
-
-#: ui/pages/local-asr-model.slint:642
-msgctxt "models.asr.punctuation.download-description"
-msgid "Download {} to restore punctuation fully offline."
-msgstr ""
-
-#: ui/pages/local-asr-model.slint:657 ui/pages/local-asr-model.slint:673
-msgctxt "models.asr.punctuation.local"
-msgid "Local"
-msgstr ""
-
-#: ui/pages/local-asr-model.slint:686 ui/pages/local-asr-model.slint:688
-msgctxt "models.asr.punctuation.open-llm"
-msgid "Enable LLM"
-msgstr ""
-
-#: ui/pages/local-asr-model.slint:696
-msgctxt "models.asr.punctuation.download-enable"
-msgid "Download & enable"
-msgstr ""
-
-#: ui/pages/local-asr-model.slint:704
-msgctxt "models.asr.punctuation.delete"
-msgid "Delete local model"
 msgstr ""
 
 #: ui/pages/local-asr-model.slint:838
@@ -2053,16 +1977,6 @@ msgctxt "settings.storage.installed-speech-models"
 msgid "Installed speech models"
 msgstr ""
 
-#: ui/pages/privacy-data.slint:245
-msgctxt "settings.storage.paraformer-active"
-msgid "Streaming recognition · Current"
-msgstr ""
-
-#: ui/pages/privacy-data.slint:245
-msgctxt "settings.storage.offline-recognition"
-msgid "Bilingual · Offline recognition"
-msgstr ""
-
 #: ui/pages/privacy-data.slint:246 ui/pages/privacy-data.slint:247
 msgctxt "settings.storage.multilingual-offline"
 msgid "Multilingual · Offline recognition"
@@ -2076,11 +1990,6 @@ msgstr ""
 #: ui/pages/privacy-data.slint:252
 msgctxt "settings.storage.auxiliary-model"
 msgid "Auxiliary model"
-msgstr ""
-
-#: ui/pages/privacy-data.slint:258
-msgctxt "settings.storage.punctuation-detail"
-msgid "For Paraformer · Local punctuation restoration"
 msgstr ""
 
 #: ui/pages/privacy-data.slint:262
@@ -3693,7 +3602,7 @@ msgstr ""
 
 #: ui/pages/dictionary-recognition-notice.slint
 msgctxt "dictionary.recognition.unsupported"
-msgid "This model cannot use dictionary hints during recognition. To correct misrecognized terms, configure text polishing or switch to Whisper or Qwen3."
+msgid "This model cannot use dictionary hints during recognition. Configure text polishing or choose a model that supports dictionary hints to help correct terms."
 msgstr ""
 
 #: ui/pages/dictionary-recognition-notice.slint
@@ -3704,4 +3613,69 @@ msgstr ""
 #: ui/pages/dictionary-recognition-notice.slint
 msgctxt "dictionary.recognition.models"
 msgid "Choose recognition model"
+msgstr ""
+
+#: ui/pages/local-asr-model.slint
+msgctxt "models.asr.local.memory-unmeasured"
+msgid "Not measured"
+msgstr ""
+
+#: ui/pages/local-asr-model.slint
+msgctxt "models.asr.local.seaco.import-detail"
+msgid "Choose a local SeACo ONNX model folder. A matching public download is not available."
+msgstr ""
+
+#: ui/pages/local-asr-model.slint
+msgctxt "models.asr.local.import"
+msgid "Import model"
+msgstr ""
+
+#: ui/pages/local-asr-model.slint
+msgctxt "models.asr.local.usage-tip.seaco"
+msgid "Offline Chinese recognition with native dictionary hints. Import a compatible ONNX export to begin."
+msgstr ""
+
+#: ui/pages/local-asr-model.slint
+msgctxt "models.asr.local.usage-tip.zipformer"
+msgid "Streaming Chinese-English recognition with native dictionary hints. Dictionary hints may improve term recognition; results vary."
+msgstr ""
+
+#: ui/pages/local-asr-model.slint
+msgctxt "models.asr.local.usage-tip.moonshine"
+msgid "Tiny English-only model. Final text only; recognition-time dictionary hints are not supported."
+msgstr ""
+
+#: ui/pages/local-asr-model.slint
+msgctxt "models.asr.local.subtitle.import"
+msgid "Local import · Chinese · Dictionary hints"
+msgstr ""
+
+#: ui/pages/local-asr-model.slint
+msgctxt "models.asr.summary.chinese"
+msgid "Chinese"
+msgstr ""
+
+#: ui/pages/local-asr-model.slint
+msgctxt "models.asr.summary.english"
+msgid "English"
+msgstr ""
+
+#: ui/pages/local-asr-model.slint
+msgctxt "models.asr.local.model-size"
+msgid "Model size"
+msgstr ""
+
+#: ui/pages/speech-recognition.slint
+msgctxt "models.asr.local.import-ready"
+msgid "Import model files to use offline"
+msgstr ""
+
+#: ui/pages/local-asr-model.slint
+msgctxt "models.asr.local.subtitle.zipformer"
+msgid "INT8 encoder · ZH · EN · Dictionary hints"
+msgstr ""
+
+#: ui/pages/privacy-data.slint:260 ui/pages/privacy-data.slint:276
+msgctxt "settings.storage.retired-model"
+msgid "Retired · Files can be deleted"
 msgstr ""

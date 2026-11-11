@@ -57,10 +57,6 @@ pub(super) fn apply_model_size_strings(
     installed_size: SharedString,
 ) {
     match model {
-        LocalModel::Paraformer => {
-            ui.set_paraformer_download_size(download_size);
-            ui.set_paraformer_installed_size(installed_size);
-        }
         LocalModel::Whisper => {
             ui.set_whisper_download_size(download_size);
             ui.set_whisper_installed_size(installed_size);
@@ -72,6 +68,18 @@ pub(super) fn apply_model_size_strings(
         LocalModel::SenseVoice => {
             ui.set_sense_voice_download_size(download_size);
             ui.set_sense_voice_installed_size(installed_size);
+        }
+        LocalModel::Seaco => {
+            ui.set_seaco_download_size(download_size);
+            ui.set_seaco_installed_size(installed_size);
+        }
+        LocalModel::Zipformer => {
+            ui.set_zipformer_download_size(download_size);
+            ui.set_zipformer_installed_size(installed_size);
+        }
+        LocalModel::Moonshine => {
+            ui.set_moonshine_download_size(download_size);
+            ui.set_moonshine_installed_size(installed_size);
         }
     }
 }

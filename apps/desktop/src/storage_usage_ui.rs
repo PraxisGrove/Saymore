@@ -27,6 +27,9 @@ pub(crate) fn apply(ui: &AppWindow, usage: LocalStorageUsage, system_locale: Opt
             usage.models.whisper_bytes,
             usage.models.paraformer_bytes,
             usage.models.punctuation_bytes,
+            usage.models.seaco_bytes,
+            usage.models.zipformer_bytes,
+            usage.models.moonshine_bytes,
         ],
     );
 
@@ -68,7 +71,24 @@ pub(crate) fn apply(ui: &AppWindow, usage: LocalStorageUsage, system_locale: Opt
     ui.set_whisper_model_share(model_shares[2]);
     ui.set_paraformer_model_share(model_shares[3]);
     ui.set_punctuation_model_share(model_shares[4]);
+    apply_additional_models(ui, usage, system_locale, model_shares);
     ui.set_storage_usage_error(false);
+}
+
+fn apply_additional_models(
+    ui: &AppWindow,
+    usage: LocalStorageUsage,
+    system_locale: Option<&str>,
+    model_shares: [f32; 8],
+) {
+    ui.set_seaco_storage_usage(format_bytes(usage.models.seaco_bytes, system_locale).into());
+    ui.set_zipformer_storage_usage(
+        format_bytes(usage.models.zipformer_bytes, system_locale).into(),
+    );
+    ui.set_moonshine_storage_usage(
+        format_bytes(usage.models.moonshine_bytes, system_locale).into(),
+    );
+    ui.set_other_models_share(model_shares[5] + model_shares[6] + model_shares[7]);
 }
 
 pub(crate) fn apply_error(ui: &AppWindow) {

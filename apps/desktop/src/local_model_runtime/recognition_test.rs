@@ -2,7 +2,6 @@ use super::*;
 
 pub(super) fn wire(
     ui: &AppWindow,
-    settings: Arc<JsonSettingsStore>,
     installers: Arc<LocalModelInstallers>,
     asr: Arc<AsrSessionController>,
 ) {
@@ -25,11 +24,10 @@ pub(super) fn wire(
         ui.set_asr_draft_error(false);
         let result_ui = weak.clone();
         let asr = Arc::clone(&asr);
-        let settings = Arc::clone(&settings);
         let spawn = std::thread::Builder::new()
             .name(model.thread_name("test"))
             .spawn(move || {
-                let result = run_test(model, &settings, &asr);
+                let result = run_test(model, &asr);
                 let _ = result_ui.upgrade_in_event_loop(move |ui| {
                     ui.set_asr_testing(false);
                     match result {
@@ -55,7 +53,6 @@ pub(super) fn wire(
 
 fn run_test(
     model: LocalModel,
-    settings: &JsonSettingsStore,
     asr: &AsrSessionController,
 ) -> Result<
     (
@@ -64,10 +61,7 @@ fn run_test(
     ),
     template_app::SpeechRecognitionError,
 > {
-    let mut result = match model {
-        LocalModel::Paraformer => asr
-            .paraformer_recognizer()
-            .map(|recognizer| settings_ui::run_local_asr_test(recognizer.as_ref())),
+    match model {
         LocalModel::Whisper => asr
             .whisper_recognizer()
             .map(|recognizer| settings_ui::run_local_asr_test(recognizer.as_ref())),
@@ -77,13 +71,14 @@ fn run_test(
         LocalModel::SenseVoice => asr
             .sense_voice_recognizer()
             .map(|recognizer| settings_ui::run_local_asr_test(recognizer.as_ref())),
-    };
-    let local_punctuation = model == LocalModel::Paraformer
-        && settings.load_catalog().is_ok_and(|catalog| {
-            catalog.paraformer_punctuation_mode() == template_app::ParaformerPunctuationMode::Local
-        });
-    if local_punctuation && let Ok((elapsed, Ok(transcript))) = &result {
-        result = Ok((*elapsed, Ok(asr.restore_punctuation(transcript.clone()))));
+        LocalModel::Seaco => asr
+            .seaco_recognizer()
+            .map(|recognizer| settings_ui::run_local_asr_test(recognizer.as_ref())),
+        LocalModel::Zipformer => asr
+            .zipformer_recognizer()
+            .map(|recognizer| settings_ui::run_local_asr_test(recognizer.as_ref())),
+        LocalModel::Moonshine => asr
+            .moonshine_recognizer()
+            .map(|recognizer| crate::asr_runtime::self_test::run_english(recognizer.as_ref())),
     }
-    result
 }

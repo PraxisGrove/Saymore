@@ -1,6 +1,5 @@
 use super::*;
 
-const PARAFORMER_BASE_URL: &str = "https://huggingface.co/csukuangfj/sherpa-onnx-streaming-paraformer-bilingual-zh-en/resolve/8e40c43232a1c5c66c82111efc5820d3accca11b";
 const QWEN3_ASR_BASE_URL: &str = "https://www.modelscope.cn/models/zengshuishui/Qwen3-ASR-onnx/resolve/cb045ad80b8970c9d411d463e5b78991a566596c";
 const PUNCTUATION_BASE_URL: &str =
     "https://github.com/k2-fsa/sherpa-onnx/releases/download/punctuation-models";
@@ -10,31 +9,6 @@ const PUNCTUATION_PACKAGE_DIRECTORY: &str =
     "sherpa-onnx-punct-ct-transformer-zh-en-vocab272727-2024-04-12-int8";
 
 impl ModelManifest {
-    pub(super) fn paraformer() -> Self {
-        Self::direct(
-            PARAFORMER_MODEL_ID,
-            PARAFORMER_MODEL_REVISION,
-            PARAFORMER_BASE_URL,
-            vec![
-                artifact(
-                    "encoder.int8.onnx",
-                    165_462_184,
-                    "81a70226a8934e6ed92aa1d4fc486b428b5398e2f2619ed4897b7294cab90e9a",
-                ),
-                artifact(
-                    "decoder.int8.onnx",
-                    71_664_561,
-                    "f3cca9f77bb9d93c8fcbfb63ae617b6b1ee96818df3aa3b151c40658fe38594f",
-                ),
-                artifact(
-                    "tokens.txt",
-                    75_756,
-                    "59aba8873a2ed1e122c25fee421e25f283b63290efbde85c1f01a853d83cb6e6",
-                ),
-            ],
-        )
-    }
-
     pub(super) fn whisper_large_v3_turbo() -> Self {
         Self::direct(
             WHISPER_MODEL_ID,

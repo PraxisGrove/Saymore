@@ -750,17 +750,14 @@ export component UnavailableAsrProviderModal inherits Rectangle {
     private property <bool> cloud: root.kind == AsrProviderCardKind.saymore-cloud;
     private property <string> title: root.cloud ? @tr("models.provider.saymore-cloud" => "Saymore Cloud")
         : root.kind == AsrProviderCardKind.qwen3-asr ? "Qwen3-ASR 1.7B"
-        : root.kind == AsrProviderCardKind.paraformer ? "Paraformer-zh"
         : root.kind == AsrProviderCardKind.whisper-large-v3-turbo ? "Whisper large-v3"
         : @tr("models.provider.windows-speech" => "Windows Speech Recognition");
     private property <string> subtitle: root.cloud
         ? @tr("models.asr.placeholder.cloud-subtitle" => "First-party speech service placeholder")
         : @tr("models.asr.placeholder.local-subtitle" => "Local model adapter is not yet connected");
     private property <string> download-size: root.kind == AsrProviderCardKind.qwen3-asr ? "2.24 GB"
-        : root.kind == AsrProviderCardKind.paraformer ? "226.21 MB"
         : root.kind == AsrProviderCardKind.whisper-large-v3-turbo ? "833.69 MB" : "—";
     private property <string> memory: root.kind == AsrProviderCardKind.qwen3-asr ? "~4.3 GB"
-        : root.kind == AsrProviderCardKind.paraformer ? "~503 MB"
         : root.kind == AsrProviderCardKind.whisper-large-v3-turbo ? "~2.15 GB" : "—";
 
     modal-focus := FocusScope {
@@ -780,7 +777,6 @@ export component UnavailableAsrProviderModal inherits Rectangle {
                 x: 24px; y: 22px; width: 42px; height: 42px;
                 source: root.cloud ? @image-url("../../icons/saymore-mark-3d-136.png")
                     : root.kind == AsrProviderCardKind.qwen3-asr ? @image-url("../../icons/providers/qwen.png")
-                    : root.kind == AsrProviderCardKind.paraformer ? @image-url("../../icons/providers/funasr.png")
                     : root.kind == AsrProviderCardKind.whisper-large-v3-turbo ? @image-url("../../icons/providers/openai.png")
                     : @image-url("../../icons/providers/microsoft.svg");
                 image-fit: contain;

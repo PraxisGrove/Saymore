@@ -49,7 +49,12 @@ machine it loads faster but inference is about 14% slower, so quantization
 should be selected for distribution size and memory rather than assumed CPU
 speed.
 
-## Reproduce
+## Historical reproduction
+
+The old streaming Paraformer and its benchmark executable were retired on
+2026-11-11. The commands below record the original experiment and require a
+historical checkout containing `paraformer_benchmark.rs`; they are not current
+application setup instructions. The measurements remain historical evidence.
 
 ```bash
 cargo build --release -p template-infra --example paraformer_benchmark

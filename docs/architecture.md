@@ -72,10 +72,39 @@ persisted history and queues. See the
 [Whisper engine migration](research/whisper-dictionary-engine-migration.md) for
 artifact provenance and acceptance evidence.
 
-The pinned sherpa-onnx 1.13.4 SenseVoiceSmall and streaming Paraformer
-implementations do not support recognition-time dictionary hints. Their adapters
-deliberately use ordinary streams: the generic hotword stream API is
-transducer-only and terminates the native process for these models. The
+Local SeACo-Paraformer runs through Rust ORT bindings using the ONNX Runtime
+already linked by sherpa-onnx. Its pure Rust Kaldi-compatible frontend computes
+80-bin Hamming fbank, LFR and pinned CMVN. Each dictation snapshots up to 64
+known vocabulary terms of at most ten tokens, compiles their embeddings, and
+sends them to the main SeACo graph. Unknown or overlong terms are omitted; a
+sentinel embedding represents the empty dictionary. Decoder/model state is
+serialized and vocabulary is session-owned. This is offline recognition with
+final results, without Python, post-recognition replacement, or automatic cloud
+fallback.
+
+SeACo currently imports only the exact verified local FP32 export described in
+the [native validation report](research/seaco-native-validation.md). No matching
+upstream ONNX download URL is available. Import checks the pinned sizes and
+SHA-256 hashes of six files, copies only those files into staging, verifies them
+again and activates atomically. It preserves the source directory and never
+selects the provider. The user selects the installed model after loading and a
+recognition self-test succeed. The application neither exports models nor
+publishes/mirrors the weights.
+
+Local Zipformer adds native Chinese/English streaming recognition through
+sherpa-onnx transducer modified beam search with a per-stream bounded hotword
+snapshot. Moonshine Tiny adds lightweight English offline recognition, buffers
+PCM and returns ordered final segments; it has no recognition-time dictionary
+support. Both use pinned upstream artifacts with the shared verified downloader.
+Moonshine activation and its recognition-test button use a bundled English
+fixture instead of the Chinese fixture used by the other local models. Each of
+the six local providers has its own persisted identity, installation, loaded
+cache and resource state; switching releases the previous cache.
+
+The pinned sherpa-onnx 1.13.4 SenseVoiceSmall and Moonshine implementations do
+not support recognition-time dictionary hints. Their adapters deliberately use
+ordinary streams: the generic hotword stream API is transducer-only and
+terminates the native process for these models. The
 [dictionary page](../apps/desktop/ui/pages/dictionary.slint) shows this
 limitation when one of these backends is selected and links to recognition model
 selection and text-polishing settings. Dictionary-aware LLM correction after
@@ -86,8 +115,7 @@ notice never enables a provider or sends transcripts on its own.
 Upstream evidence for the pinned version:
 [offline hotword stream default](https://github.com/k2-fsa/sherpa-onnx/blob/v1.13.4/sherpa-onnx/csrc/offline-recognizer-impl.h),
 [online hotword stream default](https://github.com/k2-fsa/sherpa-onnx/blob/v1.13.4/sherpa-onnx/csrc/online-recognizer-impl.h),
-[SenseVoice decoder](https://github.com/k2-fsa/sherpa-onnx/blob/v1.13.4/sherpa-onnx/csrc/offline-recognizer-sense-voice-impl.h),
-[Paraformer decoder](https://github.com/k2-fsa/sherpa-onnx/blob/v1.13.4/sherpa-onnx/csrc/online-recognizer-paraformer-impl.h).
+[SenseVoice decoder](https://github.com/k2-fsa/sherpa-onnx/blob/v1.13.4/sherpa-onnx/csrc/offline-recognizer-sense-voice-impl.h).
 
 The recognition page lists OpenAI (`gpt-transcribe`), Groq
 (`whisper-large-v3-turbo`), and Mistral (`voxtral-mini-transcribe-3`) as
@@ -187,13 +215,24 @@ not yet implement one of those adapters must return an explicit unavailable
 error; it must not replace the shared UI or bootstrap with a platform-specific
 application flow.
 
-Streaming ASR remains an application-owned port. The Paraformer implementation
-in `infra` loads its pinned INT8 files once, then creates an isolated online
-sherpa-onnx stream for each dictation session. Audio pushes emit only changed
-non-empty partials; finishing drains final decoding and rejects an empty result.
-The Whisper large-v3-turbo and Qwen3-ASR 1.7B implementations instead buffer
-session PCM and decode at finish using whisper.cpp and sherpa-onnx respectively,
-with ordered segmentation and no fabricated partial results. Qwen3-ASR uses a
+The old streaming Paraformer card, adapter, download manifest and desktop
+punctuation controls are retired; SeACo-Paraformer is a separate supported
+model. Settings loading clears an old Paraformer selection to no ASR and
+persists that normalization without selecting another model or cloud provider.
+Inactive legacy provider configuration and historical model IDs remain readable;
+saving a new active legacy selection is rejected. Retired downloads are removed
+from the resumable queue. Existing model, punctuation, interrupted-download and
+staging files remain on disk and counted in storage. Settings provides explicit
+cleanup for those files, including incomplete installations, without following
+linked roots or touching supported models.
+
+Streaming ASR remains an application-owned port. The Zipformer implementation in
+`infra` loads its pinned files once, then creates an isolated online sherpa-onnx
+stream for each dictation session. Audio pushes emit only changed non-empty
+partials; finishing drains final decoding and rejects an empty result. The
+Whisper large-v3-turbo and Qwen3-ASR 1.7B implementations instead buffer session
+PCM and decode at finish using whisper.cpp and sherpa-onnx respectively, with
+ordered segmentation and no fabricated partial results. Qwen3-ASR uses a
 one-second overlap plus conservative transcript-boundary deduplication for audio
 longer than 30 seconds so hard cuts do not repeat or truncate words.
 Cancellation drops any local-model session without finalizing it. The macOS

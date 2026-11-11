@@ -96,10 +96,10 @@ INT8 运行时使用 `encoder.int8.onnx`、`decoder.int8.onnx` 和 `tokens.txt`�
 Saymore 应锁定 sherpa-onnx 文档所列制品字节并重新做 Adapter
 冒烟，不能仅因模型来源 相同就把两个 ONNX 文件视为可互换。
 
-仓库现有
-[`paraformer_onnx_probe.rs`](../../crates/infra/examples/paraformer_onnx_probe.rs)
-也正是按上述三个文件名加载；既有完整评测记录 Q8 模型约 227.2 MiB、峰值 RSS 503
-MiB，并且在 AISHELL-1 与 FLEURS 中文全集上没有可见的量化 CER 回退，见
+历史探针 `crates/infra/examples/paraformer_onnx_probe.rs`（2026-11-11 随旧版
+Paraformer 接入下线而移除）按上述三个文件名加载；既有完整评测记录 Q8 模型约
+227.2 MiB、峰值 RSS 503 MiB，并且在 AISHELL-1 与 FLEURS 中文全集上没有可见的量化
+CER 回退，见
 [Paraformer ONNX benchmark](./paraformer-onnx-benchmark.md)。该报告没有保存三份
 模型文件的 SHA-256；首次 Adapter 冒烟应先输出并核对本文哈希，再将新结果作为后续
 回归基线。

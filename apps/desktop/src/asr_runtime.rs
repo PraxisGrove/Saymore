@@ -4,52 +4,46 @@ use std::{
 };
 
 use template_app::{
-    DictationSessionId, DictionaryStore, OwnedRecognition, ParaformerPunctuationMode, PcmRecording,
+    DictationSessionId, DictionaryStore, OwnedRecognition, PcmRecording,
     RestoredRecordingTranscriber, SpeechRecognitionError, SpeechRecognitionHints,
-    StreamingRecognitionSession, StreamingSpeechRecognizer,
+    StreamingSpeechRecognizer,
 };
 #[cfg(target_os = "macos")]
 use template_infra::MacOsSpeechRecognizer;
 use template_infra::{
-    JsonSettingsStore, OfflinePunctuationRestorer, OpenAiCompatibleSpeechRecognizer,
-    PARAFORMER_MODEL_ID, PARAFORMER_MODEL_REVISION, PUNCTUATION_MODEL_ID,
-    PUNCTUATION_MODEL_REVISION, ParaformerSpeechRecognizer, QWEN3_ASR_MODEL_ID,
+    JsonSettingsStore, OpenAiCompatibleSpeechRecognizer, QWEN3_ASR_MODEL_ID,
     QWEN3_ASR_MODEL_REVISION, Qwen3AsrSpeechRecognizer, SENSE_VOICE_MODEL_ID,
     SENSE_VOICE_MODEL_REVISION, VolcengineSpeechRecognizer, WHISPER_MODEL_ID,
     WHISPER_MODEL_REVISION, WhisperSpeechRecognizer, current_process_resident_memory_bytes,
 };
 
-mod punctuation;
+mod additional_models;
+use additional_models::LoadedLocal;
+use template_infra::{
+    MOONSHINE_MODEL_ID, MOONSHINE_MODEL_REVISION, SEACO_MODEL_ID, SEACO_MODEL_REVISION,
+    ZIPFORMER_MODEL_ID, ZIPFORMER_MODEL_REVISION,
+};
 pub(crate) mod self_test;
 mod sense_voice;
 
-use punctuation::PunctuatedRecognitionSession;
 use sense_voice::LoadedSenseVoice;
 
 pub struct AsrSessionController {
     settings: Arc<JsonSettingsStore>,
     dictionary: Arc<dyn DictionaryStore>,
     active: Mutex<Option<OwnedRecognition>>,
-    paraformer_model_directory: PathBuf,
-    paraformer: Mutex<Option<LoadedParaformer>>,
-    punctuation_model_directory: PathBuf,
-    punctuation: Mutex<Option<LoadedPunctuation>>,
     whisper_model_directory: PathBuf,
     whisper: Mutex<Option<LoadedWhisper>>,
     qwen3_model_directory: PathBuf,
     qwen3: Mutex<Option<LoadedQwen3>>,
     sense_voice_model_directory: PathBuf,
     sense_voice: Mutex<Option<LoadedSenseVoice>>,
-}
-
-struct LoadedParaformer {
-    recognizer: Arc<ParaformerSpeechRecognizer>,
-    resident_memory_bytes: Option<u64>,
-}
-
-struct LoadedPunctuation {
-    restorer: Arc<OfflinePunctuationRestorer>,
-    resident_memory_bytes: Option<u64>,
+    seaco_model_directory: PathBuf,
+    seaco: Mutex<Option<LoadedLocal>>,
+    zipformer_model_directory: PathBuf,
+    zipformer: Mutex<Option<LoadedLocal>>,
+    moonshine_model_directory: PathBuf,
+    moonshine: Mutex<Option<LoadedLocal>>,
 }
 
 struct LoadedWhisper {
@@ -72,14 +66,6 @@ impl AsrSessionController {
             settings,
             dictionary,
             active: Mutex::new(None),
-            paraformer_model_directory: models_directory
-                .join(PARAFORMER_MODEL_ID)
-                .join(PARAFORMER_MODEL_REVISION),
-            paraformer: Mutex::new(None),
-            punctuation_model_directory: models_directory
-                .join(PUNCTUATION_MODEL_ID)
-                .join(PUNCTUATION_MODEL_REVISION),
-            punctuation: Mutex::new(None),
             whisper_model_directory: models_directory
                 .join(WHISPER_MODEL_ID)
                 .join(WHISPER_MODEL_REVISION),
@@ -92,49 +78,18 @@ impl AsrSessionController {
                 .join(SENSE_VOICE_MODEL_ID)
                 .join(SENSE_VOICE_MODEL_REVISION),
             sense_voice: Mutex::new(None),
-        }
-    }
-
-    pub fn prepare_paraformer(&self) -> Result<Option<u64>, SpeechRecognitionError> {
-        let loaded = self.paraformer_runtime()?;
-        ensure_self_test(loaded.recognizer.as_ref())?;
-        Ok(loaded.resident_memory_bytes)
-    }
-
-    pub fn clear_paraformer(&self) {
-        if let Ok(mut recognizer) = self.paraformer.lock() {
-            recognizer.take();
-        }
-    }
-
-    pub fn prepare_punctuation(&self) -> Result<Option<u64>, SpeechRecognitionError> {
-        self.punctuation_runtime()
-            .map(|loaded| loaded.resident_memory_bytes)
-    }
-
-    pub fn clear_punctuation(&self) {
-        if let Ok(mut punctuation) = self.punctuation.lock() {
-            punctuation.take();
-        }
-    }
-
-    pub fn restore_punctuation(&self, raw: String) -> String {
-        if raw.trim().is_empty() {
-            return raw;
-        }
-        match self
-            .punctuation_runtime()
-            .map(|punctuation| punctuation::restore_or_raw(&punctuation.restorer, raw.clone()))
-        {
-            Ok(punctuated) => punctuated,
-            Err(error) => {
-                tracing::warn!(
-                    target: "saymore::diagnostics",
-                    event = "punctuation.inference_failed",
-                    reason = %error
-                );
-                raw
-            }
+            seaco_model_directory: models_directory
+                .join(SEACO_MODEL_ID)
+                .join(SEACO_MODEL_REVISION),
+            seaco: Mutex::new(None),
+            zipformer_model_directory: models_directory
+                .join(ZIPFORMER_MODEL_ID)
+                .join(ZIPFORMER_MODEL_REVISION),
+            zipformer: Mutex::new(None),
+            moonshine_model_directory: models_directory
+                .join(MOONSHINE_MODEL_ID)
+                .join(MOONSHINE_MODEL_REVISION),
+            moonshine: Mutex::new(None),
         }
     }
 
@@ -172,34 +127,25 @@ impl AsrSessionController {
             .load_settings_snapshot()
             .map_err(|error| SpeechRecognitionError::Protocol(error.to_string()))?;
         let macos_speech_active = catalog.macos_speech_is_active();
-        let paraformer_active = catalog.paraformer_is_active();
         let whisper_active = catalog.whisper_is_active();
         let qwen3_active = catalog.qwen3_asr_is_active();
         let sense_voice_active = catalog.sense_voice_is_active();
-        if !sense_voice_active
+        let seaco_active = catalog.seaco_is_active();
+        let zipformer_active = catalog.zipformer_is_active();
+        let moonshine_active = catalog.moonshine_is_active();
+        if !seaco_active
+            && !zipformer_active
+            && !moonshine_active
+            && !sense_voice_active
             && !qwen3_active
             && !whisper_active
-            && !paraformer_active
             && !macos_speech_active
             && !settings.asr.volcengine.enabled
             && !settings.asr.openai_compatible.enabled
         {
             return Err(SpeechRecognitionError::NotConfigured);
         }
-        let hints = match self.dictionary.list_dictionary() {
-            Ok(entries) => SpeechRecognitionHints::from_terms(
-                entries.into_iter().map(|entry| entry.canonical).collect(),
-            ),
-            Err(error) => {
-                tracing::warn!(
-                    target: "saymore::diagnostics",
-                    event = "asr.dictionary_hints_unavailable",
-                    dictation_id = %id,
-                    reason = %error
-                );
-                SpeechRecognitionHints::default()
-            }
-        };
+        let hints = self.dictionary_hints(&id);
         let mut active = self
             .active
             .lock()
@@ -209,14 +155,18 @@ impl AsrSessionController {
                 "ASR session is already active".to_owned(),
             ));
         }
-        let session = if sense_voice_active {
+        let session = if seaco_active {
+            self.seaco_recognizer()?.start(hints, on_partial)?
+        } else if zipformer_active {
+            self.zipformer_recognizer()?.start(hints, on_partial)?
+        } else if moonshine_active {
+            self.moonshine_recognizer()?.start(hints, on_partial)?
+        } else if sense_voice_active {
             self.sense_voice_recognizer()?.start(hints, on_partial)?
         } else if qwen3_active {
             self.qwen3_recognizer()?.start(hints, on_partial)?
         } else if whisper_active {
             self.whisper_recognizer()?.start(hints, on_partial)?
-        } else if paraformer_active {
-            self.start_paraformer_session(catalog.paraformer_punctuation_mode(), hints, on_partial)?
         } else if macos_speech_active {
             #[cfg(target_os = "macos")]
             {
@@ -241,34 +191,19 @@ impl AsrSessionController {
         Ok(())
     }
 
-    pub fn paraformer_recognizer(
-        &self,
-    ) -> Result<Arc<ParaformerSpeechRecognizer>, SpeechRecognitionError> {
-        self.paraformer_runtime().map(|loaded| loaded.recognizer)
-    }
-
-    fn start_paraformer_session(
-        &self,
-        punctuation_mode: ParaformerPunctuationMode,
-        hints: SpeechRecognitionHints,
-        on_partial: Arc<dyn Fn(String) + Send + Sync>,
-    ) -> Result<Box<dyn StreamingRecognitionSession>, SpeechRecognitionError> {
-        let session = self.paraformer_recognizer()?.start(hints, on_partial)?;
-        if punctuation_mode != ParaformerPunctuationMode::Local {
-            return Ok(session);
-        }
-        match self.punctuation_runtime() {
-            Ok(punctuation) => Ok(Box::new(PunctuatedRecognitionSession {
-                inner: session,
-                punctuation: punctuation.restorer,
-            })),
+    fn dictionary_hints(&self, id: &DictationSessionId) -> SpeechRecognitionHints {
+        match self.dictionary.list_dictionary() {
+            Ok(entries) => SpeechRecognitionHints::from_terms(
+                entries.into_iter().map(|entry| entry.canonical).collect(),
+            ),
             Err(error) => {
                 tracing::warn!(
                     target: "saymore::diagnostics",
-                    event = "punctuation.runtime_unavailable",
+                    event = "asr.dictionary_hints_unavailable",
+                    dictation_id = %id,
                     reason = %error
                 );
-                Ok(session)
+                SpeechRecognitionHints::default()
             }
         }
     }
@@ -283,27 +218,6 @@ impl AsrSessionController {
         &self,
     ) -> Result<Arc<Qwen3AsrSpeechRecognizer>, SpeechRecognitionError> {
         self.qwen3_runtime().map(|loaded| loaded.recognizer)
-    }
-
-    fn paraformer_runtime(&self) -> Result<LoadedParaformer, SpeechRecognitionError> {
-        let mut recognizer = self.paraformer.lock().map_err(|_| {
-            SpeechRecognitionError::Transport("Paraformer cache lock was poisoned".to_owned())
-        })?;
-        if let Some(loaded) = recognizer.as_ref() {
-            return Ok(loaded.clone());
-        }
-        let resident_before = current_process_resident_memory_bytes();
-        let loaded = Arc::new(ParaformerSpeechRecognizer::load(
-            &self.paraformer_model_directory,
-        )?);
-        let resident_memory_bytes =
-            resident_memory_delta(resident_before, current_process_resident_memory_bytes());
-        let loaded = LoadedParaformer {
-            recognizer: loaded,
-            resident_memory_bytes,
-        };
-        *recognizer = Some(loaded.clone());
-        Ok(loaded)
     }
 
     fn whisper_runtime(&self) -> Result<LoadedWhisper, SpeechRecognitionError> {
@@ -324,27 +238,6 @@ impl AsrSessionController {
             resident_memory_bytes,
         };
         *recognizer = Some(loaded.clone());
-        Ok(loaded)
-    }
-
-    fn punctuation_runtime(&self) -> Result<LoadedPunctuation, SpeechRecognitionError> {
-        let mut punctuation = self.punctuation.lock().map_err(|_| {
-            SpeechRecognitionError::Transport("punctuation cache lock was poisoned".to_owned())
-        })?;
-        if let Some(loaded) = punctuation.as_ref() {
-            return Ok(loaded.clone());
-        }
-        let resident_before = current_process_resident_memory_bytes();
-        let restorer = Arc::new(OfflinePunctuationRestorer::load(
-            &self.punctuation_model_directory,
-        )?);
-        let resident_memory_bytes =
-            resident_memory_delta(resident_before, current_process_resident_memory_bytes());
-        let loaded = LoadedPunctuation {
-            restorer,
-            resident_memory_bytes,
-        };
-        *punctuation = Some(loaded.clone());
         Ok(loaded)
     }
 
@@ -403,24 +296,6 @@ impl AsrSessionController {
                 target: "saymore::diagnostics",
                 event = "asr.session_cancelled"
             );
-        }
-    }
-}
-
-impl Clone for LoadedParaformer {
-    fn clone(&self) -> Self {
-        Self {
-            recognizer: Arc::clone(&self.recognizer),
-            resident_memory_bytes: self.resident_memory_bytes,
-        }
-    }
-}
-
-impl Clone for LoadedPunctuation {
-    fn clone(&self) -> Self {
-        Self {
-            restorer: Arc::clone(&self.restorer),
-            resident_memory_bytes: self.resident_memory_bytes,
         }
     }
 }

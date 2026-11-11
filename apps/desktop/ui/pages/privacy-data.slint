@@ -186,6 +186,7 @@ component ModelUsageBar inherits Rectangle {
     in property <float> whisper-share;
     in property <float> paraformer-share;
     in property <float> punctuation-share;
+    in property <float> other-models-share;
     border-radius: 5px;
     background: AppColors.progress-track;
     clip: true;
@@ -194,13 +195,13 @@ component ModelUsageBar inherits Rectangle {
     Rectangle { x: parent.width * (root.qwen-share + root.sense-voice-share); width: parent.width * root.whisper-share; background: AppColors.model-whisper; }
     Rectangle { x: parent.width * (root.qwen-share + root.sense-voice-share + root.whisper-share); width: parent.width * root.paraformer-share; background: AppColors.model-paraformer; }
     Rectangle { x: parent.width * (root.qwen-share + root.sense-voice-share + root.whisper-share + root.paraformer-share); width: parent.width * root.punctuation-share; background: AppColors.model-punctuation; }
+    Rectangle { x: parent.width * (root.qwen-share + root.sense-voice-share + root.whisper-share + root.paraformer-share + root.punctuation-share); width: parent.width * root.other-models-share; background: AppColors.chart-neutral; }
 }
 
 component LocalModelsPage inherits Rectangle {
     in property <string> total-usage;
     in property <bool> paraformer-installed;
     in property <string> paraformer-size;
-    in property <bool> paraformer-active;
     in property <bool> paraformer-pending;
     in property <bool> whisper-installed;
     in property <string> whisper-size;
@@ -214,6 +215,18 @@ component LocalModelsPage inherits Rectangle {
     in property <string> sense-voice-size;
     in property <bool> sense-voice-active;
     in property <bool> sense-voice-pending;
+    in property <bool> seaco-installed;
+    in property <string> seaco-size;
+    in property <bool> seaco-active;
+    in property <bool> seaco-pending;
+    in property <bool> zipformer-installed;
+    in property <string> zipformer-size;
+    in property <bool> zipformer-active;
+    in property <bool> zipformer-pending;
+    in property <bool> moonshine-installed;
+    in property <string> moonshine-size;
+    in property <bool> moonshine-active;
+    in property <bool> moonshine-pending;
     in property <bool> punctuation-installed;
     in property <string> punctuation-size;
     in property <bool> punctuation-pending;
@@ -222,11 +235,12 @@ component LocalModelsPage inherits Rectangle {
     in property <float> whisper-share;
     in property <float> paraformer-share;
     in property <float> punctuation-share;
+    in property <float> other-models-share;
     callback back();
     callback delete-model(AsrProviderCardKind);
     callback delete-punctuation();
 
-    private property <int> installed-count: (root.paraformer-installed ? 1 : 0) + (root.whisper-installed ? 1 : 0) + (root.qwen-installed ? 1 : 0) + (root.sense-voice-installed ? 1 : 0);
+    private property <int> installed-count: (root.paraformer-installed ? 1 : 0) + (root.whisper-installed ? 1 : 0) + (root.qwen-installed ? 1 : 0) + (root.sense-voice-installed ? 1 : 0) + (root.seaco-installed ? 1 : 0) + (root.zipformer-installed ? 1 : 0) + (root.moonshine-installed ? 1 : 0);
     background: transparent;
     Rectangle { x: 0px; y: 0px; width: 112px; height: 24px; border-radius: 6px; background: back-touch.has-hover ? AppColors.surface-subtle : transparent; Image { x: 0px; y: 5px; width: 14px; height: 14px; source: @image-url("../../icons/lucide/chevron-right.svg"); colorize: AppColors.text-muted; transform-rotation: 180deg; } Text { x: 20px; y: 3px; text: @tr("settings.section.privacy-data" => "Privacy & Data"); color: AppColors.text-muted; font-size: 11px; font-weight: 500; } back-touch := TouchArea { mouse-cursor: pointer; clicked => { root.back(); } } }
     Rectangle {
@@ -236,17 +250,20 @@ component LocalModelsPage inherits Rectangle {
         Text { x: 72px; y: 43px; text: @tr("settings.storage.models-local" => "Speech and auxiliary models are stored on this device."); color: AppColors.text-muted; font-size: 10px; }
         Text { x: parent.width - 138px; y: 18px; text: @tr("settings.storage.total-usage" => "Total usage"); color: AppColors.text-muted; font-size: 9px; }
         Text { x: parent.width - 138px; y: 36px; width: 118px; text: root.total-usage; color: AppColors.ink; font-family: Typography.mono-font-family; font-size: 18px; font-weight: 650; horizontal-alignment: left; }
-        ModelUsageBar { x: 20px; y: 78px; width: parent.width - 40px; height: 10px; qwen-share: root.qwen-share; sense-voice-share: root.sense-voice-share; whisper-share: root.whisper-share; paraformer-share: root.paraformer-share; punctuation-share: root.punctuation-share; }
+        ModelUsageBar { x: 20px; y: 78px; width: parent.width - 40px; height: 10px; qwen-share: root.qwen-share; sense-voice-share: root.sense-voice-share; whisper-share: root.whisper-share; paraformer-share: root.paraformer-share; punctuation-share: root.punctuation-share; other-models-share: root.other-models-share; }
         Text { x: 20px; y: 94px; text: @tr("settings.storage.model-realtime" => "Measured from model files in real time, including auxiliary models."); color: AppColors.text-muted; font-size: 8px; }
     }
     Text { x: 0px; y: 170px; text: @tr("settings.storage.installed-speech-models" => "Installed speech models"); color: AppColors.text; font-size: 13px; font-weight: 650; }
     Rectangle {
         x: 0px; y: 198px; width: parent.width; height: max(70px, root.installed-count * 84px); border-radius: 10px; background: AppColors.surface; clip: true;
         VerticalLayout {
-            if root.paraformer-installed: InstalledModelRow { logo: @image-url("../../icons/providers/funasr.png"); marker-color: AppColors.model-paraformer; title: "Paraformer 中英双语"; detail: root.paraformer-active ? @tr("settings.storage.paraformer-active" => "Streaming recognition · Current") : @tr("settings.storage.offline-recognition" => "Bilingual · Offline recognition"); size: root.paraformer-size; active: root.paraformer-active; pending: root.paraformer-pending; delete-requested => { root.delete-model(AsrProviderCardKind.paraformer); } }
+            if root.paraformer-installed: InstalledModelRow { logo: @image-url("../../icons/providers/funasr.png"); marker-color: AppColors.model-paraformer; title: "Paraformer-zh"; detail: @tr("settings.storage.retired-model" => "Retired · Files can be deleted"); size: root.paraformer-size; pending: root.paraformer-pending; delete-requested => { root.delete-model(AsrProviderCardKind.paraformer); } }
             if root.whisper-installed: InstalledModelRow { logo: @image-url("../../icons/providers/openai.png"); marker-color: AppColors.model-whisper; title: "Whisper large-v3-turbo"; detail: @tr("settings.storage.multilingual-offline" => "Multilingual · Offline recognition"); size: root.whisper-size; active: root.whisper-active; pending: root.whisper-pending; delete-requested => { root.delete-model(AsrProviderCardKind.whisper-large-v3-turbo); } }
             if root.qwen-installed: InstalledModelRow { logo: @image-url("../../icons/providers/qwen.png"); marker-color: AppColors.model-qwen; title: "Qwen3-ASR 1.7B"; detail: @tr("settings.storage.multilingual-offline" => "Multilingual · Offline recognition"); size: root.qwen-size; active: root.qwen-active; pending: root.qwen-pending; delete-requested => { root.delete-model(AsrProviderCardKind.qwen3-asr); } }
             if root.sense-voice-installed: InstalledModelRow { logo: @image-url("../../icons/providers/funasr.png"); marker-color: AppColors.model-sense-voice; title: "SenseVoiceSmall"; detail: @tr("models.asr.summary.five-languages" => "ZH · EN · JA · KO · YUE"); size: root.sense-voice-size; active: root.sense-voice-active; pending: root.sense-voice-pending; delete-requested => { root.delete-model(AsrProviderCardKind.sense-voice-small); } }
+            if root.seaco-installed: InstalledModelRow { logo: @image-url("../../icons/providers/funasr.png"); marker-color: AppColors.chart-neutral; title: "SeACo-Paraformer"; detail: @tr("models.asr.summary.chinese" => "Chinese"); size: root.seaco-size; active: root.seaco-active; pending: root.seaco-pending; delete-requested => { root.delete-model(AsrProviderCardKind.seaco-paraformer); } }
+            if root.zipformer-installed: InstalledModelRow { logo: @image-url("../../icons/lucide/mic.svg"); marker-color: AppColors.chart-neutral; title: "Zipformer"; detail: @tr("models.asr.summary.chinese-english" => "ZH · EN"); size: root.zipformer-size; active: root.zipformer-active; pending: root.zipformer-pending; delete-requested => { root.delete-model(AsrProviderCardKind.zipformer); } }
+            if root.moonshine-installed: InstalledModelRow { logo: @image-url("../../icons/lucide/mic.svg"); marker-color: AppColors.chart-neutral; title: "Moonshine"; detail: @tr("models.asr.summary.english" => "English"); size: root.moonshine-size; active: root.moonshine-active; pending: root.moonshine-pending; delete-requested => { root.delete-model(AsrProviderCardKind.moonshine); } }
         }
         if root.installed-count == 0: Text { text: @tr("settings.storage.no-models" => "No local speech models installed"); color: AppColors.text-muted; font-size: 11px; horizontal-alignment: center; vertical-alignment: center; }
     }
@@ -256,7 +273,7 @@ component LocalModelsPage inherits Rectangle {
         Image { x: 20px; y: 13px; width: 44px; height: 44px; source: @image-url("../../icons/providers/funasr.png"); image-fit: contain; }
         Rectangle { x: 80px; y: 23px; width: 8px; height: 8px; border-radius: 4px; background: AppColors.model-punctuation; }
         Text { x: 94px; y: 17px; width: parent.width - 300px; text: "CT-Transformer 中英标点 INT8"; color: AppColors.text; font-size: 13px; font-weight: 500; overflow: elide; }
-        Text { x: 94px; y: 38px; width: parent.width - 300px; text: @tr("settings.storage.punctuation-detail" => "For Paraformer · Local punctuation restoration"); color: AppColors.text-muted; font-size: 9px; overflow: elide; }
+        Text { x: 94px; y: 38px; width: parent.width - 300px; text: @tr("settings.storage.retired-model" => "Retired · Files can be deleted"); color: AppColors.text-muted; font-size: 9px; overflow: elide; }
         Text { x: parent.width - 210px; y: 28px; width: 100px; height: 22px; text: root.punctuation-size; color: AppColors.ink; font-family: Typography.mono-font-family; font-size: 11px; font-weight: 600; horizontal-alignment: right; vertical-alignment: center; }
         ModelDeleteButton { x: parent.width - 62px; y: 19px; enabled: !root.punctuation-pending; activated => { root.delete-punctuation(); } }
     }
@@ -289,7 +306,6 @@ export component PrivacyDataPage inherits Rectangle {
     in property <string> local-models-total;
     in property <bool> paraformer-installed;
     in property <string> paraformer-size;
-    in property <bool> paraformer-active;
     in property <bool> paraformer-pending;
     in property <bool> whisper-installed;
     in property <string> whisper-size;
@@ -303,6 +319,18 @@ export component PrivacyDataPage inherits Rectangle {
     in property <string> sense-voice-size;
     in property <bool> sense-voice-active;
     in property <bool> sense-voice-pending;
+    in property <bool> seaco-installed;
+    in property <string> seaco-size;
+    in property <bool> seaco-active;
+    in property <bool> seaco-pending;
+    in property <bool> zipformer-installed;
+    in property <string> zipformer-size;
+    in property <bool> zipformer-active;
+    in property <bool> zipformer-pending;
+    in property <bool> moonshine-installed;
+    in property <string> moonshine-size;
+    in property <bool> moonshine-active;
+    in property <bool> moonshine-pending;
     in property <bool> punctuation-installed;
     in property <string> punctuation-size;
     in property <bool> punctuation-pending;
@@ -311,6 +339,7 @@ export component PrivacyDataPage inherits Rectangle {
     in property <float> whisper-share;
     in property <float> paraformer-share;
     in property <float> punctuation-share;
+    in property <float> other-models-share;
     callback show-local-models();
     callback hide-local-models();
     callback open-data-directory();
@@ -332,5 +361,5 @@ export component PrivacyDataPage inherits Rectangle {
         PrivacyPolicyRow { x: 0px; y: 438px; width: parent.width; height: 52px; activated => { root.open-privacy(); } }
     }
 
-    if root.local-models-visible: LocalModelsPage { width: parent.width; height: parent.height; total-usage: root.local-models-total; paraformer-installed: root.paraformer-installed; paraformer-size: root.paraformer-size; paraformer-active: root.paraformer-active; paraformer-pending: root.paraformer-pending; whisper-installed: root.whisper-installed; whisper-size: root.whisper-size; whisper-active: root.whisper-active; whisper-pending: root.whisper-pending; qwen-installed: root.qwen-installed; qwen-size: root.qwen-size; qwen-active: root.qwen-active; qwen-pending: root.qwen-pending; sense-voice-installed: root.sense-voice-installed; sense-voice-size: root.sense-voice-size; sense-voice-active: root.sense-voice-active; sense-voice-pending: root.sense-voice-pending; punctuation-installed: root.punctuation-installed; punctuation-size: root.punctuation-size; punctuation-pending: root.punctuation-pending; qwen-share: root.qwen-share; sense-voice-share: root.sense-voice-share; whisper-share: root.whisper-share; paraformer-share: root.paraformer-share; punctuation-share: root.punctuation-share; back => { root.hide-local-models(); } delete-model(kind) => { root.delete-model(kind); } delete-punctuation => { root.delete-punctuation(); } }
+    if root.local-models-visible: LocalModelsPage { width: parent.width; height: parent.height; total-usage: root.local-models-total; paraformer-installed: root.paraformer-installed; paraformer-size: root.paraformer-size; paraformer-pending: root.paraformer-pending; whisper-installed: root.whisper-installed; whisper-size: root.whisper-size; whisper-active: root.whisper-active; whisper-pending: root.whisper-pending; qwen-installed: root.qwen-installed; qwen-size: root.qwen-size; qwen-active: root.qwen-active; qwen-pending: root.qwen-pending; sense-voice-installed: root.sense-voice-installed; sense-voice-size: root.sense-voice-size; sense-voice-active: root.sense-voice-active; sense-voice-pending: root.sense-voice-pending; seaco-installed: root.seaco-installed; seaco-size: root.seaco-size; seaco-active: root.seaco-active; seaco-pending: root.seaco-pending; zipformer-installed: root.zipformer-installed; zipformer-size: root.zipformer-size; zipformer-active: root.zipformer-active; zipformer-pending: root.zipformer-pending; moonshine-installed: root.moonshine-installed; moonshine-size: root.moonshine-size; moonshine-active: root.moonshine-active; moonshine-pending: root.moonshine-pending; punctuation-installed: root.punctuation-installed; punctuation-size: root.punctuation-size; punctuation-pending: root.punctuation-pending; qwen-share: root.qwen-share; sense-voice-share: root.sense-voice-share; whisper-share: root.whisper-share; paraformer-share: root.paraformer-share; punctuation-share: root.punctuation-share; other-models-share: root.other-models-share; back => { root.hide-local-models(); } delete-model(kind) => { root.delete-model(kind); } delete-punctuation => { root.delete-punctuation(); } }
 }
