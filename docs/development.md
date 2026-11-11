@@ -85,8 +85,13 @@ require CMake and a C/C++ toolchain (Xcode Command Line Tools on macOS, Visual
 Studio C++ build tools on Windows); install CMake before running Cargo. Hosted
 macOS and Windows runners provide these tools. The default backend is CPU;
 `.cargo/config.toml` disables build-host-specific GGML optimization, and Windows
-retains the static MSVC CRT configuration. No Whisper DLL or GPU runtime is
-required by this configuration.
+retains the static MSVC CRT configuration. It also sets
+`CMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded` with policy CMP0091, which
+whisper-rs-sys forwards to CMake. Without it, debug and test builds compile
+whisper.cpp with `/MD` and fail to link against the static sherpa-onnx archive
+(`LNK2038 RuntimeLibrary` mismatch), because the crate configures
+`RelWithDebInfo` but builds the Release configuration. No Whisper DLL or GPU
+runtime is required by this configuration.
 
 SeACo-Paraformer uses pinned Rust `ort` bindings in alternative-backend mode,
 initialized from `OrtGetApiBase` in sherpa-onnx's existing linked ONNX Runtime.

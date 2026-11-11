@@ -1,6 +1,13 @@
 [env]
 # Build distributable whisper.cpp CPU code rather than optimizing for the build host.
 GGML_NATIVE = "OFF"
+# whisper-rs-sys forwards CMAKE_* variables to whisper.cpp. Select the static
+# MSVC runtime through CMake itself: in debug builds the crate configures
+# RelWithDebInfo but builds the Release configuration, whose default flags
+# would otherwise use /MD and conflict with the static sherpa-onnx archive.
+# Non-MSVC toolchains ignore these settings.
+CMAKE_POLICY_DEFAULT_CMP0091 = "NEW"
+CMAKE_MSVC_RUNTIME_LIBRARY = "MultiThreaded"
 
 [target.x86_64-pc-windows-msvc]
 rustflags = ["-C", "target-feature=+crt-static"]
