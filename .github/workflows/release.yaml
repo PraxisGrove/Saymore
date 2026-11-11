@@ -2,6 +2,11 @@ name: Release
 
 on:
   workflow_dispatch:
+    inputs:
+      version:
+        description: "Committed workspace version to release (for example 0.3.0)"
+        required: true
+        type: string
 
 permissions:
   actions: read
@@ -12,7 +17,6 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  CARGO_EDIT_VERSION: "0.13.13"
   CARGO_PACKAGER_VERSION: "0.11.8"
 
 jobs:
@@ -20,14 +24,26 @@ jobs:
     name: Plan release
     runs-on: ubuntu-latest
     outputs:
-      should-release: ${{ steps.version.outputs.should-release }}
-      version: ${{ steps.version.outputs.version }}
-      tag: ${{ steps.version.outputs.tag }}
+      version: ${{ inputs.version }}
+      tag: v${{ inputs.version }}
       source-sha: ${{ steps.source.outputs.sha }}
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: main
+          fetch-depth: 0
+
+      - name: Resolve the current remote main
+        id: main-head
+        shell: bash
+        run: |
+          set -euo pipefail
+          sha=$(git ls-remote --exit-code origin refs/heads/main)
+          sha=${sha%%$'\t'*}
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ steps.main-head.outputs.sha }}
           fetch-depth: 0
 
       - name: Read latest release state
@@ -44,55 +60,46 @@ jobs:
             } catch (error) {
               if (error.status !== 404) throw error;
             }
+            core.setOutput("latest-tag", latest?.data.tag_name ?? "");
 
-            let latestTag = "";
-            let aheadBy = 0;
-            const main = await github.rest.repos.getBranch({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              branch: "main",
-            });
-            const mainSha = main.data.commit.sha;
-            if (latest) {
-              latestTag = latest.data.tag_name;
-              const comparison = await github.rest.repos.compareCommitsWithBasehead({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                basehead: `${latestTag}...${mainSha}`,
-              });
-              aheadBy = comparison.data.ahead_by;
-            }
-
-            core.setOutput("latest-tag", latestTag);
-            core.setOutput("ahead-by", String(aheadBy));
-            core.setOutput("main-sha", mainSha);
-
-      - name: Choose release eligibility and version
-        id: version
-        env:
-          SAYMORE_LATEST_TAG: ${{ steps.release-state.outputs.latest-tag }}
-          SAYMORE_AHEAD_BY: ${{ steps.release-state.outputs.ahead-by }}
-        run: cargo run -p xtask -- release-plan --github-output "$GITHUB_OUTPUT"
-
-      - name: Resolve release source
-        id: source
+      - name: Resolve the source tag
+        id: tag
         shell: bash
         env:
-          TAG: ${{ steps.version.outputs.tag }}
-          MAIN_SHA: ${{ steps.release-state.outputs.main-sha }}
+          VERSION: ${{ inputs.version }}
+          TARGET_SHA: ${{ steps.main-head.outputs.sha }}
         run: |
           set -euo pipefail
-          if git rev-parse --verify --quiet "refs/tags/$TAG"; then
-            sha=$(git rev-list --max-count=1 "$TAG")
-          else
-            sha="$MAIN_SHA"
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "release version must be MAJOR.MINOR.PATCH: $VERSION" >&2
+            exit 1
           fi
-          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          if git ls-remote --exit-code origin "refs/tags/v$VERSION" > /dev/null; then
+            git fetch --no-tags origin "refs/tags/v$VERSION:refs/tags/v$VERSION"
+          fi
+          if sha=$(git rev-list --max-count=1 "refs/tags/v$VERSION" 2>/dev/null); then
+            if [[ "$sha" != "$TARGET_SHA" ]] || ! git merge-base --is-ancestor origin/main "$TARGET_SHA"; then
+              echo "existing v$VERSION must resolve to current main ($TARGET_SHA), found $sha; the head must retain its published history" >&2
+              exit 1
+            fi
+            echo "state=existing" >> "$GITHUB_OUTPUT"
+          else
+            echo "state=new" >> "$GITHUB_OUTPUT"
+          fi
 
-      - name: Require successful CI for release source
+      - name: Validate a new workspace release version
+        id: version
+        if: steps.tag.outputs.state == 'new'
+        env:
+          SAYMORE_LATEST_TAG: ${{ steps.release-state.outputs.latest-tag }}
+          SAYMORE_REQUESTED_VERSION: ${{ inputs.version }}
+        run: cargo run -p xtask -- release-plan --github-output "$GITHUB_OUTPUT"
+
+      - name: Require successful CI before creating a new tag
+        if: steps.tag.outputs.state == 'new'
         uses: actions/github-script@v9
         env:
-          SOURCE_SHA: ${{ steps.source.outputs.sha }}
+          SOURCE_SHA: ${{ steps.main-head.outputs.sha }}
         with:
           script: |
             const { data } = await github.rest.actions.listWorkflowRuns({
@@ -112,10 +119,34 @@ jobs:
               core.setFailed(`CI has not passed for release source ${process.env.SOURCE_SHA}`);
             }
 
+      - name: Create or reuse the tag before building
+        id: source
+        shell: bash
+        env:
+          TAG: v${{ inputs.version }}
+          TAG_STATE: ${{ steps.tag.outputs.state }}
+          TARGET_SHA: ${{ steps.main-head.outputs.sha }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if [[ "$TAG_STATE" == new ]]; then
+            gh api "repos/$GITHUB_REPOSITORY/git/tags" \
+              -f tag="$TAG" -f message="Saymore $TAG" \
+              -f object="$TARGET_SHA" -f type=commit
+            gh api "repos/$GITHUB_REPOSITORY/git/refs" \
+              -f ref="refs/tags/$TAG" -f sha="$TARGET_SHA"
+            git fetch --no-tags origin "refs/tags/$TAG:refs/tags/$TAG"
+          fi
+          sha=$(git rev-list --max-count=1 "refs/tags/$TAG")
+          if [[ "$sha" != "$TARGET_SHA" ]]; then
+            echo "$TAG does not identify the approved main head $TARGET_SHA" >&2
+            exit 1
+          fi
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+
   package-macos:
     name: Package macOS universal DMG
     needs: plan
-    if: needs.plan.outputs.should-release == 'true'
     runs-on: macos-15
     env:
       APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
@@ -126,7 +157,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: ${{ needs.plan.outputs.source-sha }}
+          ref: ${{ needs.plan.outputs.tag }}
 
       - name: Choose macOS signing mode
         id: apple-auth
@@ -154,10 +185,15 @@ jobs:
       - name: Install release tools
         uses: taiki-e/install-action@v2
         with:
-          tool: cargo-edit@${{ env.CARGO_EDIT_VERSION }},cargo-packager@${{ env.CARGO_PACKAGER_VERSION }}
+          tool: cargo-packager@${{ env.CARGO_PACKAGER_VERSION }}
 
-      - name: Set release version
-        run: cargo set-version --workspace "${{ needs.plan.outputs.version }}"
+      - name: Verify the tag's workspace version
+        shell: bash
+        run: |
+          set -euo pipefail
+          actual=$(cargo metadata --no-deps --format-version=1 \
+            | jq -r '.packages[] | select(.name == "xtask") | .version')
+          test "$actual" = "${{ needs.plan.outputs.version }}"
 
       - name: Build both macOS architectures
         shell: bash
@@ -256,12 +292,11 @@ jobs:
   package-windows:
     name: Package Windows NSIS installer
     needs: plan
-    if: needs.plan.outputs.should-release == 'true'
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: ${{ needs.plan.outputs.source-sha }}
+          ref: ${{ needs.plan.outputs.tag }}
 
       - uses: dtolnay/rust-toolchain@master
         with:
@@ -273,10 +308,16 @@ jobs:
       - name: Install release tools
         uses: taiki-e/install-action@v2
         with:
-          tool: cargo-edit@${{ env.CARGO_EDIT_VERSION }},cargo-packager@${{ env.CARGO_PACKAGER_VERSION }}
+          tool: cargo-packager@${{ env.CARGO_PACKAGER_VERSION }}
 
-      - name: Set release version
-        run: cargo set-version --workspace "${{ needs.plan.outputs.version }}"
+      - name: Verify the tag's workspace version
+        shell: pwsh
+        run: |
+          $metadata = cargo metadata --no-deps --format-version=1 | ConvertFrom-Json
+          $actual = @($metadata.packages | Where-Object { $_.name -eq 'xtask' }).version
+          if ($actual.Count -ne 1 -or $actual[0] -ne '${{ needs.plan.outputs.version }}') {
+            throw "Expected workspace version '${{ needs.plan.outputs.version }}', found '$actual'"
+          }
 
       - name: Build application
         run: cargo build -p saymore-desktop --release
@@ -308,38 +349,14 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: ${{ needs.plan.outputs.source-sha }}
+          ref: ${{ needs.plan.outputs.tag }}
           fetch-depth: 0
 
-      - name: Install release tool
-        uses: taiki-e/install-action@v2
-        with:
-          tool: cargo-edit@${{ env.CARGO_EDIT_VERSION }}
-
-      - name: Prepare release version
-        env:
-          VERSION: ${{ needs.plan.outputs.version }}
-        run: |
-          cargo set-version --workspace "$VERSION"
-          cargo metadata --format-version=1 --no-deps > /dev/null
-
-      - name: Commit version and create tag
+      - name: Verify the tag's source commit
         shell: bash
         env:
-          TAG: ${{ needs.plan.outputs.tag }}
-        run: |
-          set -euo pipefail
-          git fetch origin --tags
-          if ! git rev-parse --verify --quiet "refs/tags/$TAG"; then
-            git config user.name "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add Cargo.toml Cargo.lock
-            if ! git diff --cached --quiet; then
-              git commit -m "chore(release): $TAG"
-            fi
-            git tag --annotate "$TAG" --message "Saymore $TAG"
-            git push --atomic origin HEAD:main "$TAG"
-          fi
+          SOURCE_SHA: ${{ needs.plan.outputs.source-sha }}
+        run: test "$(git rev-list --max-count=1 HEAD)" = "$SOURCE_SHA"
 
       - uses: actions/download-artifact@v8
         with:

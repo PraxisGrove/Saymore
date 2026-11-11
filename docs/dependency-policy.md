@@ -35,24 +35,21 @@ delegated to the pinned `cargo-packager` CLI.
 
 ## Release Tooling
 
-The release workflow pins `cargo-packager` 0.11.8 and `cargo-edit` 0.13.13. Both
-are actively maintained Rust tools licensed under MIT or Apache-2.0 and are
-installed as CI executables rather than linked into production crates.
-`cargo-packager` is used with its default CLI feature set because it supports
-the required DMG, NSIS, and AppImage formats plus macOS signing and
+The release workflow pins `cargo-packager` 0.11.8. It is an actively maintained
+Rust tool licensed under MIT or Apache-2.0 and is installed as a CI executable
+rather than linked into production crates. `cargo-edit` is pinned to 0.13.13 for
+reviewed version-change commits and no longer installed during release
+packaging. `cargo-packager` is used with its default CLI feature set because it
+supports the required DMG, NSIS, and AppImage formats plus macOS signing and
 notarization. `cargo-bundle` was rejected because its Windows support remains
 experimental; `cargo-dist` was rejected because its supported installer list
 does not cover the required DMG and AppImage combination.
 
-`cargo-edit` is installed with its default CLI feature set and used only for
-`cargo set-version` so the workspace manifest remains the single version source.
-Cargo has no built-in stable manifest version editor, and direct text
-replacement was rejected because it can miss inherited workspace versions and
-path dependency versions. A custom manifest editor, `cargo-release`, and
-`release-plz` were rejected as either bespoke maintenance or broader release
-frameworks than this workflow needs. Keeping these exact versions in the
-workflow makes release behavior reproducible and lets dependency updates be
-reviewed explicitly.
+`cargo-edit` is no longer installed by the release workflow. A reviewed
+version-change commit uses the pin `cargo-edit@0.13.13` to update every
+inherited workspace and path-dependency version before CI and tagging. Packaging
+only reads and verifies those versions; it never edits the tag's manifests,
+commits to `main`, or moves a tag.
 
 All workspace crates are private and inherit the project's source-available
 license file. The cargo-deny license check ignores those private workspace
