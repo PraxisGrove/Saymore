@@ -123,6 +123,14 @@ fn check_additional_provider_actions(ui: &AppWindow) {
         },
     ])));
 
+    // The clicks below target the default 920 x 700 layout. Pin that size, since
+    // the OS shrinks the window to fit small screens such as CI runner displays.
+    require(
+        ui.window().try_dispatch_event(WindowEvent::Resized {
+            size: slint::LogicalSize::new(920.0, 700.0),
+        }),
+        "pin the default window size",
+    );
     // The navigation check opened the cloud configuration dialog; close it first.
     click(ui, 735.0, 150.0);
     // Use the real card/modal event path at the default 920 x 700 window size.
