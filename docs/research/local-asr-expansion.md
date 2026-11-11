@@ -215,13 +215,17 @@ self-test, provider-card and history tests passed, as did the real
 also passed its focused rerun. Unrelated work is preserved separately from the
 ASR commit.
 
-The dependency audit passed license, ban and source checks, but its advisory
-gate failed on existing `libsqlite3-sys 0.35.0` through `rusqlite 0.37.0`
-(RUSTSEC-2026-0459). That database dependency is outside this ASR expansion and
-has not been upgraded here.
+The initial dependency audit passed license, ban and source checks, but its
+advisory gate failed on existing `libsqlite3-sys 0.35.0` through
+`rusqlite 0.37.0` (RUSTSEC-2026-0459). After the user authorized pushing to
+`main`, the dependency was upgraded separately to `rusqlite 0.41.1` and
+`libsqlite3-sys 0.39.1` (SQLite 3.54.1). The audit then passed all four
+categories. The driver's `fallible_uint` feature retains checked unsigned
+history and usage reads without changing the schema or encryption format.
 
 macOS native evidence does not establish Windows acceptance or public release
 readiness. Large weights and scratch recordings remain under ignored `target/`;
 no real user recordings, provider keys or user settings are used for acceptance.
-The user subsequently authorized committing these ASR changes locally on `main`.
-Model mirroring, release and push remain outside that authorization.
+The user subsequently authorized committing these ASR changes on `main` and
+pushing them to `origin/main`. Model mirroring and release remain outside that
+authorization.

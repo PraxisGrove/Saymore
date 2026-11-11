@@ -36,6 +36,12 @@ Versions are pinned through `Cargo.lock` when each dependency is introduced.
 Dependencies are added only when the vertical slice that uses them starts; this
 table is a decision, not permission to add every crate immediately.
 
+The bundled database uses `rusqlite 0.41.1` with `libsqlite3-sys 0.39.1` (SQLite
+3.54.1), which fixes RUSTSEC-2026-0459. Keep `fallible_uint` enabled for checked
+unsigned history and usage reads; negative SQLite integers remain errors. This
+dependency upgrade does not change the database schema or history encryption
+format.
+
 On macOS, provider configuration lives at
 `~/Library/Application Support/Saymore/config.json`. Its directory and file
 permissions are restricted to the current user (`0700` and `0600`). This is a
