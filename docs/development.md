@@ -38,6 +38,18 @@ cargo run -p xtask -- size
 
 Use `cargo fmt --all` when you want to apply formatting.
 
+The installed pre-push hooks run this gate against the working tree, not the
+commits being pushed. When the checkout holds other uncommitted work, push from
+a clean detached worktree of the branch
+(`git worktree add --detach <dir>
+<branch>`) so unrelated edits cannot fail or
+falsely pass the gate. A cold gate can run for about half an hour, longer than
+GitHub keeps the SSH connection that `git push` opens before running the hooks;
+the push then fails after the gate passes. Warm the build cache first, then push
+with SSH keepalives (`GIT_SSH_COMMAND="ssh -o ServerAliveInterval=15"`), or push
+over HTTPS, which reconnects after the hooks finish. Never skip the hooks to
+shorten the push.
+
 After the gate passes, review the complete change being pushed for both
 repository-standard compliance and fidelity to the originating request or spec.
 Ordinary task completion does not require this full gate or dual-axis review.
