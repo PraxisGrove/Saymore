@@ -48,6 +48,18 @@ msgid "Not configured"
 msgstr "未配置"
 
 #: ui/app-window.slint:277 ui/pages/llm-provider-components.slint:213
+msgctxt "models.api-key.optional"
+msgid "API Key (optional)"
+msgstr "API Key（可选）"
+
+msgctxt "models.provider.magpie-summary"
+msgid "Use models from your local Magpie"
+msgstr "使用本地 Magpie 中的模型"
+
+msgctxt "models.provider.magpie-description"
+msgid "Local gateway for your Magpie models"
+msgstr "通过本地网关使用 Magpie 中的模型"
+
 msgctxt "models.provider.siliconflow"
 msgid "SiliconFlow"
 msgstr "硅基流动"

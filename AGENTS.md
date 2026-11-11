@@ -12,6 +12,7 @@ small, explicit changes that humans and agents can understand and verify.
 - Work on one coherent feature or fix at a time. Add dependencies, widen public
   APIs, or edit generated artifacts only when the requested behavior requires
   it.
+- 所有修改都基于当前分支进行，不需要新建分支。
 - Update the owning document when a change alters architecture, behavior,
   workflow, or another documented contract.
 

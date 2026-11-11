@@ -7,3 +7,7 @@ and style attributes were removed; the original paths are preserved.
 
 These assets are covered by [the LobeHub MIT license](LOBE-ICONS-LICENSE). Brand
 names and marks belong to their respective owners.
+
+`llm/magpie.svg` is the unmodified Magpie brand mark, obtained from MossHub's
+`web/public/brands/magpie.svg`. Its [MIT license](MAGPIE-LICENSE) is included.
+Brand names and marks belong to their respective owners.

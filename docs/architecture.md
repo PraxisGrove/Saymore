@@ -161,6 +161,24 @@ pause and the short-text gate, polishes the saved recognized text with the
 current provider and strength, and updates the encrypted history record only
 when the output passes validation.
 
+Magpie is a distinct built-in compatible LLM Provider at
+`http://127.0.0.1:3425/v1`; it never occupies the Custom Provider slot. Saymore
+reuses portable chat completions, test-before-save, dictionary-hint boundaries,
+and final-output validation, while Magpie routes and translates the selected
+`provider/model` or `group/id`. The local gateway credential identifies Saymore
+requests; no separate cloud API key is required. Its optional Agent plugin
+writes `integrations.magpie` in the same Provider JSON document, using Magpie's
+documented reversible file-edit mechanism. Runtime loading validates and imports
+this connection into the independent Magpie Provider. It does not select Magpie
+or enable polishing. When an imported model or credential changes, an active
+Magpie connection loses its previous enablement and endpoint consent; importing
+a new or unchanged connection never switches the current Provider. The handoff
+is removed after import while unrelated extension fields are preserved. Saving
+on behalf of an external editor does not consume a pending handoff. Users must
+close Saymore before changing the plugin and explicitly test/enable the Magpie
+provider after reopening. The plugin currently targets macOS production
+configuration; development profiles and Windows do not share that file.
+
 Home-page usage totals cross the application-owned `UsageStore` port as
 privacy-safe duration and character-count aggregates. SQLite records each saved
 dictation identity once, increments a local-calendar daily bucket in the same

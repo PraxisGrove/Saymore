@@ -288,7 +288,8 @@ export component AppWindow inherits Window {
         && root.llm-draft-base-url == root.llm-saved-base-url
         && root.llm-draft-model == root.llm-saved-model;
     in property <LlmProviderConfigurationState> llm-provider-configured;
-    private property <bool> llm-draft-configured: root.llm-provider == LlmProvider.sensenova ? root.llm-provider-configured.sensenova
+    private property <bool> llm-draft-configured: root.llm-provider == LlmProvider.magpie ? root.llm-provider-configured.magpie
+        : root.llm-provider == LlmProvider.sensenova ? root.llm-provider-configured.sensenova
         : root.llm-provider == LlmProvider.deepseek ? root.llm-provider-configured.deepseek
         : root.llm-provider == LlmProvider.qwen ? root.llm-provider-configured.qwen
         : root.llm-provider == LlmProvider.volcengine-ark ? root.llm-provider-configured.volcengine-ark
@@ -301,7 +302,8 @@ export component AppWindow inherits Window {
         : root.llm-provider == LlmProvider.siliconflow ? root.llm-provider-configured.siliconflow
         : root.llm-provider == LlmProvider.stepfun ? root.llm-provider-configured.stepfun
         : root.llm-provider-configured.custom;
-    private property <string> llm-draft-provider-name: root.llm-provider == LlmProvider.sensenova ? "SenseNova"
+    private property <string> llm-draft-provider-name: root.llm-provider == LlmProvider.magpie ? "Magpie"
+        : root.llm-provider == LlmProvider.sensenova ? "SenseNova"
         : root.llm-provider == LlmProvider.deepseek ? "DeepSeek"
         : root.llm-provider == LlmProvider.qwen ? "通义千问"
         : root.llm-provider == LlmProvider.volcengine-ark ? "火山方舟"

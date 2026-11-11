@@ -110,6 +110,7 @@ pub(super) fn apply_llm_draft(
 fn provider_configuration_state(catalog: &ProviderCatalog) -> LlmProviderConfigurationState {
     let configured = |provider| catalog.configured_llm_provider_model(provider).is_some();
     LlmProviderConfigurationState {
+        magpie: configured(LlmProviderPreset::Magpie),
         sensenova: configured(LlmProviderPreset::SenseNova),
         deepseek: configured(LlmProviderPreset::DeepSeek),
         qwen: configured(LlmProviderPreset::Qwen),

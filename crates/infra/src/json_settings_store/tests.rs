@@ -718,7 +718,7 @@ fn rejects_active_provider_from_the_wrong_partition() {
     let _ = fs::remove_dir_all(directory);
 }
 
-fn test_directory() -> PathBuf {
+pub(super) fn test_directory() -> PathBuf {
     let id = TEST_ID.fetch_add(1, Ordering::Relaxed);
     env::temp_dir().join(format!("saymore-settings-{}-{id}", process::id()))
 }

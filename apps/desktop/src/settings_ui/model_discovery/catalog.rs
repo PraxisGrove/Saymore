@@ -6,8 +6,8 @@ use template_app::{LlmProviderPreset, ProviderCatalog, ProviderConfigStore};
 use template_infra::JsonSettingsStore;
 
 use super::{
-    DiscoveryRequest, DiscoveryTarget, apply_models, provider_preset, recommended_models,
-    selected_model,
+    DiscoveryRequest, DiscoveryTarget, apply_models, local_key_optional, provider_preset,
+    recommended_models, selected_model,
 };
 use crate::ui::{AppWindow, Translations};
 
@@ -27,8 +27,7 @@ pub(super) fn wire_selection(ui: &AppWindow, store: Arc<JsonSettingsStore>) {
         };
         // Keep choices made with unsaved credentials in the draft.
         if (settings.api_key.trim().is_empty()
-            && !(provider == LlmProviderPreset::Custom
-                && template_app::provider_is_local(&settings.base_url)))
+            && !local_key_optional(DiscoveryTarget::Llm(provider), &settings.base_url))
             || ui.get_llm_draft_api_key() != ui.get_llm_saved_api_key()
             || ui.get_llm_draft_base_url() != ui.get_llm_saved_base_url()
         {

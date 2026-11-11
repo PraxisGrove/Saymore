@@ -63,6 +63,18 @@ msgstr ""
 
 #: ui/app-window.slint:277 ui/pages/llm-provider-components.slint:213
 #: ui/app-window.slint:277 ui/pages/llm-provider-components.slint:213
+msgctxt "models.api-key.optional"
+msgid "API Key (optional)"
+msgstr ""
+
+msgctxt "models.provider.magpie-summary"
+msgid "Use models from your local Magpie"
+msgstr ""
+
+msgctxt "models.provider.magpie-description"
+msgid "Local gateway for your Magpie models"
+msgstr ""
+
 msgctxt "models.provider.siliconflow"
 msgid "SiliconFlow"
 msgstr ""

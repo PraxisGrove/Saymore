@@ -59,6 +59,7 @@ pub struct LlmProviderProfile {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LlmProviderPreset {
+    Magpie,
     SenseNova,
     DeepSeek,
     Qwen,
@@ -75,7 +76,8 @@ pub enum LlmProviderPreset {
 }
 
 impl LlmProviderPreset {
-    pub const ALL: [Self; 13] = [
+    pub const ALL: [Self; 14] = [
+        Self::Magpie,
         Self::SenseNova,
         Self::DeepSeek,
         Self::Qwen,
@@ -91,7 +93,8 @@ impl LlmProviderPreset {
         Self::Custom,
     ];
 
-    pub(super) const BUILT_INS: [Self; 12] = [
+    pub(super) const BUILT_INS: [Self; 13] = [
+        Self::Magpie,
         Self::SenseNova,
         Self::DeepSeek,
         Self::Qwen,
@@ -108,6 +111,7 @@ impl LlmProviderPreset {
 
     pub const fn profile(self) -> &'static LlmProviderProfile {
         match self {
+            Self::Magpie => &MAGPIE_PROFILE,
             Self::SenseNova => &SENSENOVA_PROFILE,
             Self::DeepSeek => &DEEPSEEK_PROFILE,
             Self::Qwen => &QWEN_PROFILE,
@@ -175,10 +179,21 @@ impl LlmProviderPreset {
     }
 
     pub fn from_id_or_base_url(id: &str, base_url: &str) -> Option<Self> {
-        Self::BUILT_INS.into_iter().find(|preset| {
-            preset.id() == id
-                || preset.base_url().trim_end_matches('/') == base_url.trim_end_matches('/')
-        })
+        Self::BUILT_INS
+            .into_iter()
+            .find(|preset| preset.id() == id)
+            .or_else(|| {
+                Self::BUILT_INS.into_iter().find(|preset| {
+                    !Self::BUILT_INS.iter().any(|builtin| id == builtin.id())
+                        && (id.trim().is_empty()
+                            || (uuid::Uuid::parse_str(id).is_ok() && *preset != Self::Magpie))
+                        && *preset != Self::Custom
+                        && preset.base_url().trim_end_matches('/') == base_url.trim_end_matches('/')
+                })
+            })
+            .or_else(|| {
+                (id.trim().is_empty() && base_url.trim().is_empty()).then_some(Self::Custom)
+            })
     }
 
     pub fn settings(self, api_key: &str) -> ChatCompletionsLlmSettings {
@@ -220,6 +235,17 @@ impl LlmProviderPreset {
     }
 }
 
+const MAGPIE_PROFILE: LlmProviderProfile = LlmProviderProfile {
+    id: "magpie",
+    label: "Magpie",
+    base_url: "http://127.0.0.1:3425/v1",
+    default_model: "",
+    model_list_url: "http://127.0.0.1:3425/v1/models",
+    recommended_models: &[],
+    base_url_editable: false,
+    api_key_environment: "MAGPIE_API_KEY",
+    chat_completions: ChatCompletionsProfile::Portable,
+};
 const SENSENOVA_PROFILE: LlmProviderProfile = LlmProviderProfile {
     id: "sensenova",
     label: "商汤 SenseNova",

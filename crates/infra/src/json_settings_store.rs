@@ -1,7 +1,7 @@
+#[cfg(test)]
+use std::fs;
 use std::{
-    fs,
-    fs::File,
-    io::{BufReader, BufWriter, Write},
+    collections::BTreeMap,
     path::{Path, PathBuf},
     sync::{Mutex, MutexGuard},
 };
@@ -17,11 +17,12 @@ use uuid::Uuid;
 
 use crate::app_paths::{AppEnvironment, AppPaths};
 
-mod platform_fs;
+mod document;
+mod magpie;
+pub(super) mod platform_fs;
 mod schema;
 
-use platform_fs::{atomic_replace, open_private_file, restrict_directory_permissions};
-use schema::{LegacySettings, StoredCatalog, catalog_to_settings, legacy_catalog};
+use schema::{StoredCatalog, catalog_to_settings};
 
 const CONFIG_VERSION: u32 = 3;
 const VOLCENGINE_TYPE: &str = "volcengine";
@@ -162,66 +163,47 @@ impl JsonSettingsStore {
     }
 
     fn load_catalog_unlocked(&self) -> Result<ProviderCatalog, SettingsStoreError> {
-        if !self.path.exists() {
+        let Some(mut value) = document::read(&self.path)? else {
             return Ok(ProviderCatalog::default());
+        };
+        let (catalog, changed) = document::normalize(&mut value, true)?;
+        if changed {
+            self.save_document_unlocked(&value)?;
         }
-        let file = File::open(&self.path).map_err(io_error)?;
-        let value: serde_json::Value =
-            serde_json::from_reader(BufReader::new(file)).map_err(json_error)?;
-        let version = value
-            .get("version")
-            .and_then(serde_json::Value::as_u64)
-            .ok_or_else(|| SettingsStoreError::Invalid("config version is missing".to_owned()))?;
-        match version {
-            1 | 2 => {
-                let legacy: LegacySettings = serde_json::from_value(value).map_err(json_error)?;
-                let catalog = legacy_catalog(legacy);
-                self.save_catalog_unlocked(&catalog)?;
-                Ok(catalog)
-            }
-            3 => {
-                let stored: StoredCatalog = serde_json::from_value(value).map_err(json_error)?;
-                let mut catalog = stored.into_catalog();
-                let retired_asr_selected = retired_asr_is_active(&catalog);
-                if retired_asr_selected {
-                    catalog.active.asr = None;
-                }
-                validate_catalog(&catalog)?;
-                if retired_asr_selected {
-                    self.save_catalog_unlocked(&catalog)?;
-                }
-                Ok(catalog)
-            }
-            other => Err(SettingsStoreError::Invalid(format!(
-                "unsupported config version {other}"
-            ))),
-        }
+        Ok(catalog)
+    }
+
+    fn load_shared_unlocked(
+        &self,
+    ) -> Result<BTreeMap<String, serde_json::Value>, SettingsStoreError> {
+        let Some(mut value) = document::read(&self.path)? else {
+            return Ok(BTreeMap::new());
+        };
+        // Saving on behalf of an external editor must not consume a handoff.
+        document::normalize(&mut value, false)?;
+        document::shared_fields(value)
     }
 
     fn save_catalog_unlocked(&self, catalog: &ProviderCatalog) -> Result<(), SettingsStoreError> {
-        validate_catalog(catalog)?;
-        let parent = self.path.parent().ok_or_else(|| {
-            SettingsStoreError::Unavailable("settings path has no parent".to_owned())
-        })?;
-        fs::create_dir_all(parent).map_err(io_error)?;
-        restrict_directory_permissions(parent)?;
+        self.save_catalog_shared_unlocked(catalog, &self.load_shared_unlocked()?)
+    }
 
-        let temporary = temporary_path(&self.path);
-        let result = (|| {
-            let file = open_private_file(&temporary)?;
-            let mut writer = BufWriter::new(file);
-            serde_json::to_writer_pretty(&mut writer, &StoredCatalog::from(catalog))
-                .map_err(json_error)?;
-            writer.write_all(b"\n").map_err(io_error)?;
-            writer.flush().map_err(io_error)?;
-            writer.get_ref().sync_all().map_err(io_error)?;
-            drop(writer);
-            atomic_replace(&temporary, &self.path)
-        })();
-        if result.is_err() {
-            let _ = fs::remove_file(&temporary);
-        }
-        result
+    fn save_catalog_shared_unlocked(
+        &self,
+        catalog: &ProviderCatalog,
+        shared: &BTreeMap<String, serde_json::Value>,
+    ) -> Result<(), SettingsStoreError> {
+        self.save_document_unlocked(
+            &serde_json::to_value(StoredCatalog::new(catalog, shared.clone()))
+                .map_err(json_error)?,
+        )
+    }
+
+    fn save_document_unlocked(
+        &self,
+        document: &serde_json::Value,
+    ) -> Result<(), SettingsStoreError> {
+        document::save(&self.path, document)
     }
 }
 

@@ -30,6 +30,7 @@ export enum PolishingStrength {
 }
 
 export enum LlmProvider {
+    magpie,
     sensenova,
     deepseek,
     qwen,
@@ -46,6 +47,7 @@ export enum LlmProvider {
 }
 
 export struct LlmProviderConfigurationState {
+    magpie: bool,
     sensenova: bool,
     deepseek: bool,
     qwen: bool,

@@ -185,7 +185,10 @@ pub(super) fn llm_configuration_ready(
 ) -> bool {
     !settings.base_url.trim().is_empty()
         && !settings.model.trim().is_empty()
-        && (provider == LlmProviderPreset::Custom || !settings.api_key.trim().is_empty())
+        && (matches!(
+            provider,
+            LlmProviderPreset::Custom | LlmProviderPreset::Magpie
+        ) || !settings.api_key.trim().is_empty())
 }
 
 #[cfg(test)]
@@ -193,7 +196,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn custom_provider_can_omit_an_api_key() {
+    fn local_provider_can_omit_an_api_key() {
         let settings = ChatCompletionsLlmSettings {
             base_url: "http://localhost:11434/v1".to_owned(),
             api_key: String::new(),
@@ -204,6 +207,10 @@ mod tests {
 
         assert!(llm_configuration_ready(
             LlmProviderPreset::Custom,
+            &settings
+        ));
+        assert!(llm_configuration_ready(
+            LlmProviderPreset::Magpie,
             &settings
         ));
         assert!(!llm_configuration_ready(

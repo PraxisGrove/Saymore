@@ -59,7 +59,7 @@ pub(super) fn url(model_tab: i32, llm_provider: UiLlmProvider) -> Option<&'stati
             UiLlmProvider::Minimax => Some(MINIMAX_KEY_PAGE),
             UiLlmProvider::Siliconflow => Some(SILICONFLOW_KEY_PAGE),
             UiLlmProvider::Stepfun => Some(STEPFUN_KEY_PAGE),
-            UiLlmProvider::Custom => None,
+            UiLlmProvider::Magpie | UiLlmProvider::Custom => None,
         }
     }
 }

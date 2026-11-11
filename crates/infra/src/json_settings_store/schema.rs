@@ -85,6 +85,8 @@ struct StoredChatCompletionsLlmSettings {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub(super) struct StoredCatalog {
+    #[serde(flatten)]
+    pub(super) shared: BTreeMap<String, serde_json::Value>,
     version: u32,
     #[serde(default)]
     active: StoredActiveProviders,
@@ -120,7 +122,17 @@ struct StoredDataConsent {
 
 impl From<&ProviderCatalog> for StoredCatalog {
     fn from(catalog: &ProviderCatalog) -> Self {
+        Self::new(catalog, BTreeMap::new())
+    }
+}
+
+impl StoredCatalog {
+    pub(super) fn new(
+        catalog: &ProviderCatalog,
+        shared: BTreeMap<String, serde_json::Value>,
+    ) -> Self {
         Self {
+            shared,
             version: CONFIG_VERSION,
             active: StoredActiveProviders {
                 asr: catalog.active.asr.clone(),
@@ -158,8 +170,8 @@ impl From<&ProviderInstance> for StoredProviderInstance {
 }
 
 impl StoredCatalog {
-    pub(super) fn into_catalog(self) -> ProviderCatalog {
-        ProviderCatalog {
+    pub(super) fn into_catalog(self) -> (ProviderCatalog, BTreeMap<String, serde_json::Value>) {
+        let catalog = ProviderCatalog {
             active: ActiveProviders {
                 asr: self.active.asr,
                 llm: self.active.llm,
@@ -174,7 +186,8 @@ impl StoredCatalog {
                 .into_iter()
                 .map(StoredProviderInstance::into_provider)
                 .collect(),
-        }
+        };
+        (catalog, self.shared)
     }
 }
 

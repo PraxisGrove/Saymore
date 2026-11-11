@@ -15,7 +15,7 @@ use crate::ui::{AppWindow, AsrProvider as UiAsrProvider, Translations};
 pub(super) use catalog::restore_llm_model_catalog;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
-enum DiscoveryTarget {
+pub(super) enum DiscoveryTarget {
     Volcengine,
     CustomAsr,
     Llm(LlmProviderPreset),
@@ -76,6 +76,7 @@ fn prepare_discovery(ui: &AppWindow) -> Option<DiscoveryRequest> {
     } else {
         DiscoveryTarget::Llm(provider_preset(ui.get_llm_provider()))
     };
+    let api_key = selected_api_key(ui, tab);
     if let DiscoveryTarget::Llm(provider) = target
         && provider != LlmProviderPreset::Custom
         && !provider.supports_remote_model_discovery()
@@ -91,11 +92,7 @@ fn prepare_discovery(ui: &AppWindow) -> Option<DiscoveryRequest> {
     if target == DiscoveryTarget::CustomAsr && apply_known_asr_models(ui) {
         return None;
     }
-    let api_key = selected_api_key(ui, tab);
-    if api_key.trim().is_empty()
-        && !(target == DiscoveryTarget::Llm(LlmProviderPreset::Custom)
-            && template_app::provider_is_local(&ui.get_llm_draft_base_url()))
-    {
+    if api_key.trim().is_empty() && !local_key_optional(target, &ui.get_llm_draft_base_url()) {
         discovery_input_error(
             ui,
             ui.global::<Translations>().get_models_fetch_enter_api_key(),
@@ -145,6 +142,12 @@ fn apply_known_asr_models(ui: &AppWindow) -> bool {
     apply_models(ui, DiscoveryTarget::CustomAsr, models);
     ui.set_model_discovery_status(ui.global::<Translations>().get_models_fetch_presets());
     true
+}
+
+fn local_key_optional(target: DiscoveryTarget, base_url: &str) -> bool {
+    matches!(target, DiscoveryTarget::Llm(LlmProviderPreset::Magpie))
+        || (matches!(target, DiscoveryTarget::Llm(LlmProviderPreset::Custom))
+            && template_app::provider_is_local(base_url))
 }
 
 fn model_list_endpoint(base_url: &str) -> String {

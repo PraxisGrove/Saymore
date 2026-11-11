@@ -174,6 +174,61 @@ async fn sends_minimal_requests_for_the_new_openai_compatible_profiles()
 }
 
 #[tokio::test]
+async fn magpie_uses_the_portable_gateway_contract() -> Result<(), Box<dyn std::error::Error>> {
+    let server = MockServer::start_async().await;
+    let completion = server
+        .mock_async(|when, then| {
+            when.method(POST)
+                .path("/v1/chat/completions")
+                .header("authorization", "Bearer magpie-saymore")
+                .body_includes(r#""model":"provider/model""#)
+                .body_excludes("reasoning_effort")
+                .body_excludes("thinking")
+                .body_excludes("max_tokens")
+                .body_excludes("temperature");
+            then.status(200).json_body(serde_json::json!({
+                "choices": [{"message": {"content": "Polished through Magpie."}}]
+            }));
+        })
+        .await;
+    let mut settings = LlmProviderPreset::Magpie.settings("magpie-saymore");
+    settings.base_url = server.url("/v1");
+    settings.model = "provider/model".to_owned();
+    let provider = ChatCompletionsLlmProvider::new(settings)?;
+
+    provider.test_connection().await?;
+
+    completion.assert_async().await;
+    Ok(())
+}
+
+#[tokio::test]
+async fn magpie_discovers_gateway_models_with_local_attribution()
+-> Result<(), Box<dyn std::error::Error>> {
+    let server = MockServer::start_async().await;
+    let catalog = server
+        .mock_async(|when, then| {
+            when.method(httpmock::Method::GET)
+                .path("/v1/models")
+                .header("authorization", "Bearer magpie-saymore");
+            then.status(200).json_body(serde_json::json!({
+                "data": [{"id": "provider/model"}, {"id": "group/polishing"}]
+            }));
+        })
+        .await;
+
+    let models = discover_models(&server.url("/v1/models"), "magpie-saymore").await?;
+
+    if models != ["group/polishing", "provider/model"] {
+        return Err(
+            format!("Magpie model discovery returned an unexpected catalog: {models:?}").into(),
+        );
+    }
+    catalog.assert_async().await;
+    Ok(())
+}
+
+#[tokio::test]
 async fn siliconflow_and_stepfun_use_the_portable_chat_contract()
 -> Result<(), Box<dyn std::error::Error>> {
     for preset in [LlmProviderPreset::SiliconFlow, LlmProviderPreset::StepFun] {

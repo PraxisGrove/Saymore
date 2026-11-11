@@ -12,6 +12,7 @@ use super::{
 #[test]
 fn built_in_provider_configurations_remain_independent_when_switching() {
     let providers = [
+        LlmProviderPreset::Magpie,
         LlmProviderPreset::Qwen,
         LlmProviderPreset::VolcengineArk,
         LlmProviderPreset::OpenAi,
@@ -43,6 +44,36 @@ fn built_in_provider_configurations_remain_independent_when_switching() {
     }
 
     assert_eq!(providers.len(), catalog.llm_providers.len());
+}
+
+#[test]
+fn saving_a_builtin_migrates_its_active_legacy_provider_id() {
+    let mut catalog = ProviderCatalog {
+        active: ActiveProviders {
+            asr: None,
+            llm: Some("legacy-id".to_owned()),
+        },
+        asr_providers: Vec::new(),
+        llm_providers: vec![ProviderInstance {
+            id: "legacy-id".to_owned(),
+            name: "OpenAI-compatible".to_owned(),
+            provider_type: "openai_compatible".to_owned(),
+            config: serde_json::json!({
+                "base_url": LlmProviderPreset::SenseNova.base_url(),
+                "api_key": "legacy-key",
+                "model": LlmProviderPreset::SenseNova.model(),
+            }),
+            data_consent: None,
+        }],
+    };
+
+    catalog.save_llm_provider_config(LlmProviderPreset::SenseNova, "legacy-key");
+
+    assert_eq!(Some("sensenova"), catalog.active.llm.as_deref());
+    assert_eq!(
+        Some("legacy-key"),
+        catalog.llm_provider_api_key(LlmProviderPreset::SenseNova)
+    );
 }
 
 #[test]
@@ -270,7 +301,106 @@ fn custom_provider_round_trips_user_owned_connection_settings() {
 }
 
 #[test]
-fn active_generic_compatible_provider_is_adopted_as_custom() {
+fn custom_provider_using_the_magpie_endpoint_remains_independent() {
+    let mut catalog = ProviderCatalog::default();
+    catalog.save_custom_llm_provider_config(
+        LlmProviderPreset::Magpie.base_url(),
+        "custom-key",
+        "qwen3:8b",
+    );
+    catalog.select_llm_provider(LlmProviderPreset::Custom);
+    assert!(catalog.llm_providers[0].data_consent.is_none());
+    assert_eq!(None, catalog.llm_providers[0].config.get("enabled"));
+
+    catalog.save_llm_provider_model_config(LlmProviderPreset::Qwen, "qwen-key", "qwen-model");
+    catalog.save_llm_provider_model_config(
+        LlmProviderPreset::Magpie,
+        "local-key",
+        "provider/model",
+    );
+    assert!(
+        catalog
+            .llm_providers
+            .iter()
+            .find(|provider| provider.id == "magpie")
+            .is_some_and(|provider| {
+                provider.data_consent.is_none()
+                    && provider.config.get("enabled") == Some(&serde_json::Value::Bool(false))
+            })
+    );
+
+    assert_eq!(
+        Some(LlmProviderPreset::Custom),
+        catalog.active_llm_provider()
+    );
+    assert_eq!(Some(2), catalog.llm_providers.len().checked_sub(1));
+    assert_eq!(
+        Some("custom-key"),
+        catalog.llm_provider_api_key(LlmProviderPreset::Custom)
+    );
+    assert_eq!(
+        Some("qwen3:8b"),
+        catalog.configured_llm_provider_model(LlmProviderPreset::Custom)
+    );
+    assert_eq!(
+        Some("provider/model"),
+        catalog.configured_llm_provider_model(LlmProviderPreset::Magpie)
+    );
+    assert_eq!(
+        Some(ChatCompletionsProfile::Portable),
+        catalog
+            .llm_provider_settings(LlmProviderPreset::Custom)
+            .map(|settings| settings.profile)
+    );
+}
+
+#[test]
+fn legacy_custom_named_like_another_provider_does_not_redirect_saving_that_provider() {
+    let mut catalog = ProviderCatalog {
+        active: ActiveProviders {
+            asr: None,
+            llm: Some("legacy-custom".to_owned()),
+        },
+        asr_providers: Vec::new(),
+        llm_providers: vec![ProviderInstance {
+            id: "legacy-custom".to_owned(),
+            name: "Custom".to_owned(),
+            provider_type: "openai_compatible".to_owned(),
+            config: provider_config(&ChatCompletionsLlmSettings {
+                base_url: LlmProviderPreset::DeepSeek.base_url().to_owned(),
+                api_key: "custom-key".to_owned(),
+                model: "custom-model".to_owned(),
+                custom_headers: BTreeMap::new(),
+                profile: ChatCompletionsProfile::Portable,
+            }),
+            data_consent: None,
+        }],
+    };
+
+    catalog.save_llm_provider_model_config(
+        LlmProviderPreset::DeepSeek,
+        "deepseek-key",
+        "deepseek-model",
+    );
+
+    assert_eq!(Some("legacy-custom"), catalog.active.llm.as_deref());
+    assert_eq!(
+        Some("custom-key"),
+        catalog.llm_provider_api_key(LlmProviderPreset::Custom)
+    );
+    assert_eq!(
+        Some("custom-model"),
+        catalog.configured_llm_provider_model(LlmProviderPreset::Custom)
+    );
+    assert_eq!(
+        Some("deepseek-key"),
+        catalog.llm_provider_api_key(LlmProviderPreset::DeepSeek)
+    );
+    assert_eq!(2, catalog.llm_providers.len());
+}
+
+#[test]
+fn saving_another_provider_preserves_a_legacy_custom_id() {
     let mut catalog = ProviderCatalog {
         active: ActiveProviders {
             asr: None,
@@ -291,14 +421,51 @@ fn active_generic_compatible_provider_is_adopted_as_custom() {
             data_consent: None,
         }],
     };
-
+    catalog.save_llm_provider_config(LlmProviderPreset::DeepSeek, "deepseek-key");
+    assert_eq!(2, catalog.llm_providers.len());
+    assert_eq!(Some("legacy-custom"), catalog.active.llm.as_deref());
     assert_eq!(
         Some(LlmProviderPreset::Custom),
         catalog.active_llm_provider()
     );
-    catalog.save_custom_llm_provider_config("http://localhost:11434/v1", "", "qwen3:8b");
-    assert_eq!(Some("custom"), catalog.active.llm.as_deref());
-    assert_eq!("custom", catalog.llm_providers[0].id);
+    assert_eq!(
+        Some("qwen3:8b"),
+        catalog.configured_llm_provider_model(LlmProviderPreset::Custom)
+    );
+}
+
+#[test]
+fn active_generic_compatible_provider_is_adopted_as_custom() {
+    for id in ["legacy-custom", "550e8400-e29b-41d4-a716-446655440000"] {
+        let mut catalog = ProviderCatalog {
+            active: ActiveProviders {
+                asr: None,
+                llm: Some(id.to_owned()),
+            },
+            asr_providers: Vec::new(),
+            llm_providers: vec![ProviderInstance {
+                id: id.to_owned(),
+                name: "Local model".to_owned(),
+                provider_type: "openai_compatible".to_owned(),
+                config: provider_config(&ChatCompletionsLlmSettings {
+                    base_url: "http://localhost:11434/v1".to_owned(),
+                    api_key: String::new(),
+                    model: "qwen3:8b".to_owned(),
+                    custom_headers: BTreeMap::new(),
+                    profile: ChatCompletionsProfile::Portable,
+                }),
+                data_consent: None,
+            }],
+        };
+
+        assert_eq!(
+            Some(LlmProviderPreset::Custom),
+            catalog.active_llm_provider()
+        );
+        catalog.save_custom_llm_provider_config("http://localhost:11434/v1", "", "qwen3:8b");
+        assert_eq!(Some("custom"), catalog.active.llm.as_deref());
+        assert_eq!("custom", catalog.llm_providers[0].id);
+    }
 }
 
 #[test]

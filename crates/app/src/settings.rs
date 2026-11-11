@@ -268,6 +268,11 @@ impl ProviderCatalog {
                 self.active.llm = Some(preset.id().to_owned());
             }
         } else {
+            if preset == LlmProviderPreset::Magpie
+                && let Some(config) = config.as_object_mut()
+            {
+                config.insert("enabled".to_owned(), serde_json::Value::Bool(false));
+            }
             self.llm_providers.push(ProviderInstance {
                 id: preset.id().to_owned(),
                 name: preset.label().to_owned(),
@@ -308,7 +313,10 @@ impl ProviderCatalog {
         let base_url = config.get("base_url")?.as_str()?.trim();
         let api_key = config.get("api_key")?.as_str()?.trim();
         let model = config.get("model")?.as_str()?.trim();
-        let credentials_ready = preset == LlmProviderPreset::Custom || !api_key.is_empty();
+        let credentials_ready = matches!(
+            preset,
+            LlmProviderPreset::Custom | LlmProviderPreset::Magpie
+        ) || !api_key.is_empty();
         (!base_url.is_empty() && credentials_ready && !model.is_empty()).then_some(model)
     }
 
@@ -365,31 +373,43 @@ impl ProviderCatalog {
     }
 
     fn llm_provider_index(&self, preset: LlmProviderPreset) -> Option<usize> {
-        let exact = self.llm_providers.iter().position(|provider| {
-            provider.id == preset.id()
-                || (preset != LlmProviderPreset::Custom
-                    && provider
-                        .config
-                        .get("base_url")
-                        .and_then(serde_json::Value::as_str)
-                        == Some(preset.base_url()))
-        });
-        if exact.is_some() || preset != LlmProviderPreset::Custom {
-            return exact;
-        }
-        let active = self.active.llm.as_deref()?;
-        self.llm_providers.iter().position(|provider| {
-            provider.id == active
-                && provider.provider_type == "openai_compatible"
-                && !LlmProviderPreset::BUILT_INS.iter().any(|builtin| {
-                    provider
-                        .config
-                        .get("base_url")
-                        .and_then(serde_json::Value::as_str)
-                        == Some(builtin.base_url())
-                })
-        })
+        self.llm_providers
+            .iter()
+            .position(|provider| provider.id == preset.id())
+            .or_else(|| {
+                let active = self.active.llm.as_deref()?;
+                let index = self.llm_providers.iter().position(|provider| {
+                    provider.id == active
+                        && provider.provider_type == "openai_compatible"
+                        && !LlmProviderPreset::BUILT_INS
+                            .iter()
+                            .any(|builtin| provider.id == builtin.id())
+                })?;
+                (preset == LlmProviderPreset::Custom
+                    || legacy_provider_matches(&self.llm_providers[index], preset))
+                .then_some(index)
+            })
     }
+}
+
+fn legacy_provider_matches(provider: &ProviderInstance, preset: LlmProviderPreset) -> bool {
+    if preset == LlmProviderPreset::Magpie
+        || provider.id == LlmProviderPreset::Custom.id()
+        || !provider_base_url_matches(provider, preset.base_url())
+    {
+        return false;
+    }
+    uuid::Uuid::parse_str(&provider.id).is_ok()
+        || (provider.name == "OpenAI-compatible"
+            && LlmProviderPreset::from_id_or_base_url(&provider.id, "").is_none())
+}
+
+fn provider_base_url_matches(provider: &ProviderInstance, expected: &str) -> bool {
+    provider
+        .config
+        .get("base_url")
+        .and_then(serde_json::Value::as_str)
+        .is_some_and(|base_url| base_url.trim_end_matches('/') == expected.trim_end_matches('/'))
 }
 
 fn provider_config(settings: &ChatCompletionsLlmSettings) -> serde_json::Value {

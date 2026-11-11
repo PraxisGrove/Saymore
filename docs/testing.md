@@ -50,6 +50,37 @@ cargo test -p saymore-desktop --test models_navigation --test model_discovery_ru
 
 CI runs these GUI tests on macOS, where a windowing environment is available.
 
+## Magpie Provider and Handoff
+
+The settings-store tests exercise the nested `integrations.magpie` handoff
+through `JsonSettingsStore::load_catalog` and `load`: idempotent import,
+preservation of Custom Providers and unrelated integration fields, rejection of
+non-loopback configurations, and disabling an already-active Magpie connection
+when its model or credential changes. Importing a handoff does not itself select
+Magpie, enable polishing, or grant endpoint consent. Users must test and enable
+the imported provider in the Models page before text can be submitted.
+
+Mock HTTP integration tests cover Magpie's `/v1/models` directory and portable
+`/v1/chat/completions` contract. The main-thread discovery test retains the
+fixed production URL and uses a process-local HTTP proxy to route its request to
+an ephemeral loopback mock; this also runs when a real Magpie gateway occupies
+its normal port. Neither test contacts the real gateway or sends a polishing
+request. For an explicitly requested live acceptance run, use the existing
+ignored refinement test with `SAYMORE_LLM_PROVIDER=magpie`; it reads the
+selected user's saved configuration and sends the bundled synthetic cases
+through the real provider, as documented by that test's environment filters. Run
+this opt-in command only with an isolated development profile:
+
+```bash
+SAYMORE_LLM_PROVIDER=magpie SAYMORE_LLM_ENVIRONMENT=development cargo test -p template-infra --test chat_completions_llm live_configuration_matches_refinement_golden_cases -- --ignored --nocapture
+```
+
+This command is not part of routine verification because it contacts the real
+configured model and may incur provider charges. Do not run it using production
+settings without explicit approval. The `SAYMORE_LLM_ENVIRONMENT=development`
+filter does not itself isolate a development profile; use the documented Preview
+app and confirm the selected configuration first.
+
 ## Live Model Directory Acceptance
 
 On macOS, an explicitly ignored test can validate the current user's saved

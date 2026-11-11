@@ -1,8 +1,8 @@
-use std::{cell::Cell, rc::Rc, sync::Arc, time::Duration};
+use std::{cell::Cell, io::Read as _, rc::Rc, sync::Arc, time::Duration};
 
 use httpmock::{Method::GET, MockServer};
 use slint::{ComponentHandle, Model, Timer, TimerMode};
-use template_app::{CloudAsrPreset, LlmProviderPreset, ProviderConfigStore};
+use template_app::{CloudAsrPreset, LlmProviderPreset, ProviderConfigStore, SettingsStore};
 use template_infra::JsonSettingsStore;
 
 #[allow(
@@ -73,6 +73,7 @@ fn main() {
     let store = Arc::new(JsonSettingsStore::at_path(directory.join("providers.json")));
     require(store.ensure_exists());
     settings_ui::wire(&ui, Arc::clone(&store));
+    check_magpie_connection_handoff(&ui, &store);
     check_cloud_asr_presets(&ui, &store);
     let server = MockServer::start();
     let mut response = server.mock(|when, then| {
@@ -147,11 +148,25 @@ fn main() {
         .models
     );
 
-    // Choosing a fetched model with unsaved credentials stays a draft.
+    // A keyless local Custom model choice saves without enabling polishing;
+    // unsaved application credentials still keep the model in the draft.
     ui.invoke_select_llm_model(ui::LlmProvider::Custom, "local-polisher".into());
     assert!(!ui.get_llm_draft_error());
     assert_eq!(
-        "",
+        "custom-model",
+        require(
+            require(store.load_catalog())
+                .llm_provider_settings(LlmProviderPreset::Custom,)
+                .ok_or("missing custom provider")
+        )
+        .model
+    );
+    ui.set_llm_draft_api_key("unsaved-key".into());
+    ui.invoke_select_llm_model(ui::LlmProvider::Custom, "local-polisher".into());
+    assert!(!ui.get_llm_draft_error());
+    assert!(!require(store.load()).llm.enabled);
+    assert_eq!(
+        "custom-model",
         require(
             require(store.load_catalog())
                 .llm_provider_settings(LlmProviderPreset::Custom,)
@@ -239,6 +254,145 @@ fn main() {
     settle();
     assert!(!ui.get_model_discovery_loading());
     require(std::fs::remove_dir_all(directory));
+}
+
+fn check_magpie_connection_handoff(ui: &ui::AppWindow, store: &JsonSettingsStore) {
+    let mut catalog = require(store.load_catalog());
+    catalog.save_custom_llm_provider_config(
+        LlmProviderPreset::Magpie.base_url(),
+        "custom-key",
+        "custom-model",
+    );
+    require(store.save_catalog(&catalog));
+    let path = std::env::temp_dir().join(format!("saymore-magpie-{}", uuid::Uuid::new_v4()));
+    let magpie_store = JsonSettingsStore::at_path(path.join("config.json"));
+    require(magpie_store.save_catalog(&catalog));
+    let serialized = require(std::fs::read(path.join("config.json")));
+    let mut config: serde_json::Value = require(serde_json::from_slice(&serialized));
+    require(
+        config
+            .as_object_mut()
+            .ok_or("test settings are not an object")
+            .map(|config| {
+                config.insert(
+                    "integrations".to_owned(),
+                    serde_json::json!({
+                        "magpie": {
+                            "base_url": "http://127.0.0.1:3425/v1",
+                            "model": "provider/polisher",
+                            "profile": "portable"
+                        },
+                        "another-application": {"keep": true}
+                    }),
+                )
+            }),
+    );
+    let serialized = require(serde_json::to_vec_pretty(&config));
+    require(std::fs::write(path.join("config.json"), serialized));
+    let catalog = require(magpie_store.load_catalog());
+    assert_eq!(None, catalog.active.llm);
+    assert_eq!(
+        Some("provider/polisher"),
+        catalog.configured_llm_provider_model(LlmProviderPreset::Magpie)
+    );
+    assert!(!require(magpie_store.load()).llm.enabled);
+
+    // Keep the production URL fixed while routing only this test process away
+    // from a real Magpie gateway that may already listen on port 3425.
+    let listener = require(
+        std::net::TcpListener::bind("127.0.0.1:0")
+            .map_err(|error| format!("Magpie mock proxy cannot bind a loopback port: {error}")),
+    );
+    let proxy_address = require(
+        listener
+            .local_addr()
+            .map_err(|error| format!("Magpie mock proxy has no loopback address: {error}")),
+    );
+    // SAFETY: this single-threaded test sets its proxy before spawning the
+    // only request worker. All later mock requests are local loopback targets.
+    unsafe {
+        std::env::set_var("HTTP_PROXY", format!("http://{proxy_address}"));
+        std::env::remove_var("http_proxy");
+        std::env::remove_var("ALL_PROXY");
+        std::env::remove_var("all_proxy");
+        std::env::set_var("NO_PROXY", "");
+        std::env::remove_var("no_proxy");
+    }
+    let response = std::thread::spawn(move || -> Result<(), String> {
+        let (mut stream, _) = listener.accept().map_err(|error| error.to_string())?;
+        let mut reader = std::io::BufReader::new(match stream.try_clone() {
+            Ok(stream) => stream,
+            Err(error) => return Err(error.to_string()),
+        });
+        use std::io::{BufRead, Write};
+        let mut lines = Vec::new();
+        for line in reader.by_ref().lines() {
+            match line {
+                Ok(line) if line.is_empty() => break,
+                Ok(line) => lines.push(line),
+                Err(error) => return Err(error.to_string()),
+            }
+        }
+        assert_eq!(
+            Some("GET http://127.0.0.1:3425/v1/models HTTP/1.1"),
+            lines.first().map(String::as_str)
+        );
+        assert!(
+            lines
+                .iter()
+                .any(|line| line.eq_ignore_ascii_case("host: 127.0.0.1:3425"))
+        );
+        assert!(
+            !lines
+                .iter()
+                .any(|line| line.to_ascii_lowercase().starts_with("authorization:"))
+        );
+        assert!(!lines.iter().any(|line| line.contains("untrusted.example")));
+        let body = r#"{"data":[{"id":"provider/polisher"},{"id":"other/model"}]}"#;
+        let reply = format!(
+            "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+            body.len()
+        );
+        stream
+            .write_all(reply.as_bytes())
+            .map_err(|error| error.to_string())
+    });
+    ui.set_model_tab(1);
+    ui.set_llm_modal_visible(true);
+    ui.set_llm_provider(ui::LlmProvider::Magpie);
+    ui.set_llm_draft_base_url("https://untrusted.example/v1".into());
+    ui.set_llm_draft_api_key("".into());
+    ui.set_llm_draft_model("provider/polisher".into());
+    fetch(ui);
+    // SAFETY: the sole request worker has returned and no other test thread is
+    // constructing a client while this process-wide proxy is being reset.
+    unsafe {
+        std::env::remove_var("HTTP_PROXY");
+        std::env::remove_var("NO_PROXY");
+    }
+    match response.join() {
+        Ok(result) => require(result),
+        Err(_) => require(Err::<(), _>("Magpie mock thread failed")),
+    }
+    assert_eq!(vec!["other/model", "provider/polisher"], models(ui));
+    assert_eq!("provider/polisher", ui.get_llm_draft_model().as_str());
+    assert!(!ui.get_model_discovery_error());
+    let saved = require(store.load_catalog());
+    assert_eq!(
+        Some("custom-model"),
+        saved.configured_llm_provider_model(LlmProviderPreset::Custom)
+    );
+    assert_eq!(None, saved.active.llm);
+    assert!(!require(store.load()).llm.enabled);
+    // Discovery may seed a separate draft catalog but never configures, selects,
+    // enables, or replaces Custom with Magpie.
+    assert_eq!(
+        None,
+        saved.configured_llm_provider_model(LlmProviderPreset::Magpie)
+    );
+    require(std::fs::remove_dir_all(path));
+    ui.set_llm_draft_model("".into());
+    ui.set_llm_draft_api_key("".into());
 }
 
 fn models(ui: &ui::AppWindow) -> Vec<String> {

@@ -1,0 +1,11 @@
+{
+  "name": "@saymore/magpie-agent",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Select a Magpie model for Saymore text polishing",
+  "license": "MIT",
+  "type": "module",
+  "magpie": {
+    "agent": "./agent.js"
+  }
+}

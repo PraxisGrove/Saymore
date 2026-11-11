@@ -114,7 +114,11 @@ fn candidate(
 ) -> Result<LlmProviderConfiguration, LlmSaveError> {
     let provider = provider_preset(provider);
     let api_key = api_key.trim();
-    if provider != LlmProviderPreset::Custom && api_key.is_empty() {
+    if !matches!(
+        provider,
+        LlmProviderPreset::Custom | LlmProviderPreset::Magpie
+    ) && api_key.is_empty()
+    {
         return Err(LlmSaveError::Invalid);
     }
     let base_url = if provider.base_url_editable() {
@@ -231,7 +235,11 @@ fn provider_base_url(ui: &AppWindow, provider: LlmProviderPreset) -> String {
 fn validation_error_text(ui: &AppWindow) -> slint::SharedString {
     let translations = ui.global::<Translations>();
     let provider = provider_preset(ui.get_llm_provider());
-    if provider != LlmProviderPreset::Custom && ui.get_llm_draft_api_key().trim().is_empty() {
+    if !matches!(
+        provider,
+        LlmProviderPreset::Custom | LlmProviderPreset::Magpie
+    ) && ui.get_llm_draft_api_key().trim().is_empty()
+    {
         translations.get_models_enter_api_key()
     } else if provider.base_url_editable() && ui.get_llm_draft_base_url().trim().is_empty() {
         translations.get_models_enter_service_url()
@@ -297,6 +305,22 @@ mod tests {
 
     #[test]
     fn custom_local_provider_candidate_can_omit_an_api_key() {
+        let Ok(magpie) = candidate(
+            UiLlmProvider::Magpie,
+            "",
+            "an-external-base-url-is-ignored",
+            "provider/model",
+        ) else {
+            panic!("Magpie should accept its local attribution key");
+        };
+        assert_eq!(LlmProviderPreset::Magpie, magpie.provider());
+        assert_eq!(
+            LlmProviderPreset::Magpie.base_url(),
+            magpie.settings().base_url
+        );
+        assert_eq!("provider/model", magpie.settings().model);
+        assert!(magpie.settings().api_key.is_empty());
+
         let Ok(candidate) = candidate(
             UiLlmProvider::Custom,
             "",

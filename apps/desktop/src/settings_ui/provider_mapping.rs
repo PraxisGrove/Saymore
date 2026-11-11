@@ -8,6 +8,7 @@ pub(super) const VOLCENGINE_MODELS: [&str; 2] = [VOLCENGINE_ASR_2_MODEL, VOLCENG
 
 pub(super) fn provider_preset(provider: UiLlmProvider) -> LlmProviderPreset {
     match provider {
+        UiLlmProvider::Magpie => LlmProviderPreset::Magpie,
         UiLlmProvider::Sensenova => LlmProviderPreset::SenseNova,
         UiLlmProvider::Deepseek => LlmProviderPreset::DeepSeek,
         UiLlmProvider::Qwen => LlmProviderPreset::Qwen,
@@ -26,6 +27,7 @@ pub(super) fn provider_preset(provider: UiLlmProvider) -> LlmProviderPreset {
 
 pub(super) fn ui_provider(provider: LlmProviderPreset) -> UiLlmProvider {
     match provider {
+        LlmProviderPreset::Magpie => UiLlmProvider::Magpie,
         LlmProviderPreset::SenseNova => UiLlmProvider::Sensenova,
         LlmProviderPreset::DeepSeek => UiLlmProvider::Deepseek,
         LlmProviderPreset::Qwen => UiLlmProvider::Qwen,
