@@ -34,10 +34,12 @@ ASCII 字母数字词的大小写和全角/半角形式统一，不推断语义�
 Saymore
 的本地模型策略保持克制：团队主动发现适合目标用户的现成模型，完成许可证审查、适配和最小发布验收，然后引导用户从上游官方固定版本下载。Saymore
 首版不自建模型 OSS 或镜像，不重新打包上游权重。首个本地 ASR
-版本不安排训练、微调或自行量化。模型页的“语音模型”分类固定提供四个本地 ASR
-模型：Paraformer、Whisper large-v3-turbo、Qwen3-ASR 1.7B 和
-SenseVoiceSmall；它们不是
-四个产品方向，也不与文本润色模型混排。产品不建设模型市场、在线目录、社区提交或排行榜。
+版本不安排训练、微调或自行量化。自 2026-11-12
+起，模型页的“语音模型”分类提供四个本地 ASR 模型：Whisper
+large-v3-turbo、Qwen3-ASR 1.7B、SeACo-Paraformer 和 Zipformer；
+它们不是四个产品方向，也不与文本润色模型混排。早年规划中的 Paraformer、
+SenseVoiceSmall 与后续试验的 Moonshine Tiny
+已下线。产品不建设模型市场、在线目录、社区提交或排行榜。
 
 ## 3. 外部产品启发
 

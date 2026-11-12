@@ -4,9 +4,8 @@ use super::{
     ActiveProviders, ChatCompletionsLlmSettings, ChatCompletionsProfile, LlmProviderPreset,
     MACOS_SPEECH_PROVIDER_ID, MACOS_SPEECH_PROVIDER_TYPE, OPENAI_TRANSCRIPTIONS_PROVIDER_TYPE,
     OpenAiCompatibleAsrSettings, ProviderCatalog, ProviderDataConsent, ProviderInstance,
-    QWEN3_ASR_PROVIDER_ID, QWEN3_ASR_PROVIDER_TYPE, SENSE_VOICE_PROVIDER_ID,
-    SENSE_VOICE_PROVIDER_TYPE, VOLCENGINE_PROVIDER_TYPE, VolcengineAsrSettings,
-    WHISPER_PROVIDER_ID, WHISPER_PROVIDER_TYPE, provider_config,
+    QWEN3_ASR_PROVIDER_ID, QWEN3_ASR_PROVIDER_TYPE, VOLCENGINE_PROVIDER_TYPE,
+    VolcengineAsrSettings, WHISPER_PROVIDER_ID, WHISPER_PROVIDER_TYPE, provider_config,
 };
 
 #[test]
@@ -194,26 +193,6 @@ fn selecting_qwen3_asr_creates_one_stable_provider() {
             .filter(|provider| provider.provider_type == QWEN3_ASR_PROVIDER_TYPE)
             .count()
     );
-}
-
-#[test]
-fn selecting_sense_voice_creates_one_stable_provider() {
-    let mut catalog = ProviderCatalog::default();
-    catalog.select_sense_voice_provider();
-    catalog.select_sense_voice_provider();
-
-    assert!(catalog.sense_voice_is_active());
-    assert_eq!(Some(SENSE_VOICE_PROVIDER_ID), catalog.active.asr.as_deref());
-    assert_eq!(
-        1,
-        catalog
-            .asr_providers
-            .iter()
-            .filter(|provider| provider.provider_type == SENSE_VOICE_PROVIDER_TYPE)
-            .count()
-    );
-    assert!(catalog.clear_sense_voice_selection());
-    assert!(!catalog.sense_voice_is_active());
 }
 
 #[test]

@@ -7,7 +7,7 @@ use template_app::{
     QWEN3_ASR_PROVIDER_ID, SENSE_VOICE_PROVIDER_ID, WHISPER_PROVIDER_ID,
 };
 use template_infra::{
-    PARAFORMER_MODEL_ID, QWEN3_ASR_MODEL_ID, SENSE_VOICE_MODEL_ID, SqliteStorage, WHISPER_MODEL_ID,
+    PARAFORMER_MODEL_ID, QWEN3_ASR_MODEL_ID, RetiredAsrModel, SqliteStorage, WHISPER_MODEL_ID,
 };
 
 use super::{UiDataState, spawn_named};
@@ -291,10 +291,14 @@ fn history_asr_model<'a>(
         Some(MACOS_DICTATION_MODEL_ID) => Some(HistoryAsrModel::MacOsDictation),
         Some(PARAFORMER_MODEL_ID) => Some(HistoryAsrModel::Named(PARAFORMER_LABEL)),
         Some(QWEN3_ASR_MODEL_ID) => Some(HistoryAsrModel::Named(QWEN3_ASR_LABEL)),
-        Some(SENSE_VOICE_MODEL_ID) => Some(HistoryAsrModel::Named(SENSE_VOICE_LABEL)),
+        Some(model) if model == RetiredAsrModel::SenseVoice.id() => {
+            Some(HistoryAsrModel::Named(SENSE_VOICE_LABEL))
+        }
         Some(template_infra::SEACO_MODEL_ID) => Some(HistoryAsrModel::Named("SeACo-Paraformer")),
         Some(template_infra::ZIPFORMER_MODEL_ID) => Some(HistoryAsrModel::Named("Zipformer")),
-        Some(template_infra::MOONSHINE_MODEL_ID) => Some(HistoryAsrModel::Named("Moonshine")),
+        Some(model) if model == RetiredAsrModel::Moonshine.id() => {
+            Some(HistoryAsrModel::Named("Moonshine"))
+        }
         Some(WHISPER_MODEL_ID) => Some(HistoryAsrModel::Whisper),
         Some(VOLCENGINE_ASR_1_MODEL) => Some(HistoryAsrModel::VolcengineV1),
         Some(VOLCENGINE_ASR_2_MODEL | VOLCENGINE_LEGACY_MODEL) => {
@@ -490,7 +494,7 @@ mod tests {
         );
         assert_eq!(
             Some(HistoryAsrModel::Named(SENSE_VOICE_LABEL)),
-            history_asr_model(None, Some(SENSE_VOICE_MODEL_ID))
+            history_asr_model(None, Some(RetiredAsrModel::SenseVoice.id()))
         );
     }
 

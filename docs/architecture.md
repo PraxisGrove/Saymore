@@ -93,29 +93,16 @@ publishes/mirrors the weights.
 
 Local Zipformer adds native Chinese/English streaming recognition through
 sherpa-onnx transducer modified beam search with a per-stream bounded hotword
-snapshot. Moonshine Tiny adds lightweight English offline recognition, buffers
-PCM and returns ordered final segments; it has no recognition-time dictionary
-support. Both use pinned upstream artifacts with the shared verified downloader.
-Moonshine activation and its recognition-test button use a bundled English
-fixture instead of the Chinese fixture used by the other local models. Each of
-the six local providers has its own persisted identity, installation, loaded
-cache and resource state; switching releases the previous cache.
+snapshot. It uses pinned upstream artifacts with the shared verified downloader.
+Each of the four local providers has its own persisted identity, installation,
+loaded cache and resource state; switching releases the previous cache.
 
-The pinned sherpa-onnx 1.13.4 SenseVoiceSmall and Moonshine implementations do
-not support recognition-time dictionary hints. Their adapters deliberately use
-ordinary streams: the generic hotword stream API is transducer-only and
-terminates the native process for these models. The
-[dictionary page](../apps/desktop/ui/pages/dictionary.slint) shows this
-limitation when one of these backends is selected and links to recognition model
-selection and text-polishing settings. Dictionary-aware LLM correction after
-recognition remains available when the user enables and configures polishing; it
-does not constitute acoustic biasing and cannot guarantee a correction. This
-notice never enables a provider or sends transcripts on its own.
-
-Upstream evidence for the pinned version:
-[offline hotword stream default](https://github.com/k2-fsa/sherpa-onnx/blob/v1.13.4/sherpa-onnx/csrc/offline-recognizer-impl.h),
-[online hotword stream default](https://github.com/k2-fsa/sherpa-onnx/blob/v1.13.4/sherpa-onnx/csrc/online-recognizer-impl.h),
-[SenseVoice decoder](https://github.com/k2-fsa/sherpa-onnx/blob/v1.13.4/sherpa-onnx/csrc/offline-recognizer-sense-voice-impl.h).
+SenseVoiceSmall and Moonshine Tiny were retired on 2026-11-12. As with the
+earlier streaming Paraformer retirement, loading an old selection clears it
+without choosing another provider; inactive configurations and history labels
+remain readable. Their downloaded, interrupted, backup and metadata files are
+not deleted automatically. Storage settings measure those files and offer an
+explicit deletion action for each retired model.
 
 The recognition page lists OpenAI (`gpt-transcribe`), Groq
 (`whisper-large-v3-turbo`), and Mistral (`voxtral-mini-transcribe-3`) as

@@ -2,20 +2,19 @@ use std::{env, error::Error, fs, io, path::Path, sync::Arc, time::Instant};
 
 use sherpa_onnx::Wave;
 use template_app::{SpeechRecognitionError, SpeechRecognitionHints, StreamingSpeechRecognizer};
-use template_infra::{MoonshineSpeechRecognizer, ZipformerSpeechRecognizer};
+use template_infra::ZipformerSpeechRecognizer;
 
 fn main() -> Result<(), Box<dyn Error>> {
     let arguments = env::args_os().skip(1).collect::<Vec<_>>();
     let [
         zipformer_directory,
-        moonshine_directory,
         chinese_pcm,
         english_wave,
         expected_english,
     ] = arguments.as_slice()
     else {
         return Err(io::Error::new(io::ErrorKind::InvalidInput,
-            "usage: complementary_asr_probe ZIPFORMER_DIR MOONSHINE_DIR CHINESE_PCM_16KHZ ENGLISH_WAV_16KHZ EXPECTED_ENGLISH_PHRASE").into());
+            "usage: complementary_asr_probe ZIPFORMER_DIR CHINESE_PCM_16KHZ ENGLISH_WAV_16KHZ EXPECTED_ENGLISH_PHRASE").into());
     };
     let (chinese, english) = read_audio(Path::new(chinese_pcm), Path::new(english_wave))?;
     let expected_english = expected_english
@@ -27,40 +26,28 @@ fn main() -> Result<(), Box<dyn Error>> {
         "Zipformer loaded in {:.2}s",
         started.elapsed().as_secs_f64()
     );
-    probe(
-        "Zipformer Chinese",
-        &zipformer,
-        &chinese,
-        "可以通过语音进行人机交互",
-        SpeechRecognitionHints::default(),
-    )?;
-    probe(
-        "Zipformer Chinese hinted",
-        &zipformer,
-        &chinese,
-        "可以通过语音进行人机交互",
-        SpeechRecognitionHints::from_terms(vec!["语音识别".to_owned(), "Saymore".to_owned()]),
-    )?;
-    probe(
-        "Zipformer English",
-        &zipformer,
-        &english,
-        expected_english,
-        SpeechRecognitionHints::default(),
-    )?;
-    let started = Instant::now();
-    let moonshine = MoonshineSpeechRecognizer::load(Path::new(moonshine_directory))?;
-    println!(
-        "Moonshine loaded in {:.2}s",
-        started.elapsed().as_secs_f64()
-    );
-    probe(
-        "Moonshine English",
-        &moonshine,
-        &english,
-        expected_english,
-        SpeechRecognitionHints::default(),
-    )?;
+    for (label, audio, expected, hints) in [
+        (
+            "Zipformer Chinese",
+            &chinese,
+            "可以通过语音进行人机交互",
+            SpeechRecognitionHints::default(),
+        ),
+        (
+            "Zipformer Chinese hinted",
+            &chinese,
+            "可以通过语音进行人机交互",
+            SpeechRecognitionHints::from_terms(vec!["语音识别".to_owned(), "Saymore".to_owned()]),
+        ),
+        (
+            "Zipformer English",
+            &english,
+            expected_english,
+            SpeechRecognitionHints::default(),
+        ),
+    ] {
+        probe(label, &zipformer, audio, expected, hints)?;
+    }
     println!(
         "PASS: native adapters, consecutive sessions, chunk invariance, empty input and cancellation"
     );

@@ -16,7 +16,7 @@ pub(super) fn wire(
     storage: Arc<SqliteStorage>,
     root: PathBuf,
 ) -> Result<(), io::Error> {
-    for model in [RetiredAsrModel::Paraformer, RetiredAsrModel::Punctuation] {
+    for model in RetiredAsrModel::ALL {
         apply_state(ui, model, &root)?;
     }
     let weak = ui.as_weak();
@@ -68,6 +68,14 @@ fn apply_state(ui: &AppWindow, model: RetiredAsrModel, root: &Path) -> Result<()
             ui.set_punctuation_download_state(state);
             ui.set_punctuation_installed_size(size);
             ui.set_punctuation_pending(false);
+        }
+        RetiredAsrModel::SenseVoice => {
+            ui.set_sense_voice_download_state(state);
+            ui.set_sense_voice_installed_size(size);
+        }
+        RetiredAsrModel::Moonshine => {
+            ui.set_moonshine_download_state(state);
+            ui.set_moonshine_installed_size(size);
         }
     }
     Ok(())

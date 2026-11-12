@@ -95,18 +95,12 @@ fn startup_reconciliation_records_an_installed_model_once() {
 
 #[test]
 fn deletion_rejects_the_current_model_before_touching_files() {
-    let settings = FakeSettings::with_active(LocalModel::SenseVoice);
-    let installed = FakeInstalledModels::with_model(LocalModel::SenseVoice);
+    let settings = FakeSettings::with_active(LocalModel::Seaco);
+    let installed = FakeInstalledModels::with_model(LocalModel::Seaco);
     let runtime = FakeRuntime::default();
     let files = FakeFiles::default();
 
-    let result = delete(
-        &settings,
-        &installed,
-        &runtime,
-        &files,
-        LocalModel::SenseVoice,
-    );
+    let result = delete(&settings, &installed, &runtime, &files, LocalModel::Seaco);
 
     assert!(matches!(
         result,
@@ -120,31 +114,21 @@ fn deletion_rejects_the_current_model_before_touching_files() {
 #[test]
 fn deletion_releases_runtime_removes_files_and_deletes_metadata() {
     let settings = FakeSettings::default();
-    let installed = FakeInstalledModels::with_model(LocalModel::SenseVoice);
+    let installed = FakeInstalledModels::with_model(LocalModel::Seaco);
     let runtime = FakeRuntime::default();
     let files = FakeFiles::default();
 
-    let result = delete(
-        &settings,
-        &installed,
-        &runtime,
-        &files,
-        LocalModel::SenseVoice,
-    );
+    let result = delete(&settings, &installed, &runtime, &files, LocalModel::Seaco);
 
     assert_eq!(Ok(()), result);
-    assert_eq!(vec!["clear:sense-voice"], runtime.events());
+    assert_eq!(vec!["clear:seaco"], runtime.events());
     assert!(files.removed());
     assert!(installed.models().is_empty());
 }
 
 #[test]
 fn added_models_preserve_atomic_selection_and_active_deletion_protection() {
-    for model in [
-        LocalModel::Seaco,
-        LocalModel::Zipformer,
-        LocalModel::Moonshine,
-    ] {
+    for model in [LocalModel::Seaco, LocalModel::Zipformer] {
         let settings = FakeSettings::with_active(LocalModel::Whisper);
         let failed = FakeRuntime::failing_prepare();
         assert!(activate(&settings, &failed, model).is_err());
@@ -348,9 +332,7 @@ fn short_name(model: LocalModel) -> &'static str {
     match model {
         LocalModel::Whisper => "whisper",
         LocalModel::Qwen3 => "qwen3",
-        LocalModel::SenseVoice => "sense-voice",
         LocalModel::Seaco => "seaco",
         LocalModel::Zipformer => "zipformer",
-        LocalModel::Moonshine => "moonshine",
     }
 }

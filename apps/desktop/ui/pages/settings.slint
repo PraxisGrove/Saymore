@@ -550,8 +550,6 @@ export component SettingsPage inherits Rectangle {
     in property <bool> qwen3-pending: false;
     in property <bool> sense-voice-downloaded: false;
     in property <string> sense-voice-installed-size;
-    in property <bool> sense-voice-selected: false;
-    in property <bool> sense-voice-pending: false;
     in property <bool> seaco-downloaded: false;
     in property <string> seaco-installed-size;
     in property <bool> seaco-selected: false;
@@ -562,8 +560,6 @@ export component SettingsPage inherits Rectangle {
     in property <bool> zipformer-pending: false;
     in property <bool> moonshine-downloaded: false;
     in property <string> moonshine-installed-size;
-    in property <bool> moonshine-selected: false;
-    in property <bool> moonshine-pending: false;
     in property <bool> punctuation-downloaded: false;
     in property <string> punctuation-installed-size: "";
     in property <bool> punctuation-pending: false;
@@ -878,8 +874,6 @@ export component SettingsPage inherits Rectangle {
                             qwen-pending: root.qwen3-pending;
                             sense-voice-installed: root.sense-voice-downloaded;
                             sense-voice-size: root.sense-voice-storage-usage;
-                            sense-voice-active: root.sense-voice-selected;
-                            sense-voice-pending: root.sense-voice-pending;
                             seaco-installed: root.seaco-downloaded;
                             seaco-size: root.seaco-storage-usage;
                             seaco-active: root.seaco-selected;
@@ -890,8 +884,6 @@ export component SettingsPage inherits Rectangle {
                             zipformer-pending: root.zipformer-pending;
                             moonshine-installed: root.moonshine-downloaded;
                             moonshine-size: root.moonshine-storage-usage;
-                            moonshine-active: root.moonshine-selected;
-                            moonshine-pending: root.moonshine-pending;
                             other-models-share: root.other-models-share;
                             punctuation-installed: root.punctuation-downloaded;
                             punctuation-size: root.punctuation-storage-usage;

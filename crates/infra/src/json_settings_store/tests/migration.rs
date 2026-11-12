@@ -2,17 +2,24 @@ use super::*;
 
 #[test]
 fn retired_active_asr_is_cleared_and_persisted_without_fallback() {
-    for legacy_id in ["local-paraformer", "legacy-streaming-instance"] {
+    for (legacy_id, provider_index) in [
+        ("local-paraformer", 0),
+        ("legacy-streaming-instance", 0),
+        ("local-sense-voice-small-int8", 1),
+        ("legacy-sense-voice-instance", 2),
+        ("local-moonshine", 3),
+        ("legacy-moonshine-instance", 4),
+    ] {
         let directory = test_directory();
         let path = directory.join("config.json");
         let mut document = retired_asr_document(legacy_id);
-        document["asr_providers"][0]["id"] = serde_json::json!(legacy_id);
+        document["asr_providers"][provider_index]["id"] = serde_json::json!(legacy_id);
         assert!(fs::create_dir_all(&directory).is_ok());
         assert!(fs::write(&path, document.to_string()).is_ok());
         let store = JsonSettingsStore::at_path(path.clone());
 
         let Ok((settings, catalog)) = store.load_settings_snapshot() else {
-            panic!("legacy active Paraformer must load after normalization");
+            panic!("retired active ASR {legacy_id} must load after normalization");
         };
         assert_eq!(None, catalog.active.asr);
         assert_eq!(Some("llm-one"), catalog.active.llm.as_deref());
@@ -32,7 +39,7 @@ fn retired_active_asr_is_cleared_and_persisted_without_fallback() {
         retired_selection.active.asr = Some(legacy_id.to_owned());
         assert_eq!(
             Err(SettingsStoreError::Invalid(
-                "streaming Paraformer is retired and cannot be selected".to_owned()
+                "retired local ASR models cannot be selected".to_owned()
             )),
             reopened.save_catalog(&retired_selection)
         );
@@ -123,6 +130,23 @@ fn retired_asr_document(active: &str) -> serde_json::Value {
                 "id": "local-paraformer", "name": "Paraformer", "type": "local_paraformer",
                 "config": {"punctuation_mode": "local", "saved_option": "preserved"},
                 "data_consent": null
+            },
+            {
+                "id": "local-sense-voice-small-int8", "name": "SenseVoiceSmall",
+                "type": "local_sense_voice", "config": {"saved_option": "preserved"},
+                "data_consent": null
+            },
+            {
+                "id": "legacy-sense-voice-instance", "name": "SenseVoiceSmall",
+                "type": "local_sense_voice", "config": {}, "data_consent": null
+            },
+            {
+                "id": "local-moonshine", "name": "Moonshine", "type": "moonshine",
+                "config": {}, "data_consent": null
+            },
+            {
+                "id": "legacy-moonshine-instance", "name": "Moonshine", "type": "moonshine",
+                "config": {}, "data_consent": null
             },
             {
                 "id": "local-seaco-paraformer", "name": "SeACo-Paraformer",

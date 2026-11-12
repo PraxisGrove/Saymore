@@ -10,18 +10,34 @@ use crate::{
     PUNCTUATION_MODEL_REVISION, directory_usage_bytes,
 };
 
+const SENSE_VOICE_MODEL_ID: &str = "sense-voice-small-int8";
+const MOONSHINE_MODEL_ID: &str = "moonshine-tiny-en-int8";
+const SENSE_VOICE_MODEL_REVISION: &str = "2365baeacb507f821a0c8120fcee3d484dba7a07";
+const MOONSHINE_MODEL_REVISION: &str = "bf2b762c076d8ea61e2af0b3851c9564fb77552e";
+
 /// Retired model files remain user-managed; these identities never enable inference.
 #[derive(Clone, Copy)]
 pub enum RetiredAsrModel {
     Paraformer,
     Punctuation,
+    SenseVoice,
+    Moonshine,
 }
 
 impl RetiredAsrModel {
+    pub const ALL: [Self; 4] = [
+        Self::Paraformer,
+        Self::SenseVoice,
+        Self::Moonshine,
+        Self::Punctuation,
+    ];
+
     pub fn id(self) -> &'static str {
         match self {
             Self::Paraformer => PARAFORMER_MODEL_ID,
             Self::Punctuation => PUNCTUATION_MODEL_ID,
+            Self::SenseVoice => SENSE_VOICE_MODEL_ID,
+            Self::Moonshine => MOONSHINE_MODEL_ID,
         }
     }
 
@@ -29,6 +45,8 @@ impl RetiredAsrModel {
         match self {
             Self::Paraformer => PARAFORMER_MODEL_REVISION,
             Self::Punctuation => PUNCTUATION_MODEL_REVISION,
+            Self::SenseVoice => SENSE_VOICE_MODEL_REVISION,
+            Self::Moonshine => MOONSHINE_MODEL_REVISION,
         }
     }
 
@@ -92,7 +110,7 @@ mod tests {
     #[test]
     fn explicit_cleanup_handles_corrupt_partial_files_and_preserves_other_models() {
         let root = tempfile::tempdir().unwrap();
-        for model in [RetiredAsrModel::Paraformer, RetiredAsrModel::Punctuation] {
+        for model in RetiredAsrModel::ALL {
             for path in model.directories(root.path()) {
                 fs::create_dir_all(&path).unwrap();
                 fs::write(path.join("partial"), b"unverified").unwrap();
@@ -102,24 +120,10 @@ mod tests {
         let current = root.path().join(crate::SEACO_MODEL_ID);
         fs::create_dir_all(&current).unwrap();
         fs::write(current.join("model.onnx"), b"preserve").unwrap();
-        RetiredAsrModel::Paraformer
-            .remove_files(root.path())
-            .unwrap();
-        assert_eq!(
-            0,
-            RetiredAsrModel::Paraformer
-                .storage_bytes(root.path())
-                .unwrap()
-        );
-        assert_eq!(
-            40,
-            RetiredAsrModel::Punctuation
-                .storage_bytes(root.path())
-                .unwrap()
-        );
-        RetiredAsrModel::Punctuation
-            .remove_files(root.path())
-            .unwrap();
+        for model in RetiredAsrModel::ALL {
+            model.remove_files(root.path()).unwrap();
+            assert_eq!(0, model.storage_bytes(root.path()).unwrap());
+        }
         assert_eq!(
             b"preserve",
             fs::read(current.join("model.onnx")).unwrap().as_slice()

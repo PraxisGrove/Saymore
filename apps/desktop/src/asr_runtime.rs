@@ -12,21 +12,17 @@ use template_app::{
 use template_infra::MacOsSpeechRecognizer;
 use template_infra::{
     JsonSettingsStore, OpenAiCompatibleSpeechRecognizer, QWEN3_ASR_MODEL_ID,
-    QWEN3_ASR_MODEL_REVISION, Qwen3AsrSpeechRecognizer, SENSE_VOICE_MODEL_ID,
-    SENSE_VOICE_MODEL_REVISION, VolcengineSpeechRecognizer, WHISPER_MODEL_ID,
-    WHISPER_MODEL_REVISION, WhisperSpeechRecognizer, current_process_resident_memory_bytes,
+    QWEN3_ASR_MODEL_REVISION, Qwen3AsrSpeechRecognizer, VolcengineSpeechRecognizer,
+    WHISPER_MODEL_ID, WHISPER_MODEL_REVISION, WhisperSpeechRecognizer,
+    current_process_resident_memory_bytes,
 };
 
 mod additional_models;
 use additional_models::LoadedLocal;
 use template_infra::{
-    MOONSHINE_MODEL_ID, MOONSHINE_MODEL_REVISION, SEACO_MODEL_ID, SEACO_MODEL_REVISION,
-    ZIPFORMER_MODEL_ID, ZIPFORMER_MODEL_REVISION,
+    SEACO_MODEL_ID, SEACO_MODEL_REVISION, ZIPFORMER_MODEL_ID, ZIPFORMER_MODEL_REVISION,
 };
 pub(crate) mod self_test;
-mod sense_voice;
-
-use sense_voice::LoadedSenseVoice;
 
 pub struct AsrSessionController {
     settings: Arc<JsonSettingsStore>,
@@ -36,14 +32,10 @@ pub struct AsrSessionController {
     whisper: Mutex<Option<LoadedWhisper>>,
     qwen3_model_directory: PathBuf,
     qwen3: Mutex<Option<LoadedQwen3>>,
-    sense_voice_model_directory: PathBuf,
-    sense_voice: Mutex<Option<LoadedSenseVoice>>,
     seaco_model_directory: PathBuf,
     seaco: Mutex<Option<LoadedLocal>>,
     zipformer_model_directory: PathBuf,
     zipformer: Mutex<Option<LoadedLocal>>,
-    moonshine_model_directory: PathBuf,
-    moonshine: Mutex<Option<LoadedLocal>>,
 }
 
 struct LoadedWhisper {
@@ -74,10 +66,6 @@ impl AsrSessionController {
                 .join(QWEN3_ASR_MODEL_ID)
                 .join(QWEN3_ASR_MODEL_REVISION),
             qwen3: Mutex::new(None),
-            sense_voice_model_directory: models_directory
-                .join(SENSE_VOICE_MODEL_ID)
-                .join(SENSE_VOICE_MODEL_REVISION),
-            sense_voice: Mutex::new(None),
             seaco_model_directory: models_directory
                 .join(SEACO_MODEL_ID)
                 .join(SEACO_MODEL_REVISION),
@@ -86,10 +74,6 @@ impl AsrSessionController {
                 .join(ZIPFORMER_MODEL_ID)
                 .join(ZIPFORMER_MODEL_REVISION),
             zipformer: Mutex::new(None),
-            moonshine_model_directory: models_directory
-                .join(MOONSHINE_MODEL_ID)
-                .join(MOONSHINE_MODEL_REVISION),
-            moonshine: Mutex::new(None),
         }
     }
 
@@ -129,14 +113,10 @@ impl AsrSessionController {
         let macos_speech_active = catalog.macos_speech_is_active();
         let whisper_active = catalog.whisper_is_active();
         let qwen3_active = catalog.qwen3_asr_is_active();
-        let sense_voice_active = catalog.sense_voice_is_active();
         let seaco_active = catalog.seaco_is_active();
         let zipformer_active = catalog.zipformer_is_active();
-        let moonshine_active = catalog.moonshine_is_active();
         if !seaco_active
             && !zipformer_active
-            && !moonshine_active
-            && !sense_voice_active
             && !qwen3_active
             && !whisper_active
             && !macos_speech_active
@@ -159,10 +139,6 @@ impl AsrSessionController {
             self.seaco_recognizer()?.start(hints, on_partial)?
         } else if zipformer_active {
             self.zipformer_recognizer()?.start(hints, on_partial)?
-        } else if moonshine_active {
-            self.moonshine_recognizer()?.start(hints, on_partial)?
-        } else if sense_voice_active {
-            self.sense_voice_recognizer()?.start(hints, on_partial)?
         } else if qwen3_active {
             self.qwen3_recognizer()?.start(hints, on_partial)?
         } else if whisper_active {

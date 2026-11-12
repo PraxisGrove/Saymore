@@ -68,17 +68,11 @@ fn run_test(
         LocalModel::Qwen3 => asr
             .qwen3_recognizer()
             .map(|recognizer| settings_ui::run_local_asr_test(recognizer.as_ref())),
-        LocalModel::SenseVoice => asr
-            .sense_voice_recognizer()
-            .map(|recognizer| settings_ui::run_local_asr_test(recognizer.as_ref())),
         LocalModel::Seaco => asr
             .seaco_recognizer()
             .map(|recognizer| settings_ui::run_local_asr_test(recognizer.as_ref())),
         LocalModel::Zipformer => asr
             .zipformer_recognizer()
             .map(|recognizer| settings_ui::run_local_asr_test(recognizer.as_ref())),
-        LocalModel::Moonshine => asr
-            .moonshine_recognizer()
-            .map(|recognizer| crate::asr_runtime::self_test::run_english(recognizer.as_ref())),
     }
 }

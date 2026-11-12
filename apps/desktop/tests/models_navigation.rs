@@ -107,7 +107,6 @@ fn check_additional_provider_actions(ui: &AppWindow) {
     ui.set_seaco_import_supported(true);
     ui.set_zipformer_download_supported(true);
     ui.set_zipformer_adapter_ready(true);
-    ui.set_moonshine_download_supported(true);
     ui.set_asr_provider_cards(ModelRc::new(VecModel::from(vec![
         AsrProviderCardSpec {
             kind: Kind::SeacoParaformer,
@@ -115,10 +114,6 @@ fn check_additional_provider_actions(ui: &AppWindow) {
         },
         AsrProviderCardSpec {
             kind: Kind::Zipformer,
-            available: true,
-        },
-        AsrProviderCardSpec {
-            kind: Kind::Moonshine,
             available: true,
         },
     ])));
@@ -141,15 +136,11 @@ fn check_additional_provider_actions(ui: &AppWindow) {
     click(ui, 680.0, 350.0);
     ui.set_zipformer_download_state(LocalModelDownloadState::Downloaded);
     click(ui, 650.0, 150.0);
-    click(ui, 735.0, 150.0);
-    click(ui, 350.0, 320.0);
-    click(ui, 680.0, 350.0);
     assert_eq!(
         vec![
             ("import", Kind::SeacoParaformer),
             ("download", Kind::Zipformer),
             ("select", Kind::Zipformer),
-            ("download", Kind::Moonshine),
         ],
         *actions.borrow()
     );

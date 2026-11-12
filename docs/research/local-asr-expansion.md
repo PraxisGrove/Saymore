@@ -6,6 +6,13 @@ request retired the old streaming Paraformer, leaving six supported local
 models: Whisper, Qwen3-ASR, SenseVoiceSmall, SeACo-Paraformer, Zipformer and
 Moonshine. Historical identities remain readable and selection stays explicit.
 
+**Retirement update (2026-11-12):** SenseVoiceSmall and Moonshine are no longer
+supported. The current four local models are Whisper, Qwen3-ASR,
+SeACo-Paraformer and Zipformer. Their old selections clear without fallback,
+history remains readable and only explicit storage cleanup removes old files.
+The model behavior and validation below are retained as historical evidence, not
+current support claims.
+
 ## Old streaming Paraformer retirement
 
 The old provider card, native adapter, pinned download manifest and obsolete
@@ -119,10 +126,14 @@ text cannot become native hotword grammar or metadata; unsupported characters
 are filtered before passing hints to the native parser, avoiding OOV logs. Hints
 bias recognition without guaranteeing a spelling.
 
-Moonshine's activation and manual recognition-test action use the synthetic
-[English fixture](../../apps/desktop/assets/asr-test/README.md). The dictionary
-page reports that Moonshine and SenseVoice cannot apply recognition-time
-vocabulary. LLM polishing remains a separate optional feature.
+Moonshine's retired activation and manual recognition-test action used a
+synthetic English fixture, generated on macOS with the Samantha voice at rate
+150. It was converted with `afconvert` to 16 kHz mono signed little-endian
+16-bit PCM and said “The quick brown fox jumps over the lazy dog.” Its 43,792
+samples (87,584 bytes) had SHA-256
+`b68e7b4e1c193648cc33045b1f669489253a0045b5e21c4e87127b79e0a9e071`. It contained
+no user recording. The fixture is deleted with the retired self-test and is not
+a current asset.
 
 ## Screenshot candidates checked
 
@@ -161,13 +172,17 @@ CARGO_BUILD_JOBS=1 cargo nextest run --profile ci -p template-infra --lib \
   --run-ignored only -E 'test(imports_exact_seaco_export_and_loads_native_model)'
 ```
 
+The original Moonshine argument and its deleted bundled PCM are not reproduced
+here; supply an external disposable 16 kHz mono English WAV for the remaining
+Zipformer probe. Historical manifests are described below, not reproduced
+through active installer APIs.
+
 The complementary-model probe exercises the actual adapters with consecutive
 sessions, input chunk variation, empty input and cancellation:
 
 ```bash
 CARGO_BUILD_JOBS=1 cargo run -p template-infra --example complementary_asr_probe -- \
   target/complementary-asr-validation/zipformer-mixed \
-  target/complementary-asr-validation/moonshine \
   apps/desktop/assets/asr-test/standard-zh.pcm \
   target/complementary-asr-validation/synthetic-english/english.wav \
   'The quick brown fox jumps over the lazy dog'

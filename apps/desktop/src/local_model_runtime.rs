@@ -37,10 +37,8 @@ const MINIMUM_ACTIVATION_FEEDBACK: Duration = Duration::from_millis(650);
 struct LocalModelInstallers {
     whisper: Arc<VerifiedModelInstaller>,
     qwen3: Arc<VerifiedModelInstaller>,
-    sense_voice: Arc<VerifiedModelInstaller>,
     seaco: Arc<VerifiedModelInstaller>,
     zipformer: Arc<VerifiedModelInstaller>,
-    moonshine: Arc<VerifiedModelInstaller>,
 }
 
 impl LocalModelInstallers {
@@ -54,20 +52,12 @@ impl LocalModelInstallers {
                 VerifiedModelInstaller::qwen3_asr_1_7b(models_directory.to_path_buf())
                     .map_err(runtime_error)?,
             ),
-            sense_voice: Arc::new(
-                VerifiedModelInstaller::sense_voice_small(models_directory.to_path_buf())
-                    .map_err(runtime_error)?,
-            ),
             seaco: Arc::new(
                 VerifiedModelInstaller::seaco_paraformer(models_directory.to_path_buf())
                     .map_err(runtime_error)?,
             ),
             zipformer: Arc::new(
                 VerifiedModelInstaller::zipformer(models_directory.to_path_buf())
-                    .map_err(runtime_error)?,
-            ),
-            moonshine: Arc::new(
-                VerifiedModelInstaller::moonshine(models_directory.to_path_buf())
                     .map_err(runtime_error)?,
             ),
         })
@@ -77,10 +67,8 @@ impl LocalModelInstallers {
         match model {
             LocalModel::Whisper => Arc::clone(&self.whisper),
             LocalModel::Qwen3 => Arc::clone(&self.qwen3),
-            LocalModel::SenseVoice => Arc::clone(&self.sense_voice),
             LocalModel::Seaco => Arc::clone(&self.seaco),
             LocalModel::Zipformer => Arc::clone(&self.zipformer),
-            LocalModel::Moonshine => Arc::clone(&self.moonshine),
         }
     }
 }
@@ -274,14 +262,16 @@ fn wire_delete(
 ) {
     let weak = ui.as_weak();
     ui.on_request_local_model_delete(move |kind| {
-        if kind == AsrProviderCardKind::Paraformer {
+        if let Some(model) = match kind {
+            AsrProviderCardKind::Paraformer => Some(template_infra::RetiredAsrModel::Paraformer),
+            AsrProviderCardKind::SenseVoiceSmall => {
+                Some(template_infra::RetiredAsrModel::SenseVoice)
+            }
+            AsrProviderCardKind::Moonshine => Some(template_infra::RetiredAsrModel::Moonshine),
+            _ => None,
+        } {
             if let Some(ui) = weak.upgrade() {
-                retired::remove(
-                    &ui,
-                    &storage,
-                    &models_directory,
-                    template_infra::RetiredAsrModel::Paraformer,
-                );
+                retired::remove(&ui, &storage, &models_directory, model);
             }
             return;
         }

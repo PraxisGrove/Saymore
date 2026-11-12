@@ -39,10 +39,8 @@ export component AppWindow inherits Window {
     private property <AsrProviderCardKind> asr-placeholder-kind: AsrProviderCardKind.saymore-cloud;
     private property <bool> local-asr-model-visible: root.asr-placeholder-kind == AsrProviderCardKind.qwen3-asr
         || root.asr-placeholder-kind == AsrProviderCardKind.whisper-large-v3-turbo
-        || root.asr-placeholder-kind == AsrProviderCardKind.sense-voice-small
         || root.asr-placeholder-kind == AsrProviderCardKind.seaco-paraformer
-        || root.asr-placeholder-kind == AsrProviderCardKind.zipformer
-        || root.asr-placeholder-kind == AsrProviderCardKind.moonshine;
+        || root.asr-placeholder-kind == AsrProviderCardKind.zipformer;
     private property <AsrProvider> asr-modal-original-provider: AsrProvider.volcengine;
     title: root.development-environment ? "Saymore Preview" : "Saymore";
     default-font-family: Typography.ui-font-family;
@@ -200,17 +198,7 @@ export component AppWindow inherits Window {
     out property <bool> qwen3-asr-runtime-memory-active: root.qwen3-asr-selected
         && root.qwen3-asr-runtime-memory-live;
     in property <LocalModelDownloadState> sense-voice-download-state: LocalModelDownloadState.not-downloaded;
-    in property <float> sense-voice-download-progress: 0;
-    in property <bool> sense-voice-download-supported: false;
-    in property <bool> sense-voice-adapter-ready: false;
-    in property <bool> sense-voice-selected: false;
-    in property <bool> sense-voice-activation-pending: false;
-    in property <string> sense-voice-download-size: "";
     in property <string> sense-voice-installed-size: "";
-    in property <bool> sense-voice-runtime-memory-live: false;
-    in property <string> sense-voice-runtime-memory-usage: "";
-    out property <bool> sense-voice-runtime-memory-active: root.sense-voice-selected
-        && root.sense-voice-runtime-memory-live;
     in property <LocalModelDownloadState> seaco-download-state: LocalModelDownloadState.not-downloaded;
     in property <float> seaco-download-progress: 0;
     in property <bool> seaco-download-supported: false;
@@ -236,17 +224,7 @@ export component AppWindow inherits Window {
     out property <bool> zipformer-runtime-memory-active: root.zipformer-selected
         && root.zipformer-runtime-memory-live;
     in property <LocalModelDownloadState> moonshine-download-state: LocalModelDownloadState.not-downloaded;
-    in property <float> moonshine-download-progress: 0;
-    in property <bool> moonshine-download-supported: false;
-    in property <bool> moonshine-adapter-ready: false;
-    in property <bool> moonshine-selected: false;
-    in property <bool> moonshine-activation-pending: false;
-    in property <string> moonshine-download-size: "";
     in property <string> moonshine-installed-size: "";
-    in property <bool> moonshine-runtime-memory-live: false;
-    in property <string> moonshine-runtime-memory-usage: "";
-    out property <bool> moonshine-runtime-memory-active: root.moonshine-selected
-        && root.moonshine-runtime-memory-live;
     in property <bool> seaco-import-supported: false;
     in property <LocalModelDownloadState> whisper-download-state: LocalModelDownloadState.not-downloaded;
     in property <float> whisper-download-progress: 0;
@@ -554,18 +532,12 @@ export component AppWindow inherits Window {
                 qwen3-downloaded: root.qwen3-asr-download-state == LocalModelDownloadState.downloaded;
                 qwen3-installed-size: root.qwen3-asr-installed-size;
                 qwen3-selected: root.qwen3-asr-selected;
-                sense-voice-downloaded: root.sense-voice-download-state == LocalModelDownloadState.downloaded;
-                sense-voice-installed-size: root.sense-voice-installed-size;
-                sense-voice-selected: root.sense-voice-selected;
                 seaco-downloaded: root.seaco-download-state == LocalModelDownloadState.downloaded;
                 seaco-installed-size: root.seaco-installed-size;
                 seaco-selected: root.seaco-selected;
                 zipformer-downloaded: root.zipformer-download-state == LocalModelDownloadState.downloaded;
                 zipformer-installed-size: root.zipformer-installed-size;
                 zipformer-selected: root.zipformer-selected;
-                moonshine-downloaded: root.moonshine-download-state == LocalModelDownloadState.downloaded;
-                moonshine-installed-size: root.moonshine-installed-size;
-                moonshine-selected: root.moonshine-selected;
                 volcengine-asr-configured: root.volcengine-asr-configured;
                 custom-asr-api-key <=> root.custom-asr-api-key;
                 custom-asr-base-url <=> root.custom-asr-base-url;
@@ -691,7 +663,7 @@ export component AppWindow inherits Window {
                 show-reset-confirmation => { root.history-reset-confirmation-visible = true; }
             }
             if root.current-page == AppPage.dictionary: DictionaryPage {
-                recognition-hints-unavailable: root.sense-voice-selected || root.moonshine-selected;
+                recognition-hints-unavailable: false;
                 polishing-enabled: root.llm-enabled;
                 open-polishing-settings => { root.model-tab = 1; root.current-page = AppPage.models; }
                 open-recognition-settings => { root.model-tab = 0; root.current-page = AppPage.models; }
@@ -787,8 +759,6 @@ export component AppWindow inherits Window {
         qwen3-pending: root.qwen3-asr-activation-pending;
         sense-voice-downloaded: root.sense-voice-download-state == LocalModelDownloadState.downloaded;
         sense-voice-installed-size: root.sense-voice-installed-size;
-        sense-voice-selected: root.sense-voice-selected;
-        sense-voice-pending: root.sense-voice-activation-pending;
         other-models-share: root.other-models-share;
         seaco-storage-usage: root.seaco-storage-usage;
         seaco-downloaded: root.seaco-download-state == LocalModelDownloadState.downloaded;
@@ -803,8 +773,6 @@ export component AppWindow inherits Window {
         moonshine-storage-usage: root.moonshine-storage-usage;
         moonshine-downloaded: root.moonshine-download-state == LocalModelDownloadState.downloaded;
         moonshine-installed-size: root.moonshine-installed-size;
-        moonshine-selected: root.moonshine-selected;
-        moonshine-pending: root.moonshine-activation-pending;
         punctuation-downloaded: root.punctuation-download-state == LocalModelDownloadState.downloaded;
         punctuation-installed-size: root.punctuation-installed-size;
         punctuation-pending: root.punctuation-pending;
@@ -959,10 +927,6 @@ export component AppWindow inherits Window {
             ? root.seaco-download-state
             : root.asr-placeholder-kind == AsrProviderCardKind.zipformer
             ? root.zipformer-download-state
-            : root.asr-placeholder-kind == AsrProviderCardKind.moonshine
-            ? root.moonshine-download-state
-            : root.asr-placeholder-kind == AsrProviderCardKind.sense-voice-small
-            ? root.sense-voice-download-state
             : root.asr-placeholder-kind == AsrProviderCardKind.qwen3-asr
             ? root.qwen3-asr-download-state
             : root.whisper-download-state;
@@ -970,10 +934,6 @@ export component AppWindow inherits Window {
             ? root.seaco-download-progress
             : root.asr-placeholder-kind == AsrProviderCardKind.zipformer
             ? root.zipformer-download-progress
-            : root.asr-placeholder-kind == AsrProviderCardKind.moonshine
-            ? root.moonshine-download-progress
-            : root.asr-placeholder-kind == AsrProviderCardKind.sense-voice-small
-            ? root.sense-voice-download-progress
             : root.asr-placeholder-kind == AsrProviderCardKind.qwen3-asr
             ? root.qwen3-asr-download-progress
             : root.whisper-download-progress;
@@ -981,10 +941,6 @@ export component AppWindow inherits Window {
             ? root.seaco-download-supported
             : root.asr-placeholder-kind == AsrProviderCardKind.zipformer
             ? root.zipformer-download-supported
-            : root.asr-placeholder-kind == AsrProviderCardKind.moonshine
-            ? root.moonshine-download-supported
-            : root.asr-placeholder-kind == AsrProviderCardKind.sense-voice-small
-            ? root.sense-voice-download-supported
             : root.asr-placeholder-kind == AsrProviderCardKind.qwen3-asr
             ? root.qwen3-asr-download-supported
             : root.whisper-download-supported;
@@ -992,10 +948,6 @@ export component AppWindow inherits Window {
             ? root.seaco-adapter-ready
             : root.asr-placeholder-kind == AsrProviderCardKind.zipformer
             ? root.zipformer-adapter-ready
-            : root.asr-placeholder-kind == AsrProviderCardKind.moonshine
-            ? root.moonshine-adapter-ready
-            : root.asr-placeholder-kind == AsrProviderCardKind.sense-voice-small
-            ? root.sense-voice-adapter-ready
             : root.asr-placeholder-kind == AsrProviderCardKind.qwen3-asr
             ? root.qwen3-asr-adapter-ready
             : root.whisper-adapter-ready;
@@ -1003,10 +955,6 @@ export component AppWindow inherits Window {
             ? root.seaco-selected
             : root.asr-placeholder-kind == AsrProviderCardKind.zipformer
             ? root.zipformer-selected
-            : root.asr-placeholder-kind == AsrProviderCardKind.moonshine
-            ? root.moonshine-selected
-            : root.asr-placeholder-kind == AsrProviderCardKind.sense-voice-small
-            ? root.sense-voice-selected
             : root.asr-placeholder-kind == AsrProviderCardKind.qwen3-asr
             ? root.qwen3-asr-selected
             : root.whisper-selected;
@@ -1014,10 +962,6 @@ export component AppWindow inherits Window {
             ? root.seaco-activation-pending
             : root.asr-placeholder-kind == AsrProviderCardKind.zipformer
             ? root.zipformer-activation-pending
-            : root.asr-placeholder-kind == AsrProviderCardKind.moonshine
-            ? root.moonshine-activation-pending
-            : root.asr-placeholder-kind == AsrProviderCardKind.sense-voice-small
-            ? root.sense-voice-activation-pending
             : root.asr-placeholder-kind == AsrProviderCardKind.qwen3-asr
             ? root.qwen3-asr-activation-pending
             : root.whisper-activation-pending;
@@ -1025,10 +969,6 @@ export component AppWindow inherits Window {
             ? root.seaco-download-size
             : root.asr-placeholder-kind == AsrProviderCardKind.zipformer
             ? root.zipformer-download-size
-            : root.asr-placeholder-kind == AsrProviderCardKind.moonshine
-            ? root.moonshine-download-size
-            : root.asr-placeholder-kind == AsrProviderCardKind.sense-voice-small
-            ? root.sense-voice-download-size
             : root.asr-placeholder-kind == AsrProviderCardKind.qwen3-asr
             ? root.qwen3-asr-download-size
             : root.whisper-download-size;
@@ -1036,10 +976,6 @@ export component AppWindow inherits Window {
             ? root.seaco-installed-size
             : root.asr-placeholder-kind == AsrProviderCardKind.zipformer
             ? root.zipformer-installed-size
-            : root.asr-placeholder-kind == AsrProviderCardKind.moonshine
-            ? root.moonshine-installed-size
-            : root.asr-placeholder-kind == AsrProviderCardKind.sense-voice-small
-            ? root.sense-voice-installed-size
             : root.asr-placeholder-kind == AsrProviderCardKind.qwen3-asr
             ? root.qwen3-asr-installed-size
             : root.whisper-installed-size;
@@ -1047,10 +983,6 @@ export component AppWindow inherits Window {
             ? root.seaco-runtime-memory-active
             : root.asr-placeholder-kind == AsrProviderCardKind.zipformer
             ? root.zipformer-runtime-memory-active
-            : root.asr-placeholder-kind == AsrProviderCardKind.moonshine
-            ? root.moonshine-runtime-memory-active
-            : root.asr-placeholder-kind == AsrProviderCardKind.sense-voice-small
-            ? root.sense-voice-runtime-memory-active
             : root.asr-placeholder-kind == AsrProviderCardKind.qwen3-asr
             ? root.qwen3-asr-runtime-memory-active
             : root.whisper-runtime-memory-active;
@@ -1058,10 +990,6 @@ export component AppWindow inherits Window {
             ? root.seaco-runtime-memory-usage
             : root.asr-placeholder-kind == AsrProviderCardKind.zipformer
             ? root.zipformer-runtime-memory-usage
-            : root.asr-placeholder-kind == AsrProviderCardKind.moonshine
-            ? root.moonshine-runtime-memory-usage
-            : root.asr-placeholder-kind == AsrProviderCardKind.sense-voice-small
-            ? root.sense-voice-runtime-memory-usage
             : root.asr-placeholder-kind == AsrProviderCardKind.qwen3-asr
             ? root.qwen3-asr-runtime-memory-usage
             : root.whisper-runtime-memory-usage;

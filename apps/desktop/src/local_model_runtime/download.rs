@@ -515,11 +515,11 @@ mod tests {
     #[test]
     fn duplicate_queue_entries_are_ignored_and_can_be_cancelled() {
         let coordinator = DownloadCoordinator::default();
-        coordinator.enqueue(LocalModel::SenseVoice);
-        coordinator.enqueue(LocalModel::SenseVoice);
+        coordinator.enqueue(LocalModel::Seaco);
+        coordinator.enqueue(LocalModel::Seaco);
         coordinator.enqueue(LocalModel::Whisper);
 
-        assert!(coordinator.remove_queued(LocalModel::SenseVoice));
+        assert!(coordinator.remove_queued(LocalModel::Seaco));
         let ready = coordinator.take_ready();
         assert_eq!(1, ready.len());
         assert_eq!(LocalModel::Whisper, ready[0].0);
@@ -539,24 +539,32 @@ mod tests {
                     model_id: template_infra::PARAFORMER_MODEL_ID.to_owned(),
                 },
                 QueuedModelDownload {
-                    model_id: LocalModel::SenseVoice.id().to_owned(),
+                    model_id: LocalModel::Seaco.id().to_owned(),
+                },
+                QueuedModelDownload {
+                    model_id: "sense-voice-small-int8".to_owned(),
+                },
+                QueuedModelDownload {
+                    model_id: "moonshine-tiny-en-int8".to_owned(),
                 },
             ],
-            |model| model == LocalModel::SenseVoice,
+            |model| model == LocalModel::Qwen3,
         );
         let coordinator = DownloadCoordinator::default();
 
-        assert_eq!(vec![LocalModel::Qwen3, LocalModel::Zipformer], plan.paused);
+        assert_eq!(vec![LocalModel::Zipformer, LocalModel::Seaco], plan.paused);
         assert_eq!(
             vec![
-                template_infra::PARAFORMER_MODEL_ID,
-                LocalModel::SenseVoice.id()
+                LocalModel::Qwen3.id().to_owned(),
+                template_infra::PARAFORMER_MODEL_ID.to_owned(),
+                "sense-voice-small-int8".to_owned(),
+                "moonshine-tiny-en-int8".to_owned(),
             ],
             plan.stale_ids
         );
         assert!(coordinator.take_ready().is_empty());
 
-        coordinator.enqueue(plan.paused[1]);
+        coordinator.enqueue(plan.paused[0]);
         let ready = coordinator.take_ready();
         assert_eq!(1, ready.len());
         assert_eq!(LocalModel::Zipformer, ready[0].0);

@@ -13,21 +13,6 @@ pub(crate) fn run(
     (started.elapsed(), result)
 }
 
-pub(crate) fn run_english(
-    recognizer: &dyn StreamingSpeechRecognizer,
-) -> (std::time::Duration, Result<String, SpeechRecognitionError>) {
-    const ENGLISH_AUDIO: &[u8] = include_bytes!("../../assets/asr-test/standard-en.pcm");
-    let started = Instant::now();
-    let samples = ENGLISH_AUDIO
-        .as_chunks::<2>()
-        .0
-        .iter()
-        .map(|bytes| i16::from_le_bytes(*bytes))
-        .collect();
-    let result = recognize(recognizer, samples);
-    (started.elapsed(), result)
-}
-
 fn recognize(
     recognizer: &dyn StreamingSpeechRecognizer,
     samples: Vec<i16>,

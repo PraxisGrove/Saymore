@@ -42,46 +42,4 @@ impl ModelManifest {
             ],
         )
     }
-
-    pub(super) fn moonshine() -> Self {
-        Self::direct(
-            MOONSHINE_MODEL_ID,
-            MOONSHINE_MODEL_REVISION,
-            &format!(
-                "https://huggingface.co/csukuangfj/sherpa-onnx-moonshine-tiny-en-int8/resolve/{MOONSHINE_MODEL_REVISION}"
-            ),
-            vec![
-                artifact(
-                    "preprocess.onnx",
-                    6_800_738,
-                    "f33addce61a143460fe753b5ee5b7db255e5140b5b779c065b94f6c83ff0bf4e",
-                ),
-                artifact(
-                    "encode.int8.onnx",
-                    18_249_187,
-                    "8774dfba578de027ec6595c2c654a0836434489bc963a0db124a7f181f571acb",
-                ),
-                artifact(
-                    "uncached_decode.int8.onnx",
-                    53_216_096,
-                    "216737000dd5881a17aa043f6bbd286add33e4c3b0ae257153e2ec15438bdc41",
-                ),
-                artifact(
-                    "cached_decode.int8.onnx",
-                    45_264_830,
-                    "2aff28bba6a03d8dcf5c9feac45462629bae37317442299f28115ad09da773f6",
-                ),
-                artifact(
-                    "tokens.txt",
-                    436_688,
-                    "1165c2aeb9f72f457a83be2d459a09054f27490acd9b41bd43794dfd25e296ea",
-                ),
-                artifact(
-                    "LICENSE",
-                    1_071,
-                    "29f60769d1779eb7e196d96b8d2dd471d0263cf8200c79e55c0c00183971ee1b",
-                ),
-            ],
-        )
-    }
 }

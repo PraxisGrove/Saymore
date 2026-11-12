@@ -65,10 +65,6 @@ pub(super) fn apply_model_size_strings(
             ui.set_qwen3_asr_download_size(download_size);
             ui.set_qwen3_asr_installed_size(installed_size);
         }
-        LocalModel::SenseVoice => {
-            ui.set_sense_voice_download_size(download_size);
-            ui.set_sense_voice_installed_size(installed_size);
-        }
         LocalModel::Seaco => {
             ui.set_seaco_download_size(download_size);
             ui.set_seaco_installed_size(installed_size);
@@ -76,10 +72,6 @@ pub(super) fn apply_model_size_strings(
         LocalModel::Zipformer => {
             ui.set_zipformer_download_size(download_size);
             ui.set_zipformer_installed_size(installed_size);
-        }
-        LocalModel::Moonshine => {
-            ui.set_moonshine_download_size(download_size);
-            ui.set_moonshine_installed_size(installed_size);
         }
     }
 }

@@ -3,9 +3,8 @@ use std::{fs, io, path::Path};
 use template_app::{LocalModelStorageUsage, LocalStorageUsage, StorageError};
 
 use crate::{
-    MOONSHINE_MODEL_ID, MOONSHINE_MODEL_REVISION, QWEN3_ASR_MODEL_ID, QWEN3_ASR_MODEL_REVISION,
-    RetiredAsrModel, SEACO_MODEL_ID, SEACO_MODEL_REVISION, SENSE_VOICE_MODEL_ID,
-    SENSE_VOICE_MODEL_REVISION, WHISPER_MODEL_ID, WHISPER_MODEL_REVISION, ZIPFORMER_MODEL_ID,
+    QWEN3_ASR_MODEL_ID, QWEN3_ASR_MODEL_REVISION, RetiredAsrModel, SEACO_MODEL_ID,
+    SEACO_MODEL_REVISION, WHISPER_MODEL_ID, WHISPER_MODEL_REVISION, ZIPFORMER_MODEL_ID,
     ZIPFORMER_MODEL_REVISION,
 };
 
@@ -42,22 +41,14 @@ pub fn local_storage_usage(directory: &Path) -> Result<LocalStorageUsage, Storag
             QWEN3_ASR_MODEL_ID,
             QWEN3_ASR_MODEL_REVISION,
         )?,
-        sense_voice_bytes: model_usage(
-            &models_directory,
-            SENSE_VOICE_MODEL_ID,
-            SENSE_VOICE_MODEL_REVISION,
-        )?,
+        sense_voice_bytes: RetiredAsrModel::SenseVoice.storage_bytes(&models_directory)?,
         seaco_bytes: model_usage(&models_directory, SEACO_MODEL_ID, SEACO_MODEL_REVISION)?,
         zipformer_bytes: model_usage(
             &models_directory,
             ZIPFORMER_MODEL_ID,
             ZIPFORMER_MODEL_REVISION,
         )?,
-        moonshine_bytes: model_usage(
-            &models_directory,
-            MOONSHINE_MODEL_ID,
-            MOONSHINE_MODEL_REVISION,
-        )?,
+        moonshine_bytes: RetiredAsrModel::Moonshine.storage_bytes(&models_directory)?,
         punctuation_bytes: RetiredAsrModel::Punctuation.storage_bytes(&models_directory)?,
     };
     Ok(LocalStorageUsage {

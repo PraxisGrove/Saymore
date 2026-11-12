@@ -15,8 +15,8 @@ use template_app::{
     TextRevisionObserver,
 };
 use template_infra::{
-    JsonSettingsStore, PARAFORMER_MODEL_ID, QWEN3_ASR_MODEL_ID, SENSE_VOICE_MODEL_ID,
-    SqliteStorage, SystemClock, WHISPER_MODEL_ID, copy_text_to_clipboard,
+    JsonSettingsStore, PARAFORMER_MODEL_ID, QWEN3_ASR_MODEL_ID, RetiredAsrModel, SqliteStorage,
+    SystemClock, WHISPER_MODEL_ID, copy_text_to_clipboard,
 };
 
 use crate::{
@@ -227,10 +227,10 @@ fn active_asr_model(active_id: Option<&str>, providers: &[ProviderInstance]) -> 
             template_app::PARAFORMER_PROVIDER_ID => PARAFORMER_MODEL_ID,
             template_app::WHISPER_PROVIDER_ID => WHISPER_MODEL_ID,
             template_app::QWEN3_ASR_PROVIDER_ID => QWEN3_ASR_MODEL_ID,
-            template_app::SENSE_VOICE_PROVIDER_ID => SENSE_VOICE_MODEL_ID,
+            template_app::SENSE_VOICE_PROVIDER_ID => RetiredAsrModel::SenseVoice.id(),
             template_app::SEACO_PROVIDER_ID => template_infra::SEACO_MODEL_ID,
             template_app::ZIPFORMER_PROVIDER_ID => template_infra::ZIPFORMER_MODEL_ID,
-            template_app::MOONSHINE_PROVIDER_ID => template_infra::MOONSHINE_MODEL_ID,
+            template_app::MOONSHINE_PROVIDER_ID => RetiredAsrModel::Moonshine.id(),
             _ => return None,
         };
         Some(model.to_owned())
@@ -463,14 +463,11 @@ mod tests {
         whisper.select_whisper_provider();
         let mut qwen3 = ProviderCatalog::default();
         qwen3.select_qwen3_asr_provider();
-        let mut sense_voice = ProviderCatalog::default();
-        sense_voice.select_sense_voice_provider();
         let cases = [
             (macos, MACOS_DICTATION_MODEL_ID),
             (zipformer, template_infra::ZIPFORMER_MODEL_ID),
             (whisper, WHISPER_MODEL_ID),
             (qwen3, QWEN3_ASR_MODEL_ID),
-            (sense_voice, SENSE_VOICE_MODEL_ID),
         ];
 
         for (catalog, expected_model) in cases {

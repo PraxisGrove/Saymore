@@ -102,11 +102,9 @@ installation. Upstream runtime logging is silenced so model paths and dictionary
 contents do not enter diagnostics. SeACo model preparation remains a separate
 research/export operation; the app imports only the pinned verified ONNX files.
 
-Zipformer and Moonshine use the existing sherpa-onnx dependency. Zipformer uses
-an INT8 encoder and FP32 decoder/joiner because the all-INT8 combination
-repeated characters on the bundled Chinese fixture. Moonshine's activation and
-manual recognition test use `assets/asr-test/standard-en.pcm`; its fixture
-provenance is recorded beside the PCM file. No native Python inference
+Zipformer uses the existing sherpa-onnx dependency. Its INT8 encoder and FP32
+decoder/joiner avoid the repeated characters observed with the all-INT8
+combination on the bundled Chinese fixture. No native Python inference
 dependency is added.
 
 The target desktop app is compiled through Cargo and Slint. Node.js, pnpm,

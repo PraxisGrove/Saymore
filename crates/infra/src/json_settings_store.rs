@@ -8,10 +8,11 @@ use std::{
 
 use template_app::{
     AsrProviderConfiguration, AsrSettings, ChatCompletionsProfile, LlmProviderConfiguration,
-    LlmProviderPreset, LlmSettings, OpenAiCompatibleAsrSettings, PARAFORMER_PROVIDER_ID,
-    PARAFORMER_PROVIDER_TYPE, ProviderCatalog, ProviderConfigStore, ProviderConfigurationStore,
-    ProviderDataConsent, ProviderInstance, SaymoreSettings, SettingsStore, SettingsStoreError,
-    VolcengineAsrSettings,
+    LlmProviderPreset, LlmSettings, MOONSHINE_PROVIDER_ID, MOONSHINE_PROVIDER_TYPE,
+    OpenAiCompatibleAsrSettings, PARAFORMER_PROVIDER_ID, PARAFORMER_PROVIDER_TYPE, ProviderCatalog,
+    ProviderConfigStore, ProviderConfigurationStore, ProviderDataConsent, ProviderInstance,
+    SENSE_VOICE_PROVIDER_ID, SENSE_VOICE_PROVIDER_TYPE, SaymoreSettings, SettingsStore,
+    SettingsStoreError, VolcengineAsrSettings,
 };
 use uuid::Uuid;
 
@@ -473,17 +474,23 @@ fn endpoint_fingerprint(base_url: &str) -> String {
 
 fn retired_asr_is_active(catalog: &ProviderCatalog) -> bool {
     catalog.active.asr.as_deref().is_some_and(|active| {
-        active == PARAFORMER_PROVIDER_ID
-            || catalog.asr_providers.iter().any(|provider| {
-                provider.id == active && provider.provider_type == PARAFORMER_PROVIDER_TYPE
-            })
+        matches!(
+            active,
+            PARAFORMER_PROVIDER_ID | SENSE_VOICE_PROVIDER_ID | MOONSHINE_PROVIDER_ID
+        ) || catalog.asr_providers.iter().any(|provider| {
+            provider.id == active
+                && matches!(
+                    provider.provider_type.as_str(),
+                    PARAFORMER_PROVIDER_TYPE | SENSE_VOICE_PROVIDER_TYPE | MOONSHINE_PROVIDER_TYPE
+                )
+        })
     })
 }
 
 fn validate_catalog(catalog: &ProviderCatalog) -> Result<(), SettingsStoreError> {
     if retired_asr_is_active(catalog) {
         return Err(SettingsStoreError::Invalid(
-            "streaming Paraformer is retired and cannot be selected".to_owned(),
+            "retired local ASR models cannot be selected".to_owned(),
         ));
     }
     let mut ids = std::collections::BTreeSet::new();

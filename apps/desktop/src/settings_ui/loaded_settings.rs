@@ -201,22 +201,13 @@ fn apply_loaded_asr(ui: &AppWindow, settings: SaymoreSettings, catalog: &Provide
 fn apply_local_asr_selection(ui: &AppWindow, catalog: &ProviderCatalog) -> bool {
     let whisper_active = catalog.whisper_is_active();
     let qwen3_active = catalog.qwen3_asr_is_active();
-    let sense_voice_active = catalog.sense_voice_is_active();
     ui.set_whisper_selected(whisper_active);
     ui.set_qwen3_asr_selected(qwen3_active);
-    ui.set_sense_voice_selected(sense_voice_active);
     let seaco_active = catalog.seaco_is_active();
     let zipformer_active = catalog.zipformer_is_active();
-    let moonshine_active = catalog.moonshine_is_active();
     ui.set_seaco_selected(seaco_active);
     ui.set_zipformer_selected(zipformer_active);
-    ui.set_moonshine_selected(moonshine_active);
-    sense_voice_active
-        || qwen3_active
-        || whisper_active
-        || seaco_active
-        || zipformer_active
-        || moonshine_active
+    qwen3_active || whisper_active || seaco_active || zipformer_active
 }
 
 fn selected_cloud_asr_provider(

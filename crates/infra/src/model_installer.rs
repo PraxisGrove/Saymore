@@ -19,7 +19,6 @@ mod complementary_manifests;
 mod local_import;
 mod manifests;
 mod seaco_manifest;
-mod sense_voice_manifest;
 mod transfer;
 mod verification;
 
@@ -46,12 +45,8 @@ pub(crate) const WHISPER_MODEL_FILE: &str = "ggml-large-v3-turbo-q8_0.bin";
 pub(crate) const WHISPER_MODEL_BYTES: u64 = 874_188_075;
 pub const QWEN3_ASR_MODEL_ID: &str = "qwen3-asr-1.7b-int8";
 pub const QWEN3_ASR_MODEL_REVISION: &str = "cb045ad80b8970c9d411d463e5b78991a566596c";
-pub const SENSE_VOICE_MODEL_ID: &str = "sense-voice-small-int8";
-pub const SENSE_VOICE_MODEL_REVISION: &str = "2365baeacb507f821a0c8120fcee3d484dba7a07";
 pub const ZIPFORMER_MODEL_ID: &str = "zipformer-bilingual-zh-en-int8";
 pub const ZIPFORMER_MODEL_REVISION: &str = "98590b7ed6443e77b714204da2757d75e1a642f4";
-pub const MOONSHINE_MODEL_ID: &str = "moonshine-tiny-en-int8";
-pub const MOONSHINE_MODEL_REVISION: &str = "bf2b762c076d8ea61e2af0b3851c9564fb77552e";
 pub const PUNCTUATION_MODEL_ID: &str = "ct-transformer-zh-en-punctuation-int8";
 pub const PUNCTUATION_MODEL_REVISION: &str = "2024-04-12-int8";
 const DOWNLOAD_RETRIES: usize = 3;
@@ -207,16 +202,8 @@ impl VerifiedModelInstaller {
         Self::new(models_root, ModelManifest::qwen3_asr_1_7b())
     }
 
-    pub fn sense_voice_small(models_root: PathBuf) -> Result<Self, ModelInstallError> {
-        Self::new(models_root, ModelManifest::sense_voice_small())
-    }
-
     pub fn zipformer(models_root: PathBuf) -> Result<Self, ModelInstallError> {
         Self::new(models_root, ModelManifest::zipformer())
-    }
-
-    pub fn moonshine(models_root: PathBuf) -> Result<Self, ModelInstallError> {
-        Self::new(models_root, ModelManifest::moonshine())
     }
 
     pub fn seaco_paraformer(models_root: PathBuf) -> Result<Self, ModelInstallError> {

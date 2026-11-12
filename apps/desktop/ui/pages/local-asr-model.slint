@@ -38,14 +38,11 @@ export component LocalAsrModelModal inherits Rectangle {
     private property <float> bounded-progress: max(0, min(1, root.download-progress));
     private property <int> progress-percent: round(root.bounded-progress * 100);
     private property <string> title: root.kind == AsrProviderCardKind.qwen3-asr ? "Qwen3-ASR 1.7B"
-        : root.kind == AsrProviderCardKind.sense-voice-small ? "SenseVoiceSmall"
         : root.kind == AsrProviderCardKind.seaco-paraformer ? "SeACo-Paraformer"
         : root.kind == AsrProviderCardKind.zipformer ? "Zipformer"
-        : root.kind == AsrProviderCardKind.moonshine ? "Moonshine"
         : "Whisper large-v3-turbo";
     private property <string> memory-estimate: root.kind == AsrProviderCardKind.qwen3-asr ? "4.3 GB"
-        : root.kind == AsrProviderCardKind.sense-voice-small ? "573 MB"
-        : root.kind == AsrProviderCardKind.seaco-paraformer || root.kind == AsrProviderCardKind.zipformer || root.kind == AsrProviderCardKind.moonshine ? ""
+        : root.kind == AsrProviderCardKind.seaco-paraformer || root.kind == AsrProviderCardKind.zipformer ? ""
         : "2.15 GB";
     private property <bool> showing-live-memory: !root.selection-pending && root.runtime-memory-live && root.runtime-memory-usage != "";
     private property <string> memory-display: root.selection-pending
@@ -115,14 +112,10 @@ export component LocalAsrModelModal inherits Rectangle {
         : @tr("models.asr.local.output.non-streaming" => "Final only");
     private property <string> usage-tip: root.kind == AsrProviderCardKind.whisper-large-v3-turbo
             ? @tr("models.asr.local.usage-tip.whisper" => "Multilingual dictation with higher memory use. Text appears after speaking.")
-        : root.kind == AsrProviderCardKind.sense-voice-small
-            ? @tr("models.asr.local.usage-tip.sensevoice" => "Lightweight five-language transcription. Final text only.")
         : root.kind == AsrProviderCardKind.seaco-paraformer
             ? @tr("models.asr.local.usage-tip.seaco" => "Offline Chinese recognition with native dictionary hints. Import a compatible ONNX export to begin.")
         : root.kind == AsrProviderCardKind.zipformer
             ? @tr("models.asr.local.usage-tip.zipformer" => "Streaming Chinese-English recognition with native dictionary hints. Dictionary hints may improve term recognition; results vary.")
-        : root.kind == AsrProviderCardKind.moonshine
-            ? @tr("models.asr.local.usage-tip.moonshine" => "Tiny English-only model. Final text only; recognition-time dictionary hints are not supported.")
             : @tr("models.asr.local.usage-tip.qwen3" => "Handles dialects, multiple languages, and complex speech. Needs a stronger device.");
 
     modal-focus := FocusScope {
@@ -146,9 +139,9 @@ export component LocalAsrModelModal inherits Rectangle {
                 height: 42px;
                 source: root.kind == AsrProviderCardKind.qwen3-asr
                     ? @image-url("../../icons/providers/qwen.png")
-                    : root.kind == AsrProviderCardKind.sense-voice-small || root.kind == AsrProviderCardKind.seaco-paraformer
+                    : root.kind == AsrProviderCardKind.seaco-paraformer
                         ? @image-url("../../icons/providers/funasr.png")
-                        : root.kind == AsrProviderCardKind.zipformer || root.kind == AsrProviderCardKind.moonshine
+                        : root.kind == AsrProviderCardKind.zipformer
                             ? @image-url("../../icons/lucide/mic.svg")
                         : @image-url("../../icons/providers/openai.png");
                 image-fit: contain;
@@ -173,8 +166,6 @@ export component LocalAsrModelModal inherits Rectangle {
                         ? @tr("models.asr.local.subtitle.zipformer" => "INT8 encoder · ZH · EN · Dictionary hints")
                     : root.download-supported
                     ? @tr("models.asr.local.subtitle.verified" => "Open source · Verified")
-                    : root.kind == AsrProviderCardKind.sense-voice-small
-                        ? @tr("models.asr.local.subtitle.sensevoice" => "Lightweight five-language model · Final only · INT8")
                     : @tr("models.asr.local.subtitle.pending" => "Open source · Verification pending");
                 color: AppColors.text-muted;
                 font-size: 12px;
@@ -211,11 +202,7 @@ export component LocalAsrModelModal inherits Rectangle {
                         ? @tr("models.asr.summary.chinese-dialects" => "ZH · Dialects")
                     : root.kind == AsrProviderCardKind.seaco-paraformer
                         ? @tr("models.asr.summary.chinese" => "Chinese")
-                    : root.kind == AsrProviderCardKind.zipformer
-                        ? @tr("models.asr.summary.chinese-english" => "ZH · EN")
-                    : root.kind == AsrProviderCardKind.moonshine
-                        ? @tr("models.asr.summary.english" => "English")
-                    : @tr("models.asr.summary.five-languages" => "ZH · EN · JA · KO · YUE");
+                    : @tr("models.asr.summary.chinese-english" => "ZH · EN");
             }
             LocalModelSummaryPill { x: 410px; y: 8px; icon: @image-url("../../icons/lucide/file-text.svg"); label: root.output-mode; }
 

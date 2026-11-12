@@ -10,10 +10,6 @@ pub(super) fn set_model_capability(ui: &AppWindow, model: LocalModel, available:
             ui.set_qwen3_asr_download_supported(available);
             ui.set_qwen3_asr_adapter_ready(available);
         }
-        LocalModel::SenseVoice => {
-            ui.set_sense_voice_download_supported(available);
-            ui.set_sense_voice_adapter_ready(available);
-        }
         LocalModel::Seaco => {
             ui.set_seaco_download_supported(false);
             ui.set_seaco_import_supported(available);
@@ -22,10 +18,6 @@ pub(super) fn set_model_capability(ui: &AppWindow, model: LocalModel, available:
         LocalModel::Zipformer => {
             ui.set_zipformer_download_supported(available);
             ui.set_zipformer_adapter_ready(available);
-        }
-        LocalModel::Moonshine => {
-            ui.set_moonshine_download_supported(available);
-            ui.set_moonshine_adapter_ready(available);
         }
     }
 }
@@ -45,10 +37,6 @@ pub(super) fn set_download_state(
             ui.set_qwen3_asr_download_state(state);
             ui.set_qwen3_asr_download_progress(progress);
         }
-        LocalModel::SenseVoice => {
-            ui.set_sense_voice_download_state(state);
-            ui.set_sense_voice_download_progress(progress);
-        }
         LocalModel::Seaco => {
             ui.set_seaco_download_state(state);
             ui.set_seaco_download_progress(progress);
@@ -57,10 +45,6 @@ pub(super) fn set_download_state(
             ui.set_zipformer_download_state(state);
             ui.set_zipformer_download_progress(progress);
         }
-        LocalModel::Moonshine => {
-            ui.set_moonshine_download_state(state);
-            ui.set_moonshine_download_progress(progress);
-        }
     }
 }
 
@@ -68,10 +52,8 @@ pub(super) fn set_download_progress(ui: &AppWindow, model: LocalModel, progress:
     match model {
         LocalModel::Whisper => ui.set_whisper_download_progress(progress),
         LocalModel::Qwen3 => ui.set_qwen3_asr_download_progress(progress),
-        LocalModel::SenseVoice => ui.set_sense_voice_download_progress(progress),
         LocalModel::Seaco => ui.set_seaco_download_progress(progress),
         LocalModel::Zipformer => ui.set_zipformer_download_progress(progress),
-        LocalModel::Moonshine => ui.set_moonshine_download_progress(progress),
     }
 }
 
@@ -79,10 +61,8 @@ pub(super) fn download_progress(ui: &AppWindow, model: LocalModel) -> f32 {
     match model {
         LocalModel::Whisper => ui.get_whisper_download_progress(),
         LocalModel::Qwen3 => ui.get_qwen3_asr_download_progress(),
-        LocalModel::SenseVoice => ui.get_sense_voice_download_progress(),
         LocalModel::Seaco => ui.get_seaco_download_progress(),
         LocalModel::Zipformer => ui.get_zipformer_download_progress(),
-        LocalModel::Moonshine => ui.get_moonshine_download_progress(),
     }
 }
 
@@ -90,10 +70,8 @@ pub(super) fn model_selected(ui: &AppWindow, model: LocalModel) -> bool {
     match model {
         LocalModel::Whisper => ui.get_whisper_selected(),
         LocalModel::Qwen3 => ui.get_qwen3_asr_selected(),
-        LocalModel::SenseVoice => ui.get_sense_voice_selected(),
         LocalModel::Seaco => ui.get_seaco_selected(),
         LocalModel::Zipformer => ui.get_zipformer_selected(),
-        LocalModel::Moonshine => ui.get_moonshine_selected(),
     }
 }
 
@@ -101,10 +79,8 @@ pub(super) fn set_model_selected(ui: &AppWindow, model: LocalModel, selected: bo
     match model {
         LocalModel::Whisper => ui.set_whisper_selected(selected),
         LocalModel::Qwen3 => ui.set_qwen3_asr_selected(selected),
-        LocalModel::SenseVoice => ui.set_sense_voice_selected(selected),
         LocalModel::Seaco => ui.set_seaco_selected(selected),
         LocalModel::Zipformer => ui.set_zipformer_selected(selected),
-        LocalModel::Moonshine => ui.set_moonshine_selected(selected),
     }
 }
 
@@ -112,10 +88,8 @@ pub(super) fn activation_pending(ui: &AppWindow, model: LocalModel) -> bool {
     match model {
         LocalModel::Whisper => ui.get_whisper_activation_pending(),
         LocalModel::Qwen3 => ui.get_qwen3_asr_activation_pending(),
-        LocalModel::SenseVoice => ui.get_sense_voice_activation_pending(),
         LocalModel::Seaco => ui.get_seaco_activation_pending(),
         LocalModel::Zipformer => ui.get_zipformer_activation_pending(),
-        LocalModel::Moonshine => ui.get_moonshine_activation_pending(),
     }
 }
 
@@ -123,10 +97,8 @@ pub(super) fn set_activation_pending(ui: &AppWindow, model: LocalModel, pending:
     match model {
         LocalModel::Whisper => ui.set_whisper_activation_pending(pending),
         LocalModel::Qwen3 => ui.set_qwen3_asr_activation_pending(pending),
-        LocalModel::SenseVoice => ui.set_sense_voice_activation_pending(pending),
         LocalModel::Seaco => ui.set_seaco_activation_pending(pending),
         LocalModel::Zipformer => ui.set_zipformer_activation_pending(pending),
-        LocalModel::Moonshine => ui.set_moonshine_activation_pending(pending),
     }
 }
 
@@ -146,11 +118,9 @@ pub(super) fn apply_model_sizes(
 ) -> Result<(), ModelInstallError> {
     let model_size = match model {
         LocalModel::Seaco => installer.model_size_bytes(),
-        LocalModel::Whisper
-        | LocalModel::Qwen3
-        | LocalModel::SenseVoice
-        | LocalModel::Zipformer
-        | LocalModel::Moonshine => installer.download_size_bytes(),
+        LocalModel::Whisper | LocalModel::Qwen3 | LocalModel::Zipformer => {
+            installer.download_size_bytes()
+        }
     };
     set_download_size(ui, model, format_model_size(model_size).into());
     let installed_size = if installer.is_installed() {
@@ -166,10 +136,8 @@ fn set_download_size(ui: &AppWindow, model: LocalModel, size: SharedString) {
     match model {
         LocalModel::Whisper => ui.set_whisper_download_size(size),
         LocalModel::Qwen3 => ui.set_qwen3_asr_download_size(size),
-        LocalModel::SenseVoice => ui.set_sense_voice_download_size(size),
         LocalModel::Seaco => ui.set_seaco_download_size(size),
         LocalModel::Zipformer => ui.set_zipformer_download_size(size),
-        LocalModel::Moonshine => ui.set_moonshine_download_size(size),
     }
 }
 
@@ -177,10 +145,8 @@ fn set_installed_size(ui: &AppWindow, model: LocalModel, size: SharedString) {
     match model {
         LocalModel::Whisper => ui.set_whisper_installed_size(size),
         LocalModel::Qwen3 => ui.set_qwen3_asr_installed_size(size),
-        LocalModel::SenseVoice => ui.set_sense_voice_installed_size(size),
         LocalModel::Seaco => ui.set_seaco_installed_size(size),
         LocalModel::Zipformer => ui.set_zipformer_installed_size(size),
-        LocalModel::Moonshine => ui.set_moonshine_installed_size(size),
     }
 }
 
@@ -243,10 +209,6 @@ fn set_runtime_memory(ui: &AppWindow, model: LocalModel, live: bool, usage: Shar
             ui.set_qwen3_asr_runtime_memory_live(live);
             ui.set_qwen3_asr_runtime_memory_usage(usage);
         }
-        LocalModel::SenseVoice => {
-            ui.set_sense_voice_runtime_memory_live(live);
-            ui.set_sense_voice_runtime_memory_usage(usage);
-        }
         LocalModel::Seaco => {
             ui.set_seaco_runtime_memory_live(live);
             ui.set_seaco_runtime_memory_usage(usage);
@@ -254,10 +216,6 @@ fn set_runtime_memory(ui: &AppWindow, model: LocalModel, live: bool, usage: Shar
         LocalModel::Zipformer => {
             ui.set_zipformer_runtime_memory_live(live);
             ui.set_zipformer_runtime_memory_usage(usage);
-        }
-        LocalModel::Moonshine => {
-            ui.set_moonshine_runtime_memory_live(live);
-            ui.set_moonshine_runtime_memory_usage(usage);
         }
     }
 }

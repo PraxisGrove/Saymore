@@ -155,15 +155,15 @@ dark appearance at the default 920 × 700 logical window size and the minimum 82
 
 - Open both Transcription and Polishing. Check provider names, source labels,
   summaries, status badges, and the polishing enablement label and helper.
-- Open Qwen3-ASR, Whisper, SenseVoiceSmall, SeACo-Paraformer, Zipformer, and
-  Moonshine details. Check metadata, download size, runtime memory, device
-  status, download actions, and usage tips. Cover not-downloaded, downloading,
-  paused, installed, activation-pending, and failure states; include a
-  three-digit download percentage and a long error.
-- Check SeACo's verified local import instead of a download action, and use the
-  English self-test for Moonshine. Check recognition-test idle, running,
-  success, and failure states. On upgrade from streaming Paraformer, verify that
-  its old selection clears without fallback, old history remains readable, and
+- Open Qwen3-ASR, Whisper, SeACo-Paraformer, and Zipformer details. Check
+  metadata, download size, runtime memory, device status, download actions, and
+  usage tips. Cover not-downloaded, downloading, paused, installed,
+  activation-pending, and failure states; include a three-digit download
+  percentage and a long error.
+- Check SeACo's verified local import instead of a download action. Check
+  recognition-test idle, running, success, and failure states. On upgrade from a
+  build with retired Paraformer, SenseVoiceSmall, or Moonshine, verify that
+  their old selections clear without fallback, old history remains readable, and
   model and punctuation files remain counted and manually removable from storage
   settings. Include incomplete old downloads in cleanup acceptance. Use a
   disposable test profile; do not corrupt or delete a user's installed models.
