@@ -46,7 +46,8 @@ jobs:
         uses: taiki-e/install-action@nextest
 
       # Formatting, lints, doc tests, and the size budget are host-independent,
-      # so they run once here instead of once per operating system.      - name: Format
+      # so they run once here instead of once per operating system.
+      - name: Format
         run: cargo fmt --all --check
 
       - name: Clippy
