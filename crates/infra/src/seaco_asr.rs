@@ -1,12 +1,11 @@
-use std::{
-    path::Path,
-    sync::{Arc, Mutex},
-};
+use std::{path::Path, sync::Arc};
 
 use template_app::{
     SpeechRecognitionError, SpeechRecognitionHints, StreamingRecognitionSession,
     StreamingSpeechRecognizer,
 };
+
+use crate::background_recognition::{BackgroundRecognition, Chunking};
 
 mod frontend;
 mod model;
@@ -54,13 +53,28 @@ impl StreamingSpeechRecognizer for SeacoSpeechRecognizer {
     fn start(
         &self,
         hints: SpeechRecognitionHints,
-        _on_partial: Arc<dyn Fn(String) + Send + Sync>,
+        on_partial: Arc<dyn Fn(String) + Send + Sync>,
     ) -> Result<Box<dyn StreamingRecognitionSession>, SpeechRecognitionError> {
-        Ok(Box::new(SeacoSession {
-            decoder: Arc::clone(&self.decoder),
-            hotwords: self.vocabulary.hotwords(hints.terms()),
-            samples: Mutex::new(Vec::new()),
-        }))
+        let decoder = Arc::clone(&self.decoder);
+        let hotwords = self.vocabulary.hotwords(hints.terms());
+        let mut bias = None;
+        BackgroundRecognition::start(
+            Chunking {
+                window_samples: MAX_SEGMENT_SAMPLES,
+                overlap_samples: 0,
+            },
+            move |samples| {
+                if bias.is_none() {
+                    bias = Some(decoder.embed(&hotwords)?);
+                }
+                let embedding = bias
+                    .as_deref()
+                    .ok_or_else(|| protocol("vocabulary embedding is unavailable"))?;
+                decoder.decode(samples, embedding)
+            },
+            append_segment,
+            on_partial,
+        )
     }
 }
 
@@ -69,38 +83,6 @@ impl StreamingSpeechRecognizer for SeacoSpeechRecognizer {
 trait SeacoDecoder: Send + Sync {
     fn embed(&self, hotwords: &Hotwords) -> Result<Vec<f32>, SpeechRecognitionError>;
     fn decode(&self, samples: &[i16], bias: &[f32]) -> Result<String, SpeechRecognitionError>;
-}
-
-struct SeacoSession {
-    decoder: Arc<dyn SeacoDecoder>,
-    hotwords: Hotwords,
-    samples: Mutex<Vec<i16>>,
-}
-
-impl StreamingRecognitionSession for SeacoSession {
-    fn push_audio(&self, samples: Vec<i16>) -> Result<(), SpeechRecognitionError> {
-        self.samples.lock().map_err(lock_error)?.extend(samples);
-        Ok(())
-    }
-
-    fn finish(self: Box<Self>) -> Result<String, SpeechRecognitionError> {
-        let samples = self.samples.into_inner().map_err(lock_error)?;
-        if samples.is_empty() {
-            return Err(protocol("received no audio"));
-        }
-        let bias = self.decoder.embed(&self.hotwords)?;
-        let mut transcript = String::new();
-        for segment in samples.chunks(MAX_SEGMENT_SAMPLES) {
-            append_segment(&mut transcript, &self.decoder.decode(segment, &bias)?);
-        }
-        if transcript.is_empty() {
-            Err(protocol("returned an empty final transcript"))
-        } else {
-            Ok(transcript)
-        }
-    }
-
-    fn cancel(self: Box<Self>) {}
 }
 
 fn append_segment(transcript: &mut String, segment: &str) {

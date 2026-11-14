@@ -10,6 +10,8 @@ use template_app::{
     StreamingSpeechRecognizer,
 };
 
+use crate::background_recognition::{BackgroundRecognition, Chunking};
+
 mod hotwords;
 
 const SAMPLE_RATE: i32 = 16_000;
@@ -72,13 +74,24 @@ impl StreamingSpeechRecognizer for Qwen3AsrSpeechRecognizer {
     fn start(
         &self,
         hints: SpeechRecognitionHints,
-        _on_partial: Arc<dyn Fn(String) + Send + Sync>,
+        on_partial: Arc<dyn Fn(String) + Send + Sync>,
     ) -> Result<Box<dyn StreamingRecognitionSession>, SpeechRecognitionError> {
-        Ok(Box::new(Qwen3Session {
-            decoder: Arc::clone(&self.decoder),
-            hotwords: hotwords::from_hints(&hints),
-            samples: Mutex::new(Vec::new()),
-        }))
+        let decoder = Arc::clone(&self.decoder);
+        let hotwords = hotwords::from_hints(&hints);
+        let window_samples = if hotwords.is_empty() {
+            MAX_SEGMENT_SAMPLES
+        } else {
+            HINTED_SEGMENT_SAMPLES
+        };
+        BackgroundRecognition::start(
+            Chunking {
+                window_samples,
+                overlap_samples: SEGMENT_OVERLAP_SAMPLES,
+            },
+            move |samples| decoder.decode(samples, &hotwords),
+            append_segment,
+            on_partial,
+        )
     }
 }
 
@@ -141,56 +154,6 @@ impl Qwen3Decoder for SherpaQwen3Decoder {
             .map(|result| result.text)
             .unwrap_or_default())
     }
-}
-
-struct Qwen3Session {
-    decoder: Arc<dyn Qwen3Decoder>,
-    hotwords: String,
-    samples: Mutex<Vec<i16>>,
-}
-
-impl StreamingRecognitionSession for Qwen3Session {
-    fn push_audio(&self, samples: Vec<i16>) -> Result<(), SpeechRecognitionError> {
-        self.samples.lock().map_err(lock_error)?.extend(samples);
-        Ok(())
-    }
-
-    fn finish(self: Box<Self>) -> Result<String, SpeechRecognitionError> {
-        let samples = self.samples.into_inner().map_err(lock_error)?;
-        if samples.is_empty() {
-            return Err(SpeechRecognitionError::Protocol(
-                "Qwen3-ASR received no audio".to_owned(),
-            ));
-        }
-        // Reserve decoder context for hotwords instead of letting sherpa truncate audio.
-        let segment_samples = if self.hotwords.is_empty() {
-            MAX_SEGMENT_SAMPLES
-        } else {
-            HINTED_SEGMENT_SAMPLES
-        };
-        let mut transcript = String::new();
-        let mut start: usize = 0;
-        loop {
-            let end = start.saturating_add(segment_samples).min(samples.len());
-            append_segment(
-                &mut transcript,
-                &self.decoder.decode(&samples[start..end], &self.hotwords)?,
-            );
-            if end == samples.len() {
-                break;
-            }
-            start = end.saturating_sub(SEGMENT_OVERLAP_SAMPLES);
-        }
-        if transcript.is_empty() {
-            Err(SpeechRecognitionError::Protocol(
-                "Qwen3-ASR returned an empty final transcript".to_owned(),
-            ))
-        } else {
-            Ok(transcript)
-        }
-    }
-
-    fn cancel(self: Box<Self>) {}
 }
 
 fn append_segment(transcript: &mut String, segment: &str) {
@@ -336,20 +299,25 @@ mod tests {
         second.finish()?;
         first.finish()?;
         empty.finish()?;
+        // Independent sessions may now decode concurrently; preserve order within
+        // each session without imposing a global finish-order on their workers.
+        let mut observed = std::collections::BTreeMap::<String, Vec<usize>>::new();
+        for (hints, samples) in decoder.0.lock().map_err(lock_error)?.iter() {
+            observed.entry(hints.clone()).or_default().push(*samples);
+        }
         assert_eq!(
-            vec![
-                ("Slint".to_owned(), 1_600),
+            std::collections::BTreeMap::from([
+                ("Slint".to_owned(), vec![1_600]),
                 (
                     concat!("Saymore,", "声墨").to_owned(),
-                    HINTED_SEGMENT_SAMPLES
+                    vec![
+                        HINTED_SEGMENT_SAMPLES,
+                        MAX_SEGMENT_SAMPLES + 1 - HINTED_SEGMENT_SAMPLES + SEGMENT_OVERLAP_SAMPLES,
+                    ]
                 ),
-                (
-                    concat!("Saymore,", "声墨").to_owned(),
-                    MAX_SEGMENT_SAMPLES + 1 - HINTED_SEGMENT_SAMPLES + SEGMENT_OVERLAP_SAMPLES,
-                ),
-                (String::new(), 1_600),
-            ],
-            *decoder.0.lock().map_err(lock_error)?
+                (String::new(), vec![1_600]),
+            ]),
+            observed
         );
         Ok(())
     }

@@ -26,6 +26,34 @@ msgctxt "models.asr.moss.summary"
 msgid "Experimental · CPU · High memory use"
 msgstr "实验性 · CPU · 内存占用较高"
 
+msgctxt "models.asr.local.hints.native"
+msgid "Hotwords / dictionary: supported (recognition bias)"
+msgstr "热词 / 词典：支持（识别时热词增强）"
+
+msgctxt "models.asr.local.hints.prompt"
+msgid "Hotwords / dictionary: supported (prompt guidance)"
+msgstr "热词 / 词典：支持（提示词引导）"
+
+msgctxt "models.asr.local.hints.unavailable"
+msgid "Hotwords / dictionary: not integrated"
+msgstr "热词 / 词典：当前尚未接入"
+
+msgctxt "models.asr.local.hints.detail"
+msgid "Uses your personal dictionary during recognition without text polishing. Entries are filtered to fit the model's limits; hints do not guarantee correct spelling."
+msgstr "识别时自动使用个人词典，无需开启文本润色。词条会按模型限制筛选，提示不能保证每次都识别正确。"
+
+msgctxt "models.asr.local.hints.unavailable-detail"
+msgid "The current recognition integration does not use dictionary hints."
+msgstr "当前识别接入尚未使用词典提示。"
+
+msgctxt "models.asr.local.hints.badge"
+msgid "Hotwords"
+msgstr "词典支持"
+
+msgctxt "models.asr.local.hints.badge-unavailable"
+msgid "Not wired"
+msgstr "未接入"
+
 #: ui/about-product-card.slint:53
 msgctxt "settings.product.tagline"
 msgid "Speak your mind, hands-free."
@@ -1655,14 +1683,14 @@ msgid "Download"
 msgstr "下载模型"
 
 #: ui/pages/local-asr-model.slint:384
-msgctxt "models.asr.local.output.streaming"
-msgid "Streaming"
-msgstr "流式输出"
+msgctxt "models.asr.local.mode.during-recording"
+msgid "Current mode: recognize while recording"
+msgstr "当前模式：边录音边识别"
 
 #: ui/pages/local-asr-model.slint:385
-msgctxt "models.asr.local.output.non-streaming"
-msgid "Final only"
-msgstr "非流式"
+msgctxt "models.asr.local.mode.chunked"
+msgid "Current mode: background recognition in segments"
+msgstr "当前模式：后台分段识别"
 
 #: ui/pages/local-asr-model.slint:389
 msgctxt "models.asr.local.usage-tip.whisper"

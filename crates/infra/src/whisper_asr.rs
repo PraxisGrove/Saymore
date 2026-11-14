@@ -10,7 +10,10 @@ use template_app::{
 };
 use whisper_rs::{FullParams, SamplingStrategy, WhisperContext, WhisperContextParameters};
 
-use crate::model_installer::{WHISPER_MODEL_BYTES, WHISPER_MODEL_FILE};
+use crate::{
+    background_recognition::{BackgroundRecognition, Chunking},
+    model_installer::{WHISPER_MODEL_BYTES, WHISPER_MODEL_FILE},
+};
 
 mod hints;
 #[cfg(test)]
@@ -70,13 +73,19 @@ impl StreamingSpeechRecognizer for WhisperSpeechRecognizer {
     fn start(
         &self,
         hints: SpeechRecognitionHints,
-        _on_partial: Arc<dyn Fn(String) + Send + Sync>,
+        on_partial: Arc<dyn Fn(String) + Send + Sync>,
     ) -> Result<Box<dyn StreamingRecognitionSession>, SpeechRecognitionError> {
-        Ok(Box::new(WhisperSession {
-            decoder: Arc::clone(&self.decoder),
-            prompt: hints::vocabulary_prompt(hints.terms()),
-            samples: Mutex::new(Vec::new()),
-        }))
+        let decoder = Arc::clone(&self.decoder);
+        let prompt = hints::vocabulary_prompt(hints.terms());
+        BackgroundRecognition::start(
+            Chunking {
+                window_samples: MAX_SEGMENT_SAMPLES,
+                overlap_samples: 0,
+            },
+            move |samples| decoder.decode(samples, &prompt),
+            append_segment,
+            on_partial,
+        )
     }
 }
 
@@ -125,44 +134,6 @@ impl WhisperDecoder for CppWhisperDecoder {
         }
         Ok(transcript)
     }
-}
-
-struct WhisperSession {
-    decoder: Arc<dyn WhisperDecoder>,
-    prompt: String,
-    samples: Mutex<Vec<i16>>,
-}
-
-impl StreamingRecognitionSession for WhisperSession {
-    fn push_audio(&self, samples: Vec<i16>) -> Result<(), SpeechRecognitionError> {
-        self.samples.lock().map_err(lock_error)?.extend(samples);
-        Ok(())
-    }
-
-    fn finish(self: Box<Self>) -> Result<String, SpeechRecognitionError> {
-        let samples = self.samples.into_inner().map_err(lock_error)?;
-        if samples.is_empty() {
-            return Err(SpeechRecognitionError::Protocol(
-                "Whisper received no audio".to_owned(),
-            ));
-        }
-        let mut transcript = String::new();
-        for segment in samples.chunks(MAX_SEGMENT_SAMPLES) {
-            append_segment(
-                &mut transcript,
-                &self.decoder.decode(segment, &self.prompt)?,
-            );
-        }
-        if transcript.is_empty() {
-            Err(SpeechRecognitionError::Protocol(
-                "Whisper returned an empty final transcript".to_owned(),
-            ))
-        } else {
-            Ok(transcript)
-        }
-    }
-
-    fn cancel(self: Box<Self>) {}
 }
 
 fn append_segment(transcript: &mut String, segment: &str) {

@@ -5,6 +5,7 @@ mod sqlite_storage;
 
 mod app_instance_guard;
 mod app_paths;
+mod background_recognition;
 mod cpal_audio_recorder;
 mod dictation_shortcut;
 mod dictionary_files;

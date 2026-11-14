@@ -109,9 +109,24 @@ export component LocalAsrModelModal inherits Rectangle {
         ? !root.selected && !root.selection-pending
         : root.kind == AsrProviderCardKind.seaco-paraformer ? root.import-supported
         : root.download-supported;
-    private property <string> output-mode: root.kind == AsrProviderCardKind.zipformer
-        ? @tr("models.asr.local.output.streaming" => "Streaming")
-        : @tr("models.asr.local.output.non-streaming" => "Final only");
+    // Describe the current adapter, not the model family's complete capabilities.
+    private property <string> current-mode: root.kind == AsrProviderCardKind.zipformer
+        ? @tr("models.asr.local.mode.during-recording" => "Current mode: recognize while recording")
+        : @tr("models.asr.local.mode.chunked" => "Current mode: background recognition in segments");
+    private property <bool> native-dictionary-hints: root.kind == AsrProviderCardKind.seaco-paraformer
+        || root.kind == AsrProviderCardKind.zipformer;
+    private property <bool> prompt-dictionary-hints: root.kind == AsrProviderCardKind.qwen3-asr
+        || root.kind == AsrProviderCardKind.whisper-large-v3-turbo
+        || root.kind == AsrProviderCardKind.moss;
+    private property <bool> dictionary-hints-supported: root.native-dictionary-hints || root.prompt-dictionary-hints;
+    private property <string> dictionary-hints-title: root.native-dictionary-hints
+        ? @tr("models.asr.local.hints.native" => "Hotwords / dictionary: supported (recognition bias)")
+        : root.prompt-dictionary-hints
+        ? @tr("models.asr.local.hints.prompt" => "Hotwords / dictionary: supported (prompt guidance)")
+        : @tr("models.asr.local.hints.unavailable" => "Hotwords / dictionary: not integrated");
+    private property <string> dictionary-hints-detail: root.dictionary-hints-supported
+        ? @tr("models.asr.local.hints.detail" => "Uses your personal dictionary during recognition without text polishing. Entries are filtered to fit the model's limits; hints do not guarantee correct spelling.")
+        : @tr("models.asr.local.hints.unavailable-detail" => "The current recognition integration does not use dictionary hints.");
     private property <string> usage-tip: root.kind == AsrProviderCardKind.whisper-large-v3-turbo
             ? @tr("models.asr.local.usage-tip.whisper" => "Multilingual dictation with higher memory use. Text appears after speaking.")
         : root.kind == AsrProviderCardKind.seaco-paraformer
@@ -209,7 +224,26 @@ export component LocalAsrModelModal inherits Rectangle {
                         ? @tr("models.asr.summary.chinese" => "Chinese")
                     : @tr("models.asr.summary.chinese-english" => "ZH · EN");
             }
-            LocalModelSummaryPill { x: 410px; y: 8px; icon: @image-url("../../icons/lucide/file-text.svg"); label: root.output-mode; }
+            LocalModelSummaryPill {
+                x: 410px;
+                y: 8px;
+                icon: root.dictionary-hints-supported ? @image-url("../../icons/lucide/check.svg") : @image-url("../../icons/lucide/book-open.svg");
+                label: root.dictionary-hints-supported
+                    ? @tr("models.asr.local.hints.badge" => "Hotwords")
+                    : @tr("models.asr.local.hints.badge-unavailable" => "Not wired");
+                accessible-role: text;
+                accessible-label: root.dictionary-hints-title;
+            }
+            Text {
+                x: 28px;
+                y: 48px;
+                width: dialog.panel-width - 56px;
+                height: 18px;
+                text: root.current-mode;
+                color: AppColors.text-muted;
+                font-size: 11px;
+                vertical-alignment: center;
+            }
 
             metrics := Rectangle {
                 x: 28px;
@@ -350,9 +384,20 @@ export component LocalAsrModelModal inherits Rectangle {
                 activated => { root.run-test(root.kind); }
             }
 
-            usage-tip := Text {
+            dictionary-info := Text {
                 x: 28px;
                 y: recognition-test.y + recognition-test.height + 16px;
+                width: dialog.panel-width - 56px;
+                height: self.preferred-height;
+                text: root.dictionary-hints-title + "\n" + root.dictionary-hints-detail;
+                color: AppColors.text;
+                font-size: 12px;
+                wrap: word-wrap;
+            }
+
+            usage-tip := Text {
+                x: 28px;
+                y: dictionary-info.y + dictionary-info.height + 16px;
                 width: dialog.panel-width - 56px;
                 height: max(36px, self.preferred-height);
                 text: root.usage-tip;

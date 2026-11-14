@@ -247,34 +247,44 @@ staging files remain on disk and counted in storage. Settings provides explicit
 cleanup for those files, including incomplete installations, without following
 linked roots or touching supported models.
 
+The shared ASR port accepts ordered audio chunks; it does not imply that every
+adapter recognizes incrementally. Local model details show the current Saymore
+recognition mode separately from model capabilities. A model can support both
+streaming and offline inference while the current adapter implements only one.
+See [recognition modes](product/asr-recognition-modes.md) for the per-model
+mapping and the distinction between recognition, interim display and network
+use.
+
 Streaming ASR remains an application-owned port. The Zipformer implementation in
 `infra` loads its pinned files once, then creates an isolated online sherpa-onnx
 stream for each dictation session. Audio pushes emit only changed non-empty
 partials; finishing drains final decoding and rejects an empty result. The
-Whisper large-v3-turbo and Qwen3-ASR 1.7B implementations instead buffer session
-PCM and decode at finish using whisper.cpp and sherpa-onnx respectively, with
-ordered segmentation and no fabricated partial results. Qwen3-ASR uses a
-one-second overlap plus conservative transcript-boundary deduplication for audio
-longer than 30 seconds so hard cuts do not repeat or truncate words.
-Cancellation drops any local-model session without finalizing it. The macOS
-desktop Provider lifecycle selects an adapter only after its pinned model has
-downloaded, passed size and SHA-256 validation, loaded successfully, and been
-recorded in local storage. The manifest-driven infrastructure installer keeps
-resumable partial files in a stable model-specific staging directory, supports
-cooperative pause and cancel, and atomically renames that directory only after
-every artifact validates. The desktop owns per-model UI progress and removes
-staging files after an explicit cancel. A non-Slint desktop lifecycle module
-owns installed-model metadata reconciliation, guarded Provider activation,
-previous-runtime release, and active-model deletion protection through
-application ports and infrastructure adapters. Slint callbacks submit lifecycle
-actions and present their results; they do not reproduce the ordering or
-recovery rules. Installation remains separate from Provider selection: a
-completed download never loads or selects the model until the user explicitly
-chooses it. The desktop also owns failure presentation and runtime memory
-sampling. An installed model also carries a verification marker containing its
-pinned identity and file metadata. Unchanged installations use that marker for a
-fast startup check; missing or changed metadata falls back to full SHA-256
-validation.
+Whisper, Qwen3, SeACo and MOSS implementations submit complete existing model
+windows to a session-owned background worker during capture and decode the tail
+at finish. Completed segment text can be delivered on later audio pushes; this
+is coarse background segmentation, not native incremental audio inference.
+Qwen3-ASR uses a one-second overlap plus conservative transcript-boundary
+deduplication for audio longer than 30 seconds so hard cuts do not repeat or
+truncate words. Cancellation discards queued windows without finalizing; an
+in-flight native call may finish before its decoder is released, but cannot emit
+callbacks. The macOS desktop Provider lifecycle selects an adapter only after
+its pinned model has downloaded, passed size and SHA-256 validation, loaded
+successfully, and been recorded in local storage. The manifest-driven
+infrastructure installer keeps resumable partial files in a stable
+model-specific staging directory, supports cooperative pause and cancel, and
+atomically renames that directory only after every artifact validates. The
+desktop owns per-model UI progress and removes staging files after an explicit
+cancel. A non-Slint desktop lifecycle module owns installed-model metadata
+reconciliation, guarded Provider activation, previous-runtime release, and
+active-model deletion protection through application ports and infrastructure
+adapters. Slint callbacks submit lifecycle actions and present their results;
+they do not reproduce the ordering or recovery rules. Installation remains
+separate from Provider selection: a completed download never loads or selects
+the model until the user explicitly chooses it. The desktop also owns failure
+presentation and runtime memory sampling. An installed model also carries a
+verification marker containing its pinned identity and file metadata. Unchanged
+installations use that marker for a fast startup check; missing or changed
+metadata falls back to full SHA-256 validation.
 
 macOS text delivery is an incremental main-thread state machine. Focus settling,
 accessibility verification, and clipboard restoration waits are represented as

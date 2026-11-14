@@ -1,7 +1,7 @@
-use std::{
-    path::Path,
-    sync::{Arc, Mutex},
-};
+use crate::background_recognition::{BackgroundRecognition, Chunking};
+#[cfg(test)]
+use std::sync::Mutex;
+use std::{path::Path, sync::Arc};
 use template_app::{
     SpeechRecognitionError, SpeechRecognitionHints, StreamingRecognitionSession,
     StreamingSpeechRecognizer,
@@ -37,13 +37,26 @@ impl StreamingSpeechRecognizer for MossSpeechRecognizer {
     fn start(
         &self,
         hints: SpeechRecognitionHints,
-        _on_partial: Arc<dyn Fn(String) + Send + Sync>,
+        on_partial: Arc<dyn Fn(String) + Send + Sync>,
     ) -> Result<Box<dyn StreamingRecognitionSession>, SpeechRecognitionError> {
-        Ok(Box::new(MossSession {
-            decoder: Arc::clone(&self.decoder),
-            hints: prompt::clean_hints(hints.terms()),
-            samples: Mutex::new(Vec::new()),
-        }))
+        let decoder = Arc::clone(&self.decoder);
+        let hints = prompt::clean_hints(hints.terms());
+        BackgroundRecognition::start(
+            Chunking {
+                window_samples: SEGMENT_SAMPLES,
+                overlap_samples: 0,
+            },
+            move |samples| {
+                if samples.iter().all(|sample| *sample == 0) {
+                    return Ok(String::new());
+                }
+                decoder
+                    .decode(samples, &hints)
+                    .map(|raw| transcript::plain_text(&raw))
+            },
+            append_segment,
+            on_partial,
+        )
     }
 }
 
@@ -52,53 +65,17 @@ trait MossDecoder: Send + Sync {
     fn decode(&self, samples: &[i16], hints: &str) -> Result<String, SpeechRecognitionError>;
 }
 
-struct MossSession {
-    decoder: Arc<dyn MossDecoder>,
-    hints: String,
-    samples: Mutex<Vec<i16>>,
-}
-
-impl StreamingRecognitionSession for MossSession {
-    fn push_audio(&self, samples: Vec<i16>) -> Result<(), SpeechRecognitionError> {
-        let mut buffered = self.samples.lock().map_err(lock_error)?;
-        if buffered.len().saturating_add(samples.len()) > 30 * 60 * 16_000 {
-            return Err(protocol("recording exceeds the 30-minute limit"));
-        }
-        buffered.extend(samples);
-        Ok(())
+fn append_segment(text: &mut String, plain: &str) {
+    let plain = plain.trim();
+    if text
+        .chars()
+        .last()
+        .zip(plain.chars().next())
+        .is_some_and(|(a, b)| a.is_ascii_alphanumeric() && b.is_ascii_alphanumeric())
+    {
+        text.push(' ');
     }
-
-    fn finish(self: Box<Self>) -> Result<String, SpeechRecognitionError> {
-        let samples = self.samples.into_inner().map_err(lock_error)?;
-        if samples.is_empty() {
-            return Err(protocol("received no audio"));
-        }
-        let mut text = String::new();
-        for segment in samples.chunks(SEGMENT_SAMPLES) {
-            if segment.iter().all(|sample| *sample == 0) {
-                continue;
-            }
-            let decoded = self.decoder.decode(segment, &self.hints)?;
-            let plain = transcript::plain_text(&decoded);
-            let plain = plain.trim();
-            if text
-                .chars()
-                .last()
-                .zip(plain.chars().next())
-                .is_some_and(|(a, b)| a.is_ascii_alphanumeric() && b.is_ascii_alphanumeric())
-            {
-                text.push(' ');
-            }
-            text.push_str(plain);
-        }
-        if text.is_empty() {
-            Err(protocol("returned no speech"))
-        } else {
-            Ok(text)
-        }
-    }
-
-    fn cancel(self: Box<Self>) {}
+    text.push_str(plain);
 }
 
 fn protocol(message: &str) -> SpeechRecognitionError {

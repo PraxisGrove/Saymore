@@ -12,6 +12,34 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=1; plural=0;\n"
 
+msgctxt "models.asr.local.hints.native"
+msgid "Hotwords / dictionary: supported (recognition bias)"
+msgstr ""
+
+msgctxt "models.asr.local.hints.prompt"
+msgid "Hotwords / dictionary: supported (prompt guidance)"
+msgstr ""
+
+msgctxt "models.asr.local.hints.unavailable"
+msgid "Hotwords / dictionary: not integrated"
+msgstr ""
+
+msgctxt "models.asr.local.hints.detail"
+msgid "Uses your personal dictionary during recognition without text polishing. Entries are filtered to fit the model's limits; hints do not guarantee correct spelling."
+msgstr ""
+
+msgctxt "models.asr.local.hints.unavailable-detail"
+msgid "The current recognition integration does not use dictionary hints."
+msgstr ""
+
+msgctxt "models.asr.local.hints.badge"
+msgid "Hotwords"
+msgstr ""
+
+msgctxt "models.asr.local.hints.badge-unavailable"
+msgid "Not wired"
+msgstr ""
+
 #: ui/about-product-card.slint:53
 msgctxt "settings.product.tagline"
 msgid "Speak your mind, hands-free."
@@ -1750,13 +1778,13 @@ msgid "Download"
 msgstr ""
 
 #: ui/pages/local-asr-model.slint:384
-msgctxt "models.asr.local.output.streaming"
-msgid "Streaming"
+msgctxt "models.asr.local.mode.during-recording"
+msgid "Current mode: recognize while recording"
 msgstr ""
 
 #: ui/pages/local-asr-model.slint:385
-msgctxt "models.asr.local.output.non-streaming"
-msgid "Final only"
+msgctxt "models.asr.local.mode.chunked"
+msgid "Current mode: background recognition in segments"
 msgstr ""
 
 #: ui/pages/local-asr-model.slint:389
