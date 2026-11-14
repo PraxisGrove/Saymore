@@ -7,11 +7,6 @@ on:
         description: "Committed workspace version to release (for example 0.3.0)"
         required: true
         type: string
-      allow_unsigned:
-        description: "Build unsigned packages instead of failing when signing credentials are absent"
-        required: false
-        type: boolean
-        default: false
 
 permissions:
   actions: read
@@ -155,8 +150,6 @@ jobs:
     needs: plan
     runs-on: macos-15
     timeout-minutes: 45
-    outputs:
-      signed: ${{ steps.apple-auth.outputs.signed }}
     env:
       APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
       APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
@@ -168,34 +161,20 @@ jobs:
         with:
           ref: ${{ needs.plan.outputs.tag }}
 
-      - name: Resolve macOS signing mode
-        id: apple-auth
+      - name: Require complete Apple signing credentials
         shell: bash
-        env:
-          ALLOW_UNSIGNED: ${{ inputs.allow_unsigned }}
         run: |
           set -euo pipefail
-          configured=0
           missing=()
           for name in APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID; do
-            if [[ -n "${!name:-}" ]]; then
-              configured=$((configured + 1))
-            else
+            if [[ -z "${!name:-}" ]]; then
               missing+=("$name")
             fi
           done
-          if [[ $configured -eq 5 ]]; then
-            echo "signed=true" >> "$GITHUB_OUTPUT"
-            exit 0
+          if [[ ${#missing[@]} -ne 0 ]]; then
+            echo "::error::macOS releases are always signed; missing secrets: ${missing[*]}"
+            exit 1
           fi
-          if [[ "$ALLOW_UNSIGNED" == "true" ]]; then
-            sed -i '' '/^signing-identity = /d' apps/desktop/Cargo.toml
-            echo "signed=false" >> "$GITHUB_OUTPUT"
-            echo "::warning::allow_unsigned is set; publishing an unsigned, unnotarized DMG."
-            exit 0
-          fi
-          echo "::error::Apple signing credentials are required for a published release; missing: ${missing[*]}. Re-run with allow_unsigned=true only for a deliberate unsigned build."
-          exit 1
 
       - name: Setup Rust targets
         uses: dtolnay/rust-toolchain@master
@@ -237,7 +216,6 @@ jobs:
           --target universal-apple-darwin --out-dir dist
 
       - name: Notarize final DMG
-        if: steps.apple-auth.outputs.signed == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -284,25 +262,14 @@ jobs:
           test -s "$mount_dir/.DS_Store"
           strings "$mount_dir/.DS_Store" | grep -Fq "dmg-background.png"
 
-          if [[ "${{ steps.apple-auth.outputs.signed }}" == true ]]; then
-            codesign --verify --all-architectures --deep --strict --verbose=4 \
-              "$mount_dir/Saymore.app"
-            codesign -d --entitlements - --xml "$mount_dir/Saymore.app" \
-              >entitlements.plist
-            plutil -lint entitlements.plist
-            test "$(/usr/libexec/PlistBuddy -c \
-              'Print :com.apple.security.device.audio-input' entitlements.plist)" = true
-            spctl --assess --type execute --verbose=4 "$mount_dir/Saymore.app"
-          fi
-
-      - name: Mark unsigned DMG
-        if: steps.apple-auth.outputs.signed != 'true'
-        shell: bash
-        run: |
-          set -euo pipefail
-          for file in apps/desktop/dist/*.dmg; do
-            mv "$file" "${file%.dmg}-unsigned.dmg"
-          done
+          codesign --verify --all-architectures --deep --strict --verbose=4 \
+            "$mount_dir/Saymore.app"
+          codesign -d --entitlements - --xml "$mount_dir/Saymore.app" \
+            >entitlements.plist
+          plutil -lint entitlements.plist
+          test "$(/usr/libexec/PlistBuddy -c \
+            'Print :com.apple.security.device.audio-input' entitlements.plist)" = true
+          spctl --assess --type execute --verbose=4 "$mount_dir/Saymore.app"
 
       - uses: actions/upload-artifact@v7
         with:
@@ -315,8 +282,6 @@ jobs:
     needs: plan
     runs-on: windows-latest
     timeout-minutes: 45
-    outputs:
-      signed: ${{ steps.windows-auth.outputs.signed }}
     env:
       WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
       WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
@@ -328,8 +293,6 @@ jobs:
       - name: Resolve Windows signing mode
         id: windows-auth
         shell: pwsh
-        env:
-          ALLOW_UNSIGNED: ${{ inputs.allow_unsigned }}
         run: |
           $names = 'WINDOWS_CERTIFICATE', 'WINDOWS_CERTIFICATE_PASSWORD'
           $missing = @($names | Where-Object {
@@ -337,12 +300,11 @@ jobs:
           })
           if ($missing.Count -eq 0) {
             'signed=true' >> $env:GITHUB_OUTPUT
-          } elseif ($env:ALLOW_UNSIGNED -eq 'true') {
-            'signed=false' >> $env:GITHUB_OUTPUT
-            Write-Host '::warning::allow_unsigned is set; publishing an unsigned Windows installer.'
           } else {
-            Write-Host "::error::Windows Authenticode signing is required for a published release; missing: $($missing -join ', '). Re-run with allow_unsigned=true only for a deliberate unsigned build."
-            exit 1
+            # Windows signing is optional: the installer ships unsigned rather
+            # than blocking a release that already has a signed macOS package.
+            'signed=false' >> $env:GITHUB_OUTPUT
+            Write-Host "::notice::Authenticode signing is not configured; publishing an unsigned installer."
           }
 
       - uses: dtolnay/rust-toolchain@master
@@ -410,17 +372,25 @@ jobs:
             Remove-Item -LiteralPath $certificatePath -Force -ErrorAction SilentlyContinue
           }
 
-      - name: Mark unsigned installer
+      - name: Note unsigned installer
         if: steps.windows-auth.outputs.signed != 'true'
         shell: pwsh
         run: |
-          Move-Item -LiteralPath apps\desktop\dist\Saymore-Setup.exe `
-            -Destination apps\desktop\dist\Saymore-Setup-unsigned.exe
+          @'
+          Saymore-Setup.exe is not Authenticode signed.
+
+          No Windows code-signing certificate is configured for this repository, so
+          Windows shows the SmartScreen "unknown publisher" prompt on first launch.
+          Verify the download against SHA256SUMS before running it.
+          '@ | Set-Content -Path apps\desktop\dist\WINDOWS-SIGNING.txt -Encoding utf8
 
       - uses: actions/upload-artifact@v7
         with:
           name: release-windows
-          path: apps/desktop/dist/*.exe
+          # WINDOWS-SIGNING.txt only exists for an unsigned installer.
+          path: |
+            apps/desktop/dist/*.exe
+            apps/desktop/dist/WINDOWS-SIGNING.txt
           if-no-files-found: error
 
   publish:
@@ -459,24 +429,14 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ needs.plan.outputs.tag }}
-          MACOS_SIGNED: ${{ needs.package-macos.outputs.signed }}
-          WINDOWS_SIGNED: ${{ needs.package-windows.outputs.signed }}
         run: |
           set -euo pipefail
-          signed=false
-          if [[ "$MACOS_SIGNED" == true && "$WINDOWS_SIGNED" == true ]]; then
-            signed=true
-          fi
           if gh release view "$TAG" > /dev/null 2>&1; then
             gh release upload "$TAG" dist/* --clobber
             exit 0
           fi
-          arguments=(--verify-tag --generate-notes --title "Saymore $TAG")
-          if [[ "$signed" == true ]]; then
-            arguments+=(--latest)
-          else
-            arguments+=(--draft)
-            echo "::warning::Packages are unsigned (macOS=$MACOS_SIGNED, Windows=$WINDOWS_SIGNED); the release stays a draft and is not marked latest."
-          fi
-          gh release create "$TAG" dist/* "${arguments[@]}"
-          fi
+          gh release create "$TAG" dist/* \
+            --verify-tag \
+            --generate-notes \
+            --latest \
+            --title "Saymore $TAG"

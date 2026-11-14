@@ -76,10 +76,14 @@ together with the repository and CI pins when upgrading Rust.
   pass strict code-signing validation for every architecture, contain the Audio
   Input entitlement required for microphone capture, and pass Gatekeeper
   execution assessment. Regenerate the committed background after design changes
-  with `swift apps/desktop/packaging/macos/generate-dmg-background.swift`.
-  Without complete Apple credentials, the DMG filename ends in `-unsigned.dmg`.
+  with `swift apps/desktop/packaging/macos/generate-dmg-background.swift`. macOS
+  packages are always signed: packaging fails when the Apple credentials are
+  incomplete instead of publishing an unsigned DMG.
 - Windows builds an NSIS installer named `Saymore-Setup.exe` and publishes it,
-  together with its SHA-256 checksum, to the same GitHub Release.
+  together with its SHA-256 checksum, to the same GitHub Release. Authenticode
+  signing is optional for Windows: when no certificate is configured the
+  installer ships unsigned and the release carries a `WINDOWS-SIGNING.txt` asset
+  that explains the SmartScreen prompt.
 
 Linux is not built or published until its platform adapters are implemented and
 the Linux target is explicitly restored to CI and the release workflow.
@@ -91,11 +95,17 @@ contents. The workflow needs this permission only to create the annotated tag
 and upload the GitHub Release. It does not commit or push `main`; no branch-rule
 exception for release commits is required.
 
-Each platform must be signed; packaging fails closed when a credential set is
-incomplete instead of silently publishing an unsigned package. The
-`allow_unsigned` dispatch input is the only escape hatch: it produces
-`*-unsigned` artifacts and creates the GitHub Release as a draft that is never
-marked latest. Use it for a deliberate unsigned build, never as a routine path.
+Signing requirements differ per platform:
+
+- **macOS is always signed.** All five Apple secrets below are required; a
+  missing one fails the packaging job and names the missing secrets. There is no
+  unsigned fallback, because a distribution DMG that fails Gatekeeper is not a
+  usable release.
+- **Windows signing is optional.** The NSIS installer is Authenticode signed
+  when both Windows secrets are present, and ships unsigned otherwise. Unsigned
+  Windows packages do not block the release: the release is still published and
+  marked latest, and a `WINDOWS-SIGNING.txt` asset records that the installer is
+  unsigned.
 
 macOS secrets for click-to-open distribution (join the Apple Developer Program):
 
@@ -114,10 +124,11 @@ Windows secrets for Authenticode signing:
 - `WINDOWS_CERTIFICATE`: base64-encoded Authenticode code-signing `.pfx` file.
 - `WINDOWS_CERTIFICATE_PASSWORD`: password used when exporting the `.pfx` file.
 
-Both must be present. The packaging job imports the certificate into a temporary
-file, signs `Saymore-Setup.exe` with SHA-256 digest and RFC 3161 timestamping,
-verifies the result with `signtool verify /pa`, and removes the certificate file
-before the job ends.
+When both are present, the packaging job imports the certificate into a
+temporary file, signs `Saymore-Setup.exe` with a SHA-256 digest and RFC 3161
+timestamping, verifies the result with `signtool verify /pa`, and removes the
+certificate file before the job ends. When they are absent, the job still builds
+and publishes the installer and writes `WINDOWS-SIGNING.txt` next to it.
 
 ## macOS User Permissions
 
