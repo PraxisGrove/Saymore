@@ -40,9 +40,10 @@ cargo test --workspace --doc
 
 The `models_navigation` and `model_discovery_runtime` Slint integration tests
 use custom main-thread executables and are excluded from Nextest discovery. The
-discovery test exercises the production callback wiring against a local HTTP
-service, including fetching, manual entry, failure preservation, caching, and
-invalidation. Run them explicitly with:
+navigation executable also checks home-page retry and scrolling at the default
+and minimum window sizes. The discovery test exercises the production callback
+wiring against a local HTTP service, including fetching, manual entry, failure
+preservation, caching, and invalidation. Run them explicitly with:
 
 ```bash
 cargo test -p saymore-desktop --test models_navigation --test model_discovery_runtime

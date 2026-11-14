@@ -17,6 +17,9 @@ mod ui {
 
 use ui::{AppPage, AppWindow};
 
+#[path = "support/home_layout.rs"]
+mod home_layout;
+
 fn main() {
     let ui = require(AppWindow::new(), "construct app window");
     require(ui.show(), "display app window");
@@ -53,6 +56,7 @@ fn main() {
                 !ui.get_seaco_runtime_memory_active(),
             ));
             check_additional_provider_actions(&ui);
+            home_layout::check_home_layout(&ui);
             let _ = slint::quit_event_loop();
         });
     });
