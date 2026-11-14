@@ -25,7 +25,10 @@ env:
 jobs:
   quality:
     name: Quality
-    runs-on: ubuntu-latest
+    # The workspace links macOS/Windows system audio and windowing libraries, so
+    # host-independent gates still need the platform we ship for; only macos-15
+    # is required. Running them here once removes the duplicate Windows pass.
+    runs-on: macos-15
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v7
@@ -43,8 +46,7 @@ jobs:
         uses: taiki-e/install-action@nextest
 
       # Formatting, lints, doc tests, and the size budget are host-independent,
-      # so they run once here instead of once per operating system.
-      - name: Format
+      # so they run once here instead of once per operating system.      - name: Format
         run: cargo fmt --all --check
 
       - name: Clippy
