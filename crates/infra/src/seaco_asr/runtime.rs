@@ -18,7 +18,7 @@ use super::{
     vocabulary::{EMBEDDING_DIM, Hotwords, VOCAB_SIZE, Vocabulary, WORD_WIDTH},
 };
 
-mod initialization;
+use crate::ort_runtime as initialization;
 
 pub(super) struct OrtDecoder {
     model: Mutex<Session>,

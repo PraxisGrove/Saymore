@@ -39,9 +39,11 @@ export component LocalAsrModelModal inherits Rectangle {
     private property <int> progress-percent: round(root.bounded-progress * 100);
     private property <string> title: root.kind == AsrProviderCardKind.qwen3-asr ? "Qwen3-ASR 1.7B"
         : root.kind == AsrProviderCardKind.seaco-paraformer ? "SeACo-Paraformer"
+        : root.kind == AsrProviderCardKind.moss ? "MOSS-Transcribe-Diarize"
         : root.kind == AsrProviderCardKind.zipformer ? "Zipformer"
         : "Whisper large-v3-turbo";
     private property <string> memory-estimate: root.kind == AsrProviderCardKind.qwen3-asr ? "4.3 GB"
+        : root.kind == AsrProviderCardKind.moss ? "8.5 GB"
         : root.kind == AsrProviderCardKind.seaco-paraformer || root.kind == AsrProviderCardKind.zipformer ? ""
         : "2.15 GB";
     private property <bool> showing-live-memory: !root.selection-pending && root.runtime-memory-live && root.runtime-memory-usage != "";
@@ -114,6 +116,8 @@ export component LocalAsrModelModal inherits Rectangle {
             ? @tr("models.asr.local.usage-tip.whisper" => "Multilingual dictation with higher memory use. Text appears after speaking.")
         : root.kind == AsrProviderCardKind.seaco-paraformer
             ? @tr("models.asr.local.usage-tip.seaco" => "Offline Chinese recognition with native dictionary hints. Import a compatible ONNX export to begin.")
+        : root.kind == AsrProviderCardKind.moss
+            ? @tr("models.asr.local.usage-tip.moss" => "Experimental OpenMOSS model, converted by soniqo. Runs on CPU; allow about 10 GB of free memory. Text appears after recording, in 30-second segments. Speaker labels and timestamps are omitted.")
         : root.kind == AsrProviderCardKind.zipformer
             ? @tr("models.asr.local.usage-tip.zipformer" => "Streaming Chinese-English recognition with native dictionary hints. Dictionary hints may improve term recognition; results vary.")
             : @tr("models.asr.local.usage-tip.qwen3" => "Handles dialects, multiple languages, and complex speech. Needs a stronger device.");
@@ -141,7 +145,7 @@ export component LocalAsrModelModal inherits Rectangle {
                     ? @image-url("../../icons/providers/qwen.png")
                     : root.kind == AsrProviderCardKind.seaco-paraformer
                         ? @image-url("../../icons/providers/funasr.png")
-                        : root.kind == AsrProviderCardKind.zipformer
+                        : root.kind == AsrProviderCardKind.zipformer || root.kind == AsrProviderCardKind.moss
                             ? @image-url("../../icons/lucide/mic.svg")
                         : @image-url("../../icons/providers/openai.png");
                 image-fit: contain;
@@ -160,7 +164,8 @@ export component LocalAsrModelModal inherits Rectangle {
                 x: 80px;
                 y: 45px;
                 width: dialog.panel-width - 276px;
-                text: root.kind == AsrProviderCardKind.seaco-paraformer
+                text: root.kind == AsrProviderCardKind.moss ? @tr("models.asr.moss.subtitle" => "Experimental · FP16 · CPU")
+                    : root.kind == AsrProviderCardKind.seaco-paraformer
                     ? @tr("models.asr.local.subtitle.import" => "Local import · Chinese · Dictionary hints")
                     : root.kind == AsrProviderCardKind.zipformer
                         ? @tr("models.asr.local.subtitle.zipformer" => "INT8 encoder · ZH · EN · Dictionary hints")
@@ -196,7 +201,7 @@ export component LocalAsrModelModal inherits Rectangle {
                 x: 281px;
                 y: 8px;
                 icon: @image-url("../../icons/lucide/book-open.svg");
-                label: root.kind == AsrProviderCardKind.whisper-large-v3-turbo
+                label: root.kind == AsrProviderCardKind.whisper-large-v3-turbo || root.kind == AsrProviderCardKind.moss
                         ? @tr("models.asr.summary.multilingual" => "Multilingual")
                     : root.kind == AsrProviderCardKind.qwen3-asr
                         ? @tr("models.asr.summary.chinese-dialects" => "ZH · Dialects")

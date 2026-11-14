@@ -40,7 +40,8 @@ export component AppWindow inherits Window {
     private property <bool> local-asr-model-visible: root.asr-placeholder-kind == AsrProviderCardKind.qwen3-asr
         || root.asr-placeholder-kind == AsrProviderCardKind.whisper-large-v3-turbo
         || root.asr-placeholder-kind == AsrProviderCardKind.seaco-paraformer
-        || root.asr-placeholder-kind == AsrProviderCardKind.zipformer;
+        || root.asr-placeholder-kind == AsrProviderCardKind.zipformer
+        || root.asr-placeholder-kind == AsrProviderCardKind.moss;
     private property <AsrProvider> asr-modal-original-provider: AsrProvider.volcengine;
     title: root.development-environment ? "Saymore Preview" : "Saymore";
     default-font-family: Typography.ui-font-family;
@@ -143,6 +144,7 @@ export component AppWindow inherits Window {
     in property <string> qwen3-storage-usage: "0 MB";
     in property <string> sense-voice-storage-usage: "0 MB";
     in property <string> seaco-storage-usage: "0 MB";
+    in property <string> moss-storage-usage: "0 MB";
     in property <string> zipformer-storage-usage: "0 MB";
     in property <string> moonshine-storage-usage: "0 MB";
     in property <float> other-models-share: 0;
@@ -211,6 +213,17 @@ export component AppWindow inherits Window {
     in property <string> seaco-runtime-memory-usage: "";
     out property <bool> seaco-runtime-memory-active: root.seaco-selected
         && root.seaco-runtime-memory-live;
+    in property <LocalModelDownloadState> moss-download-state: LocalModelDownloadState.not-downloaded;
+    in property <float> moss-download-progress: 0;
+    in property <bool> moss-download-supported: false;
+    in property <bool> moss-adapter-ready: false;
+    in property <bool> moss-selected: false;
+    in property <bool> moss-activation-pending: false;
+    in property <string> moss-download-size: "";
+    in property <string> moss-installed-size: "";
+    in property <bool> moss-runtime-memory-live: false;
+    in property <string> moss-runtime-memory-usage: "";
+    out property <bool> moss-runtime-memory-active: root.moss-selected && root.moss-runtime-memory-live;
     in property <LocalModelDownloadState> zipformer-download-state: LocalModelDownloadState.not-downloaded;
     in property <float> zipformer-download-progress: 0;
     in property <bool> zipformer-download-supported: false;
@@ -535,6 +548,9 @@ export component AppWindow inherits Window {
                 seaco-downloaded: root.seaco-download-state == LocalModelDownloadState.downloaded;
                 seaco-installed-size: root.seaco-installed-size;
                 seaco-selected: root.seaco-selected;
+                moss-downloaded: root.moss-download-state == LocalModelDownloadState.downloaded;
+                moss-installed-size: root.moss-installed-size;
+                moss-selected: root.moss-selected;
                 zipformer-downloaded: root.zipformer-download-state == LocalModelDownloadState.downloaded;
                 zipformer-installed-size: root.zipformer-installed-size;
                 zipformer-selected: root.zipformer-selected;
@@ -765,6 +781,11 @@ export component AppWindow inherits Window {
         seaco-installed-size: root.seaco-installed-size;
         seaco-selected: root.seaco-selected;
         seaco-pending: root.seaco-activation-pending;
+        moss-storage-usage: root.moss-storage-usage;
+        moss-downloaded: root.moss-download-state == LocalModelDownloadState.downloaded;
+        moss-installed-size: root.moss-installed-size;
+        moss-selected: root.moss-selected;
+        moss-pending: root.moss-activation-pending;
         zipformer-storage-usage: root.zipformer-storage-usage;
         zipformer-downloaded: root.zipformer-download-state == LocalModelDownloadState.downloaded;
         zipformer-installed-size: root.zipformer-installed-size;
@@ -923,70 +944,70 @@ export component AppWindow inherits Window {
         height: parent.height;
         kind: root.asr-placeholder-kind;
         import-supported: root.asr-placeholder-kind == AsrProviderCardKind.seaco-paraformer && root.seaco-import-supported;
-        download-state: root.asr-placeholder-kind == AsrProviderCardKind.seaco-paraformer
+        download-state: root.asr-placeholder-kind == AsrProviderCardKind.moss ? root.moss-download-state : root.asr-placeholder-kind == AsrProviderCardKind.seaco-paraformer
             ? root.seaco-download-state
             : root.asr-placeholder-kind == AsrProviderCardKind.zipformer
             ? root.zipformer-download-state
             : root.asr-placeholder-kind == AsrProviderCardKind.qwen3-asr
             ? root.qwen3-asr-download-state
             : root.whisper-download-state;
-        download-progress: root.asr-placeholder-kind == AsrProviderCardKind.seaco-paraformer
+        download-progress: root.asr-placeholder-kind == AsrProviderCardKind.moss ? root.moss-download-progress : root.asr-placeholder-kind == AsrProviderCardKind.seaco-paraformer
             ? root.seaco-download-progress
             : root.asr-placeholder-kind == AsrProviderCardKind.zipformer
             ? root.zipformer-download-progress
             : root.asr-placeholder-kind == AsrProviderCardKind.qwen3-asr
             ? root.qwen3-asr-download-progress
             : root.whisper-download-progress;
-        download-supported: root.asr-placeholder-kind == AsrProviderCardKind.seaco-paraformer
+        download-supported: root.asr-placeholder-kind == AsrProviderCardKind.moss ? root.moss-download-supported : root.asr-placeholder-kind == AsrProviderCardKind.seaco-paraformer
             ? root.seaco-download-supported
             : root.asr-placeholder-kind == AsrProviderCardKind.zipformer
             ? root.zipformer-download-supported
             : root.asr-placeholder-kind == AsrProviderCardKind.qwen3-asr
             ? root.qwen3-asr-download-supported
             : root.whisper-download-supported;
-        adapter-ready: root.asr-placeholder-kind == AsrProviderCardKind.seaco-paraformer
+        adapter-ready: root.asr-placeholder-kind == AsrProviderCardKind.moss ? root.moss-adapter-ready : root.asr-placeholder-kind == AsrProviderCardKind.seaco-paraformer
             ? root.seaco-adapter-ready
             : root.asr-placeholder-kind == AsrProviderCardKind.zipformer
             ? root.zipformer-adapter-ready
             : root.asr-placeholder-kind == AsrProviderCardKind.qwen3-asr
             ? root.qwen3-asr-adapter-ready
             : root.whisper-adapter-ready;
-        selected: root.asr-placeholder-kind == AsrProviderCardKind.seaco-paraformer
+        selected: root.asr-placeholder-kind == AsrProviderCardKind.moss ? root.moss-selected : root.asr-placeholder-kind == AsrProviderCardKind.seaco-paraformer
             ? root.seaco-selected
             : root.asr-placeholder-kind == AsrProviderCardKind.zipformer
             ? root.zipformer-selected
             : root.asr-placeholder-kind == AsrProviderCardKind.qwen3-asr
             ? root.qwen3-asr-selected
             : root.whisper-selected;
-        selection-pending: root.asr-placeholder-kind == AsrProviderCardKind.seaco-paraformer
+        selection-pending: root.asr-placeholder-kind == AsrProviderCardKind.moss ? root.moss-activation-pending : root.asr-placeholder-kind == AsrProviderCardKind.seaco-paraformer
             ? root.seaco-activation-pending
             : root.asr-placeholder-kind == AsrProviderCardKind.zipformer
             ? root.zipformer-activation-pending
             : root.asr-placeholder-kind == AsrProviderCardKind.qwen3-asr
             ? root.qwen3-asr-activation-pending
             : root.whisper-activation-pending;
-        download-size: root.asr-placeholder-kind == AsrProviderCardKind.seaco-paraformer
+        download-size: root.asr-placeholder-kind == AsrProviderCardKind.moss ? root.moss-download-size : root.asr-placeholder-kind == AsrProviderCardKind.seaco-paraformer
             ? root.seaco-download-size
             : root.asr-placeholder-kind == AsrProviderCardKind.zipformer
             ? root.zipformer-download-size
             : root.asr-placeholder-kind == AsrProviderCardKind.qwen3-asr
             ? root.qwen3-asr-download-size
             : root.whisper-download-size;
-        installed-size: root.asr-placeholder-kind == AsrProviderCardKind.seaco-paraformer
+        installed-size: root.asr-placeholder-kind == AsrProviderCardKind.moss ? root.moss-installed-size : root.asr-placeholder-kind == AsrProviderCardKind.seaco-paraformer
             ? root.seaco-installed-size
             : root.asr-placeholder-kind == AsrProviderCardKind.zipformer
             ? root.zipformer-installed-size
             : root.asr-placeholder-kind == AsrProviderCardKind.qwen3-asr
             ? root.qwen3-asr-installed-size
             : root.whisper-installed-size;
-        runtime-memory-live: root.asr-placeholder-kind == AsrProviderCardKind.seaco-paraformer
+        runtime-memory-live: root.asr-placeholder-kind == AsrProviderCardKind.moss ? root.moss-runtime-memory-active : root.asr-placeholder-kind == AsrProviderCardKind.seaco-paraformer
             ? root.seaco-runtime-memory-active
             : root.asr-placeholder-kind == AsrProviderCardKind.zipformer
             ? root.zipformer-runtime-memory-active
             : root.asr-placeholder-kind == AsrProviderCardKind.qwen3-asr
             ? root.qwen3-asr-runtime-memory-active
             : root.whisper-runtime-memory-active;
-        runtime-memory-usage: root.asr-placeholder-kind == AsrProviderCardKind.seaco-paraformer
+        runtime-memory-usage: root.asr-placeholder-kind == AsrProviderCardKind.moss ? root.moss-runtime-memory-usage : root.asr-placeholder-kind == AsrProviderCardKind.seaco-paraformer
             ? root.seaco-runtime-memory-usage
             : root.asr-placeholder-kind == AsrProviderCardKind.zipformer
             ? root.zipformer-runtime-memory-usage

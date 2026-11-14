@@ -38,11 +38,34 @@ fn local_provider_selections_restore_independently_and_remain_exclusive() {
 }
 
 #[test]
+fn moss_selection_restores_and_preserves_other_providers() {
+    let mut catalog = ProviderCatalog::default();
+    catalog.select_whisper_provider();
+    let existing = catalog.asr_providers.clone();
+    catalog.select_moss_provider();
+    catalog.select_moss_provider();
+    let mut restored = ProviderCatalog {
+        active: catalog.active.clone(),
+        asr_providers: catalog.asr_providers.clone(),
+        llm_providers: catalog.llm_providers.clone(),
+    };
+    assert!(restored.moss_is_active());
+    assert!(!restored.whisper_is_active());
+    assert_eq!(2, restored.asr_providers.len());
+    assert_eq!(existing, restored.asr_providers[..1]);
+    assert!(restored.clear_moss_selection());
+    assert!(!restored.clear_moss_selection());
+    restored.select_whisper_provider();
+    assert!(restored.whisper_is_active());
+}
+
+#[test]
 fn a_provider_with_a_mismatched_type_is_not_restored_as_a_local_model() {
     let mut catalog = ProviderCatalog::default();
     for select in [
         ProviderCatalog::select_seaco_provider,
         ProviderCatalog::select_zipformer_provider,
+        ProviderCatalog::select_moss_provider,
     ] {
         select(&mut catalog);
         assert!(!catalog.asr_providers.is_empty());
@@ -51,5 +74,6 @@ fn a_provider_with_a_mismatched_type_is_not_restored_as_a_local_model() {
         }
         assert!(!catalog.seaco_is_active());
         assert!(!catalog.zipformer_is_active());
+        assert!(!catalog.moss_is_active());
     }
 }

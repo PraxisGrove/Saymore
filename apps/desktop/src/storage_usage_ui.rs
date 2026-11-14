@@ -30,6 +30,7 @@ pub(crate) fn apply(ui: &AppWindow, usage: LocalStorageUsage, system_locale: Opt
             usage.models.zipformer_bytes,
             usage.models.sense_voice_bytes,
             usage.models.moonshine_bytes,
+            usage.models.moss_bytes,
         ],
     );
 
@@ -79,8 +80,9 @@ fn apply_additional_models(
     ui: &AppWindow,
     usage: LocalStorageUsage,
     system_locale: Option<&str>,
-    model_shares: [f32; 8],
+    model_shares: [f32; 9],
 ) {
+    ui.set_moss_storage_usage(format_bytes(usage.models.moss_bytes, system_locale).into());
     ui.set_seaco_storage_usage(format_bytes(usage.models.seaco_bytes, system_locale).into());
     ui.set_zipformer_storage_usage(
         format_bytes(usage.models.zipformer_bytes, system_locale).into(),
@@ -88,7 +90,9 @@ fn apply_additional_models(
     ui.set_moonshine_storage_usage(
         format_bytes(usage.models.moonshine_bytes, system_locale).into(),
     );
-    ui.set_other_models_share(model_shares[4] + model_shares[5] + model_shares[7]);
+    ui.set_other_models_share(
+        model_shares[4] + model_shares[5] + model_shares[7] + model_shares[8],
+    );
 }
 
 pub(crate) fn apply_error(ui: &AppWindow) {

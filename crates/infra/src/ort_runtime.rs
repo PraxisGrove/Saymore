@@ -2,11 +2,13 @@ use std::sync::{Arc, OnceLock};
 
 use template_app::SpeechRecognitionError;
 
-use super::super::protocol;
+fn protocol(message: &str) -> SpeechRecognitionError {
+    SpeechRecognitionError::Protocol(message.to_owned())
+}
 
 static INITIALIZED: OnceLock<Result<(), SpeechRecognitionError>> = OnceLock::new();
 
-pub(super) fn initialize() -> Result<(), SpeechRecognitionError> {
+pub(crate) fn initialize() -> Result<(), SpeechRecognitionError> {
     INITIALIZED.get_or_init(initialize_linked_runtime).clone()
 }
 
@@ -34,7 +36,7 @@ fn initialize_linked_runtime() -> Result<(), SpeechRecognitionError> {
     // Suppress native diagnostics because they may contain model paths or
     // vocabulary. All app errors cross this boundary as content-free categories.
     ort::init()
-        .with_name("saymore-seaco")
+        .with_name("saymore-local-asr")
         .with_logger(Arc::new(|_, _, _, _, _| {}))
         .commit();
     Ok(())

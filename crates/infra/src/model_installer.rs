@@ -18,7 +18,10 @@ mod artifact_files;
 mod complementary_manifests;
 mod local_import;
 mod manifests;
+mod moss_manifest;
 mod seaco_manifest;
+pub(crate) use moss_manifest::MOSS_FILES;
+pub use moss_manifest::{MOSS_MODEL_ID, MOSS_MODEL_REVISION};
 mod transfer;
 mod verification;
 
@@ -204,6 +207,10 @@ impl VerifiedModelInstaller {
 
     pub fn zipformer(models_root: PathBuf) -> Result<Self, ModelInstallError> {
         Self::new(models_root, ModelManifest::zipformer())
+    }
+
+    pub fn moss_transcribe_diarize(models_root: PathBuf) -> Result<Self, ModelInstallError> {
+        Self::new(models_root, ModelManifest::moss())
     }
 
     pub fn seaco_paraformer(models_root: PathBuf) -> Result<Self, ModelInstallError> {

@@ -53,13 +53,17 @@ context; empty terms and terms containing control characters are omitted. Hinted
 sessions use overlapping 20-second audio segments instead of 30-second segments
 to leave context space for the vocabulary prompt.
 
-Local Whisper uses CPU whisper.cpp through pinned `whisper-rs 0.16.0` rather
-than sherpa-onnx. Each dictation snapshots canonical vocabulary, trims and
-case-insensitively deduplicates it, omits control-containing terms, and keeps
-whole terms within 192 UTF-8 bytes. This conservative byte budget stays below
-the 224-token initial-prompt window. Every 29-second audio segment receives the
-same vocabulary through whisper.cpp's `prompt_tokens` initial-context path;
-fresh decoder state prevents previous dictations from leaking into recognition.
+Local Whisper uses whisper.cpp through pinned `whisper-rs 0.16.0` rather than
+sherpa-onnx. macOS builds include the Metal backend and request GPU
+acceleration; whisper.cpp retains its CPU backend when no GPU device is
+available. Other platform builds currently use CPU. This is automatic backend
+selection, not a promise that every operation executes on the GPU. Each
+dictation snapshots canonical vocabulary, trims and case-insensitively
+deduplicates it, omits control-containing terms, and keeps whole terms within
+192 UTF-8 bytes. This conservative byte budget stays below the 224-token
+initial-prompt window. Every 29-second audio segment receives the same
+vocabulary through whisper.cpp's `prompt_tokens` initial-context path; fresh
+decoder state prevents previous dictations from leaking into recognition.
 Vocabulary biases decoding without forcing a spelling or guaranteeing accuracy.
 Native Whisper/GGML logs are discarded to avoid exposing paths or vocabulary.
 
@@ -94,8 +98,20 @@ publishes/mirrors the weights.
 Local Zipformer adds native Chinese/English streaming recognition through
 sherpa-onnx transducer modified beam search with a per-stream bounded hotword
 snapshot. It uses pinned upstream artifacts with the shared verified downloader.
-Each of the four local providers has its own persisted identity, installation,
+Each of the five local providers has its own persisted identity, installation,
 loaded cache and resource state; switching releases the previous cache.
+
+Experimental MOSS-Transcribe-Diarize uses soniqo's pinned FP16 ONNX conversion
+through the same CPU ONNX Runtime as SeACo. Shared runtime initialization lives
+in `ort_runtime.rs`; Rust owns Whisper log-mel features, Qwen tokenization,
+bounded dictionary prompts, greedy decoding and per-segment KV caches. It emits
+final text only, processes independent 30-second segments, and removes complete
+speaker/timestamp wrappers. Its download, activation self-test, selection,
+history identity, memory reporting and protected deletion use the existing
+local-model lifecycle. The details page identifies its experimental status and
+high CPU memory requirement. See the
+[MOSS integration record](research/moss-native-integration.md) for artifact
+hashes, tests and limits.
 
 SenseVoiceSmall and Moonshine Tiny were retired on 2026-11-12. As with the
 earlier streaming Paraformer retirement, loading an old selection clears it
@@ -349,7 +365,7 @@ granted each bundle permission to activate shortcuts globally.
 
 ### Local model downloads on Windows
 
-macOS and Windows use the same four pinned model manifests, including artifact
+macOS and Windows use the same five pinned model manifests, including artifact
 sizes and SHA-256 values. The desktop download coordinator admits a request only
 after the installer checks peak disk space. It persists model identities through
 the application-owned `ModelDownloadQueueStore`, runs at most two downloads, and

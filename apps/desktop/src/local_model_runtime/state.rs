@@ -69,6 +69,10 @@ pub(super) fn apply_model_size_strings(
             ui.set_seaco_download_size(download_size);
             ui.set_seaco_installed_size(installed_size);
         }
+        LocalModel::Moss => {
+            ui.set_moss_download_size(download_size);
+            ui.set_moss_installed_size(installed_size);
+        }
         LocalModel::Zipformer => {
             ui.set_zipformer_download_size(download_size);
             ui.set_zipformer_installed_size(installed_size);

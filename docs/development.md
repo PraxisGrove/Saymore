@@ -108,7 +108,13 @@ Whisper is built from the native whisper.cpp sources bundled by pinned
 `whisper-rs 0.16.0` / `whisper-rs-sys 0.15.0` (whisper.cpp 1.8.3). Local builds
 require CMake and a C/C++ toolchain (Xcode Command Line Tools on macOS, Visual
 Studio C++ build tools on Windows); install CMake before running Cargo. Hosted
-macOS and Windows runners provide these tools. The default backend is CPU;
+macOS and Windows runners provide these tools. macOS enables whisper-rs' Metal
+feature only in the macOS target dependency and requests GPU acceleration at
+runtime. The pinned build embeds the Metal shader source into the native
+library, so packaging does not require a separate `.metallib` or a GPU runtime
+download. whisper.cpp retains CPU execution when no GPU device is available;
+this does not guarantee recovery from every GPU allocation or inference error.
+Windows remains CPU-only and does not require a CUDA or Vulkan SDK.
 `.cargo/config.toml` disables build-host-specific GGML optimization, and Windows
 retains the static MSVC CRT configuration. It also sets
 `CMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded` with policy CMP0091, which
@@ -126,6 +132,12 @@ provides a Rust Kaldi-compatible frontend, avoiding a production FunASR/Python
 installation. Upstream runtime logging is silenced so model paths and dictionary
 contents do not enter diagnostics. SeACo model preparation remains a separate
 research/export operation; the app imports only the pinned verified ONNX files.
+
+MOSS reuses that same initialized ORT runtime with pinned FP16 graphs. Its Rust
+frontend uses `realfft`, and `tokenizers` loads the pinned Qwen tokenizer as
+data; Python is only an optional research/reference tool. See the
+[MOSS integration record](research/moss-native-integration.md) for the opt-in
+native fixture test and memory requirements.
 
 Zipformer uses the existing sherpa-onnx dependency. Its INT8 encoder and FP32
 decoder/joiner avoid the repeated characters observed with the all-INT8

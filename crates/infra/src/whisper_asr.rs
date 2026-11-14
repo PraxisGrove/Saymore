@@ -48,7 +48,9 @@ impl WhisperSpeechRecognizer {
         // whisper-rs' hooks discard them rather than exposing user content.
         LOGGING.call_once(whisper_rs::install_logging_hooks);
         let mut parameters = WhisperContextParameters::default();
-        parameters.use_gpu(false);
+        // macOS builds embed the Metal backend. whisper.cpp keeps CPU available
+        // and uses it when no GPU device is found; other targets remain CPU-only.
+        parameters.use_gpu(cfg!(target_os = "macos"));
         let context = WhisperContext::new_with_params(&model, parameters)
             .map_err(|error| runtime_error("load the model", error))?;
         Ok(Self {

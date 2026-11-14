@@ -9,8 +9,10 @@
 initial-prompt 路径。采用已有 whisper.cpp 引擎，不维护自有模型或原生解码器分支。
 
 运行时锁定 `whisper-rs = 0.16.0`，Cargo.lock 锁定 `whisper-rs-sys = 0.15.0`，
-后者内置 whisper.cpp 1.8.3。当前使用 CPU，保持 4 个推理线程、结束录音后输出、29
-秒 顺序分段的契约。构建需要 CMake 和 C/C++ 编译器；`.cargo/config.toml` 设置
+后者内置 whisper.cpp 1.8.3。macOS 构建启用 Metal 并优先请求 GPU；无可用 GPU
+设备时由 whisper.cpp 使用 CPU。Windows 当前仍使用 CPU。保留 4 个 CPU
+推理线程、结束录音后输出、29 秒顺序分段的契约。构建需要 CMake 和 C/C++
+编译器；`.cargo/config.toml` 设置
 `GGML_NATIVE=OFF`，避免按开发机器指令集优化分发包。Windows 保留静态 MSVC CRT。
 `whisper-rs` 使用 Unlicense，已纳入依赖许可白名单；whisper.cpp 和 Whisper 模型为
 MIT。

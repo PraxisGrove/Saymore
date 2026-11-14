@@ -128,7 +128,7 @@ fn deletion_releases_runtime_removes_files_and_deletes_metadata() {
 
 #[test]
 fn added_models_preserve_atomic_selection_and_active_deletion_protection() {
-    for model in [LocalModel::Seaco, LocalModel::Zipformer] {
+    for model in [LocalModel::Seaco, LocalModel::Zipformer, LocalModel::Moss] {
         let settings = FakeSettings::with_active(LocalModel::Whisper);
         let failed = FakeRuntime::failing_prepare();
         assert!(activate(&settings, &failed, model).is_err());
@@ -333,6 +333,7 @@ fn short_name(model: LocalModel) -> &'static str {
         LocalModel::Whisper => "whisper",
         LocalModel::Qwen3 => "qwen3",
         LocalModel::Seaco => "seaco",
+        LocalModel::Moss => "moss",
         LocalModel::Zipformer => "zipformer",
     }
 }

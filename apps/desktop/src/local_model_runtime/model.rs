@@ -1,10 +1,11 @@
+use template_app::{MOSS_PROVIDER_TYPE, SEACO_PROVIDER_TYPE, ZIPFORMER_PROVIDER_TYPE};
 use template_app::{ProviderCatalog, QWEN3_ASR_PROVIDER_TYPE, WHISPER_PROVIDER_TYPE};
-use template_app::{SEACO_PROVIDER_TYPE, ZIPFORMER_PROVIDER_TYPE};
 use template_infra::{
-    QWEN3_ASR_MODEL_ID, QWEN3_ASR_MODEL_REVISION, WHISPER_MODEL_ID, WHISPER_MODEL_REVISION,
+    MOSS_MODEL_ID, MOSS_MODEL_REVISION, SEACO_MODEL_ID, SEACO_MODEL_REVISION, ZIPFORMER_MODEL_ID,
+    ZIPFORMER_MODEL_REVISION,
 };
 use template_infra::{
-    SEACO_MODEL_ID, SEACO_MODEL_REVISION, ZIPFORMER_MODEL_ID, ZIPFORMER_MODEL_REVISION,
+    QWEN3_ASR_MODEL_ID, QWEN3_ASR_MODEL_REVISION, WHISPER_MODEL_ID, WHISPER_MODEL_REVISION,
 };
 
 use crate::ui::AsrProviderCardKind;
@@ -15,16 +16,24 @@ pub(super) enum LocalModel {
     Qwen3,
     Seaco,
     Zipformer,
+    Moss,
 }
 
 impl LocalModel {
-    pub(super) const ALL: [Self; 4] = [Self::Whisper, Self::Qwen3, Self::Seaco, Self::Zipformer];
+    pub(super) const ALL: [Self; 5] = [
+        Self::Whisper,
+        Self::Qwen3,
+        Self::Seaco,
+        Self::Zipformer,
+        Self::Moss,
+    ];
 
     pub(super) fn from_card(kind: AsrProviderCardKind) -> Option<Self> {
         match kind {
             AsrProviderCardKind::WhisperLargeV3Turbo => Some(Self::Whisper),
             AsrProviderCardKind::Qwen3Asr => Some(Self::Qwen3),
             AsrProviderCardKind::SeacoParaformer => Some(Self::Seaco),
+            AsrProviderCardKind::Moss => Some(Self::Moss),
             AsrProviderCardKind::Zipformer => Some(Self::Zipformer),
             _ => None,
         }
@@ -39,6 +48,7 @@ impl LocalModel {
             Self::Whisper => AsrProviderCardKind::WhisperLargeV3Turbo,
             Self::Qwen3 => AsrProviderCardKind::Qwen3Asr,
             Self::Seaco => AsrProviderCardKind::SeacoParaformer,
+            Self::Moss => AsrProviderCardKind::Moss,
             Self::Zipformer => AsrProviderCardKind::Zipformer,
         }
     }
@@ -48,6 +58,7 @@ impl LocalModel {
             Self::Whisper => WHISPER_MODEL_ID,
             Self::Qwen3 => QWEN3_ASR_MODEL_ID,
             Self::Seaco => SEACO_MODEL_ID,
+            Self::Moss => MOSS_MODEL_ID,
             Self::Zipformer => ZIPFORMER_MODEL_ID,
         }
     }
@@ -57,6 +68,7 @@ impl LocalModel {
             Self::Whisper => WHISPER_MODEL_REVISION,
             Self::Qwen3 => QWEN3_ASR_MODEL_REVISION,
             Self::Seaco => SEACO_MODEL_REVISION,
+            Self::Moss => MOSS_MODEL_REVISION,
             Self::Zipformer => ZIPFORMER_MODEL_REVISION,
         }
     }
@@ -66,6 +78,7 @@ impl LocalModel {
             Self::Whisper => WHISPER_PROVIDER_TYPE,
             Self::Qwen3 => QWEN3_ASR_PROVIDER_TYPE,
             Self::Seaco => SEACO_PROVIDER_TYPE,
+            Self::Moss => MOSS_PROVIDER_TYPE,
             Self::Zipformer => ZIPFORMER_PROVIDER_TYPE,
         }
     }
@@ -75,6 +88,7 @@ impl LocalModel {
             Self::Whisper => "Whisper large-v3-turbo Q8_0",
             Self::Qwen3 => "Qwen3-ASR 1.7B INT8",
             Self::Seaco => "SeACo-Paraformer FP32",
+            Self::Moss => "MOSS-Transcribe-Diarize FP16",
             Self::Zipformer => "Zipformer bilingual INT8 encoder",
         }
     }
@@ -84,6 +98,7 @@ impl LocalModel {
             Self::Whisper => catalog.select_whisper_provider(),
             Self::Qwen3 => catalog.select_qwen3_asr_provider(),
             Self::Seaco => catalog.select_seaco_provider(),
+            Self::Moss => catalog.select_moss_provider(),
             Self::Zipformer => catalog.select_zipformer_provider(),
         }
     }
@@ -93,6 +108,7 @@ impl LocalModel {
             Self::Whisper => catalog.whisper_is_active(),
             Self::Qwen3 => catalog.qwen3_asr_is_active(),
             Self::Seaco => catalog.seaco_is_active(),
+            Self::Moss => catalog.moss_is_active(),
             Self::Zipformer => catalog.zipformer_is_active(),
         }
     }
@@ -102,6 +118,7 @@ impl LocalModel {
             Self::Whisper => catalog.clear_whisper_selection(),
             Self::Qwen3 => catalog.clear_qwen3_asr_selection(),
             Self::Seaco => catalog.clear_seaco_selection(),
+            Self::Moss => catalog.clear_moss_selection(),
             Self::Zipformer => catalog.clear_zipformer_selection(),
         }
     }

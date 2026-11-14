@@ -6,7 +6,10 @@
 
 按当前产品要求下线 SenseVoiceSmall 与 Moonshine Tiny：移除模型卡片、选择、
 下载、加载、推理及自检接入，不再接受新的激活选择。当前支持 Whisper、Qwen3-ASR、
-SeACo-Paraformer、Zipformer 四款本地模型，均支持识别阶段词典提示。
+SeACo-Paraformer、Zipformer，以及实验性的 MOSS-Transcribe-Diarize 五款本地模型，
+均已接入识别阶段词典提示。MOSS 使用固定 soniqo FP16 ONNX 转换制品，支持下载，
+当前仅 CPU 推理且内存占用较高；接入和验收边界见
+[MOSS 原生接入记录](../research/moss-native-integration.md)。
 
 沿用 Paraformer 下线策略：读取旧设置时发现已下线模型处于选中状态，只清空该选择，
 不自动启用其他本地或云端模型；未选中的旧配置和历史标签保留。已有模型及未完成下载

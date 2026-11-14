@@ -229,6 +229,7 @@ fn active_asr_model(active_id: Option<&str>, providers: &[ProviderInstance]) -> 
             template_app::QWEN3_ASR_PROVIDER_ID => QWEN3_ASR_MODEL_ID,
             template_app::SENSE_VOICE_PROVIDER_ID => RetiredAsrModel::SenseVoice.id(),
             template_app::SEACO_PROVIDER_ID => template_infra::SEACO_MODEL_ID,
+            template_app::MOSS_PROVIDER_ID => template_infra::MOSS_MODEL_ID,
             template_app::ZIPFORMER_PROVIDER_ID => template_infra::ZIPFORMER_MODEL_ID,
             template_app::MOONSHINE_PROVIDER_ID => RetiredAsrModel::Moonshine.id(),
             _ => return None,

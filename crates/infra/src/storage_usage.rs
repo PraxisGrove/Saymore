@@ -3,9 +3,9 @@ use std::{fs, io, path::Path};
 use template_app::{LocalModelStorageUsage, LocalStorageUsage, StorageError};
 
 use crate::{
-    QWEN3_ASR_MODEL_ID, QWEN3_ASR_MODEL_REVISION, RetiredAsrModel, SEACO_MODEL_ID,
-    SEACO_MODEL_REVISION, WHISPER_MODEL_ID, WHISPER_MODEL_REVISION, ZIPFORMER_MODEL_ID,
-    ZIPFORMER_MODEL_REVISION,
+    MOSS_MODEL_ID, MOSS_MODEL_REVISION, QWEN3_ASR_MODEL_ID, QWEN3_ASR_MODEL_REVISION,
+    RetiredAsrModel, SEACO_MODEL_ID, SEACO_MODEL_REVISION, WHISPER_MODEL_ID,
+    WHISPER_MODEL_REVISION, ZIPFORMER_MODEL_ID, ZIPFORMER_MODEL_REVISION,
 };
 
 /// Returns the size of regular files managed beneath the application's data directory.
@@ -42,6 +42,7 @@ pub fn local_storage_usage(directory: &Path) -> Result<LocalStorageUsage, Storag
             QWEN3_ASR_MODEL_REVISION,
         )?,
         sense_voice_bytes: RetiredAsrModel::SenseVoice.storage_bytes(&models_directory)?,
+        moss_bytes: model_usage(&models_directory, MOSS_MODEL_ID, MOSS_MODEL_REVISION)?,
         seaco_bytes: model_usage(&models_directory, SEACO_MODEL_ID, SEACO_MODEL_REVISION)?,
         zipformer_bytes: model_usage(
             &models_directory,

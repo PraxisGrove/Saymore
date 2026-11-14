@@ -41,15 +41,22 @@ cargo test --workspace --doc
 The `models_navigation` and `model_discovery_runtime` Slint integration tests
 use custom main-thread executables and are excluded from Nextest discovery. The
 navigation executable also checks home-page retry and scrolling at the default
-and minimum window sizes. The discovery test exercises the production callback
-wiring against a local HTTP service, including fetching, manual entry, failure
-preservation, caching, and invalidation. Run them explicitly with:
+and minimum window sizes, plus the experimental MOSS card's download/selection
+callbacks. The discovery test exercises the production callback wiring against a
+local HTTP service, including fetching, manual entry, failure preservation,
+caching, and invalidation. Run them explicitly with:
 
 ```bash
 cargo test -p saymore-desktop --test models_navigation --test model_discovery_runtime
 ```
 
 CI runs these GUI tests on macOS, where a windowing environment is available.
+
+MOSS has a separate opt-in native regression using pinned model files and the
+bundled public Chinese fixture. Its command and resource requirements are in the
+[MOSS integration record](research/moss-native-integration.md). Normal CI runs
+its deterministic frontend, session, cache, parsing and lifecycle tests without
+downloading model weights. Windows native MOSS acceptance remains pending.
 
 ## Magpie Provider and Handoff
 
@@ -115,9 +122,9 @@ Deterministic tests must cover model queue restoration, Range resume, network
 failure, disk exhaustion, integrity failure, atomic activation, failed Provider
 switching, active-model deletion protection, history and dictionary persistence,
 text-delivery focus/clipboard restoration, system-audio restoration, and
-shortcut registration cleanup. The four pinned model probes provide the
-real-audio matrix for Chinese, mixed speech, empty input, cancellation,
-consecutive sessions, and long recordings.
+shortcut registration cleanup. The pinned model probes provide the real-audio
+matrix for Chinese, mixed speech, empty input, cancellation, consecutive
+sessions, and long recordings.
 
 Before a public Windows release, run the packaged application as a standard user
 on a clean x64 machine and record results for:

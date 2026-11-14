@@ -31,6 +31,9 @@ rusqlite = { workspace = true }
 rustls = { workspace = true }
 sherpa-onnx = { workspace = true }
 kaldi-fbank = { workspace = true }
+realfft = { workspace = true }
+half = { workspace = true }
+tokenizers = { workspace = true }
 ort = { workspace = true }
 whisper-rs = { workspace = true }
 tar = { workspace = true }
@@ -77,6 +80,8 @@ windows = { workspace = true, features = [
 ] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
+# Embed whisper.cpp's Metal shaders; no separate GPU runtime or model is needed.
+whisper-rs = { workspace = true, features = ["metal"] }
 mach2 = { workspace = true }
 accessibility-sys = "0.2"
 block2 = "0.6"

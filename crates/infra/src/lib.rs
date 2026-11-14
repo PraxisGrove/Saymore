@@ -11,12 +11,15 @@ mod dictionary_files;
 mod local_inference_device;
 mod model_discovery;
 mod model_installer;
+mod moss_asr;
 mod offline_punctuation;
 mod openai_transcriptions_asr;
+mod ort_runtime;
 mod process_memory;
 mod qwen3_asr;
 mod retired_asr_models;
 mod seaco_asr;
+pub use moss_asr::MossSpeechRecognizer;
 mod zipformer_asr;
 
 pub use seaco_asr::SeacoSpeechRecognizer;
@@ -201,11 +204,11 @@ pub use dictionary_files::{DictionaryFileError, DictionaryFileReport, Dictionary
 pub use local_inference_device::{LocalInferenceDevice, local_inference_device};
 pub use model_discovery::{ModelDiscoveryError, discover_models};
 pub use model_installer::{
-    ModelDownloadProgress, ModelInstallControl, ModelInstallError, ModelInstallInterruption,
-    PARAFORMER_MODEL_ID, PARAFORMER_MODEL_REVISION, PUNCTUATION_MODEL_ID,
-    PUNCTUATION_MODEL_REVISION, QWEN3_ASR_MODEL_ID, QWEN3_ASR_MODEL_REVISION, SEACO_MODEL_ID,
-    SEACO_MODEL_REVISION, VerifiedModelInstaller, WHISPER_MODEL_ID, WHISPER_MODEL_REVISION,
-    ZIPFORMER_MODEL_ID, ZIPFORMER_MODEL_REVISION,
+    MOSS_MODEL_ID, MOSS_MODEL_REVISION, ModelDownloadProgress, ModelInstallControl,
+    ModelInstallError, ModelInstallInterruption, PARAFORMER_MODEL_ID, PARAFORMER_MODEL_REVISION,
+    PUNCTUATION_MODEL_ID, PUNCTUATION_MODEL_REVISION, QWEN3_ASR_MODEL_ID, QWEN3_ASR_MODEL_REVISION,
+    SEACO_MODEL_ID, SEACO_MODEL_REVISION, VerifiedModelInstaller, WHISPER_MODEL_ID,
+    WHISPER_MODEL_REVISION, ZIPFORMER_MODEL_ID, ZIPFORMER_MODEL_REVISION,
 };
 pub use offline_punctuation::OfflinePunctuationRestorer;
 pub use openai_transcriptions_asr::OpenAiCompatibleSpeechRecognizer;
