@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - main
+      # A commit is validated on a throwaway ref before main accepts it, because a
+      # push cannot be gated on checks that only run after the ref exists.
+      - "verify/**"
   pull_request:
     branches:
       - main
@@ -104,11 +107,11 @@ jobs:
           command: check
 
   # Release-profile builds and installer packaging are expensive and only need
-  # to be validated on the branch that packages releases. Pull requests stop at
-  # the quality and test gates above.
+  # to be validated on the branch that packages releases. Pull requests and the
+  # verify refs used to gate main stop at the quality and test gates above.
   package:
     name: Package (${{ matrix.platform }})
-    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main'
     strategy:
       fail-fast: false
       matrix:

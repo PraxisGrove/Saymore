@@ -35,6 +35,9 @@ size:
 build:
     cargo build --workspace --all-targets --locked --release
 
+ship:
+    ./scripts/ship.sh
+
 pre-push:
     cargo fmt --all --check
     cargo check --workspace --all-targets --locked

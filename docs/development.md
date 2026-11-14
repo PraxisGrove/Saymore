@@ -60,6 +60,25 @@ After the gate passes, review the complete change being pushed for both
 repository-standard compliance and fidelity to the originating request or spec.
 Ordinary task completion does not require this full gate or dual-axis review.
 
+## Landing On Main
+
+Work directly on `main`; pull requests are not required. `main` requires the CI
+checks in `.github/workflows/ci.yaml` and enforces that rule for administrators.
+GitHub runs workflows only after a ref exists, so the commit that a push creates
+cannot carry passing checks yet; a plain `git push origin main` is rejected
+until the exact commit has been validated. Land a commit with:
+
+```bash
+just ship
+```
+
+`scripts/ship.sh` pushes the current `main` commit to a throwaway `verify/<sha>`
+ref, waits for the CI run for that commit, then pushes the same commit to `main`
+and deletes the verify ref. The `package` job runs on `main` only, so verify
+refs stay at the quality and test gates. A failing run keeps the verify ref and
+stops without touching `main`. The local pre-push gate still runs for both
+pushes; it is cache-warm after the first one.
+
 ## Diagnostics And Observability
 
 Instrument adapter boundaries and long-running operations with structured event
