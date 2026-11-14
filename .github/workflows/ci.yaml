@@ -12,18 +12,21 @@ on:
       - reopened
       - synchronize
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_PACKAGER_VERSION: "0.11.8"
+
 jobs:
-  rust:
-    name: Rust (${{ matrix.platform }})
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - platform: macOS
-            os: macos-15
-          - platform: Windows
-            os: windows-latest
-    runs-on: ${{ matrix.os }}
+  quality:
+    name: Quality
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v7
 
@@ -39,33 +42,99 @@ jobs:
       - name: Install cargo-nextest
         uses: taiki-e/install-action@nextest
 
+      # Formatting, lints, doc tests, and the size budget are host-independent,
+      # so they run once here instead of once per operating system.
+      - name: Format
+        run: cargo fmt --all --check
+
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets --locked -- -D warnings
+
+      - name: Doc tests
+        run: cargo test --workspace --doc --locked
+
+      - name: Size gate
+        run: cargo run --locked -p xtask -- size
+
+  test:
+    name: Test (${{ matrix.platform }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macOS
+            os: macos-15
+          - platform: Windows
+            os: windows-latest
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.99.0
+
+      - name: Setup Rust cache
+        uses: Swatinem/rust-cache@v2
+
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@nextest
+
+      - name: Test
+        run: cargo nextest run --workspace --all-targets --locked --profile ci
+
+      - name: Test model UI workflows
+        if: matrix.platform == 'macOS'
+        run: cargo test --locked -p saymore-desktop --test models_navigation --test model_discovery_runtime
+
+  dependency-policy:
+    name: Dependency policy
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          command: check
+
+  # Release-profile builds and installer packaging are expensive and only need
+  # to be validated on the branch that packages releases. Pull requests stop at
+  # the quality and test gates above.
+  package:
+    name: Package (${{ matrix.platform }})
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macOS
+            os: macos-15
+          - platform: Windows
+            os: windows-latest
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.99.0
+
+      - name: Setup Rust cache
+        uses: Swatinem/rust-cache@v2
+
       - name: Install cargo-packager
         if: runner.os == 'Windows'
         uses: taiki-e/install-action@v2
         with:
-          tool: cargo-packager@0.11.8
-
-      - name: Format
-        run: cargo fmt --all --check
-
-      - name: Check
-        run: cargo check --workspace --all-targets
-
-      - name: Test
-        run: cargo nextest run --workspace --all-targets --profile ci
-
-      - name: Test model UI workflows
-        if: matrix.platform == 'macOS'
-        run: cargo test -p saymore-desktop --test models_navigation --test model_discovery_runtime
-
-      - name: Doc tests
-        run: cargo test --workspace --doc
-
-      - name: Clippy
-        run: cargo clippy --workspace --all-targets -- -D warnings
+          tool: cargo-packager@${{ env.CARGO_PACKAGER_VERSION }}
 
       - name: Build release application
-        run: cargo build -p saymore-desktop --release
+        run: cargo build --locked -p saymore-desktop --release
 
       - name: Build Windows distribution artifacts
         if: runner.os == 'Windows'
@@ -81,21 +150,8 @@ jobs:
 
       - name: Upload Windows distribution artifacts
         if: runner.os == 'Windows'
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: saymore-windows-x64
           path: dist/ci-windows/*
           retention-days: 7
-
-      - name: Size gate
-        run: cargo run -p xtask -- size
-
-  dependency-policy:
-    name: Dependency policy
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-
-      - uses: EmbarkStudios/cargo-deny-action@v2
-        with:
-          command: check

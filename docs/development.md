@@ -23,32 +23,38 @@ Run the color boundary check with:
 cargo run -p xtask -- ui-colors
 ```
 
-Run the complete gate below immediately before `git push`:
+The complete gate below runs in CI. Locally the installed pre-push hooks run the
+fast subset, which is also the set to run by hand before pushing:
 
 ```bash
 cargo fmt --all --check
-cargo check --workspace --all-targets
-cargo nextest run --workspace --all-targets
-cargo test --workspace --doc
-cargo clippy --workspace --all-targets -- -D warnings
+cargo check --workspace --all-targets --locked
+cargo nextest run --workspace --all-targets --locked
+cargo test --workspace --doc --locked
+cargo clippy --workspace --all-targets --locked -- -D warnings
+```
+
+CI additionally owns the gates that do not belong on every push because they are
+slow, host-specific, or packaging-related:
+
+```bash
 cargo deny check
 cargo build --workspace --all-targets --release
 cargo run -p xtask -- size
 ```
 
+Run those three locally when a change can affect dependency policy, release
+packaging, or the size budget. Always pass `--locked` so a command cannot
+silently update `Cargo.lock`; CI runs the same way.
+
 Use `cargo fmt --all` when you want to apply formatting.
 
-The installed pre-push hooks run this gate against the working tree, not the
+The installed pre-push hooks run this subset against the working tree, not the
 commits being pushed. When the checkout holds other uncommitted work, push from
 a clean detached worktree of the branch
 (`git worktree add --detach <dir>
 <branch>`) so unrelated edits cannot fail or
-falsely pass the gate. A cold gate can run for about half an hour, longer than
-GitHub keeps the SSH connection that `git push` opens before running the hooks;
-the push then fails after the gate passes. Warm the build cache first, then push
-with SSH keepalives (`GIT_SSH_COMMAND="ssh -o ServerAliveInterval=15"`), or push
-over HTTPS, which reconnects after the hooks finish. Never skip the hooks to
-shorten the push.
+falsely pass the gate. Never skip the hooks to shorten the push.
 
 After the gate passes, review the complete change being pushed for both
 repository-standard compliance and fidelity to the originating request or spec.

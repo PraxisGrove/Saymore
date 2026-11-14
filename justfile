@@ -15,25 +15,32 @@ fmt-fix:
     cargo fmt --all
 
 check:
-    cargo check --workspace --all-targets
+    cargo check --workspace --all-targets --locked
 
 test:
-    cargo nextest run --workspace --all-targets
+    cargo nextest run --workspace --all-targets --locked
 
 test-doc:
-    cargo test --workspace --doc
+    cargo test --workspace --doc --locked
 
 deny:
     cargo deny check
 
 clippy:
-    cargo clippy --workspace --all-targets -- -D warnings
+    cargo clippy --workspace --all-targets --locked -- -D warnings
 
 size:
-    cargo run -p xtask -- size
+    cargo run --locked -p xtask -- size
 
 build:
-    cargo build --workspace --all-targets --release
+    cargo build --workspace --all-targets --locked --release
+
+pre-push:
+    cargo fmt --all --check
+    cargo check --workspace --all-targets --locked
+    cargo nextest run --workspace --all-targets --locked
+    cargo test --workspace --doc --locked
+    cargo clippy --workspace --all-targets --locked -- -D warnings
 
 preview:
     ./scripts/dev-preview.sh
@@ -43,10 +50,10 @@ release:
 
 ci:
     cargo fmt --all --check
-    cargo check --workspace --all-targets
-    cargo nextest run --workspace --all-targets
-    cargo test --workspace --doc
-    cargo clippy --workspace --all-targets -- -D warnings
+    cargo check --workspace --all-targets --locked
+    cargo nextest run --workspace --all-targets --locked
+    cargo test --workspace --doc --locked
+    cargo clippy --workspace --all-targets --locked -- -D warnings
     cargo deny check
-    cargo build --workspace --all-targets --release
-    cargo run -p xtask -- size
+    cargo build --workspace --all-targets --locked --release
+    cargo run --locked -p xtask -- size

@@ -99,31 +99,7 @@ repos:
 
       - id: clippy-pre-push
         name: clippy (pre-push)
-        entry: cargo clippy --workspace --all-targets -- -D warnings
-        language: system
-        pass_filenames: false
-        always_run: true
-        stages: [pre-push]
-
-      - id: cargo-deny
-        name: cargo deny
-        entry: cargo deny check
-        language: system
-        pass_filenames: false
-        always_run: true
-        stages: [pre-push]
-
-      - id: cargo-build-release
-        name: cargo build (release)
-        entry: cargo build --workspace --all-targets --release
-        language: system
-        pass_filenames: false
-        always_run: true
-        stages: [pre-push]
-
-      - id: xtask-size
-        name: xtask size gate
-        entry: cargo run -p xtask -- size
+        entry: cargo clippy --workspace --all-targets --locked -- -D warnings
         language: system
         pass_filenames: false
         always_run: true
