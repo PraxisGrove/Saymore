@@ -98,20 +98,13 @@ publishes/mirrors the weights.
 Local Zipformer adds native Chinese/English streaming recognition through
 sherpa-onnx transducer modified beam search with a per-stream bounded hotword
 snapshot. It uses pinned upstream artifacts with the shared verified downloader.
-Each of the five local providers has its own persisted identity, installation,
-loaded cache and resource state; switching releases the previous cache.
+Each of the four supported local providers has its own persisted identity,
+installation, loaded cache and resource state; switching releases the previous
+cache.
 
-Experimental MOSS-Transcribe-Diarize uses soniqo's pinned FP16 ONNX conversion
-through the same CPU ONNX Runtime as SeACo. Shared runtime initialization lives
-in `ort_runtime.rs`; Rust owns Whisper log-mel features, Qwen tokenization,
-bounded dictionary prompts, greedy decoding and per-segment KV caches. It emits
-final text only, processes independent 30-second segments, and removes complete
-speaker/timestamp wrappers. Its download, activation self-test, selection,
-history identity, memory reporting and protected deletion use the existing
-local-model lifecycle. The details page identifies its experimental status and
-high CPU memory requirement. See the
-[MOSS integration record](research/moss-native-integration.md) for artifact
-hashes, tests and limits.
+MOSS was removed after continuous-speech latency testing. No MOSS adapter or
+compatibility layer remains; historical findings are in the
+[latency follow-up](research/asr-latency-follow-up.md).
 
 SenseVoiceSmall and Moonshine Tiny were retired on 2026-11-12. As with the
 earlier streaming Paraformer retirement, loading an old selection clears it
@@ -259,32 +252,32 @@ Streaming ASR remains an application-owned port. The Zipformer implementation in
 `infra` loads its pinned files once, then creates an isolated online sherpa-onnx
 stream for each dictation session. Audio pushes emit only changed non-empty
 partials; finishing drains final decoding and rejects an empty result. The
-Whisper, Qwen3, SeACo and MOSS implementations submit complete existing model
-windows to a session-owned background worker during capture and decode the tail
-at finish. Completed segment text can be delivered on later audio pushes; this
-is coarse background segmentation, not native incremental audio inference.
-Qwen3-ASR uses a one-second overlap plus conservative transcript-boundary
-deduplication for audio longer than 30 seconds so hard cuts do not repeat or
-truncate words. Cancellation discards queued windows without finalizing; an
-in-flight native call may finish before its decoder is released, but cannot emit
-callbacks. The macOS desktop Provider lifecycle selects an adapter only after
-its pinned model has downloaded, passed size and SHA-256 validation, loaded
-successfully, and been recorded in local storage. The manifest-driven
-infrastructure installer keeps resumable partial files in a stable
-model-specific staging directory, supports cooperative pause and cancel, and
-atomically renames that directory only after every artifact validates. The
-desktop owns per-model UI progress and removes staging files after an explicit
-cancel. A non-Slint desktop lifecycle module owns installed-model metadata
-reconciliation, guarded Provider activation, previous-runtime release, and
-active-model deletion protection through application ports and infrastructure
-adapters. Slint callbacks submit lifecycle actions and present their results;
-they do not reproduce the ordering or recovery rules. Installation remains
-separate from Provider selection: a completed download never loads or selects
-the model until the user explicitly chooses it. The desktop also owns failure
-presentation and runtime memory sampling. An installed model also carries a
-verification marker containing its pinned identity and file metadata. Unchanged
-installations use that marker for a fast startup check; missing or changed
-metadata falls back to full SHA-256 validation.
+Whisper, Qwen3 and SeACo submit complete existing model windows to a
+session-owned background worker during capture and decode the tail at finish.
+Completed segment text can be delivered on later audio pushes; this is coarse
+background segmentation, not native incremental audio inference. Qwen3-ASR uses
+a one-second overlap plus conservative transcript-boundary deduplication for
+audio longer than 30 seconds so hard cuts do not repeat or truncate words.
+Cancellation discards queued windows without finalizing; an in-flight native
+call may finish before its decoder is released, but cannot emit callbacks. The
+macOS desktop Provider lifecycle selects an adapter only after its pinned model
+has downloaded, passed size and SHA-256 validation, loaded successfully, and
+been recorded in local storage. The manifest-driven infrastructure installer
+keeps resumable partial files in a stable model-specific staging directory,
+supports cooperative pause and cancel, and atomically renames that directory
+only after every artifact validates. The desktop owns per-model UI progress and
+removes staging files after an explicit cancel. A non-Slint desktop lifecycle
+module owns installed-model metadata reconciliation, guarded Provider
+activation, previous-runtime release, and active-model deletion protection
+through application ports and infrastructure adapters. Slint callbacks submit
+lifecycle actions and present their results; they do not reproduce the ordering
+or recovery rules. Installation remains separate from Provider selection: a
+completed download never loads or selects the model until the user explicitly
+chooses it. The desktop also owns failure presentation and runtime memory
+sampling. An installed model also carries a verification marker containing its
+pinned identity and file metadata. Unchanged installations use that marker for a
+fast startup check; missing or changed metadata falls back to full SHA-256
+validation.
 
 macOS text delivery is an incremental main-thread state machine. Focus settling,
 accessibility verification, and clipboard restoration waits are represented as

@@ -133,12 +133,6 @@ installation. Upstream runtime logging is silenced so model paths and dictionary
 contents do not enter diagnostics. SeACo model preparation remains a separate
 research/export operation; the app imports only the pinned verified ONNX files.
 
-MOSS reuses that same initialized ORT runtime with pinned FP16 graphs. Its Rust
-frontend uses `realfft`, and `tokenizers` loads the pinned Qwen tokenizer as
-data; Python is only an optional research/reference tool. See the
-[MOSS integration record](research/moss-native-integration.md) for the opt-in
-native fixture test and memory requirements.
-
 Zipformer uses the existing sherpa-onnx dependency. Its INT8 encoder and FP32
 decoder/joiner avoid the repeated characters observed with the all-INT8
 combination on the bundled Chinese fixture. No native Python inference

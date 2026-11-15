@@ -58,6 +58,13 @@ bundled public Chinese fixture. Its command and resource requirements are in the
 its deterministic frontend, session, cache, parsing and lifecycle tests without
 downloading model weights. Windows native MOSS acceptance remains pending.
 
+## ASR Latency Matrix
+
+The opt-in [latency matrix](research/asr-latency-matrix.md) runs real local ASR
+with capture/deferred input, cold/warm decoders and all three refinement
+strengths. It records blocked combinations rather than inventing timings. Its
+current boundary is text-ready, not desktop paste delivery.
+
 ## Magpie Provider and Handoff
 
 The settings-store tests exercise the nested `integrations.magpie` handoff

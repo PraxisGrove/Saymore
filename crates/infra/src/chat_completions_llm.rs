@@ -1,4 +1,4 @@
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use async_trait::async_trait;
 use futures_util::StreamExt;
@@ -116,9 +116,18 @@ impl ChatCompletionsLlmProvider {
         if !self.api_key.trim().is_empty() {
             builder = builder.bearer_auth(&self.api_key);
         }
+        let started = Instant::now();
         let response = builder.send().await.map_err(transport_error)?;
+        let headers_elapsed = started.elapsed();
         let status = response.status();
         let bytes = read_limited_response(response).await?;
+        tracing::debug!(
+            target: "saymore::diagnostics",
+            event = "llm.response_timing",
+            headers_ms = headers_elapsed.as_secs_f64() * 1000.0,
+            body_ms = (started.elapsed() - headers_elapsed).as_secs_f64() * 1000.0,
+            http_status = status.as_u16(),
+        );
         if !status.is_success() {
             return Err(http_error(self.profile, status, &bytes));
         }

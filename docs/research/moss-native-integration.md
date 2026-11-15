@@ -1,5 +1,11 @@
 # MOSS Native Integration
 
+Historical integration record: MOSS implementation and compatibility code have
+since been deleted after continuous-speech latency testing. See
+[latency follow-up](asr-latency-follow-up.md) for current status. The code
+paths, commands and UI/lifecycle descriptions below refer to historical
+revisions.
+
 ## Scope And Artifact Choice
 
 MOSS-Transcribe-Diarize 0.9B is an experimental fifth local ASR option. It runs

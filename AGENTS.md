@@ -13,6 +13,8 @@ small, explicit changes that humans and agents can understand and verify.
   APIs, or edit generated artifacts only when the requested behavior requires
   it.
 - 所有修改都基于当前分支进行，不需要新建分支。
+- 默认只满足当前版本需求，不考虑旧版本兼容。移除功能时一并删除其专属实现、
+  配置分支、依赖和测试；仅在用户明确要求时保留兼容层或迁移逻辑。
 - Update the owning document when a change alters architecture, behavior,
   workflow, or another documented contract.
 

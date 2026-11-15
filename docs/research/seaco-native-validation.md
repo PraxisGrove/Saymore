@@ -159,6 +159,24 @@ Runtime source licensing does not resolve checkpoint redistribution rights. This
 local validation neither mirrors weights nor establishes permission to bundle
 them.
 
+## Benchmark Artifact Recovery
+
+The previous scratch directory was absent during latency-matrix preparation. The
+pinned ModelScope revision remained available. Downloaded `model.pt` and support
+files were verified against the repository metadata; the checkpoint hash also
+matched the original record above. Running the retained `export_exact.py` with
+FunASR 1.2.6, Torch/Torchaudio 2.5.1, ONNX 1.17.0 and NumPy 1.26.4 recreated
+both ONNX graphs. All six production manifest files matched their original sizes
+and SHA-256 hashes exactly, without changing the manifest. The isolated
+environment used Python 3.12.13 (original: 3.12.14).
+
+Recovered files: `target/seaco-rebuild/models/onnx-fp32`. Export evidence:
+`target/seaco-rebuild/models/onnx-fp32/checkpoint-coverage.json` and
+`target/seaco-rebuild/export-env/versions.json`. These are ignored local
+artifacts. The model is now queued for real latency tests; recovery alone is not
+a latency or accuracy result. Python remains export-only, not an inference
+dependency.
+
 ## Reproduction and progress artifact
 
 Scratch root: `target/seaco-validation-np3tss9o`. It contains downloaded

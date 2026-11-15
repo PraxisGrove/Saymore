@@ -31,9 +31,6 @@ rusqlite = { workspace = true }
 rustls = { workspace = true }
 sherpa-onnx = { workspace = true }
 kaldi-fbank = { workspace = true }
-realfft = { workspace = true }
-half = { workspace = true }
-tokenizers = { workspace = true }
 ort = { workspace = true }
 whisper-rs = { workspace = true }
 tar = { workspace = true }
@@ -46,6 +43,7 @@ uuid = { workspace = true }
 cpal = { workspace = true }
 
 [dev-dependencies]
+tracing-subscriber = { workspace = true }
 httpmock = { workspace = true }
 tempfile = { workspace = true }
 

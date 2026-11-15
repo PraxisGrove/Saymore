@@ -11,21 +11,6 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=1; plural=0;\n"
 
-#: ui/pages/local-asr-model.slint
-msgctxt "models.asr.local.usage-tip.moss"
-msgid "Experimental OpenMOSS model, converted by soniqo. Runs on CPU; allow about 10 GB of free memory. Text appears after recording, in 30-second segments. Speaker labels and timestamps are omitted."
-msgstr "实验性 OpenMOSS 模型，由 soniqo 转换。使用 CPU 推理，建议预留约 10 GB 可用内存。录音结束后按 30 秒分段转写，不输出说话人标签和时间戳。"
-
-#: ui/pages/local-asr-model.slint
-msgctxt "models.asr.moss.subtitle"
-msgid "Experimental · FP16 · CPU"
-msgstr "实验性 · FP16 · CPU"
-
-#: ui/pages/speech-recognition.slint
-msgctxt "models.asr.moss.summary"
-msgid "Experimental · CPU · High memory use"
-msgstr "实验性 · CPU · 内存占用较高"
-
 msgctxt "models.asr.local.hints.native"
 msgid "Hotwords / dictionary: supported (recognition bias)"
 msgstr "热词 / 词典：支持（识别时热词增强）"

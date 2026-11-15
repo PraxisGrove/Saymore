@@ -19,8 +19,6 @@ use ui::{AppPage, AppWindow};
 
 #[path = "support/home_layout.rs"]
 mod home_layout;
-#[path = "support/moss_navigation.rs"]
-mod moss_navigation;
 
 fn main() {
     let ui = require(AppWindow::new(), "construct app window");
@@ -58,7 +56,6 @@ fn main() {
                 !ui.get_seaco_runtime_memory_active(),
             ));
             check_additional_provider_actions(&ui);
-            moss_navigation::check_moss_actions(&ui);
             home_layout::check_home_layout(&ui);
             let _ = slint::quit_event_loop();
         });

@@ -74,7 +74,6 @@ fn provider_cards(platform: DesktopPlatform) -> Vec<AsrProviderCardSpec> {
         local_model(platform, AsrProviderCardKind::Qwen3Asr),
         local_model(platform, AsrProviderCardKind::SeacoParaformer),
         local_model(platform, AsrProviderCardKind::Zipformer),
-        local_model(platform, AsrProviderCardKind::Moss),
         available(AsrProviderCardKind::Volcengine),
         available(AsrProviderCardKind::Openai),
         available(AsrProviderCardKind::Groq),
@@ -121,7 +120,6 @@ mod tests {
                 AsrProviderCardKind::Qwen3Asr,
                 AsrProviderCardKind::SeacoParaformer,
                 AsrProviderCardKind::Zipformer,
-                AsrProviderCardKind::Moss,
                 AsrProviderCardKind::Volcengine,
                 AsrProviderCardKind::Openai,
                 AsrProviderCardKind::Groq,
@@ -139,7 +137,6 @@ mod tests {
                 AsrProviderCardKind::Qwen3Asr,
                 AsrProviderCardKind::SeacoParaformer,
                 AsrProviderCardKind::Zipformer,
-                AsrProviderCardKind::Moss,
                 AsrProviderCardKind::Volcengine,
                 AsrProviderCardKind::Openai,
                 AsrProviderCardKind::Groq,
@@ -159,7 +156,6 @@ mod tests {
         ] {
             let cards = provider_cards(platform);
             for kind in [
-                AsrProviderCardKind::Moss,
                 AsrProviderCardKind::WhisperLargeV3Turbo,
                 AsrProviderCardKind::Qwen3Asr,
                 AsrProviderCardKind::SeacoParaformer,

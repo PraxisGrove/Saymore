@@ -20,8 +20,7 @@ use template_infra::{
 mod additional_models;
 use additional_models::LoadedLocal;
 use template_infra::{
-    MOSS_MODEL_ID, MOSS_MODEL_REVISION, SEACO_MODEL_ID, SEACO_MODEL_REVISION, ZIPFORMER_MODEL_ID,
-    ZIPFORMER_MODEL_REVISION,
+    SEACO_MODEL_ID, SEACO_MODEL_REVISION, ZIPFORMER_MODEL_ID, ZIPFORMER_MODEL_REVISION,
 };
 pub(crate) mod self_test;
 
@@ -33,8 +32,6 @@ pub struct AsrSessionController {
     whisper: Mutex<Option<LoadedWhisper>>,
     qwen3_model_directory: PathBuf,
     qwen3: Mutex<Option<LoadedQwen3>>,
-    moss_model_directory: PathBuf,
-    moss: Mutex<Option<LoadedLocal>>,
     seaco_model_directory: PathBuf,
     seaco: Mutex<Option<LoadedLocal>>,
     zipformer_model_directory: PathBuf,
@@ -69,10 +66,6 @@ impl AsrSessionController {
                 .join(QWEN3_ASR_MODEL_ID)
                 .join(QWEN3_ASR_MODEL_REVISION),
             qwen3: Mutex::new(None),
-            moss_model_directory: models_directory
-                .join(MOSS_MODEL_ID)
-                .join(MOSS_MODEL_REVISION),
-            moss: Mutex::new(None),
             seaco_model_directory: models_directory
                 .join(SEACO_MODEL_ID)
                 .join(SEACO_MODEL_REVISION),
@@ -120,11 +113,9 @@ impl AsrSessionController {
         let macos_speech_active = catalog.macos_speech_is_active();
         let whisper_active = catalog.whisper_is_active();
         let qwen3_active = catalog.qwen3_asr_is_active();
-        let moss_active = catalog.moss_is_active();
         let seaco_active = catalog.seaco_is_active();
         let zipformer_active = catalog.zipformer_is_active();
-        if !moss_active
-            && !seaco_active
+        if !seaco_active
             && !zipformer_active
             && !qwen3_active
             && !whisper_active
@@ -144,9 +135,7 @@ impl AsrSessionController {
                 "ASR session is already active".to_owned(),
             ));
         }
-        let session = if moss_active {
-            self.moss_recognizer()?.start(hints, on_partial)?
-        } else if seaco_active {
+        let session = if seaco_active {
             self.seaco_recognizer()?.start(hints, on_partial)?
         } else if zipformer_active {
             self.zipformer_recognizer()?.start(hints, on_partial)?

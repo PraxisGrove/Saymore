@@ -4,7 +4,7 @@ use std::{
 };
 
 use template_app::{SpeechRecognitionError, StreamingSpeechRecognizer};
-use template_infra::{MossSpeechRecognizer, SeacoSpeechRecognizer, ZipformerSpeechRecognizer};
+use template_infra::{SeacoSpeechRecognizer, ZipformerSpeechRecognizer};
 
 use super::{
     AsrSessionController, current_process_resident_memory_bytes, ensure_self_test,
@@ -42,32 +42,6 @@ fn load_cached<T: StreamingSpeechRecognizer + 'static>(
 }
 
 impl AsrSessionController {
-    pub fn moss_recognizer(
-        &self,
-    ) -> Result<Arc<dyn StreamingSpeechRecognizer>, SpeechRecognitionError> {
-        load_cached(
-            &self.moss,
-            &self.moss_model_directory,
-            MossSpeechRecognizer::load,
-        )
-        .map(|loaded| loaded.recognizer)
-    }
-
-    pub fn prepare_moss(&self) -> Result<Option<u64>, SpeechRecognitionError> {
-        let loaded = load_cached(
-            &self.moss,
-            &self.moss_model_directory,
-            MossSpeechRecognizer::load,
-        )?;
-        ensure_self_test(loaded.recognizer.as_ref())?;
-        Ok(loaded.resident_memory_bytes)
-    }
-
-    pub fn clear_moss(&self) {
-        if let Ok(mut cache) = self.moss.lock() {
-            cache.take();
-        }
-    }
     pub fn seaco_recognizer(
         &self,
     ) -> Result<Arc<dyn StreamingSpeechRecognizer>, SpeechRecognitionError> {

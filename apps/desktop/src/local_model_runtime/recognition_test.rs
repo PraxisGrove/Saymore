@@ -71,9 +71,6 @@ fn run_test(
         LocalModel::Seaco => asr
             .seaco_recognizer()
             .map(|recognizer| settings_ui::run_local_asr_test(recognizer.as_ref())),
-        LocalModel::Moss => asr
-            .moss_recognizer()
-            .map(|recognizer| settings_ui::run_local_asr_test(recognizer.as_ref())),
         LocalModel::Zipformer => asr
             .zipformer_recognizer()
             .map(|recognizer| settings_ui::run_local_asr_test(recognizer.as_ref())),

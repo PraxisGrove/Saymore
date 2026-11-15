@@ -20,7 +20,6 @@ impl ModelRuntime for AsrSessionController {
             LocalModel::Whisper => self.prepare_whisper(),
             LocalModel::Qwen3 => self.prepare_qwen3(),
             LocalModel::Seaco => self.prepare_seaco(),
-            LocalModel::Moss => self.prepare_moss(),
             LocalModel::Zipformer => self.prepare_zipformer(),
         }
     }
@@ -30,7 +29,6 @@ impl ModelRuntime for AsrSessionController {
             LocalModel::Whisper => self.clear_whisper(),
             LocalModel::Qwen3 => self.clear_qwen3(),
             LocalModel::Seaco => self.clear_seaco(),
-            LocalModel::Moss => self.clear_moss(),
             LocalModel::Zipformer => self.clear_zipformer(),
         }
     }

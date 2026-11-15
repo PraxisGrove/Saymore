@@ -207,9 +207,7 @@ fn apply_local_asr_selection(ui: &AppWindow, catalog: &ProviderCatalog) -> bool 
     let zipformer_active = catalog.zipformer_is_active();
     ui.set_seaco_selected(seaco_active);
     ui.set_zipformer_selected(zipformer_active);
-    let moss_active = catalog.moss_is_active();
-    ui.set_moss_selected(moss_active);
-    qwen3_active || whisper_active || seaco_active || zipformer_active || moss_active
+    qwen3_active || whisper_active || seaco_active || zipformer_active
 }
 
 fn selected_cloud_asr_provider(

@@ -25,27 +25,35 @@ Keep four concepts separate:
    network connection is required after installation. It is independent of
    whether recognition is incremental.
 
+## MOSS Removal
+
+MOSS has been removed from the application and benchmark tools after continuous
+speech testing exposed unacceptable generation backlog. Its adapter, model
+manifest, selection/storage/history branches, dedicated tests and exclusive
+dependencies have been deleted. No MOSS-specific compatibility or migration code
+is retained. Historical measurements remain in research documents and git
+history. See [latency follow-up](../research/asr-latency-follow-up.md).
+
 ## Current Local Integrations
 
-| Model                   | Mode currently used by Saymore | Capability qualification                                                                                                                                                                                                                                                                                                                   |
-| ----------------------- | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Qwen3-ASR 1.7B          | Background segments            | Qwen explicitly documents unified streaming/offline inference with one model. Saymore currently uses sherpa-onnx's `OfflineRecognizer` on complete windows in a background worker during capture. Upstream's documented streaming interface uses vLLM; it is not wired into this ONNX adapter.                                             |
-| Whisper large-v3-turbo  | Background segments            | whisper.cpp includes a microphone streaming example using repeated windowed transcription. Saymore currently invokes `full` on complete windows in a background worker during capture. Repeated sliding-window transcription is not implemented here; it is not evidence that Whisper has native incremental decoder state for live audio. |
-| SeACo-Paraformer        | Background segments            | The pinned SeACo graph consumes complete segment features and vocabulary embeddings. Its adapter submits complete windows to a background worker during capture. Do not infer live-audio support from the separate streaming Paraformer model that was previously integrated.                                                              |
-| Zipformer               | While recording                | The pinned artifact is a streaming transducer, and `OnlineRecognizer` drains ready frames during audio pushes and emits interim hypotheses. It also returns a final result. That does not establish an interchangeable offline graph for these exact files.                                                                                |
-| MOSS-Transcribe-Diarize | Background segments            | The pinned FP16 adapter encodes bounded audio segments and then runs autoregressive token generation. Generating text incrementally after the audio has finished is different from recognizing incoming audio during recording. Complete segments now decode during capture; native incremental audio inference is not implemented.        |
+| Model                  | Mode currently used by Saymore | Capability qualification                                                                                                                                                                                                                                                                                                                   |
+| ---------------------- | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Qwen3-ASR 1.7B         | Background segments            | Qwen explicitly documents unified streaming/offline inference with one model. Saymore currently uses sherpa-onnx's `OfflineRecognizer` on complete windows in a background worker during capture. Upstream's documented streaming interface uses vLLM; it is not wired into this ONNX adapter.                                             |
+| Whisper large-v3-turbo | Background segments            | whisper.cpp includes a microphone streaming example using repeated windowed transcription. Saymore currently invokes `full` on complete windows in a background worker during capture. Repeated sliding-window transcription is not implemented here; it is not evidence that Whisper has native incremental decoder state for live audio. |
+| SeACo-Paraformer       | Background segments            | The pinned SeACo graph consumes complete segment features and vocabulary embeddings. Its adapter submits complete windows to a background worker during capture. Do not infer live-audio support from the separate streaming Paraformer model that was previously integrated.                                                              |
+| Zipformer              | While recording                | The pinned artifact is a streaming transducer, and `OnlineRecognizer` drains ready frames during audio pushes and emits interim hypotheses. It also returns a final result. That does not establish an interchangeable offline graph for these exact files.                                                                                |
 
-All five adapters use the same `StreamingSpeechRecognizer` /
+All four supported adapters use the same `StreamingSpeechRecognizer` /
 `StreamingRecognitionSession` ports for ordered audio chunks. Those historical
 names do not declare model capability. The port documentation explicitly allows
-buffered finalization. The four offline-model adapters now share a background
-worker: complete windows are submitted during capture and the remainder at
-`finish`. Qwen3 retains 30-second windows (20 seconds with hints), with one
-second of overlap; Whisper retains 29 seconds; SeACo and MOSS retain 30 seconds.
-Completed text is collected on subsequent audio pushes. This is coarse segment
-recognition, not token-level live audio streaming. Short utterances still decode
-at finish. Each session is limited to 30 minutes of input, bounding queued
-audio. Cancellation discards queued work and suppresses callbacks; native
+buffered finalization. The three supported offline-model adapters share a
+background worker: complete windows are submitted during capture and the
+remainder at `finish`. Qwen3 retains 30-second windows (20 seconds with hints),
+with one second of overlap; Whisper retains 29 seconds; SeACo retains 30
+seconds. Completed text is collected on subsequent audio pushes. This is coarse
+segment recognition, not token-level live audio streaming. Short utterances
+still decode at finish. Each session is limited to 30 minutes of input, bounding
+queued audio. Cancellation discards queued work and suppresses callbacks; native
 inference already running cannot be interrupted and can temporarily retain the
 decoder.
 
@@ -70,7 +78,6 @@ not inherit a supported label merely because another model supports hints.
 | Zipformer        | Transducer hotword bias during decoding          | Up to 64 supported terms, 64 characters per term, 1,024 UTF-8 bytes total |
 | Qwen3-ASR        | Vocabulary text in the recognizer's prompt       | 128 UTF-8 bytes total                                                     |
 | Whisper          | Initial-prompt tokens supplied to whisper.cpp    | 192 UTF-8 bytes before tokenization                                       |
-| MOSS             | Vocabulary text in the transcription prompt      | Up to 64 entries and 256 UTF-8 bytes total                                |
 
 The desktop snapshots the personal dictionary at the start of each dictation,
 independently of whether text polishing is enabled. Each adapter filters and
@@ -92,10 +99,9 @@ counterpart. Repeated sliding-window decoding can increase total compute.
 Before enabling another mode, compare first-interim latency, stop-to-final
 latency, recognition accuracy, CPU/GPU cost, memory, and vocabulary behavior on
 the same audio. Qwen3 and Whisper need additional runtime integration for their
-alternative paths; SeACo and MOSS need validation of an appropriate incremental
-path. Do not change the user's selected model or advertise “fastest” on the
-basis of a model name alone. MOSS's current measured FP16 CPU path is an
-experimental option, not the low-latency recommendation.
+alternative paths; SeACo needs validation of an appropriate incremental path. Do
+not change the user's selected model or advertise “fastest” on the basis of a
+model name alone. MOSS is retired from the desktop selection.
 
 ## Evidence
 

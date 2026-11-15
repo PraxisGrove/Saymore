@@ -26,9 +26,6 @@ export component SpeechRecognitionPage inherits Rectangle {
     in property <bool> seaco-downloaded: false;
     in property <string> seaco-installed-size;
     in property <bool> seaco-selected: false;
-    in property <bool> moss-downloaded: false;
-    in property <string> moss-installed-size;
-    in property <bool> moss-selected: false;
     in property <bool> zipformer-downloaded: false;
     in property <string> zipformer-installed-size;
     in property <bool> zipformer-selected: false;
@@ -102,7 +99,7 @@ export component SpeechRecognitionPage inherits Rectangle {
                         ? @image-url("../../icons/providers/openai.png")
                         : card.kind == AsrProviderCardKind.qwen3-asr
                             ? @image-url("../../icons/providers/qwen.png")
-                            : card.kind == AsrProviderCardKind.zipformer || card.kind == AsrProviderCardKind.moss
+                            : card.kind == AsrProviderCardKind.zipformer
                                 ? @image-url("../../icons/lucide/mic.svg")
                             : card.kind == AsrProviderCardKind.openai
                                 ? @image-url("../../icons/providers/openai.png")
@@ -120,8 +117,7 @@ export component SpeechRecognitionPage inherits Rectangle {
                 || card.kind == AsrProviderCardKind.whisper-large-v3-turbo
                 || card.kind == AsrProviderCardKind.openai
                 || card.kind == AsrProviderCardKind.groq
-                || card.kind == AsrProviderCardKind.zipformer
-                || card.kind == AsrProviderCardKind.moss;
+                || card.kind == AsrProviderCardKind.zipformer;
             summary-icon: card.kind == AsrProviderCardKind.saymore-cloud
                 ? @image-url("../../icons/lucide/globe.svg")
                 : card.kind == AsrProviderCardKind.macos-dictation
@@ -154,7 +150,6 @@ export component SpeechRecognitionPage inherits Rectangle {
                         : card.kind == AsrProviderCardKind.qwen3-asr
                             ? "Qwen3-ASR 1.7B"
                             : card.kind == AsrProviderCardKind.seaco-paraformer ? "SeACo-Paraformer"
-                            : card.kind == AsrProviderCardKind.moss ? "MOSS-Transcribe-Diarize"
                             : card.kind == AsrProviderCardKind.zipformer ? "Zipformer"
                             : card.kind == AsrProviderCardKind.openai ? "OpenAI"
                             : card.kind == AsrProviderCardKind.groq ? "Groq"
@@ -194,8 +189,6 @@ export component SpeechRecognitionPage inherits Rectangle {
                         ? root.seaco-downloaded
                             ? @tr("models.asr.local.status.downloaded" => "Downloaded · {}", root.seaco-installed-size)
                             : @tr("models.asr.local.import-ready" => "Import model files to use offline")
-                    : card.kind == AsrProviderCardKind.moss
-                        ? @tr("models.asr.moss.summary" => "Experimental · CPU · High memory use")
                     : card.kind == AsrProviderCardKind.zipformer
                         ? root.zipformer-downloaded
                             ? @tr("models.asr.local.status.downloaded" => "Downloaded · {}", root.zipformer-installed-size)
@@ -221,10 +214,6 @@ export component SpeechRecognitionPage inherits Rectangle {
                         : root.seaco-downloaded
                             ? @tr("models.asr.status.available" => "Available")
                             : @tr("models.asr.local.import" => "Import model")
-                : card.kind == AsrProviderCardKind.moss
-                    ? root.moss-selected ? @tr("models.asr.status.current" => "Current")
-                    : root.moss-downloaded ? @tr("models.asr.status.available" => "Available")
-                    : @tr("models.asr.local.download" => "Download")
                 : card.kind == AsrProviderCardKind.zipformer
                     ? root.zipformer-selected
                         ? @tr("models.asr.status.current" => "Current")
@@ -269,8 +258,6 @@ export component SpeechRecognitionPage inherits Rectangle {
                     ? ProviderStatusTone.active
                 : card.kind == AsrProviderCardKind.seaco-paraformer && root.seaco-selected
                     ? ProviderStatusTone.active
-                : card.kind == AsrProviderCardKind.moss && root.moss-selected
-                    ? ProviderStatusTone.active
                 : card.kind == AsrProviderCardKind.zipformer && root.zipformer-selected
                     ? ProviderStatusTone.active
                 : root.cloud-provider-selected && root.config-error && card.kind == AsrProviderCardKind.volcengine
@@ -283,7 +270,6 @@ export component SpeechRecognitionPage inherits Rectangle {
                 || (card.kind == AsrProviderCardKind.whisper-large-v3-turbo && root.whisper-selected)
                 || (card.kind == AsrProviderCardKind.qwen3-asr && root.qwen3-selected)
                 || (card.kind == AsrProviderCardKind.seaco-paraformer && root.seaco-selected)
-                || (card.kind == AsrProviderCardKind.moss && root.moss-selected)
                 || (card.kind == AsrProviderCardKind.zipformer && root.zipformer-selected)
                 || (root.cloud-provider-selected && card.kind == AsrProviderCardKind.volcengine && root.active-provider == AsrProvider.volcengine)
                 || (root.cloud-provider-selected && self.compatible-configured && root.active-provider == AsrProvider.custom);
@@ -291,7 +277,6 @@ export component SpeechRecognitionPage inherits Rectangle {
                 || (card.kind == AsrProviderCardKind.whisper-large-v3-turbo && root.whisper-downloaded)
                 || (card.kind == AsrProviderCardKind.qwen3-asr && root.qwen3-downloaded)
                 || (card.kind == AsrProviderCardKind.seaco-paraformer && root.seaco-downloaded)
-                || (card.kind == AsrProviderCardKind.moss && root.moss-downloaded)
                 || (card.kind == AsrProviderCardKind.zipformer && root.zipformer-downloaded)
                 || (card.kind == AsrProviderCardKind.volcengine && root.volcengine-configured)
                 || self.compatible-configured);

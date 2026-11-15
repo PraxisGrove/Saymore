@@ -67,22 +67,6 @@ impl ProviderCatalog {
         true
     }
 
-    pub fn select_moss_provider(&mut self) {
-        self.select_local_provider(
-            MOSS_PROVIDER_ID,
-            MOSS_PROVIDER_TYPE,
-            "MOSS-Transcribe-Diarize",
-        );
-    }
-
-    pub fn moss_is_active(&self) -> bool {
-        self.local_provider_is_active(MOSS_PROVIDER_ID, MOSS_PROVIDER_TYPE)
-    }
-
-    pub fn clear_moss_selection(&mut self) -> bool {
-        self.clear_local_selection(MOSS_PROVIDER_ID)
-    }
-
     pub fn select_seaco_provider(&mut self) {
         self.select_local_provider(SEACO_PROVIDER_ID, SEACO_PROVIDER_TYPE, "SeACo-Paraformer");
     }

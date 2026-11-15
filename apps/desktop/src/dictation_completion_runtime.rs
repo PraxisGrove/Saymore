@@ -2,6 +2,7 @@ use std::{
     io,
     path::PathBuf,
     sync::{Arc, Mutex},
+    time::Instant,
 };
 
 use template_app::{
@@ -229,7 +230,6 @@ fn active_asr_model(active_id: Option<&str>, providers: &[ProviderInstance]) -> 
             template_app::QWEN3_ASR_PROVIDER_ID => QWEN3_ASR_MODEL_ID,
             template_app::SENSE_VOICE_PROVIDER_ID => RetiredAsrModel::SenseVoice.id(),
             template_app::SEACO_PROVIDER_ID => template_infra::SEACO_MODEL_ID,
-            template_app::MOSS_PROVIDER_ID => template_infra::MOSS_MODEL_ID,
             template_app::ZIPFORMER_PROVIDER_ID => template_infra::ZIPFORMER_MODEL_ID,
             template_app::MOONSHINE_PROVIDER_ID => RetiredAsrModel::Moonshine.id(),
             _ => return None,
@@ -312,6 +312,7 @@ impl TextDeliverer for CompletionDeliverer {
                 TextDeliveryError::System("dictation delivery was already attempted".to_owned())
             })?;
         let observer = observer_factory(text.to_owned());
+        let started = Instant::now();
         let delivery = self.platform.deliver_and_observe(text, observer);
         if should_preserve_clipboard(self.copy_to_clipboard, &delivery)
             && let Err(error) = copy_text_to_clipboard(text)
@@ -326,6 +327,7 @@ impl TextDeliverer for CompletionDeliverer {
         tracing::info!(
             target: "saymore::diagnostics",
             event = "delivery.completed",
+            duration_ms = started.elapsed().as_millis(),
             dictation_id = %self.id,
             result = ?delivery
         );

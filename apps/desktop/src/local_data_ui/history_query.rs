@@ -295,9 +295,6 @@ fn history_asr_model<'a>(
             Some(HistoryAsrModel::Named(SENSE_VOICE_LABEL))
         }
         Some(template_infra::SEACO_MODEL_ID) => Some(HistoryAsrModel::Named("SeACo-Paraformer")),
-        Some(template_infra::MOSS_MODEL_ID) => {
-            Some(HistoryAsrModel::Named("MOSS-Transcribe-Diarize"))
-        }
         Some(template_infra::ZIPFORMER_MODEL_ID) => Some(HistoryAsrModel::Named("Zipformer")),
         Some(model) if model == RetiredAsrModel::Moonshine.id() => {
             Some(HistoryAsrModel::Named("Moonshine"))
@@ -315,9 +312,6 @@ fn history_asr_model<'a>(
             Some(SENSE_VOICE_PROVIDER_ID) => Some(HistoryAsrModel::Named(SENSE_VOICE_LABEL)),
             Some(template_app::SEACO_PROVIDER_ID) => {
                 Some(HistoryAsrModel::Named("SeACo-Paraformer"))
-            }
-            Some(template_app::MOSS_PROVIDER_ID) => {
-                Some(HistoryAsrModel::Named("MOSS-Transcribe-Diarize"))
             }
             Some(template_app::ZIPFORMER_PROVIDER_ID) => Some(HistoryAsrModel::Named("Zipformer")),
             Some(template_app::MOONSHINE_PROVIDER_ID) => Some(HistoryAsrModel::Named("Moonshine")),

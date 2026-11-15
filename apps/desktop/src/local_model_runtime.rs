@@ -38,7 +38,6 @@ struct LocalModelInstallers {
     whisper: Arc<VerifiedModelInstaller>,
     qwen3: Arc<VerifiedModelInstaller>,
     seaco: Arc<VerifiedModelInstaller>,
-    moss: Arc<VerifiedModelInstaller>,
     zipformer: Arc<VerifiedModelInstaller>,
 }
 
@@ -57,10 +56,6 @@ impl LocalModelInstallers {
                 VerifiedModelInstaller::seaco_paraformer(models_directory.to_path_buf())
                     .map_err(runtime_error)?,
             ),
-            moss: Arc::new(
-                VerifiedModelInstaller::moss_transcribe_diarize(models_directory.to_path_buf())
-                    .map_err(runtime_error)?,
-            ),
             zipformer: Arc::new(
                 VerifiedModelInstaller::zipformer(models_directory.to_path_buf())
                     .map_err(runtime_error)?,
@@ -73,7 +68,6 @@ impl LocalModelInstallers {
             LocalModel::Whisper => Arc::clone(&self.whisper),
             LocalModel::Qwen3 => Arc::clone(&self.qwen3),
             LocalModel::Seaco => Arc::clone(&self.seaco),
-            LocalModel::Moss => Arc::clone(&self.moss),
             LocalModel::Zipformer => Arc::clone(&self.zipformer),
         }
     }
