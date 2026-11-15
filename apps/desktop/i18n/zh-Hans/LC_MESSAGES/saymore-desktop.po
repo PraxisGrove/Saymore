@@ -3852,19 +3852,14 @@ msgid "Not measured"
 msgstr "尚未测量"
 
 #: ui/pages/local-asr-model.slint
-msgctxt "models.asr.local.seaco.import-detail"
-msgid "Choose a local SeACo ONNX model folder. A matching public download is not available."
-msgstr "选择本地 SeACo ONNX 模型文件夹。目前没有匹配的公开下载资源。"
-
-#: ui/pages/local-asr-model.slint
 msgctxt "models.asr.local.import"
 msgid "Import model"
 msgstr "导入模型"
 
 #: ui/pages/local-asr-model.slint
 msgctxt "models.asr.local.usage-tip.seaco"
-msgid "Offline Chinese recognition with native dictionary hints. Import a compatible ONNX export to begin."
-msgstr "离线中文识别，原生支持个人词典提示。请先导入兼容的 ONNX 导出模型。"
+msgid "Offline Chinese recognition with native dictionary hints. Download the model or import the same verified files."
+msgstr "离线中文识别，原生支持个人词典提示。下载模型，或导入相同版本且通过校验的文件。"
 
 #: ui/pages/local-asr-model.slint
 msgctxt "models.asr.local.usage-tip.zipformer"
@@ -3877,9 +3872,9 @@ msgid "Tiny English-only model. Final text only; recognition-time dictionary hin
 msgstr "轻量英语模型，仅在说完后输出文字，不支持识别阶段的词典提示。"
 
 #: ui/pages/local-asr-model.slint
-msgctxt "models.asr.local.subtitle.import"
-msgid "Local import · Chinese · Dictionary hints"
-msgstr "本地导入 · 中文 · 词典提示"
+msgctxt "models.asr.local.subtitle.seaco"
+msgid "INT8 · Chinese · Dictionary hints"
+msgstr "INT8 · 中文 · 词典提示"
 
 #: ui/pages/local-asr-model.slint
 msgctxt "models.asr.summary.chinese"
@@ -3890,16 +3885,6 @@ msgstr "中文"
 msgctxt "models.asr.summary.english"
 msgid "English"
 msgstr "英语"
-
-#: ui/pages/local-asr-model.slint
-msgctxt "models.asr.local.model-size"
-msgid "Model size"
-msgstr "模型大小"
-
-#: ui/pages/speech-recognition.slint
-msgctxt "models.asr.local.import-ready"
-msgid "Import model files to use offline"
-msgstr "导入模型文件，即可离线使用"
 
 #: ui/pages/local-asr-model.slint
 msgctxt "models.asr.local.subtitle.zipformer"

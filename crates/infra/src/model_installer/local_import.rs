@@ -4,9 +4,9 @@ impl VerifiedModelInstaller {
     /// Copies only pinned artifacts from a local directory and activates them after verification.
     /// The source is never modified; downloading and importing never select an ASR provider.
     pub fn import_directory(&self, source: &Path) -> Result<PathBuf, ModelInstallError> {
-        if !matches!(self.manifest.preparation, ModelPreparation::LocalImport) {
+        if !matches!(self.manifest.preparation, ModelPreparation::Direct) {
             return Err(ModelInstallError::Activation(
-                "This model uses the download installer".to_owned(),
+                "Archive models must use the download installer".to_owned(),
             ));
         }
         if self.is_installed() {
@@ -22,7 +22,19 @@ impl VerifiedModelInstaller {
                 )));
             }
         }
-        self.ensure_install_space()?;
+        fs::create_dir_all(&self.models_root).map_err(filesystem_error)?;
+        // Import copies a complete artifact set even when a download is partially staged.
+        let required = self
+            .manifest
+            .installed_bytes()
+            .saturating_add(INSTALL_SPACE_MARGIN_BYTES);
+        let available = fs2::available_space(&self.models_root).map_err(filesystem_error)?;
+        if available < required {
+            return Err(ModelInstallError::InsufficientSpace {
+                required_bytes: required,
+                available_bytes: available,
+            });
+        }
         let prepared = self.prepared_directory();
         remove_directory_if_present(&prepared)?;
         fs::create_dir_all(&prepared).map_err(filesystem_error)?;
@@ -63,7 +75,7 @@ mod tests {
     use sha2::{Digest, Sha256};
 
     fn installer(root: &Path, contents: &[u8]) -> VerifiedModelInstaller {
-        let mut manifest = ModelManifest::direct(
+        let manifest = ModelManifest::direct(
             "local-test",
             "v1",
             "",
@@ -73,8 +85,7 @@ mod tests {
                 &format!("{:x}", Sha256::digest(contents)),
             )],
         );
-        manifest.preparation = ModelPreparation::LocalImport;
-        manifest.downloads.clear();
+
         VerifiedModelInstaller::new(root.to_owned(), manifest).unwrap()
     }
 
@@ -96,6 +107,34 @@ mod tests {
             fs::read(source.path().join("unrelated.txt")).unwrap(),
             b"leave alone"
         );
+    }
+
+    #[tokio::test]
+    #[allow(clippy::panic_in_result_fn)]
+    async fn direct_download_and_local_import_share_verified_artifacts()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let server = httpmock::MockServer::start_async().await;
+        let response = server
+            .mock_async(|when, then| {
+                when.method(httpmock::Method::GET).path("/model.onnx");
+                then.status(200).body("verified model");
+            })
+            .await;
+        let download_root = tempfile::tempdir()?;
+        let import_root = tempfile::tempdir()?;
+        let mut downloader = installer(download_root.path(), b"verified model");
+        downloader.manifest.base_url = server.base_url();
+        let downloaded = downloader.install(Arc::new(|_| {})).await?;
+        let imported = installer(import_root.path(), b"verified model");
+        imported.import_directory(&downloaded)?;
+        assert_eq!(
+            imported.model_directory(),
+            imported.install(Arc::new(|_| {})).await?
+        );
+        assert!(downloader.is_installed());
+        assert!(imported.is_installed());
+        response.assert_calls_async(1).await;
+        Ok(())
     }
 
     #[test]
@@ -122,7 +161,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "requires SAYMORE_SEACO_MODEL_DIR with the exact validated ONNX export"]
+    #[ignore = "requires SAYMORE_SEACO_MODEL_DIR with the pinned quantized ONNX files"]
     fn imports_exact_seaco_export_and_loads_native_model() -> Result<(), Box<dyn std::error::Error>>
     {
         let source = PathBuf::from(std::env::var("SAYMORE_SEACO_MODEL_DIR")?);

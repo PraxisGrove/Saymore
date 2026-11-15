@@ -130,8 +130,10 @@ Do not enable ORT's separate download/load-dynamic defaults: the app must retain
 one native ORT runtime and no extra inference DLL deployment. `kaldi-fbank`
 provides a Rust Kaldi-compatible frontend, avoiding a production FunASR/Python
 installation. Upstream runtime logging is silenced so model paths and dictionary
-contents do not enter diagnostics. SeACo model preparation remains a separate
-research/export operation; the app imports only the pinned verified ONNX files.
+contents do not enter diagnostics. SeACo downloads the pinned public quantized
+ONNX files or imports the same verified artifacts; no local export toolchain is
+required. See [SeACo downloads](research/seaco-automatic-download.md) for the
+artifact pin, runtime validation and limits.
 
 Zipformer uses the existing sherpa-onnx dependency. Its INT8 encoder and FP32
 decoder/joiner avoid the repeated characters observed with the all-INT8

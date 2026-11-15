@@ -1,5 +1,9 @@
 # Local ASR expansion
 
+**SeACo download update:** the current app downloads a pinned public INT8 export
+and can import the same verified files. The FP32/import-only sections below are
+historical. See [automatic download](seaco-automatic-download.md).
+
 Date: 2026-11-11. User request: integrate SeACo-Paraformer and support more
 local ASR models. The expansion added three models; the user's subsequent
 request retired the old streaming Paraformer, leaving six supported local

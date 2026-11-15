@@ -188,7 +188,7 @@ export component SpeechRecognitionPage inherits Rectangle {
                     : card.kind == AsrProviderCardKind.seaco-paraformer
                         ? root.seaco-downloaded
                             ? @tr("models.asr.local.status.downloaded" => "Downloaded · {}", root.seaco-installed-size)
-                            : @tr("models.asr.local.import-ready" => "Import model files to use offline")
+                            : @tr("models.asr.local.download-ready" => "Download to use this model offline")
                     : card.kind == AsrProviderCardKind.zipformer
                         ? root.zipformer-downloaded
                             ? @tr("models.asr.local.status.downloaded" => "Downloaded · {}", root.zipformer-installed-size)
@@ -213,7 +213,7 @@ export component SpeechRecognitionPage inherits Rectangle {
                         ? @tr("models.asr.status.current" => "Current")
                         : root.seaco-downloaded
                             ? @tr("models.asr.status.available" => "Available")
-                            : @tr("models.asr.local.import" => "Import model")
+                            : @tr("models.asr.local.download" => "Download")
                 : card.kind == AsrProviderCardKind.zipformer
                     ? root.zipformer-selected
                         ? @tr("models.asr.status.current" => "Current")

@@ -109,6 +109,7 @@ fn check_additional_provider_actions(ui: &AppWindow) {
     ui.set_focus_asr_config(false);
     ui.set_model_tab(0);
     ui.set_seaco_import_supported(true);
+    ui.set_seaco_download_supported(true);
     ui.set_zipformer_download_supported(true);
     ui.set_zipformer_adapter_ready(true);
     ui.set_asr_provider_cards(ModelRc::new(VecModel::from(vec![
@@ -135,6 +136,7 @@ fn check_additional_provider_actions(ui: &AppWindow) {
     // Use the real card/modal event path at the default 920 x 700 window size.
     click(ui, 350.0, 200.0);
     click(ui, 680.0, 350.0);
+    click(ui, 560.0, 350.0);
     click(ui, 735.0, 150.0);
     click(ui, 700.0, 200.0);
     click(ui, 680.0, 350.0);
@@ -142,6 +144,7 @@ fn check_additional_provider_actions(ui: &AppWindow) {
     click(ui, 650.0, 150.0);
     assert_eq!(
         vec![
+            ("download", Kind::SeacoParaformer),
             ("import", Kind::SeacoParaformer),
             ("download", Kind::Zipformer),
             ("select", Kind::Zipformer),

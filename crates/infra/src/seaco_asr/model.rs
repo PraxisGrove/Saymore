@@ -18,8 +18,8 @@ pub(super) struct ModelFiles {
 impl ModelFiles {
     pub fn validate(directory: &Path) -> Result<Self, SpeechRecognitionError> {
         Ok(Self {
-            model: file(directory, "model.onnx", 957_692_158..=957_692_158)?,
-            embedding: file(directory, "model_eb.onnx", 34_026_072..=34_026_072)?,
+            model: file(directory, "model_quant.onnx", 345_139_149..=345_139_149)?,
+            embedding: file(directory, "model_eb_quant.onnx", 34_028_133..=34_028_133)?,
             tokens: file(directory, "tokens.json", 1..=1_000_000)?,
             segmentation: file(directory, "seg_dict", 1..=32_000_000)?,
             cmvn: file(directory, "am.mvn", 1..=128_000)?,
@@ -36,7 +36,7 @@ fn file(
     match fs::metadata(&path) {
         Ok(metadata) if metadata.is_file() && bytes.contains(&metadata.len()) => Ok(path),
         Ok(_) => Err(protocol(
-            "model files do not match the supported FP32 export",
+            "model files do not match the pinned quantized export",
         )),
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
             Err(SpeechRecognitionError::NotConfigured)

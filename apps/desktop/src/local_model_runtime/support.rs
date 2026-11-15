@@ -11,7 +11,7 @@ pub(super) fn set_model_capability(ui: &AppWindow, model: LocalModel, available:
             ui.set_qwen3_asr_adapter_ready(available);
         }
         LocalModel::Seaco => {
-            ui.set_seaco_download_supported(false);
+            ui.set_seaco_download_supported(available);
             ui.set_seaco_import_supported(available);
             ui.set_seaco_adapter_ready(available);
         }
@@ -116,12 +116,7 @@ pub(super) fn apply_model_sizes(
     model: LocalModel,
     installer: &VerifiedModelInstaller,
 ) -> Result<(), ModelInstallError> {
-    let model_size = match model {
-        LocalModel::Seaco => installer.model_size_bytes(),
-        LocalModel::Whisper | LocalModel::Qwen3 | LocalModel::Zipformer => {
-            installer.download_size_bytes()
-        }
-    };
+    let model_size = installer.download_size_bytes();
     set_download_size(ui, model, format_model_size(model_size).into());
     let installed_size = if installer.is_installed() {
         format_model_size(installer.installed_size_bytes()?).into()

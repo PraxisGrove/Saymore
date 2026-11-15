@@ -88,10 +88,10 @@ fn ordered_audio_chunks_join_english_segments_and_empty_audio_does_not_decode()
     Ok(())
 }
 
-/// Requires the locally validated exact FP32 export and non-sensitive moda PCM.
+/// Requires the pinned quantized ONNX artifacts and non-sensitive moda PCM.
 /// Run with SAYMORE_SEACO_MODEL_DIR and SAYMORE_SEACO_FIXTURE_PCM, --ignored.
 #[test]
-#[ignore = "requires the exact local SeACo FP32 export and 16 kHz moda fixture"]
+#[ignore = "requires the pinned SeACo quantized artifacts and 16 kHz moda fixture"]
 fn native_dictionary_changes_decoding_and_restores_baseline() -> Result<(), Box<dyn Error>> {
     let model = PathBuf::from(std::env::var("SAYMORE_SEACO_MODEL_DIR")?);
     let fixture = fs::read(std::env::var("SAYMORE_SEACO_FIXTURE_PCM")?)?;

@@ -20,9 +20,9 @@ use vocabulary::{Hotwords, Vocabulary};
 const SAMPLE_RATE: usize = 16_000;
 const MAX_SEGMENT_SAMPLES: usize = 30 * SAMPLE_RATE;
 
-/// CPU SeACo-Paraformer FP32 with recognition-time vocabulary embeddings.
+/// CPU SeACo-Paraformer with an INT8 main graph and recognition-time vocabulary embeddings.
 ///
-/// Loads the exact exported `model.onnx`, `model_eb.onnx`, `tokens.json`,
+/// Loads the exact exported `model_quant.onnx`, `model_eb_quant.onnx`, `tokens.json`,
 /// `seg_dict` and `am.mvn`. The installer owns artifact hash verification.
 /// Audio is 16 kHz mono i16 PCM. Final decoding uses independent 30-second
 /// segments; this offline graph does not emit partial results or punctuation.

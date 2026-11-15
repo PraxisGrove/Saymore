@@ -146,7 +146,6 @@ struct ModelManifest {
 #[derive(Clone)]
 enum ModelPreparation {
     Direct,
-    LocalImport,
     TarBzip2 {
         archive_local_path: String,
         member_path: String,
@@ -241,11 +240,6 @@ impl VerifiedModelInstaller {
         self.manifest.total_bytes()
     }
 
-    /// Total pinned artifact size, including models prepared by local import.
-    pub fn model_size_bytes(&self) -> u64 {
-        self.manifest.installed_bytes()
-    }
-
     /// Current logical size of all regular files in this model's installed directory.
     pub fn installed_size_bytes(&self) -> Result<u64, ModelInstallError> {
         crate::storage_usage::directory_usage_bytes(&self.model_directory())
@@ -296,11 +290,6 @@ impl VerifiedModelInstaller {
         on_progress: Arc<dyn Fn(ModelDownloadProgress) + Send + Sync>,
         control: ModelInstallControl,
     ) -> Result<PathBuf, ModelInstallError> {
-        if matches!(self.manifest.preparation, ModelPreparation::LocalImport) {
-            return Err(ModelInstallError::Activation(
-                "This model requires importing a verified local model directory".to_owned(),
-            ));
-        }
         let mut retries = 0;
         loop {
             control.check()?;
@@ -367,9 +356,7 @@ impl VerifiedModelInstaller {
         let downloaded = staged_bytes(staging, &self.manifest)?;
         let extraction_bytes = match &self.manifest.preparation {
             ModelPreparation::Direct => 0,
-            ModelPreparation::LocalImport | ModelPreparation::TarBzip2 { .. } => {
-                self.manifest.installed_bytes()
-            }
+            ModelPreparation::TarBzip2 { .. } => self.manifest.installed_bytes(),
         };
         let required = self
             .manifest

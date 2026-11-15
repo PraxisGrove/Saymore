@@ -76,8 +76,6 @@ export component LocalAsrModelModal inherits Rectangle {
             ? @tr("models.asr.local.activation-loading" => "Loading the model into memory")
         : root.download-error != ""
         ? root.download-error
-        : root.kind == AsrProviderCardKind.seaco-paraformer && !root.installed && !root.downloading
-            ? @tr("models.asr.local.seaco.import-detail" => "Choose a local SeACo ONNX model folder. A matching public download is not available.")
         : !root.download-supported && !root.import-supported
         ? @tr("models.asr.placeholder.download-disabled" => "No verified download source or production adapter is available.")
         : root.downloading
@@ -99,13 +97,10 @@ export component LocalAsrModelModal inherits Rectangle {
         : root.paused ? @tr("models.asr.local.continue" => "Continue")
         : root.cancelling ? @tr("models.asr.local.cancelling" => "Cancelling")
         : root.installed ? @tr("models.asr.local.delete" => "Delete")
-        : root.kind == AsrProviderCardKind.seaco-paraformer
-            ? @tr("models.asr.local.import" => "Import model")
         : @tr("models.asr.local.download-action" => "Download");
     private property <bool> action-enabled: root.cancelling || root.queued ? false
         : root.installed
         ? !root.selected && !root.selection-pending
-        : root.kind == AsrProviderCardKind.seaco-paraformer ? root.import-supported
         : root.download-supported;
     // Describe the current adapter, not the model family's complete capabilities.
     private property <string> current-mode: root.kind == AsrProviderCardKind.zipformer
@@ -127,7 +122,7 @@ export component LocalAsrModelModal inherits Rectangle {
     private property <string> usage-tip: root.kind == AsrProviderCardKind.whisper-large-v3-turbo
             ? @tr("models.asr.local.usage-tip.whisper" => "Multilingual dictation with higher memory use. Text appears after speaking.")
         : root.kind == AsrProviderCardKind.seaco-paraformer
-            ? @tr("models.asr.local.usage-tip.seaco" => "Offline Chinese recognition with native dictionary hints. Import a compatible ONNX export to begin.")
+            ? @tr("models.asr.local.usage-tip.seaco" => "Offline Chinese recognition with native dictionary hints. Download the model or import the same verified files.")
         : root.kind == AsrProviderCardKind.zipformer
             ? @tr("models.asr.local.usage-tip.zipformer" => "Streaming Chinese-English recognition with native dictionary hints. Dictionary hints may improve term recognition; results vary.")
             : @tr("models.asr.local.usage-tip.qwen3" => "Handles dialects, multiple languages, and complex speech. Needs a stronger device.");
@@ -175,7 +170,7 @@ export component LocalAsrModelModal inherits Rectangle {
                 y: 45px;
                 width: dialog.panel-width - 276px;
                 text: root.kind == AsrProviderCardKind.seaco-paraformer
-                    ? @tr("models.asr.local.subtitle.import" => "Local import · Chinese · Dictionary hints")
+                    ? @tr("models.asr.local.subtitle.seaco" => "INT8 · Chinese · Dictionary hints")
                     : root.kind == AsrProviderCardKind.zipformer
                         ? @tr("models.asr.local.subtitle.zipformer" => "INT8 encoder · ZH · EN · Dictionary hints")
                     : root.download-supported
@@ -252,9 +247,7 @@ export component LocalAsrModelModal inherits Rectangle {
                     height: parent.height;
                     content-offset: 12px;
                     icon: @image-url("../../icons/lucide/download.svg");
-                    label: root.kind == AsrProviderCardKind.seaco-paraformer
-                        ? @tr("models.asr.local.model-size" => "Model size")
-                        : @tr("models.asr.local.download-size" => "Download");
+                    label: @tr("models.asr.local.download-size" => "Download");
                     value: root.download-size;
                 }
                 LocalModelMetric {
@@ -306,9 +299,15 @@ export component LocalAsrModelModal inherits Rectangle {
                     activated => {
                         if root.installed { root.delete-requested(root.kind); }
                         else if root.downloading { root.pause-requested(root.kind); }
-                        else if root.kind == AsrProviderCardKind.seaco-paraformer { root.import-requested(); }
                         else { root.download-requested(root.kind); }
                     }
+                }
+                if root.import-supported && !root.installed && !root.queued && !root.downloading && !root.paused && !root.cancelling: LocalModelActionButton {
+                    x: model-action.x - self.width - 8px;
+                    y: 13px;
+                    label: @tr("models.asr.local.import" => "Import model");
+                    enabled: !root.selection-pending;
+                    activated => { root.import-requested(); }
                 }
                 if root.queued || root.downloading || root.paused: Rectangle {
                     x: model-action.x - self.width - 8px;

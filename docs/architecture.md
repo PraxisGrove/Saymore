@@ -86,14 +86,14 @@ serialized and vocabulary is session-owned. This is offline recognition with
 final results, without Python, post-recognition replacement, or automatic cloud
 fallback.
 
-SeACo currently imports only the exact verified local FP32 export described in
-the [native validation report](research/seaco-native-validation.md). No matching
-upstream ONNX download URL is available. Import checks the pinned sizes and
-SHA-256 hashes of six files, copies only those files into staging, verifies them
-again and activates atomically. It preserves the source directory and never
-selects the provider. The user selects the installed model after loading and a
-recognition self-test succeed. The application neither exports models nor
-publishes/mirrors the weights.
+SeACo downloads a pinned public INT8 ONNX export through the shared verified
+installer; the details page also supports importing those same six files. Both
+paths verify exact sizes and SHA-256 hashes before atomic activation. The user
+selects the installed model after loading and a recognition self-test succeed.
+The application does not export or mirror weights. The current artifact and
+validation evidence are documented in the
+[automatic download record](research/seaco-automatic-download.md); the previous
+FP32 export is historical research, not a compatible installation format.
 
 Local Zipformer adds native Chinese/English streaming recognition through
 sherpa-onnx transducer modified beam search with a per-stream bounded hotword

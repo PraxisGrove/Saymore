@@ -3661,18 +3661,13 @@ msgid "Not measured"
 msgstr ""
 
 #: ui/pages/local-asr-model.slint
-msgctxt "models.asr.local.seaco.import-detail"
-msgid "Choose a local SeACo ONNX model folder. A matching public download is not available."
-msgstr ""
-
-#: ui/pages/local-asr-model.slint
 msgctxt "models.asr.local.import"
 msgid "Import model"
 msgstr ""
 
 #: ui/pages/local-asr-model.slint
 msgctxt "models.asr.local.usage-tip.seaco"
-msgid "Offline Chinese recognition with native dictionary hints. Import a compatible ONNX export to begin."
+msgid "Offline Chinese recognition with native dictionary hints. Download the model or import the same verified files."
 msgstr ""
 
 #: ui/pages/local-asr-model.slint
@@ -3686,8 +3681,8 @@ msgid "Tiny English-only model. Final text only; recognition-time dictionary hin
 msgstr ""
 
 #: ui/pages/local-asr-model.slint
-msgctxt "models.asr.local.subtitle.import"
-msgid "Local import · Chinese · Dictionary hints"
+msgctxt "models.asr.local.subtitle.seaco"
+msgid "INT8 · Chinese · Dictionary hints"
 msgstr ""
 
 #: ui/pages/local-asr-model.slint
@@ -3698,16 +3693,6 @@ msgstr ""
 #: ui/pages/local-asr-model.slint
 msgctxt "models.asr.summary.english"
 msgid "English"
-msgstr ""
-
-#: ui/pages/local-asr-model.slint
-msgctxt "models.asr.local.model-size"
-msgid "Model size"
-msgstr ""
-
-#: ui/pages/speech-recognition.slint
-msgctxt "models.asr.local.import-ready"
-msgid "Import model files to use offline"
 msgstr ""
 
 #: ui/pages/local-asr-model.slint

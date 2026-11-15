@@ -15,8 +15,13 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let installer = match model.as_str() {
         "whisper" => VerifiedModelInstaller::whisper_large_v3_turbo(root)?,
         "qwen3" => VerifiedModelInstaller::qwen3_asr_1_7b(root)?,
+        "seaco" => VerifiedModelInstaller::seaco_paraformer(root)?,
         "zipformer" => VerifiedModelInstaller::zipformer(root)?,
-        _ => return Err(io::Error::other("supported downloads: whisper, qwen3, zipformer").into()),
+        _ => {
+            return Err(
+                io::Error::other("supported downloads: whisper, qwen3, seaco, zipformer").into(),
+            );
+        }
     };
     installer.ensure_install_space()?;
     eprintln!("model={model} bytes={}", installer.download_size_bytes());

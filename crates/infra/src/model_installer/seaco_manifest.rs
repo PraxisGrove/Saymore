@@ -1,25 +1,26 @@
 use super::*;
 
-pub const SEACO_MODEL_ID: &str = "seaco-paraformer-zh-fp32";
-pub const SEACO_MODEL_REVISION: &str = "0141367fdc9b6ba58b0442ef34bceb56a6c1789c-onnx-1.2.6";
+pub const SEACO_MODEL_ID: &str = "seaco-paraformer-zh-int8";
+pub const SEACO_MODEL_REVISION: &str = "45796913d5696c6334d8e5e18fc98cf4d063ad88";
 
 impl ModelManifest {
     pub(super) fn seaco_paraformer() -> Self {
-        Self {
-            id: SEACO_MODEL_ID.to_owned(),
-            revision: SEACO_MODEL_REVISION.to_owned(),
-            base_url: String::new(),
-            downloads: Vec::new(),
-            artifacts: vec![
+        Self::direct(
+            SEACO_MODEL_ID,
+            SEACO_MODEL_REVISION,
+            &format!(
+                "https://huggingface.co/MoYoYoTech/speech_seaco_paraformer_large_asr_nat-zh-cn-16k-common-vocab8404-pytorch/resolve/{SEACO_MODEL_REVISION}"
+            ),
+            vec![
                 artifact(
-                    "model.onnx",
-                    957_692_158,
-                    "20280dab4185fd35556f021e5c8d343d40e107bce1701afaa1e24654cc9f3dee",
+                    "model_quant.onnx",
+                    345_139_149,
+                    "1382593b11a18e0872ee149542496cbf6d4881aaeaba93a3de97bfa1cb5e7626",
                 ),
                 artifact(
-                    "model_eb.onnx",
-                    34_026_072,
-                    "37fc62cb078a341617af90aca5a753e71c3acaee60cdabbc2c19000d45cfd938",
+                    "model_eb_quant.onnx",
+                    34_028_133,
+                    "967e4f4f82706df80efb72a3b9f9ecc6e5d4e46ddb11eaf6837ae17ec4e04b06",
                 ),
                 artifact(
                     "am.mvn",
@@ -42,7 +43,6 @@ impl ModelManifest {
                     "59a2ef803a3f1648ad03a2e1480db1c1ee0c0d7dc4ef4dbd16cea33944329022",
                 ),
             ],
-            preparation: ModelPreparation::LocalImport,
-        }
+        )
     }
 }
