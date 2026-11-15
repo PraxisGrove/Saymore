@@ -187,6 +187,21 @@ The new pre-tag CI guard applies only to subsequent releases. A pre-existing tag
 created by the old workflow can still be repaired even though its own release
 commit did not have a separate CI run.
 
+### November 15, 2026 Windows version guard recovery
+
+The `v0.2.6`
+[release attempt](https://github.com/PraxisGrove/Saymore/actions/runs/43745082823)
+created its source tag, then the Windows version check rejected a correct
+`0.2.6` value. PowerShell's member enumeration returned a scalar string outside
+the array expression; indexing `[0]` compared the character `0` with the full
+version. Keep the version projection inside `@(...)` so both cardinality and
+full-string comparison are correct. Local PowerShell validation reproduced the
+old failure and verified correct-version acceptance and mismatch rejection.
+
+The failed workflow was cancelled without publishing a Release. The `v0.2.6` tag
+remains on its original source; the correction is released as `v0.2.7`. No
+existing tag is moved or republished with different code.
+
 ### October 26, 2026 manual packaging recovery
 
 [The manual release run](https://github.com/PraxisGrove/Saymore/actions/runs/40285450233)

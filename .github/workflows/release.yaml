@@ -191,7 +191,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          actual=$(cargo metadata --no-deps --format-version=1 \
+          actual=$(cargo metadata --locked --no-deps --format-version=1 \
             | jq -r '.packages[] | select(.name == "xtask") | .version')
           test "$actual" = "${{ needs.plan.outputs.version }}"
 
@@ -322,8 +322,8 @@ jobs:
       - name: Verify the tag's workspace version
         shell: pwsh
         run: |
-          $metadata = cargo metadata --no-deps --format-version=1 | ConvertFrom-Json
-          $actual = @($metadata.packages | Where-Object { $_.name -eq 'xtask' }).version
+          $metadata = cargo metadata --locked --no-deps --format-version=1 | ConvertFrom-Json
+          $actual = @($metadata.packages | Where-Object { $_.name -eq 'xtask' } | ForEach-Object { $_.version })
           if ($actual.Count -ne 1 -or $actual[0] -ne '${{ needs.plan.outputs.version }}') {
             throw "Expected workspace version '${{ needs.plan.outputs.version }}', found '$actual'"
           }
