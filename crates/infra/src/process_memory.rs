@@ -57,6 +57,47 @@ pub fn current_process_resident_memory_bytes() -> Option<u64> {
     None
 }
 
+/// Samples a native inference child without including the desktop process.
+#[cfg(target_os = "macos")]
+pub(crate) fn process_resident_memory_bytes(pid: u32) -> Option<u64> {
+    let pid = i32::try_from(pid).ok()?;
+    let mut usage = std::mem::MaybeUninit::<libc::rusage_info_v2>::zeroed();
+    // SAFETY: the flavor and writable buffer size match the libproc ABI.
+    let status =
+        unsafe { libc::proc_pid_rusage(pid, libc::RUSAGE_INFO_V2, usage.as_mut_ptr().cast()) };
+    if status != 0 {
+        return None;
+    }
+    // SAFETY: libproc initialized the buffer on success.
+    Some(unsafe { usage.assume_init() }.ri_resident_size)
+}
+
+#[cfg(target_os = "windows")]
+pub(crate) fn process_resident_memory_bytes(pid: u32) -> Option<u64> {
+    use windows::Win32::{
+        Foundation::CloseHandle,
+        System::Threading::{OpenProcess, PROCESS_QUERY_INFORMATION, PROCESS_VM_READ},
+    };
+    let mut counters = PROCESS_MEMORY_COUNTERS {
+        cb: u32::try_from(std::mem::size_of::<PROCESS_MEMORY_COUNTERS>()).ok()?,
+        ..PROCESS_MEMORY_COUNTERS::default()
+    };
+    // SAFETY: read-only process access, a correctly sized output buffer, and
+    // the owned handle is closed on both successful and failed sampling.
+    unsafe {
+        let handle = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, false, pid).ok()?;
+        let sampled =
+            K32GetProcessMemoryInfo(handle, std::ptr::addr_of_mut!(counters), counters.cb);
+        let _ = CloseHandle(handle);
+        sampled.as_bool().then_some(counters.WorkingSetSize as u64)
+    }
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
+pub(crate) fn process_resident_memory_bytes(_pid: u32) -> Option<u64> {
+    None
+}
+
 #[cfg(all(test, any(target_os = "macos", target_os = "windows")))]
 mod tests {
     use super::*;
@@ -64,5 +105,6 @@ mod tests {
     #[test]
     fn current_process_has_a_nonzero_resident_working_set() {
         assert!(current_process_resident_memory_bytes().is_some_and(|bytes| bytes > 0));
+        assert!(process_resident_memory_bytes(std::process::id()).is_some_and(|bytes| bytes > 0));
     }
 }

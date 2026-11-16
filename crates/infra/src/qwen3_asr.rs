@@ -1,67 +1,41 @@
-use std::{
-    fs,
-    path::Path,
-    sync::{Arc, Mutex},
-};
+use std::{fs, path::Path, sync::Arc};
 
-use sherpa_onnx::{OfflineQwen3ASRModelConfig, OfflineRecognizer, OfflineRecognizerConfig};
 use template_app::{
     SpeechRecognitionError, SpeechRecognitionHints, StreamingRecognitionSession,
     StreamingSpeechRecognizer,
 };
 
-use crate::background_recognition::{BackgroundRecognition, Chunking};
+use crate::{
+    background_recognition::{BackgroundRecognition, Chunking},
+    model_installer::{QWEN3_ASR_MODEL_BYTES, QWEN3_ASR_MODEL_FILE},
+};
 
 mod hotwords;
+mod native;
+mod process;
 
 const SAMPLE_RATE: i32 = 16_000;
 const MAX_SEGMENT_SAMPLES: usize = 30 * SAMPLE_RATE as usize;
-const HINTED_SEGMENT_SAMPLES: usize = 20 * SAMPLE_RATE as usize;
 const SEGMENT_OVERLAP_SAMPLES: usize = SAMPLE_RATE as usize;
-const MODEL_FILES: [(&str, u64); 6] = [
-    ("conv_frontend.onnx", 48_080_441),
-    ("encoder.int8.onnx", 314_222_162),
-    ("decoder.int8.onnx", 2_037_458_645),
-    ("tokenizer/merges.txt", 1_671_853),
-    ("tokenizer/tokenizer_config.json", 12_487),
-    ("tokenizer/vocab.json", 2_776_833),
-];
 
-/// Loads the pinned Qwen3-ASR 1.7B INT8 artifact for final-result decoding.
+/// Loads the pinned Qwen3-ASR 1.7B Q8_0 GGUF with a resident speech.cpp worker.
 pub struct Qwen3AsrSpeechRecognizer {
     decoder: Arc<dyn Qwen3Decoder>,
 }
 
 impl Qwen3AsrSpeechRecognizer {
     pub fn load(model_directory: &Path) -> Result<Self, SpeechRecognitionError> {
-        validate_model_files(model_directory)?;
-        let mut config = OfflineRecognizerConfig::default();
-        config.feat_config.feature_dim = 80;
-        config.model_config.qwen3_asr = OfflineQwen3ASRModelConfig {
-            conv_frontend: Some(path_text(&model_directory.join("conv_frontend.onnx"))?),
-            encoder: Some(path_text(&model_directory.join("encoder.int8.onnx"))?),
-            decoder: Some(path_text(&model_directory.join("decoder.int8.onnx"))?),
-            tokenizer: Some(path_text(&model_directory.join("tokenizer"))?),
-            max_total_len: 512,
-            max_new_tokens: 512,
-            temperature: 0.000_001,
-            top_p: 0.8,
-            seed: 42,
-            hotwords: None,
-        };
-        config.model_config.num_threads = 4;
-        config.model_config.provider = Some("cpu".to_owned());
-        config.decoding_method = Some("greedy_search".to_owned());
-        let recognizer = OfflineRecognizer::create(&config).ok_or_else(|| {
-            SpeechRecognitionError::Protocol(
-                "the Qwen3-ASR runtime could not load the pinned model files".to_owned(),
-            )
-        })?;
+        validate_model_file(model_directory)?;
         Ok(Self {
-            decoder: Arc::new(SherpaQwen3Decoder {
-                recognizer: Mutex::new(recognizer),
-            }),
+            decoder: Arc::new(native::NativeDecoder::load(
+                &model_directory.join(QWEN3_ASR_MODEL_FILE),
+            )?),
         })
+    }
+
+    /// Samples the resident inference process, separate from the desktop's memory.
+    pub fn resident_memory_bytes(&self) -> Option<u64> {
+        self.decoder.resident_memory_bytes()
     }
 
     #[cfg(test)]
@@ -78,14 +52,9 @@ impl StreamingSpeechRecognizer for Qwen3AsrSpeechRecognizer {
     ) -> Result<Box<dyn StreamingRecognitionSession>, SpeechRecognitionError> {
         let decoder = Arc::clone(&self.decoder);
         let hotwords = hotwords::from_hints(&hints);
-        let window_samples = if hotwords.is_empty() {
-            MAX_SEGMENT_SAMPLES
-        } else {
-            HINTED_SEGMENT_SAMPLES
-        };
         BackgroundRecognition::start(
             Chunking {
-                window_samples,
+                window_samples: MAX_SEGMENT_SAMPLES,
                 overlap_samples: SEGMENT_OVERLAP_SAMPLES,
             },
             move |samples| decoder.decode(samples, &hotwords),
@@ -95,69 +64,31 @@ impl StreamingSpeechRecognizer for Qwen3AsrSpeechRecognizer {
     }
 }
 
-fn validate_model_files(directory: &Path) -> Result<(), SpeechRecognitionError> {
-    if !directory.is_dir() {
-        return Err(SpeechRecognitionError::NotConfigured);
-    }
-    for (name, expected_bytes) in MODEL_FILES {
-        let path = directory.join(name);
-        let metadata = match fs::metadata(&path) {
-            Ok(metadata) => metadata,
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
-                return Err(SpeechRecognitionError::NotConfigured);
-            }
-            Err(error) => {
-                return Err(SpeechRecognitionError::Transport(format!(
-                    "could not inspect {}: {error}",
-                    path.display()
-                )));
-            }
-        };
-        if !metadata.is_file() || metadata.len() != expected_bytes {
-            return Err(SpeechRecognitionError::Protocol(format!(
-                "{} does not match the pinned Qwen3-ASR artifact",
-                path.display()
-            )));
-        }
+fn validate_model_file(directory: &Path) -> Result<(), SpeechRecognitionError> {
+    let path = directory.join(QWEN3_ASR_MODEL_FILE);
+    let metadata = fs::metadata(path).map_err(|error| match error.kind() {
+        std::io::ErrorKind::NotFound => SpeechRecognitionError::NotConfigured,
+        _ => SpeechRecognitionError::Transport("could not inspect the Qwen3 GGUF file".into()),
+    })?;
+    if !metadata.is_file() || metadata.len() != QWEN3_ASR_MODEL_BYTES {
+        return Err(SpeechRecognitionError::Protocol(
+            "the model does not match the pinned Qwen3-ASR Q8_0 GGUF".into(),
+        ));
     }
     Ok(())
 }
 
-fn path_text(path: &Path) -> Result<String, SpeechRecognitionError> {
-    path.to_str().map(ToOwned::to_owned).ok_or_else(|| {
-        SpeechRecognitionError::Protocol(format!(
-            "the Qwen3-ASR model path is not valid Unicode: {}",
-            path.display()
-        ))
-    })
-}
-
+/// Serializes native decoding and isolates each request's vocabulary.
+/// Implementations must reject failed/truncated responses rather than return partial success.
 trait Qwen3Decoder: Send + Sync {
     fn decode(&self, samples: &[i16], hotwords: &str) -> Result<String, SpeechRecognitionError>;
-}
-
-struct SherpaQwen3Decoder {
-    recognizer: Mutex<OfflineRecognizer>,
-}
-
-impl Qwen3Decoder for SherpaQwen3Decoder {
-    fn decode(&self, samples: &[i16], hotwords: &str) -> Result<String, SpeechRecognitionError> {
-        let recognizer = self.recognizer.lock().map_err(lock_error)?;
-        let stream = recognizer.create_stream();
-        // Qwen3 consumes this option as CSV in its system prompt (sherpa-onnx 1.13.4).
-        // The generic create_stream_with_hotwords API only supports transducers.
-        stream.set_option("hotwords", hotwords);
-        stream.accept_waveform(SAMPLE_RATE, &pcm_f32(samples));
-        recognizer.decode(&stream);
-        Ok(stream
-            .get_result()
-            .map(|result| result.text)
-            .unwrap_or_default())
+    fn resident_memory_bytes(&self) -> Option<u64> {
+        None
     }
 }
 
 fn append_segment(transcript: &mut String, segment: &str) {
-    let (segment, overlapped) = deduplicated_segment(transcript, speech_text(segment));
+    let (segment, overlapped) = deduplicated_segment(transcript, segment.trim());
     if segment.is_empty() {
         return;
     }
@@ -179,14 +110,6 @@ fn append_segment(transcript: &mut String, segment: &str) {
         transcript.push(' ');
     }
     transcript.push_str(segment);
-}
-
-fn speech_text(segment: &str) -> &str {
-    let segment = segment.trim();
-    segment
-        .split_once("<asr_text>")
-        .map(|(_, speech)| speech.trim_start())
-        .unwrap_or(segment)
 }
 
 fn deduplicated_segment<'a>(transcript: &str, segment: &'a str) -> (&'a str, bool) {
@@ -226,13 +149,7 @@ fn deduplicated_segment<'a>(transcript: &str, segment: &'a str) -> (&'a str, boo
     (segment[start + character.len_utf8()..].trim_start(), true)
 }
 
-fn pcm_f32(samples: &[i16]) -> Vec<f32> {
-    samples
-        .iter()
-        .map(|sample| f32::from(*sample) / 32_768.0)
-        .collect()
-}
-
+#[cfg(test)]
 fn lock_error(error: impl std::fmt::Display) -> SpeechRecognitionError {
     SpeechRecognitionError::Transport(format!("Qwen3-ASR runtime lock failed: {error}"))
 }
@@ -240,7 +157,7 @@ fn lock_error(error: impl std::fmt::Display) -> SpeechRecognitionError {
 #[cfg(test)]
 #[allow(clippy::panic_in_result_fn)]
 mod tests {
-    use std::path::PathBuf;
+    use std::sync::Mutex;
     use std::sync::atomic::{AtomicUsize, Ordering};
 
     use super::*;
@@ -309,11 +226,8 @@ mod tests {
             std::collections::BTreeMap::from([
                 ("Slint".to_owned(), vec![1_600]),
                 (
-                    concat!("Saymore,", "声墨").to_owned(),
-                    vec![
-                        HINTED_SEGMENT_SAMPLES,
-                        MAX_SEGMENT_SAMPLES + 1 - HINTED_SEGMENT_SAMPLES + SEGMENT_OVERLAP_SAMPLES,
-                    ]
+                    concat!("Saymore ", "声墨").to_owned(),
+                    vec![MAX_SEGMENT_SAMPLES, 1 + SEGMENT_OVERLAP_SAMPLES]
                 ),
                 (String::new(), vec![1_600]),
             ]),
@@ -392,15 +306,6 @@ mod tests {
     }
 
     #[test]
-    fn removes_qwen_control_metadata_before_joining_segments() {
-        let mut transcript = "第一段。".to_owned();
-
-        append_segment(&mut transcript, "language Chinese<asr_text>第二段。");
-
-        assert_eq!("第一段。第二段。", transcript);
-    }
-
-    #[test]
     fn replaces_old_boundary_punctuation_after_overlap() {
         let mut transcript = "朋友们，晚上好。".to_owned();
         append_segment(&mut transcript, "晚上好！欢迎大家");
@@ -408,17 +313,17 @@ mod tests {
     }
 
     #[test]
-    fn validates_the_nested_pinned_layout() -> Result<(), Box<dyn std::error::Error>> {
+    fn rejects_missing_or_incomplete_gguf() -> Result<(), Box<dyn std::error::Error>> {
         let directory = tempfile::tempdir()?;
-        for (name, bytes) in MODEL_FILES {
-            let path: PathBuf = directory.path().join(name);
-            if let Some(parent) = path.parent() {
-                fs::create_dir_all(parent)?;
-            }
-            let file = fs::File::create(path)?;
-            file.set_len(bytes)?;
-        }
-        assert!(validate_model_files(directory.path()).is_ok());
+        assert!(matches!(
+            validate_model_file(directory.path()),
+            Err(SpeechRecognitionError::NotConfigured)
+        ));
+        let file = fs::File::create(directory.path().join(QWEN3_ASR_MODEL_FILE))?;
+        file.set_len(QWEN3_ASR_MODEL_BYTES - 1)?;
+        assert!(validate_model_file(directory.path()).is_err());
+        file.set_len(QWEN3_ASR_MODEL_BYTES)?;
+        assert!(validate_model_file(directory.path()).is_ok());
         Ok(())
     }
 }

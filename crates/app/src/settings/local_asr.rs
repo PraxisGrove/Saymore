@@ -42,7 +42,7 @@ impl ProviderCatalog {
         {
             self.asr_providers.push(ProviderInstance {
                 id: QWEN3_ASR_PROVIDER_ID.to_owned(),
-                name: "Qwen3-ASR 1.7B INT8".to_owned(),
+                name: "Qwen3-ASR 1.7B Q8_0".to_owned(),
                 provider_type: QWEN3_ASR_PROVIDER_TYPE.to_owned(),
                 config: serde_json::json!({}),
                 data_consent: None,

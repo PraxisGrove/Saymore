@@ -62,6 +62,16 @@ together with the repository and CI pins when upgrading Rust.
 
 ## Artifacts
 
+Qwen recognition requires the native `saymore-speech` worker beside the desktop
+executable. Cargo builds it from pinned, verified speech.cpp/ggml source
+archives; `apps/desktop/Cargo.toml` declares both binaries for packaging. The
+macOS release workflow must create universal binaries for both, and signing must
+cover the worker. Local `.app`/Preview bundles also copy it into
+`Contents/MacOS` and ship its third-party notices. Windows portable
+distributions must include `saymore-speech.exe` beside `Saymore-Portable.exe`;
+distributing the desktop EXE alone no longer provides Qwen inference. The GGUF
+weights remain a separate verified model download, not part of the installer.
+
 - macOS builds both Apple Silicon and Intel targets, combines them into one
   universal binary, and publishes a branded drag-to-Applications DMG plus
   SHA-256 checksums to GitHub Releases. The repository-owned DMG background,

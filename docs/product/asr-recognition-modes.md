@@ -38,7 +38,7 @@ history. See [latency follow-up](../research/asr-latency-follow-up.md).
 
 | Model                  | Mode currently used by Saymore | Capability qualification                                                                                                                                                                                                                                                                                                                   |
 | ---------------------- | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Qwen3-ASR 1.7B         | Background segments            | Qwen explicitly documents unified streaming/offline inference with one model. Saymore currently uses sherpa-onnx's `OfflineRecognizer` on complete windows in a background worker during capture. Upstream's documented streaming interface uses vLLM; it is not wired into this ONNX adapter.                                             |
+| Qwen3-ASR 1.7B         | Background segments            | Qwen explicitly documents unified streaming/offline inference with one model. Saymore uses Q8_0 GGUF and a resident speech.cpp worker on complete windows during capture; Apple silicon uses Metal. This is bounded offline inference, not Qwen's native streaming interface.                                                              |
 | Whisper large-v3-turbo | Background segments            | whisper.cpp includes a microphone streaming example using repeated windowed transcription. Saymore currently invokes `full` on complete windows in a background worker during capture. Repeated sliding-window transcription is not implemented here; it is not evidence that Whisper has native incremental decoder state for live audio. |
 | SeACo-Paraformer       | Background segments            | The pinned SeACo graph consumes complete segment features and vocabulary embeddings. Its adapter submits complete windows to a background worker during capture. Do not infer live-audio support from the separate streaming Paraformer model that was previously integrated.                                                              |
 | Zipformer              | While recording                | The pinned artifact is a streaming transducer, and `OnlineRecognizer` drains ready frames during audio pushes and emits interim hypotheses. It also returns a final result. That does not establish an interchangeable offline graph for these exact files.                                                                                |
@@ -48,7 +48,7 @@ All four supported adapters use the same `StreamingSpeechRecognizer` /
 names do not declare model capability. The port documentation explicitly allows
 buffered finalization. The three supported offline-model adapters share a
 background worker: complete windows are submitted during capture and the
-remainder at `finish`. Qwen3 retains 30-second windows (20 seconds with hints),
+remainder at `finish`. Qwen3 uses 30-second windows for all vocabulary settings,
 with one second of overlap; Whisper retains 29 seconds; SeACo retains 30
 seconds. Completed text is collected on subsequent audio pushes. This is coarse
 segment recognition, not token-level live audio streaming. Short utterances

@@ -33,8 +33,14 @@ The decision and migration consequences are recorded in
 | Packaging automation   | Rust in `xtask` plus platform signing tools                            | `.app`/DMG on macOS and installer artifacts on Windows             |
 
 Versions are pinned through `Cargo.lock` when each dependency is introduced.
-Dependencies are added only when the vertical slice that uses them starts; this
-table is a decision, not permission to add every crate immediately.
+Qwen inference additionally pins speech.cpp and its ggml source archives by
+revision and SHA-256 in `crates/infra/build.rs`. Rust owns the model installer,
+private worker protocol and recording lifecycle; the native executable supplies
+Q8_0 GGUF inference with Metal on Apple silicon and CPU on other targets. It is
+packaged with the app, independently of whisper.cpp's native library. See
+[Qwen GGUF integration](research/qwen3-gguf-integration.md). Dependencies are
+added only when the vertical slice that uses them starts; this table is a
+decision, not permission to add every crate immediately.
 
 The bundled database uses `rusqlite 0.41.1` with `libsqlite3-sys 0.39.1` (SQLite
 3.54.1), which fixes RUSTSEC-2026-0459. Keep `fallible_uint` enabled for checked

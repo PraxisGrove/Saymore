@@ -9,9 +9,7 @@ use std::{
 
 use sherpa_onnx::Wave;
 use template_app::{SpeechRecognitionHints, StreamingSpeechRecognizer};
-use template_infra::{
-    Qwen3AsrSpeechRecognizer, VerifiedModelInstaller, current_process_resident_memory_bytes,
-};
+use template_infra::{Qwen3AsrSpeechRecognizer, VerifiedModelInstaller};
 
 mod probe_support;
 
@@ -30,19 +28,13 @@ fn main() -> Result<(), Box<dyn Error>> {
         "Installed size: {} bytes",
         installer.installed_size_bytes()?
     );
-    let memory_before = current_process_resident_memory_bytes();
     let load_started = Instant::now();
     let recognizer = Qwen3AsrSpeechRecognizer::load(&model)?;
     let load_elapsed = load_started.elapsed();
-    let memory_after = current_process_resident_memory_bytes();
     println!("Load time: {:.2}s", load_elapsed.as_secs_f64());
     println!(
-        "Resident memory: before {:?}, after {:?}, delta {:?} bytes",
-        memory_before,
-        memory_after,
-        memory_before
-            .zip(memory_after)
-            .and_then(|(before, after)| after.checked_sub(before))
+        "Worker resident memory: {:?} bytes",
+        recognizer.resident_memory_bytes()
     );
     let first = transcribe(&recognizer, &samples)?;
     let second = transcribe(&recognizer, &samples)?;
@@ -154,6 +146,6 @@ fn path_text(path: &Path) -> Result<&str, io::Error> {
 fn usage() -> io::Error {
     io::Error::new(
         io::ErrorKind::InvalidInput,
-        "usage: qwen3_asr_onnx_probe MODELS_ROOT WAVE_PATH [MAX_SECONDS]",
+        "usage: qwen3_asr_probe MODELS_ROOT WAVE_PATH [MAX_SECONDS]",
     )
 }

@@ -58,6 +58,23 @@ bundled public Chinese fixture. Its command and resource requirements are in the
 its deterministic frontend, session, cache, parsing and lifecycle tests without
 downloading model weights. Windows native MOSS acceptance remains pending.
 
+## Qwen Q8_0 native acceptance
+
+Normal tests cover worker protocol errors, truncation refusal, vocabulary reset,
+PCM encoding, process reaping, bounded reads, background sequencing and artifact
+validation. The ignored native test uses the packaged worker and a verified GGUF
+installation; it covers consecutive sessions, dictionary isolation, empty/silent
+audio, cancellation and worker memory sampling:
+
+```sh
+SAYMORE_QWEN_MODEL_DIR=/path/to/verified/gguf-directory cargo test --locked -p template-infra --test qwen3_native -- --ignored
+```
+
+The `qwen3_asr_probe` example downloads and verifies the current GGUF and runs
+two consecutive recognitions. `asr_latency_probe` measures the production
+adapter's capture-time scheduling. The artifact pin, acceptance results and host
+limits are in [Qwen GGUF integration](research/qwen3-gguf-integration.md).
+
 ## ASR Latency Matrix
 
 The opt-in [latency matrix](research/asr-latency-matrix.md) runs real local ASR

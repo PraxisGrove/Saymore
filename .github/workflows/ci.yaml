@@ -149,6 +149,8 @@ jobs:
           $output = Join-Path $env:GITHUB_WORKSPACE 'dist\ci-windows'
           cargo packager --release --packages saymore-desktop --formats nsis --binaries-dir target/release --out-dir $output
           Copy-Item target\release\saymore-desktop.exe (Join-Path $output 'Saymore-Portable.exe')
+          Copy-Item target\release\saymore-speech.exe (Join-Path $output 'saymore-speech.exe')
+          Copy-Item apps\desktop\packaging\resources\third-party (Join-Path $output 'third-party') -Recurse
           $installers = @(Get-ChildItem $output -Filter 'saymore-desktop_*_x64-setup.exe')
           if ($installers.Count -ne 1) {
             throw "expected one Windows x64 NSIS installer, found $($installers.Count)"

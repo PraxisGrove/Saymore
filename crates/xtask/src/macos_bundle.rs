@@ -68,6 +68,23 @@ pub(crate) fn create_bundle(
     fs::create_dir_all(&resources)?;
 
     fs::copy(source_binary, macos.join(BINARY_NAME))?;
+    let worker = source_binary.with_file_name("saymore-speech");
+    fs::copy(worker, macos.join("saymore-speech"))?;
+    let notices = resources.join("third-party");
+    fs::create_dir_all(&notices)?;
+    for notice in [
+        "speech.cpp-LICENSE.txt",
+        "ggml-LICENSE.txt",
+        "miniaudio-LICENSE.txt",
+        "cpp-httplib-LICENSE.txt",
+        "speech.cpp-NOTICE.md",
+    ] {
+        fs::copy(
+            root.join("apps/desktop/packaging/resources/third-party")
+                .join(notice),
+            notices.join(notice),
+        )?;
+    }
     fs::copy(
         root.join("apps/desktop/icons/icon.icns"),
         resources.join("icon.icns"),
@@ -128,7 +145,7 @@ enum BuildProfile {
 
 fn build(root: &Path, profile: BuildProfile) -> Result<(), Box<dyn Error>> {
     let mut command = Command::new("cargo");
-    command.args(["build", "-p", BINARY_NAME]);
+    command.args(["build", "--locked", "-p", BINARY_NAME]);
     if matches!(profile, BuildProfile::Release) {
         command.arg("--release");
     }

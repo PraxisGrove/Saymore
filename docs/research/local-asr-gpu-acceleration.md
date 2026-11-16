@@ -16,13 +16,13 @@ contains an accelerator backend.
 
 ## Current Implementation
 
-| Model                        | macOS                        | Windows | Constraint                                                                                                                     |
-| ---------------------------- | ---------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| Whisper large-v3-turbo Q8_0  | Requests Metal automatically | CPU     | macOS target enables whisper-rs `metal`; no weight conversion required.                                                        |
-| Qwen3-ASR                    | CPU                          | CPU     | sherpa-onnx provider is `cpu`; changing it requires a compatible accelerator-enabled native runtime and validated model graph. |
-| Zipformer                    | CPU                          | CPU     | Same native runtime constraint as Qwen3-ASR.                                                                                   |
-| MOSS-Transcribe-Diarize FP16 | CPU                          | CPU     | Experimental; shares the linked CPU ONNX Runtime with SeACo. See the [integration record](moss-native-integration.md).         |
-| SeACo-Paraformer             | CPU                          | CPU     | Uses the existing linked CPU ONNX Runtime through ORT's alternative backend; must retain one runtime when adding acceleration. |
+| Model                        | macOS                                | Windows | Constraint                                                                                                                                                  |
+| ---------------------------- | ------------------------------------ | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Whisper large-v3-turbo Q8_0  | Requests Metal automatically         | CPU     | macOS target enables whisper-rs `metal`; no weight conversion required.                                                                                     |
+| Qwen3-ASR                    | Metal on Apple silicon; CPU on Intel | CPU     | Pinned speech.cpp 0.8.11 worker and Q8_0 GGUF; selected backend failures are explicit, with no ONNX fallback. See [integration](qwen3-gguf-integration.md). |
+| Zipformer                    | CPU                                  | CPU     | Its sherpa-onnx build uses the CPU ONNX Runtime.                                                                                                            |
+| MOSS-Transcribe-Diarize FP16 | CPU                                  | CPU     | Experimental; shares the linked CPU ONNX Runtime with SeACo. See the [integration record](moss-native-integration.md).                                      |
+| SeACo-Paraformer             | CPU                                  | CPU     | Uses the existing linked CPU ONNX Runtime through ORT's alternative backend; must retain one runtime when adding acceleration.                              |
 
 macOS system dictation is managed by Apple Speech. Saymore does not select its
 compute device or promise GPU execution.

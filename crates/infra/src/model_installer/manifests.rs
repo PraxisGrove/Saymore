@@ -1,6 +1,6 @@
 use super::*;
 
-const QWEN3_ASR_BASE_URL: &str = "https://www.modelscope.cn/models/zengshuishui/Qwen3-ASR-onnx/resolve/cb045ad80b8970c9d411d463e5b78991a566596c";
+const QWEN3_ASR_BASE_URL: &str = "https://huggingface.co/sakasegawa/Qwen3-ASR-1.7B-GGUF/resolve/81e2423d24073cdeeccb5951df16accc89e075a2";
 const PUNCTUATION_BASE_URL: &str =
     "https://github.com/k2-fsa/sherpa-onnx/releases/download/punctuation-models";
 const PUNCTUATION_PACKAGE: &str =
@@ -29,44 +29,11 @@ impl ModelManifest {
             QWEN3_ASR_MODEL_ID,
             QWEN3_ASR_MODEL_REVISION,
             QWEN3_ASR_BASE_URL,
-            vec![
-                artifact_at(
-                    "model_1.7B/conv_frontend.onnx",
-                    "conv_frontend.onnx",
-                    48_080_441,
-                    "fa894a4ba53da6a4238f2a6ca0b09362e505d39cecbd646051b033e2e8d7e2fb",
-                ),
-                artifact_at(
-                    "model_1.7B/encoder.int8.onnx",
-                    "encoder.int8.onnx",
-                    314_222_162,
-                    "436fbd910a0c8914851e5ac1354e807be9f283d08a5da728adaa609731c41469",
-                ),
-                artifact_at(
-                    "model_1.7B/decoder.int8.onnx",
-                    "decoder.int8.onnx",
-                    2_037_458_645,
-                    "c43c853fa6e97d08365cb8a5502b360b595cd43c00dc60e4d8ca7cc18cad460b",
-                ),
-                artifact_at(
-                    "tokenizer/merges.txt",
-                    "tokenizer/merges.txt",
-                    1_671_853,
-                    "8831e4f1a044471340f7c0a83d7bd71306a5b867e95fd870f74d0c5308a904d5",
-                ),
-                artifact_at(
-                    "tokenizer/tokenizer_config.json",
-                    "tokenizer/tokenizer_config.json",
-                    12_487,
-                    "4942d005604266809309cabc9f4e9cb89ce855d59b14681fdc0e1cc62ea26c4c",
-                ),
-                artifact_at(
-                    "tokenizer/vocab.json",
-                    "tokenizer/vocab.json",
-                    2_776_833,
-                    "ca10d7e9fb3ed18575dd1e277a2579c16d108e32f27439684afa0e10b1440910",
-                ),
-            ],
+            vec![artifact(
+                QWEN3_ASR_MODEL_FILE,
+                QWEN3_ASR_MODEL_BYTES,
+                "5f219b78a1d9c3b9e97da27708b36f8a0bc1bfc1650b541c0a6dbaf87c9a62d0",
+            )],
         )
     }
 

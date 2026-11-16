@@ -2,6 +2,10 @@
 
 调研日期：2026-08-03
 
+状态：历史 ONNX 调研记录。生产实现已由
+[Q8_0 GGUF / speech.cpp 接入](qwen3-gguf-integration.md)
+替代；本文的旧文件布局和 命令不再适用于当前版本，也不提供兼容加载。
+
 范围：为 Saymore 的 macOS 本地听写核查 Qwen3-ASR 1.7B 8-bit 制品，固定可下载
 文件、revision、大小与 SHA-256，并确认现有 `sherpa-onnx 1.13.4` Rust 运行时是否
 能够直接加载。外部事实只采用 Qwen、sherpa-onnx、转换项目、Hugging Face 和

@@ -2,21 +2,21 @@ use std::collections::BTreeSet;
 
 use template_app::SpeechRecognitionHints;
 
-// The pinned decoder has a 512-token context shared by hotwords and audio.
+// Bound the session vocabulary to keep prompts concise and predictable.
 const MAX_HOTWORD_BYTES: usize = 128;
 
 pub(super) fn from_hints(hints: &SpeechRecognitionHints) -> String {
     let mut seen = BTreeSet::new();
     let mut hotwords = String::new();
     for term in hints.terms().iter().map(|term| term.trim()) {
-        // sherpa's set_option converts to a C string; reject controls including NUL.
+        // Only canonical vocabulary enters the model prompt; omit control characters.
         if term.is_empty()
             || term.chars().any(char::is_control)
             || !seen.insert(term.to_lowercase())
         {
             continue;
         }
-        let separator = if hotwords.is_empty() { "" } else { "," };
+        let separator = if hotwords.is_empty() { "" } else { " " };
         if hotwords.len() + separator.len() + term.len() > MAX_HOTWORD_BYTES {
             continue;
         }
@@ -31,7 +31,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn formats_canonical_terms_as_csv_and_drops_duplicates_and_controls() {
+    fn formats_canonical_terms_and_drops_duplicates_and_controls() {
         let hints = SpeechRecognitionHints::from_terms(
             [
                 " Saymore ",
@@ -45,7 +45,7 @@ mod tests {
             .map(str::to_owned)
             .to_vec(),
         );
-        assert_eq!(concat!("Saymore,", "声墨", ",Slint"), from_hints(&hints));
+        assert_eq!(concat!("Saymore ", "声墨", " Slint"), from_hints(&hints));
         assert_eq!("", from_hints(&SpeechRecognitionHints::default()));
     }
 
@@ -57,6 +57,6 @@ mod tests {
             "too-long-to-fit".to_owned(),
             "Slint".to_owned(),
         ]);
-        assert_eq!(format!("{},Slint", "声".repeat(40)), from_hints(&hints));
+        assert_eq!(format!("{} Slint", "声".repeat(40)), from_hints(&hints));
     }
 }

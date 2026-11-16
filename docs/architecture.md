@@ -45,13 +45,18 @@ continues to protect existing URLs, commands, versions, and technical fragments.
 OpenAI-compatible transcription providers receive those spellings as the bounded
 `prompt` field; the recognized Mistral endpoint instead receives repeated
 `context_bias` fields. The Volcengine and macOS Speech adapters use their native
-hint mechanisms. Local Qwen3-ASR uses sherpa-onnx 1.13.4's per-stream `hotwords`
-option (comma-separated terms in the model's system prompt), reusing the loaded
-model across dictations. Each session snapshots a deduplicated list bounded to
-128 UTF-8 bytes to limit pressure on the pinned decoder's shared 512-token
-context; empty terms and terms containing control characters are omitted. Hinted
-sessions use overlapping 20-second audio segments instead of 30-second segments
-to leave context space for the vocabulary prompt.
+hint mechanisms. Local Qwen3-ASR uses a pinned Q8_0 GGUF through speech.cpp
+0.8.11 in a resident native worker. Rust owns its private stdio protocol and
+background segmentation. Apple silicon explicitly selects Metal; Intel macOS and
+Windows use CPU. Each session snapshots deduplicated canonical vocabulary
+bounded to 128 UTF-8 bytes, omits empty/control-containing terms, and sends a
+space-separated `prompt` on every request, including an explicit empty prompt.
+All Qwen sessions use overlapping 30-second segments. Native failures and
+model-limit truncation are errors; a failed worker is discarded. Runtime logs
+are suppressed and memory sampling reads the child process. The installer
+accepts only the pinned GGUF; no Qwen ONNX adapter or compatibility path
+remains. See [Qwen GGUF integration](research/qwen3-gguf-integration.md) for
+artifact, runtime, packaging and validation details.
 
 Local Whisper uses whisper.cpp through pinned `whisper-rs 0.16.0` rather than
 sherpa-onnx. macOS builds include the Metal backend and request GPU

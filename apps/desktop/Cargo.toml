@@ -14,6 +14,10 @@ identifier = "com.saymore.desktop"
 category = "Productivity"
 icons = ["icons/icon.icns", "icons/icon.ico"]
 resources = [{ src = "packaging/resources", target = "" }]
+binaries = [
+    { path = "saymore-desktop", main = true },
+    { path = "saymore-speech", main = false },
+]
 
 [package.metadata.packager.macos]
 minimum-system-version = "12.0"

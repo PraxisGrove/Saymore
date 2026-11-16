@@ -133,3 +133,10 @@ Remaining: run real DeepSeek reuse pairs with explicit benchmark credentials;
 obtain human continuous/noisy speech with references; complete native delivery
 measurement once TextEdit automation is functional; add a single end-to-end
 stop-to-verified-insertion timeline. Do not claim these as completed.
+
+The subsequent [Qwen3/Arion optimization study](qwen3-arion-optimization.md)
+compares the current CPU adapter with a pinned speech.cpp Q8_0 Metal research
+worker on the same M4 fixtures, and separately tests draft verification. Its
+measurements are independent of this historical matrix. The subsequent
+[GGUF integration](qwen3-gguf-integration.md) replaces the production Qwen3 ONNX
+adapter with the pinned native worker.

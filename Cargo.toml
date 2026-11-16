@@ -15,6 +15,10 @@ version = "0.2.7"
 
 [workspace.dependencies]
 async-trait = "0.1.92"
+base64 = "0.22"
+cmake = "0.1.58"
+libc = "0.2"
+ureq = "2.12.1"
 aes-gcm = "0.10.3"
 cpal = "0.18.1"
 chrono = { version = "0.4", default-features = false, features = ["clock", "unstable-locales"] }

@@ -755,7 +755,7 @@ export component UnavailableAsrProviderModal inherits Rectangle {
     private property <string> subtitle: root.cloud
         ? @tr("models.asr.placeholder.cloud-subtitle" => "First-party speech service placeholder")
         : @tr("models.asr.placeholder.local-subtitle" => "Local model adapter is not yet connected");
-    private property <string> download-size: root.kind == AsrProviderCardKind.qwen3-asr ? "2.24 GB"
+    private property <string> download-size: root.kind == AsrProviderCardKind.qwen3-asr ? "2.03 GB"
         : root.kind == AsrProviderCardKind.whisper-large-v3-turbo ? "833.69 MB" : "—";
     private property <string> memory: root.kind == AsrProviderCardKind.qwen3-asr ? "~4.3 GB"
         : root.kind == AsrProviderCardKind.whisper-large-v3-turbo ? "~2.15 GB" : "—";

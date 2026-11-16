@@ -224,10 +224,8 @@ impl AsrSessionController {
         if let Some(loaded) = recognizer.as_ref() {
             return Ok(loaded.clone());
         }
-        let resident_before = current_process_resident_memory_bytes();
         let loaded = Arc::new(Qwen3AsrSpeechRecognizer::load(&self.qwen3_model_directory)?);
-        let resident_memory_bytes =
-            resident_memory_delta(resident_before, current_process_resident_memory_bytes());
+        let resident_memory_bytes = loaded.resident_memory_bytes();
         let loaded = LoadedQwen3 {
             recognizer: loaded,
             resident_memory_bytes,
