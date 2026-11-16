@@ -1,6 +1,7 @@
 import { AsrProviderCardKind, ModalShell, ModalSize } from "../components.slint";
 import { AppColors } from "../color-system.slint";
 import { RecognitionTestPanel } from "asr-recognition-test.slint";
+import { QwenModeControl, QwenRecognitionMode } from "qwen-mode-control.slint";
 
 import { LocalModelDownloadState, LocalModelSummaryPill, LocalModelMetric, LocalModelActionButton, LocalModelSelectionControl } from "local-asr-controls.slint";
 export { LocalModelDownloadState } from "local-asr-controls.slint";
@@ -25,6 +26,8 @@ export component LocalAsrModelModal inherits Rectangle {
     in property <string> test-elapsed;
     in property <string> test-result;
     in property <string> download-error;
+    in property <QwenRecognitionMode> qwen-mode: QwenRecognitionMode.non-streaming;
+    callback qwen-mode-changed(QwenRecognitionMode);
     callback cancelled();
     callback import-requested();
     callback download-requested(AsrProviderCardKind);
@@ -104,6 +107,7 @@ export component LocalAsrModelModal inherits Rectangle {
         : root.download-supported;
     // Describe the current adapter, not the model family's complete capabilities.
     private property <string> current-mode: root.kind == AsrProviderCardKind.zipformer
+        || (root.kind == AsrProviderCardKind.qwen3-asr && root.qwen-mode == QwenRecognitionMode.streaming)
         ? @tr("models.asr.local.mode.during-recording" => "Current mode: recognize while recording")
         : @tr("models.asr.local.mode.chunked" => "Current mode: background recognition in segments");
     private property <bool> native-dictionary-hints: root.kind == AsrProviderCardKind.seaco-paraformer
@@ -226,12 +230,19 @@ export component LocalAsrModelModal inherits Rectangle {
             Text {
                 x: 28px;
                 y: 48px;
-                width: dialog.panel-width - 56px;
+                width: root.kind == AsrProviderCardKind.qwen3-asr ? dialog.panel-width - 260px : dialog.panel-width - 56px;
                 height: 18px;
+                overflow: elide;
                 text: root.current-mode;
                 color: AppColors.text-muted;
                 font-size: 11px;
                 vertical-alignment: center;
+            }
+
+            if root.kind == AsrProviderCardKind.qwen3-asr: QwenModeControl {
+                x: dialog.panel-width - 220px; y: 43px; width: 192px;
+                mode: root.qwen-mode;
+                changed(value) => { root.qwen-mode-changed(value); }
             }
 
             metrics := Rectangle {
@@ -393,7 +404,9 @@ export component LocalAsrModelModal inherits Rectangle {
                 y: dictionary-info.y + dictionary-info.height + 16px;
                 width: dialog.panel-width - 56px;
                 height: max(36px, self.preferred-height);
-                text: root.usage-tip;
+                text: root.kind == AsrProviderCardKind.qwen3-asr
+                    ? @tr("models.qwen.mode.help" => "Streaming updates text while you speak (up to 20 minutes). Non-streaming processes complete segments in the background. Changes apply to the next recording.")
+                    : root.usage-tip;
                 color: AppColors.text;
                 font-size: 12px;
                 vertical-alignment: center;

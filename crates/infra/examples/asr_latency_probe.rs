@@ -12,10 +12,7 @@ use std::{
     time::{Duration, Instant},
 };
 use template_app::{SpeechRecognitionHints, StreamingSpeechRecognizer};
-use template_infra::{
-    Qwen3AsrSpeechRecognizer, SeacoSpeechRecognizer, WhisperSpeechRecognizer,
-    ZipformerSpeechRecognizer,
-};
+use template_infra::{SeacoSpeechRecognizer, WhisperSpeechRecognizer, ZipformerSpeechRecognizer};
 fn main() -> Result<(), Box<dyn Error>> {
     init_diagnostics();
     let mut args = env::args_os().skip(1);
@@ -77,24 +74,35 @@ fn main() -> Result<(), Box<dyn Error>> {
     let processed = latency_support::process(text.clone(), &refinement)?;
     let ready_seconds = stopped.elapsed().as_secs_f64();
     let first = first_observation(&first_partial)?;
-    println!(
-        "{}",
-        serde_json::to_string_pretty(&serde_json::json!({
-            "model": model, "feed": feed, "scheduling": scheduling,
-            "decoder_mode": if model == "zipformer" { "native_online" } else { "offline_segments" },
-            "audio_seconds": samples.len() as f64 / 16000.0,
-            "load_seconds": load_seconds,
-            "stop_to_final_seconds": asr_seconds,
-            "total_seconds": asr_total_seconds,
-            "stop_to_text_ready_seconds": ready_seconds,
-            "capture_to_text_ready_seconds": start.elapsed().as_secs_f64(),
-            "cold": cold, "refinement": refinement, "processed": processed,
-            "delivery": "not_measured",
-            "first_partial_seconds": first,
-            "text": text,
-        }))?
-    );
+    let measurement = serde_json::json!({
+        "model": model, "feed": feed, "scheduling": scheduling,
+        "qwen_mode": env::var("SAYMORE_BENCH_QWEN_MODE").unwrap_or_else(|_| "non_streaming".into()),
+        "decoder_mode": decoder_mode(&model),
+        "audio_seconds": samples.len() as f64 / 16000.0,
+        "load_seconds": load_seconds,
+        "stop_to_final_seconds": asr_seconds,
+        "total_seconds": asr_total_seconds,
+        "stop_to_text_ready_seconds": ready_seconds,
+        "capture_to_text_ready_seconds": start.elapsed().as_secs_f64(),
+        "cold": cold, "refinement": refinement, "processed": processed,
+        "delivery": "not_measured",
+        "first_partial_seconds": first,
+        "text": text,
+    });
+    println!("{}", serde_json::to_string_pretty(&measurement)?);
     Ok(())
+}
+
+fn decoder_mode(model: &str) -> &'static str {
+    if model == "zipformer" {
+        "native_online"
+    } else if model == "qwen3"
+        && env::var("SAYMORE_BENCH_QWEN_MODE").is_ok_and(|value| value == "streaming")
+    {
+        "official_streaming_algorithm_port"
+    } else {
+        "offline_segments"
+    }
 }
 
 fn init_diagnostics() {
@@ -160,7 +168,7 @@ fn load_recognizer(
     Ok(match model {
         "zipformer" => Box::new(ZipformerSpeechRecognizer::load(directory)?),
         "whisper" => Box::new(WhisperSpeechRecognizer::load(directory)?),
-        "qwen3" => Box::new(Qwen3AsrSpeechRecognizer::load(directory)?),
+        "qwen3" => Box::new(latency_support::qwen::QwenReplay::load(directory)?),
         "seaco" => Box::new(SeacoSpeechRecognizer::load(directory)?),
         _ => return Err(usage().into()),
     })

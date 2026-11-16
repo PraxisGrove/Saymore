@@ -50,6 +50,10 @@ name = "models_navigation"
 harness = false
 
 [[test]]
+name = "qwen_modes"
+harness = false
+
+[[test]]
 name = "model_discovery_runtime"
 harness = false
 

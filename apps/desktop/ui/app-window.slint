@@ -14,6 +14,8 @@ import { Translations } from "translations.slint";
 import { Typography } from "typography.slint";
 import { UpdateNotification } from "update-notification.slint";
 export { Translations } from "translations.slint";
+import { QwenRecognitionMode } from "pages/qwen-mode-control.slint";
+export { QwenRecognitionMode } from "pages/qwen-mode-control.slint";
 export { RecordingOverlay } from "recording-overlay.slint";
 export { ResultOverlay } from "result-overlay.slint";
 export { DictionaryAddedOverlay } from "dictionary-added-overlay.slint";
@@ -190,6 +192,8 @@ export component AppWindow inherits Window {
     in property <bool> qwen3-asr-download-supported: false;
     in property <bool> qwen3-asr-adapter-ready: false;
     in property <bool> qwen3-asr-selected: false;
+    in property <QwenRecognitionMode> qwen-recognition-mode: QwenRecognitionMode.non-streaming;
+    callback change-qwen-recognition-mode(QwenRecognitionMode);
     in property <bool> qwen3-asr-activation-pending: false;
     in property <string> qwen3-asr-download-size: "";
     in property <string> qwen3-asr-installed-size: "";
@@ -919,6 +923,8 @@ export component AppWindow inherits Window {
     }
 
     if root.asr-placeholder-modal-visible && root.local-asr-model-visible: LocalAsrModelModal {
+        qwen-mode: root.qwen-recognition-mode;
+        qwen-mode-changed(mode) => { root.change-qwen-recognition-mode(mode); }
         width: parent.width;
         height: parent.height;
         kind: root.asr-placeholder-kind;

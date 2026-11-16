@@ -5,6 +5,31 @@ use std::{fs, os::unix::fs::PermissionsExt, sync::Mutex};
 
 type TestResult = Result<(), Box<dyn std::error::Error>>;
 
+#[test]
+#[ignore = "requires SAYMORE_QWEN_MODEL_DIR"]
+fn native_prefix_is_forced_continuation_and_is_cleared_on_the_next_request() -> TestResult {
+    let directory = std::path::PathBuf::from(
+        std::env::var_os("SAYMORE_QWEN_MODEL_DIR").ok_or("model directory required")?,
+    );
+    let decoder = NativeDecoder::load(&directory.join("Qwen3-ASR-1.7B-Q8_0.gguf"))?;
+    let audio = include_bytes!("../../../../apps/desktop/assets/asr-test/standard-zh.pcm")
+        .as_chunks::<2>()
+        .0
+        .iter()
+        .map(|bytes| i16::from_le_bytes(*bytes))
+        .collect::<Vec<_>>();
+    let result = decoder.decode_stream(
+        &audio,
+        "",
+        "language Chinese<asr_text>这是前缀保留检查，前面的字必须保留。最后五个令牌用于回退。",
+    )?;
+    assert!(result.text.starts_with("这是前缀保留检查"));
+    assert!(!result.raw.contains('\u{fffd}'));
+    let fresh = decoder.decode_stream(&audio, "", "")?;
+    assert_eq!("可以通过语音进行人机交互。", fresh.text);
+    Ok(())
+}
+
 fn worker(reply: &str) -> Result<(tempfile::TempDir, NativeDecoder), Box<dyn std::error::Error>> {
     let directory = tempfile::tempdir()?;
     let executable = directory.path().join("fake-worker");
@@ -82,7 +107,7 @@ fn loading_requires_the_pinned_runtime_model_and_prompt_capability() {
     };
     let ready = json!({"type":"ready", "protocol":3, "version":"0.8.11", "model":{
         "name":"Qwen3-ASR-1.7B", "weight_type":"Q8_0", "sample_rate":16000,
-        "device":device, "options":[{"name":"prompt","type":"string","steers":true}]
+        "device":device, "options":[{"name":"prompt","type":"string","steers":true}, {"name":"prefix"}, {"name":"rollback_tokens"}, {"name":"max_new_tokens"}]
     }});
     assert!(validate_ready(&ready).is_ok());
     for (field, value) in [

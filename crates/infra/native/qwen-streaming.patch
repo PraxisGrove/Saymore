@@ -1,0 +1,321 @@
+diff --git a/include/speech.h b/include/speech.h
+index 9a7e739..206a46c 100644
+--- a/include/speech.h
++++ b/include/speech.h
+@@ -421,7 +421,11 @@ typedef enum speech_option {
+      * speed or nothing; the request then runs with true. A model on
+      * the CPU, or one whose GPU holds every expert, takes either. Added in 3.3.
+      */
+-    SPEECH_OPT_EXPERTS_ON_CPU = 46
++    SPEECH_OPT_EXPERTS_ON_CPU = 46,
++    /** Saymore: prior raw assistant output, token rollback and per-step generation budget. */
++    SPEECH_OPT_PREFIX = 47,
++    SPEECH_OPT_ROLLBACK_TOKENS = 48,
++    SPEECH_OPT_MAX_NEW_TOKENS = 49
+ } speech_option;
+ 
+ /** The type of an option's values, which names the setter that takes them. */
+@@ -1122,6 +1126,8 @@ SPEECH_API uint64_t speech_result_samples(const speech_result * result);
+ 
+ /** The text a recognition found, "" when it heard none or was cancelled; NULL for a synthesis and a detection. */
+ SPEECH_API const char * speech_result_text(const speech_result * result);
++/** Saymore: raw assistant output for the next streaming prefix. */
++SPEECH_API const char * speech_result_raw_text(const speech_result * result);
+ 
+ /**
+  * The number of segments of a recognition that set timestamps: runs of tokens that end where the model's file says a
+diff --git a/src/api/api.h b/src/api/api.h
+index a519bad..35e493f 100644
+--- a/src/api/api.h
++++ b/src/api/api.h
+@@ -117,6 +117,7 @@ struct speech_result {
+     int64_t seed = -1;
+     uint64_t samples = 0;
+     std::string text;
++    std::string raw_text;
+     std::vector<TimedText> segments, tokens;
+     std::vector<std::string> languages;
+ };
+diff --git a/src/api/request.cpp b/src/api/request.cpp
+index 5e5476c..59ac597 100644
+--- a/src/api/request.cpp
++++ b/src/api/request.cpp
+@@ -397,6 +397,7 @@ speech_status speech_transcribe(speech_request * request) {
+             Recognized found = request->model->engine->transcribe(samples, values, run);
+             if (run.stopped()) return;
+             result.text = std::move(found.text);
++            result.raw_text = std::move(found.raw_text);
+             result.segments = std::move(found.segments);
+             result.tokens = std::move(found.tokens);
+             result.stop = found.stop;
+@@ -434,6 +435,10 @@ const char * speech_result_text(const speech_result * result) {
+     return result && result->task == SPEECH_TASK_RECOGNITION ? result->text.c_str() : nullptr;
+ }
+ 
++const char * speech_result_raw_text(const speech_result * result) {
++    return result ? result->raw_text.c_str() : "";
++}
++
+ size_t speech_result_segment_count(const speech_result * result) {
+     return result ? result->segments.size() : 0;
+ }
+diff --git a/src/api/speech.cpp b/src/api/speech.cpp
+index 79fc7d7..ac2f86f 100644
+--- a/src/api/speech.cpp
++++ b/src/api/speech.cpp
+@@ -105,6 +105,9 @@ const OptionName vocabulary[] = {
+     {"decode_on_cpu", SPEECH_TYPE_BOOL},
+     {"draft", SPEECH_TYPE_STRING},
+     {"experts_on_cpu", SPEECH_TYPE_BOOL},
++    {"prefix", SPEECH_TYPE_STRING},
++    {"rollback_tokens", SPEECH_TYPE_INT},
++    {"max_new_tokens", SPEECH_TYPE_INT},
+ };
+ constexpr size_t kOptions = sizeof vocabulary / sizeof vocabulary[0];
+ 
+diff --git a/src/engines/engine.h b/src/engines/engine.h
+index b5185bd..ea10b78 100644
+--- a/src/engines/engine.h
++++ b/src/engines/engine.h
+@@ -176,6 +176,7 @@ struct TimedText {
+  */
+ struct Recognized {
+     std::string text;
++    std::string raw_text;
+     std::vector<TimedText> segments, tokens;
+     speech_stop stop = SPEECH_STOP_COMPLETE;
+     std::vector<std::string> languages;
+diff --git a/src/engines/qwen3-asr-engine.cpp b/src/engines/qwen3-asr-engine.cpp
+index bf78500..69eb2ff 100644
+--- a/src/engines/qwen3-asr-engine.cpp
++++ b/src/engines/qwen3-asr-engine.cpp
+@@ -18,11 +18,15 @@ public:
+         request.language = forced_language(values.string(SPEECH_OPT_LANGUAGE));
+         request.context = values.string(SPEECH_OPT_PROMPT);
+         request.draft = values.string(SPEECH_OPT_DRAFT);
++        request.prefix = values.string(SPEECH_OPT_PREFIX);
++        request.rollback_tokens = (int) values.integer(SPEECH_OPT_ROLLBACK_TOKENS);
++        request.max_new_tokens = (int) values.integer(SPEECH_OPT_MAX_NEW_TOKENS);
+         const qwen3_asr::Recognition found = recognizer_.recognize(samples, request, [&](double done) { return run.progress(done); });
+         if (run.stopped()) return {};
+         run.progress(1);
+         Recognized out;
+         out.text = found.text;
++        out.raw_text = found.raw_text;
+         out.stop = found.limited ? SPEECH_STOP_MODEL_LIMIT : SPEECH_STOP_COMPLETE;
+         for (size_t language : found.languages) out.languages.push_back(recognizer_.languages()[language]);
+         return out;
+@@ -62,6 +66,9 @@ FamilyInfo describe_qwen3_asr(const std::shared_ptr<const ModelFile> &) {
+         {SPEECH_OPT_LANGUAGE, false, true, std::string("auto")},
+         {SPEECH_OPT_PROMPT, false, true, std::string()},
+         {SPEECH_OPT_DRAFT, false, false, std::string()},
++        {SPEECH_OPT_PREFIX, false, true, std::string()},
++        {SPEECH_OPT_ROLLBACK_TOKENS, false, true, int64_t(5), 0, 512},
++        {SPEECH_OPT_MAX_NEW_TOKENS, false, true, int64_t(0), 0, 4096},
+     };
+     return info;
+ }
+diff --git a/src/families/qwen3-asr/decoder.cpp b/src/families/qwen3-asr/decoder.cpp
+index cc1d068..9eb749b 100644
+--- a/src/families/qwen3-asr/decoder.cpp
++++ b/src/families/qwen3-asr/decoder.cpp
+@@ -102,7 +102,8 @@ std::vector<int32_t> Draft::ahead(size_t count) const {
+ }
+ 
+ std::optional<Generation> Decoder::generate(const std::function<bool(size_t tokens)> & keep_going, Draft * draft,
+-                                            std::vector<std::vector<float>> * seen) {
++                                            std::vector<std::vector<float>> * seen, int64_t budget) {
++    const int64_t limit = budget > 0 ? std::min(budget, max_new_tokens_) : max_new_tokens_;
+     const bool picks = stack_.readback() == Qwen3Readback::Pick;
+     if (seen && picks) throw std::logic_error("a decoder that reads picks has no logits to give");
+     const auto next = [&] {
+@@ -118,7 +119,7 @@ std::optional<Generation> Decoder::generate(const std::function<bool(size_t toke
+     const auto write = [&](int32_t token) {
+         out.ids.push_back(token);
+         if (std::find(eos_.begin(), eos_.end(), token) != eos_.end()) return false;
+-        if ((int64_t) out.ids.size() == max_new_tokens_) {
++        if ((int64_t) out.ids.size() == limit) {
+             out.limited = true;
+             return false;
+         }
+@@ -134,7 +135,7 @@ std::optional<Generation> Decoder::generate(const std::function<bool(size_t toke
+         std::vector<int32_t> rows{id};
+         if (draft) {
+             // Each token kept takes a position, and the pick after them one more: the rows stay within the limit.
+-            const size_t room = (size_t) (max_new_tokens_ - (int64_t) out.ids.size());
++            const size_t room = (size_t) (limit - (int64_t) out.ids.size());
+             for (int32_t d : draft->ahead(std::min(kDraftTokens, room))) rows.push_back(d);
+         }
+         if (rows.size() == 1) {
+diff --git a/src/families/qwen3-asr/decoder.h b/src/families/qwen3-asr/decoder.h
+index 8edd790..a0b5ba8 100644
+--- a/src/families/qwen3-asr/decoder.h
++++ b/src/families/qwen3-asr/decoder.h
+@@ -104,7 +104,7 @@ public:
+      * the rest. `seen`, where given, gets the logits each token was picked from, of a decoder that reads logits.
+      */
+     std::optional<Generation> generate(const std::function<bool(size_t tokens)> & keep_going, Draft * draft = nullptr,
+-                                       std::vector<std::vector<float>> * seen = nullptr);
++                                       std::vector<std::vector<float>> * seen = nullptr, int64_t budget = 0);
+ 
+     /** The positions a sequence with a prompt of `n` rows takes: the prompt and the most tokens the model writes. */
+     int64_t positions(int64_t n) const { return n + max_new_tokens_; }
+diff --git a/src/families/qwen3-asr/prompt.cpp b/src/families/qwen3-asr/prompt.cpp
+index 84c3652..153ad00 100644
+--- a/src/families/qwen3-asr/prompt.cpp
++++ b/src/families/qwen3-asr/prompt.cpp
+@@ -15,13 +15,13 @@ Prompt::Prompt(const ModelFile & m, const Tokenizer & tokenizer)
+       languages_(m.str_array("general.languages")),
+       names_(m.str_array("qwen3-asr.language_names")) {}
+ 
+-PromptIds Prompt::ids(const std::string & context, std::optional<size_t> language, int64_t audio_tokens) const {
++PromptIds Prompt::ids(const std::string & context, std::optional<size_t> language, int64_t audio_tokens, const std::string & prefix) const {
+     PromptIds p;
+     p.ids = naming("prompt", [&] { return tokenizer_.encode(before_context_ + context + before_audio_); });
+     p.audio_start = (int64_t) p.ids.size();
+     p.ids.insert(p.ids.end(), (size_t) audio_tokens, audio_token_);
+     const std::vector<int32_t> after =
+-        tokenizer_.encode(after_audio_ + (language ? language_prefix_ + names_.at(*language) + asr_text_ : std::string()));
++        tokenizer_.encode(after_audio_ + (language ? language_prefix_ + names_.at(*language) + asr_text_ : std::string()) + prefix);
+     p.ids.insert(p.ids.end(), after.begin(), after.end());
+     return p;
+ }
+diff --git a/src/families/qwen3-asr/prompt.h b/src/families/qwen3-asr/prompt.h
+index 2179307..96e13d9 100644
+--- a/src/families/qwen3-asr/prompt.h
++++ b/src/families/qwen3-asr/prompt.h
+@@ -37,7 +37,7 @@ public:
+      * of general.languages, forced, or the language left to the model. A context that is not UTF-8 is refused naming
+      * the option prompt.
+      */
+-    PromptIds ids(const std::string & context, std::optional<size_t> language, int64_t audio_tokens) const;
++    PromptIds ids(const std::string & context, std::optional<size_t> language, int64_t audio_tokens, const std::string & prefix = "") const;
+ 
+     /** The model's languages, general.languages. */
+     const std::vector<std::string> & languages() const { return languages_; }
+diff --git a/src/families/qwen3-asr/recognizer.cpp b/src/families/qwen3-asr/recognizer.cpp
+index cceee39..0cd2019 100644
+--- a/src/families/qwen3-asr/recognizer.cpp
++++ b/src/families/qwen3-asr/recognizer.cpp
+@@ -39,11 +39,24 @@ Recognition Recognizer::recognize(const std::vector<float> & samples, const Reco
+     const std::vector<float> audio = Frontend::normalize(samples);
+     const std::vector<int64_t> bounds = splitter_.bounds(audio);
+     const size_t n_parts = bounds.size() - 1;
++    if (!request.prefix.empty() && n_parts != 1) {
++        throw Error(Fault::OutOfRange, "streaming audio exceeds one model window", "prefix");
++    }
++    // Port of qwen-asr's token rollback: trim tokens, never UTF-8 bytes.
++    // Use the safe empty-prefix rule for the final tail as well.
++    auto prior = tokenizer_.encode(request.prefix);
++    size_t keep = prior.size() > (size_t) request.rollback_tokens ? prior.size() - request.rollback_tokens : 0;
++    std::string prefix;
++    for (;;) {
++        prefix = tokenizer_.decode(std::vector<int32_t>(prior.begin(), prior.begin() + keep));
++        if (prefix.find("\xef\xbf\xbd") == std::string::npos || keep == 0) break;
++        --keep;
++    }
+     // Every part's prompt is made, and checked against the decoder's positions, before any work.
+     std::vector<PromptIds> prompts;
+     for (size_t k = 0; k < n_parts; k++) {
+         const int64_t audio_tokens = encoder_.tokens(frontend_.frames((size_t) (bounds[k + 1] - bounds[k])));
+-        prompts.push_back(prompt_.ids(request.context, request.language, audio_tokens));
++        prompts.push_back(prompt_.ids(request.context, request.language, audio_tokens, prefix));
+         const int64_t n = (int64_t) prompts.back().ids.size();
+         if (decoder_.positions(n) > decoder_.max_positions()) {
+             throw Error(Fault::OutOfRange,
+@@ -63,10 +76,11 @@ Recognition Recognizer::recognize(const std::vector<float> & samples, const Reco
+         if (draft) draft->next_part(request.language.has_value());
+         const std::optional<Parsed> parsed = recognize_part(part, prompts[k], request.language,
+                                                             [&](double done) { return progress((k + done) / n_parts); },
+-                                                            draft ? &*draft : nullptr, report);
++                                                            draft ? &*draft : nullptr, report, prefix, request.max_new_tokens);
+         if (!parsed) return {};
+         // qwen-asr joins the texts of the parts without a separator.
+         out.text += parsed->text;
++        out.raw_text += report.raw_text;
+         if (parsed->language && (out.languages.empty() || out.languages.back() != *parsed->language)) out.languages.push_back(*parsed->language);
+         if (!parsed->other_language.empty()) {
+             log_message(LogLevel::Warn, "Qwen3-ASR wrote the language \"" + parsed->other_language +
+@@ -79,7 +93,8 @@ Recognition Recognizer::recognize(const std::vector<float> & samples, const Reco
+ }
+ 
+ std::optional<Parsed> Recognizer::recognize_part(const std::vector<float> & part, const PromptIds & prompt, std::optional<size_t> forced,
+-                                                 const std::function<bool(double)> & progress, Draft * draft, PartReport & report) {
++                                                 const std::function<bool(double)> & progress, Draft * draft, PartReport & report,
++                                                 const std::string & prefix, int max_new_tokens) {
+     const int64_t n = (int64_t) prompt.ids.size();
+     std::vector<float> embeds;
+     {
+@@ -108,7 +123,7 @@ std::optional<Parsed> Recognizer::recognize_part(const std::vector<float> & part
+     std::optional<Generation> generation;
+     {
+         Timer t{&report.decode};
+-        generation = decoder_.generate([&](size_t tokens) { return progress((2 + (double) tokens / decoder_.max_new_tokens()) / 3); }, draft);
++        generation = decoder_.generate([&](size_t tokens) { return progress((2 + (double) tokens / decoder_.max_new_tokens()) / 3); }, draft, nullptr, max_new_tokens);
+     }
+     if (!generation) return std::nullopt;
+     report.ids = generation->ids;
+@@ -118,7 +133,8 @@ std::optional<Parsed> Recognizer::recognize_part(const std::vector<float> & part
+         report.draft_kept = draft->kept;
+     }
+     report.limited = generation->limited;
+-    return transcript_.parse(tokenizer_.decode(generation->ids), forced);
++    report.raw_text = prefix + tokenizer_.decode(generation->ids);
++    return transcript_.parse(report.raw_text, forced);
+ }
+ 
+ }  // namespace qwen3_asr
+diff --git a/src/families/qwen3-asr/recognizer.h b/src/families/qwen3-asr/recognizer.h
+index 3a1f618..0a74fcc 100644
+--- a/src/families/qwen3-asr/recognizer.h
++++ b/src/families/qwen3-asr/recognizer.h
+@@ -24,6 +24,9 @@ struct RecognitionRequest {
+     std::optional<size_t> language;
+     /** The text the recognition is likely to write, whose tokens the decoding checks a few at a time, or none. */
+     std::string draft;
++    std::string prefix;
++    int rollback_tokens = 5;
++    int max_new_tokens = 0;
+ };
+ 
+ /**
+@@ -33,6 +36,7 @@ struct RecognitionRequest {
+  */
+ struct Recognition {
+     std::string text;
++    std::string raw_text;
+     std::vector<size_t> languages;
+     bool limited = false;
+ };
+@@ -44,6 +48,7 @@ struct Recognition {
+ struct PartReport {
+     double frontend = 0, encoder = 0, prefill = 0, decode = 0;
+     int64_t prompt_rows = 0;
++    std::string raw_text;
+     std::vector<int32_t> ids;
+     bool limited = false;
+     /** With a draft, the steps that checked its tokens, the tokens they checked and those kept, in the parts so far. */
+@@ -103,7 +108,8 @@ private:
+      * `progress` stopped it.
+      */
+     std::optional<Parsed> recognize_part(const std::vector<float> & part, const PromptIds & prompt, std::optional<size_t> forced,
+-                                         const std::function<bool(double)> & progress, Draft * draft, PartReport & report);
++                                         const std::function<bool(double)> & progress, Draft * draft, PartReport & report,
++                                         const std::string & prefix, int max_new_tokens);
+ 
+     ModelFile model_;
+     Frontend frontend_;
+diff --git a/tools/worker/worker.cpp b/tools/worker/worker.cpp
+index 2661928..06c7d9f 100644
+--- a/tools/worker/worker.cpp
++++ b/tools/worker/worker.cpp
+@@ -130,7 +130,8 @@ void recognize(Inbox & inbox, Protocol & protocol, speech_model * model, const s
+             terminal = cancelled_line(job.id);
+         } else {
+             terminal = "{\"type\":\"end\",\"id\":" + json_string(job.id) +
+-                       recognition_members(speech_request_result(r), timestamps_in_effect(info, job.options)) + "}";
++                       recognition_members(speech_request_result(r), timestamps_in_effect(info, job.options)) +
++                       ",\"raw_text\":" + json_string(speech_result_raw_text(speech_request_result(r))) + "}";
+         }
+     } catch (const std::exception & e) {
+         terminal = error_line(job.id, e);

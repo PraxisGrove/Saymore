@@ -3704,3 +3704,19 @@ msgstr ""
 msgctxt "settings.storage.retired-model"
 msgid "Retired · Files can be deleted"
 msgstr ""
+
+msgctxt "models.qwen.mode.non-streaming"
+msgid "Non-streaming"
+msgstr ""
+
+msgctxt "models.qwen.mode.streaming"
+msgid "Streaming"
+msgstr ""
+
+msgctxt "models.qwen.mode.help"
+msgid "Streaming updates text while you speak (up to 20 minutes). Non-streaming processes complete segments in the background. Changes apply to the next recording."
+msgstr ""
+
+msgctxt "recording.streaming-listening"
+msgid "Listening…"
+msgstr ""

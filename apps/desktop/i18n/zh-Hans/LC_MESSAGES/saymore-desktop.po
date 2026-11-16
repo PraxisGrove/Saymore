@@ -3895,3 +3895,19 @@ msgstr "INT8 编码器 · 中英双语 · 词典提示"
 msgctxt "settings.storage.retired-model"
 msgid "Retired · Files can be deleted"
 msgstr "已停用 · 可删除文件"
+
+msgctxt "models.qwen.mode.non-streaming"
+msgid "Non-streaming"
+msgstr "非流式"
+
+msgctxt "models.qwen.mode.streaming"
+msgid "Streaming"
+msgstr "流式"
+
+msgctxt "models.qwen.mode.help"
+msgid "Streaming updates text while you speak (up to 20 minutes). Non-streaming processes complete segments in the background. Changes apply to the next recording."
+msgstr "流式会在说话时更新文字，最长录音 20 分钟。非流式在后台处理完整片段。设置在下一次录音生效。"
+
+msgctxt "recording.streaming-listening"
+msgid "Listening…"
+msgstr "正在聆听…"

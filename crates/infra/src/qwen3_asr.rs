@@ -1,8 +1,8 @@
 use std::{fs, path::Path, sync::Arc};
 
 use template_app::{
-    SpeechRecognitionError, SpeechRecognitionHints, StreamingRecognitionSession,
-    StreamingSpeechRecognizer,
+    QwenRecognitionMode, SpeechRecognitionError, SpeechRecognitionHints,
+    StreamingRecognitionSession, StreamingSpeechRecognizer,
 };
 
 use crate::{
@@ -13,6 +13,13 @@ use crate::{
 mod hotwords;
 mod native;
 mod process;
+mod streaming;
+
+#[derive(Debug)]
+struct StreamingText {
+    text: String,
+    raw: String,
+}
 
 const SAMPLE_RATE: i32 = 16_000;
 const MAX_SEGMENT_SAMPLES: usize = 30 * SAMPLE_RATE as usize;
@@ -38,6 +45,29 @@ impl Qwen3AsrSpeechRecognizer {
         self.decoder.resident_memory_bytes()
     }
 
+    /// Starts a session with a mode snapshotted by the caller.
+    pub fn start_with_mode(
+        &self,
+        mode: QwenRecognitionMode,
+        hints: SpeechRecognitionHints,
+        on_partial: Arc<dyn Fn(String) + Send + Sync>,
+    ) -> Result<Box<dyn StreamingRecognitionSession>, SpeechRecognitionError> {
+        let decoder = Arc::clone(&self.decoder);
+        let hotwords = hotwords::from_hints(&hints);
+        match mode {
+            QwenRecognitionMode::Streaming => streaming::start(decoder, hotwords, on_partial),
+            QwenRecognitionMode::NonStreaming => BackgroundRecognition::start(
+                Chunking {
+                    window_samples: MAX_SEGMENT_SAMPLES,
+                    overlap_samples: SEGMENT_OVERLAP_SAMPLES,
+                },
+                move |samples| decoder.decode(samples, &hotwords),
+                append_segment,
+                on_partial,
+            ),
+        }
+    }
+
     #[cfg(test)]
     fn with_decoder(decoder: Arc<dyn Qwen3Decoder>) -> Self {
         Self { decoder }
@@ -50,17 +80,7 @@ impl StreamingSpeechRecognizer for Qwen3AsrSpeechRecognizer {
         hints: SpeechRecognitionHints,
         on_partial: Arc<dyn Fn(String) + Send + Sync>,
     ) -> Result<Box<dyn StreamingRecognitionSession>, SpeechRecognitionError> {
-        let decoder = Arc::clone(&self.decoder);
-        let hotwords = hotwords::from_hints(&hints);
-        BackgroundRecognition::start(
-            Chunking {
-                window_samples: MAX_SEGMENT_SAMPLES,
-                overlap_samples: SEGMENT_OVERLAP_SAMPLES,
-            },
-            move |samples| decoder.decode(samples, &hotwords),
-            append_segment,
-            on_partial,
-        )
+        self.start_with_mode(QwenRecognitionMode::NonStreaming, hints, on_partial)
     }
 }
 
@@ -82,6 +102,12 @@ fn validate_model_file(directory: &Path) -> Result<(), SpeechRecognitionError> {
 /// Implementations must reject failed/truncated responses rather than return partial success.
 trait Qwen3Decoder: Send + Sync {
     fn decode(&self, samples: &[i16], hotwords: &str) -> Result<String, SpeechRecognitionError>;
+    fn decode_stream(
+        &self,
+        samples: &[i16],
+        hotwords: &str,
+        prefix: &str,
+    ) -> Result<StreamingText, SpeechRecognitionError>;
     fn resident_memory_bytes(&self) -> Option<u64> {
         None
     }
@@ -168,6 +194,16 @@ mod tests {
     }
 
     impl Qwen3Decoder for FakeDecoder {
+        fn decode_stream(
+            &self,
+            _: &[i16],
+            _: &str,
+            _: &str,
+        ) -> Result<StreamingText, SpeechRecognitionError> {
+            Err(process::protocol(
+                "test decoder has no streaming implementation",
+            ))
+        }
         fn decode(
             &self,
             samples: &[i16],
@@ -183,6 +219,16 @@ mod tests {
     struct HintDecoder(Mutex<Vec<(String, usize)>>);
 
     impl Qwen3Decoder for HintDecoder {
+        fn decode_stream(
+            &self,
+            _: &[i16],
+            _: &str,
+            _: &str,
+        ) -> Result<StreamingText, SpeechRecognitionError> {
+            Err(process::protocol(
+                "test decoder has no streaming implementation",
+            ))
+        }
         fn decode(
             &self,
             samples: &[i16],

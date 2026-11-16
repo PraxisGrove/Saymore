@@ -9,7 +9,7 @@ repos:
     rev: v6.0.0
     hooks:
       - id: trailing-whitespace
-        exclude: "^web/dist/.*"
+        exclude: '(^web/dist/.*|^crates/infra/native/.*\.patch$)'
       - id: end-of-file-fixer
       - id: check-yaml
       - id: check-toml

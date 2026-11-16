@@ -12,7 +12,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use slint::{ComponentHandle, SharedString, Timer};
+use slint::{ComponentHandle, Timer};
 use template_app::{AudioRecorder, LocalSettingsStore};
 use template_app::{
     CancelledRecordingStore, DictationSession, DictationSessionId, DictationToggleAction,

@@ -47,16 +47,30 @@ OpenAI-compatible transcription providers receive those spellings as the bounded
 `context_bias` fields. The Volcengine and macOS Speech adapters use their native
 hint mechanisms. Local Qwen3-ASR uses a pinned Q8_0 GGUF through speech.cpp
 0.8.11 in a resident native worker. Rust owns its private stdio protocol and
-background segmentation. Apple silicon explicitly selects Metal; Intel macOS and
-Windows use CPU. Each session snapshots deduplicated canonical vocabulary
-bounded to 128 UTF-8 bytes, omits empty/control-containing terms, and sends a
-space-separated `prompt` on every request, including an explicit empty prompt.
-All Qwen sessions use overlapping 30-second segments. Native failures and
-model-limit truncation are errors; a failed worker is discarded. Runtime logs
-are suppressed and memory sampling reads the child process. The installer
-accepts only the pinned GGUF; no Qwen ONNX adapter or compatibility path
-remains. See [Qwen GGUF integration](research/qwen3-gguf-integration.md) for
-artifact, runtime, packaging and validation details.
+background segmentation or streaming continuation. Apple silicon explicitly
+selects Metal; Intel macOS and Windows use CPU. Each session snapshots
+deduplicated canonical vocabulary bounded to 128 UTF-8 bytes, omits
+empty/control-containing terms, and sends a space-separated `prompt` on every
+request, including an explicit empty prompt. Qwen snapshots the provider's
+`recognition_mode` (`non_streaming` by default, `streaming` when selected) with
+the dictionary at session start. Non-streaming uses overlapping 30-second
+segments. Streaming re-feeds cumulative audio every two seconds, leaves two
+initial chunks unfixed, then rolls back five native tokenizer tokens before
+forcing the retained assistant prefix. A checked-in speech.cpp patch adds the
+prefix, rollback, generation-budget and raw-output protocol fields. This is a
+port of Qwen's official algorithm, not its vLLM runtime or an incremental
+acoustic encoder. Streaming bounds total audio to 20 minutes and coalesces
+queued steps into the latest cumulative audio when inference falls behind,
+preserving every sample without processing a FIFO of stale previews. The desktop
+renders replaceable previews with a session-identity guard; only final text
+enters polishing/delivery. Native failures and model-limit truncation are
+errors; a failed worker is discarded. Runtime logs are suppressed and memory
+sampling reads the child process. The installer accepts only the pinned GGUF; no
+Qwen ONNX adapter or compatibility path remains. See
+[Qwen GGUF integration](research/qwen3-gguf-integration.md) for artifact,
+runtime, packaging and validation details; the
+[streaming port record](research/qwen-official-streaming.md) covers the
+additional state machine, source patch and mode comparison.
 
 Local Whisper uses whisper.cpp through pinned `whisper-rs 0.16.0` rather than
 sherpa-onnx. macOS builds include the Metal backend and request GPU

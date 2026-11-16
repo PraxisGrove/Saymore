@@ -1,0 +1,31 @@
+import { AppColors } from "../color-system.slint";
+export enum QwenRecognitionMode { non-streaming, streaming }
+
+export component QwenModeControl inherits Rectangle {
+    in property <QwenRecognitionMode> mode: QwenRecognitionMode.non-streaming;
+    callback changed(QwenRecognitionMode);
+    height: 26px;
+    for label[index] in [@tr("models.qwen.mode.non-streaming" => "Non-streaming"), @tr("models.qwen.mode.streaming" => "Streaming")]: Rectangle {
+        x: index * (parent.width / 2);
+        width: parent.width / 2 - 3px;
+        height: parent.height;
+        private property <QwenRecognitionMode> value: index == 0 ? QwenRecognitionMode.non-streaming : QwenRecognitionMode.streaming;
+        background: root.mode == self.value ? AppColors.selected : AppColors.surface;
+        border-radius: 6px;
+        border-width: 1px;
+        border-color: root.mode == self.value ? AppColors.brand : AppColors.border;
+        Text {
+            text: label;
+            font-size: 11px;
+            color: AppColors.ink;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+            overflow: elide;
+        }
+        TouchArea {
+            accessible-role: button;
+            accessible-label: label;
+            clicked => { root.changed(parent.value); }
+        }
+    }
+}

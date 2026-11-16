@@ -4,6 +4,8 @@ use thiserror::Error;
 
 mod llm_provider;
 mod local_asr;
+mod qwen_mode;
+pub use qwen_mode::QwenRecognitionMode;
 mod model_catalog;
 pub use llm_provider::{ChatCompletionsProfile, LlmProviderPreset, LlmProviderProfile};
 pub use model_catalog::LlmModelCatalog;

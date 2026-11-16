@@ -1,4 +1,5 @@
 //! Explicit benchmark-only provider configuration; never reads user settings.
+pub mod qwen;
 pub mod scheduling;
 
 use std::{env, error::Error, io, sync::Arc, time::Instant};

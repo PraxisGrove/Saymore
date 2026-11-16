@@ -4,16 +4,18 @@ import { Typography } from "typography.slint";
 export component RecordingOverlay inherits Window {
     title: "Saymore Recording";
     default-font-family: Typography.ui-font-family;
-    preferred-width: 120px;
-    preferred-height: 35px;
-    min-width: 120px;
-    min-height: 35px;
-    max-width: 120px;
-    max-height: 35px;
+    preferred-width: root.preview-enabled ? 360px : 120px;
+    preferred-height: root.preview-enabled ? 128px : 35px;
+    min-width: root.preferred-width;
+    min-height: root.preferred-height;
+    max-width: root.preferred-width;
+    max-height: root.preferred-height;
     no-frame: true;
     always-on-top: true;
     background: transparent;
 
+    in property <bool> preview-enabled: false;
+    in property <string> preview-text;
     in property <float> recording-level: 0;
     in property <string> processing-label: @tr("recording.processing.transcribing" => "Transcribing");
     in-out property <int> session-generation: 0;
@@ -27,7 +29,30 @@ export component RecordingOverlay inherits Window {
     callback finish();
     callback undo-cancel();
 
+    if root.preview-enabled && root.mode < 2: Rectangle {
+        x: 0px;
+        y: 0px;
+        width: parent.width;
+        height: 84px;
+        opacity: root.revealed ? 1 : 0;
+        background: OverlayColors.recording-surface;
+        border-color: OverlayColors.recording-border;
+        border-width: 1px;
+        border-radius: 12px;
+        animate opacity { duration: 110ms; easing: ease-out; }
+        Text {
+            x: 12px; y: 10px; width: parent.width - 24px; height: parent.height - 20px;
+            text: root.preview-text.is-empty ? @tr("recording.streaming-listening" => "Listening…") : root.preview-text;
+            font-size: 13px;
+            color: OverlayColors.recording-text;
+            wrap: word-wrap;
+            overflow: elide;
+        }
+    }
+
     capsule := Rectangle {
+        x: (parent.width - self.width) / 2;
+        y: parent.height - self.height;
         width: 120px;
         height: 35px;
         opacity: root.revealed ? 1 : 0;

@@ -93,7 +93,7 @@ jobs:
 
       - name: Test model UI workflows
         if: matrix.platform == 'macOS'
-        run: cargo test --locked -p saymore-desktop --test models_navigation --test model_discovery_runtime
+        run: cargo test --locked -p saymore-desktop --test models_navigation --test model_discovery_runtime --test qwen_modes
 
   dependency-policy:
     name: Dependency policy

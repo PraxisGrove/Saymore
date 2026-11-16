@@ -21,6 +21,7 @@ use crate::app_paths::{AppEnvironment, AppPaths};
 mod document;
 mod magpie;
 pub(super) mod platform_fs;
+mod qwen_mode;
 mod schema;
 
 use schema::{StoredCatalog, catalog_to_settings};
@@ -488,6 +489,7 @@ fn retired_asr_is_active(catalog: &ProviderCatalog) -> bool {
 }
 
 fn validate_catalog(catalog: &ProviderCatalog) -> Result<(), SettingsStoreError> {
+    catalog.qwen_recognition_mode()?;
     if retired_asr_is_active(catalog) {
         return Err(SettingsStoreError::Invalid(
             "retired local ASR models cannot be selected".to_owned(),

@@ -1,6 +1,9 @@
 use std::{
     path::PathBuf,
-    sync::{Arc, Mutex},
+    sync::{
+        Arc, Mutex,
+        atomic::{AtomicBool, Ordering},
+    },
 };
 
 use template_app::{
@@ -28,6 +31,7 @@ pub struct AsrSessionController {
     settings: Arc<JsonSettingsStore>,
     dictionary: Arc<dyn DictionaryStore>,
     active: Mutex<Option<OwnedRecognition>>,
+    live_preview: AtomicBool,
     whisper_model_directory: PathBuf,
     whisper: Mutex<Option<LoadedWhisper>>,
     qwen3_model_directory: PathBuf,
@@ -58,6 +62,7 @@ impl AsrSessionController {
             settings,
             dictionary,
             active: Mutex::new(None),
+            live_preview: AtomicBool::new(false),
             whisper_model_directory: models_directory
                 .join(WHISPER_MODEL_ID)
                 .join(WHISPER_MODEL_REVISION),
@@ -101,6 +106,10 @@ impl AsrSessionController {
         }
     }
 
+    pub fn shows_live_preview(&self) -> bool {
+        self.live_preview.load(Ordering::Acquire)
+    }
+
     pub fn start(
         &self,
         id: DictationSessionId,
@@ -113,6 +122,9 @@ impl AsrSessionController {
         let macos_speech_active = catalog.macos_speech_is_active();
         let whisper_active = catalog.whisper_is_active();
         let qwen3_active = catalog.qwen3_asr_is_active();
+        let qwen_mode = catalog
+            .qwen_recognition_mode()
+            .map_err(|error| SpeechRecognitionError::Protocol(error.to_string()))?;
         let seaco_active = catalog.seaco_is_active();
         let zipformer_active = catalog.zipformer_is_active();
         if !seaco_active
@@ -140,7 +152,8 @@ impl AsrSessionController {
         } else if zipformer_active {
             self.zipformer_recognizer()?.start(hints, on_partial)?
         } else if qwen3_active {
-            self.qwen3_recognizer()?.start(hints, on_partial)?
+            self.qwen3_recognizer()?
+                .start_with_mode(qwen_mode, hints, on_partial)?
         } else if whisper_active {
             self.whisper_recognizer()?.start(hints, on_partial)?
         } else if macos_speech_active {
@@ -158,6 +171,10 @@ impl AsrSessionController {
         } else {
             VolcengineSpeechRecognizer::new(settings.asr.volcengine)?.start(hints, on_partial)?
         };
+        self.live_preview.store(
+            qwen3_active && qwen_mode == template_app::QwenRecognitionMode::Streaming,
+            Ordering::Release,
+        );
         *active = Some(OwnedRecognition::new(session));
         tracing::info!(
             target: "saymore::diagnostics",

@@ -1,5 +1,5 @@
 use super::{
-    Qwen3Decoder,
+    Qwen3Decoder, StreamingText,
     process::{Process, executable, protocol},
 };
 use base64::{Engine, engine::general_purpose::STANDARD};
@@ -18,6 +18,11 @@ mod worker_tests;
 
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(120);
 
+enum Request<'a> {
+    Segment,
+    Streaming { prefix: &'a str },
+}
+
 pub(super) struct NativeDecoder {
     process: Mutex<Option<Process>>,
 }
@@ -33,10 +38,12 @@ impl NativeDecoder {
             process: Mutex::new(Some(process)),
         })
     }
-}
-
-impl Qwen3Decoder for NativeDecoder {
-    fn decode(&self, samples: &[i16], hotwords: &str) -> Result<String, SpeechRecognitionError> {
+    fn request(
+        &self,
+        samples: &[i16],
+        hotwords: &str,
+        request: Request<'_>,
+    ) -> Result<StreamingText, SpeechRecognitionError> {
         let mut guard = self
             .process
             .lock()
@@ -44,12 +51,27 @@ impl Qwen3Decoder for NativeDecoder {
         let process = guard
             .as_mut()
             .ok_or_else(|| protocol("is unavailable; reload the model"))?;
-        let result = transcribe(process, samples, hotwords);
+        let result = transcribe(process, samples, hotwords, request);
         if result.is_err() {
-            // Do not reuse a failed/truncated or desynchronized native request.
             guard.take();
         }
         result
+    }
+}
+
+impl Qwen3Decoder for NativeDecoder {
+    fn decode(&self, samples: &[i16], hotwords: &str) -> Result<String, SpeechRecognitionError> {
+        self.request(samples, hotwords, Request::Segment)
+            .map(|result| result.text)
+    }
+
+    fn decode_stream(
+        &self,
+        samples: &[i16],
+        hotwords: &str,
+        prefix: &str,
+    ) -> Result<StreamingText, SpeechRecognitionError> {
+        self.request(samples, hotwords, Request::Streaming { prefix })
     }
 
     fn resident_memory_bytes(&self) -> Option<u64> {
@@ -62,7 +84,8 @@ fn transcribe(
     process: &mut Process,
     samples: &[i16],
     hotwords: &str,
-) -> Result<String, SpeechRecognitionError> {
+    request: Request<'_>,
+) -> Result<StreamingText, SpeechRecognitionError> {
     let deadline = Instant::now() + REQUEST_TIMEOUT;
     for (seq, chunk) in samples.chunks(16_000).enumerate() {
         let bytes = chunk
@@ -75,10 +98,18 @@ fn transcribe(
         )?;
     }
     // Explicit empty prompt clears vocabulary between requests in the resident worker.
-    send(
-        &mut process.input,
-        &json!({"type": "transcribe", "id": "decode", "sample_rate": 16000, "prompt": hotwords}),
-    )?;
+    let mut options =
+        json!({"type": "transcribe", "id": "decode", "sample_rate": 16000, "prompt": hotwords});
+    let streaming = match request {
+        Request::Segment => false,
+        Request::Streaming { prefix } => {
+            options["prefix"] = json!(prefix);
+            options["rollback_tokens"] = json!(5);
+            options["max_new_tokens"] = json!(128);
+            true
+        }
+    };
+    send(&mut process.input, &options)?;
     process
         .input
         .flush()
@@ -90,7 +121,18 @@ fn transcribe(
         }
         match response.get("type").and_then(Value::as_str) {
             Some("progress") => continue,
-            Some("end") => return completed_text(&response),
+            Some("end") => {
+                let text = completed_text(&response)?;
+                let raw = if streaming {
+                    response["raw_text"]
+                        .as_str()
+                        .ok_or_else(|| protocol("returned no continuation state"))?
+                        .to_owned()
+                } else {
+                    String::new()
+                };
+                return Ok(StreamingText { text, raw });
+            }
             _ => return Err(protocol("recognition failed")),
         }
     }
@@ -111,6 +153,11 @@ fn validate_ready(ready: &Value) -> Result<(), SpeechRecognitionError> {
             option["name"] == "prompt" && option["type"] == "string" && option["steers"] == true
         })
     });
+    let continuation = model["options"].as_array().is_some_and(|options| {
+        ["prefix", "rollback_tokens", "max_new_tokens"]
+            .iter()
+            .all(|name| options.iter().any(|option| option["name"] == *name))
+    });
     let device = model["device"].as_str().unwrap_or_default();
     let correct_device = if cfg!(all(target_os = "macos", target_arch = "aarch64")) {
         device.starts_with("MTL")
@@ -124,6 +171,7 @@ fn validate_ready(ready: &Value) -> Result<(), SpeechRecognitionError> {
         || model["weight_type"] != "Q8_0"
         || model["sample_rate"] != 16000
         || !prompt
+        || !continuation
         || !correct_device
     {
         return Err(protocol(

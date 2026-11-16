@@ -1,5 +1,6 @@
 use super::*;
 use crate::asr_runtime::AsrSessionController;
+mod preview;
 use crate::ui::Translations;
 use template_app::SpeechRecognitionError;
 
@@ -147,13 +148,7 @@ fn begin_recording(
     if let Ok(mut cancelled) = runtime.cancelled.lock() {
         cancelled.clear();
     }
-    let Some(asr_ms) = start_streaming_asr(
-        ui,
-        &overlays.asr_configuration,
-        runtime,
-        id,
-        startup_started,
-    ) else {
+    let Some(asr_ms) = start_streaming_asr(ui, overlays, runtime, id, startup_started) else {
         return;
     };
     let on_metrics = create_recording_metrics_callback(ui, overlays, runtime, id);
@@ -184,17 +179,18 @@ fn begin_recording(
 
 fn start_streaming_asr(
     ui: &slint::Weak<AppWindow>,
-    configuration_prompt: &slint::Weak<crate::ui::AsrConfigurationOverlay>,
+    overlays: &DictationOverlays,
     runtime: &ShortcutRuntime,
     id: DictationSessionId,
     startup_started: Instant,
 ) -> Option<u128> {
-    let partial_ui = ui.clone();
-    let on_partial = Arc::new(move |text: String| {
-        let _ = partial_ui.upgrade_in_event_loop(move |ui| {
-            ui.set_recording_detail(SharedString::from(text));
-        });
-    });
+    let configuration_prompt = &overlays.asr_configuration;
+    let on_partial = preview::callback(
+        ui.clone(),
+        overlays.status.clone(),
+        Arc::clone(&runtime.session),
+        id,
+    );
     let asr_started = Instant::now();
     if let Err(error) = runtime.dictation.asr.start(id, on_partial) {
         runtime.session.startup_failed();
@@ -342,6 +338,7 @@ fn apply_recording_start_result(
         );
     }
     if let Some(overlay) = context.overlay.upgrade() {
+        preview::configure(&overlay, &context.asr);
         first_recording_overlay(
             &overlay,
             &started.input_device_name,

@@ -8,11 +8,16 @@ use std::{
     time::Duration,
 };
 
+#[path = "build/speech_patch.rs"]
+mod speech_patch;
+
 const SPEECH_REVISION: &str = "c4bdcd0e751bd29460cb1353e6d54499828a1d90";
 const GGML_REVISION: &str = "cbdeccfd49ec9c702c175c273d36c47520cf4710";
 
 fn main() {
     println!("cargo:rerun-if-changed=build.rs");
+    println!("cargo:rerun-if-changed=build/speech_patch.rs");
+    println!("cargo:rerun-if-changed=native/qwen-streaming.patch");
     if let Err(error) = build_worker() {
         eprintln!("could not build the pinned Qwen speech.cpp worker: {error}");
         std::process::exit(1);
@@ -21,12 +26,7 @@ fn main() {
 
 fn build_worker() -> Result<(), Box<dyn Error>> {
     let out = PathBuf::from(env::var_os("OUT_DIR").ok_or("missing OUT_DIR")?);
-    let source = unpack_source(
-        &out,
-        "speech.cpp",
-        SPEECH_REVISION,
-        "cf233c7b44eec7b1a91c299fd7ad5b67930ec46e1e913f970fd86bc2ea13cafa",
-    )?;
+    let source = speech_patch::prepare(&out)?;
     let ggml = unpack_source(
         &out,
         "ggml",

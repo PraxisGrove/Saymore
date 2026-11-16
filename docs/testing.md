@@ -38,42 +38,43 @@ Run doctests with Cargo because nextest does not execute doctests:
 cargo test --workspace --doc
 ```
 
-The `models_navigation` and `model_discovery_runtime` Slint integration tests
-use custom main-thread executables and are excluded from Nextest discovery. The
-navigation executable also checks home-page retry and scrolling at the default
-and minimum window sizes, plus the experimental MOSS card's download/selection
-callbacks. The discovery test exercises the production callback wiring against a
-local HTTP service, including fetching, manual entry, failure preservation,
-caching, and invalidation. Run them explicitly with:
+The `models_navigation`, `model_discovery_runtime` and `qwen_modes` Slint
+integration tests use custom main-thread executables and are excluded from
+Nextest discovery. The navigation executable also checks home-page retry and
+scrolling at the default and minimum window sizes, plus local-provider
+download/selection callbacks. The Qwen test clicks both recognition modes,
+verifies persistence without provider selection changes, and checks the
+recording preview renders visible pixels. The discovery test exercises the
+production callback wiring against a local HTTP service, including fetching,
+manual entry, failure preservation, caching, and invalidation. Run them
+explicitly with:
 
 ```bash
-cargo test -p saymore-desktop --test models_navigation --test model_discovery_runtime
+cargo test -p saymore-desktop --test models_navigation --test model_discovery_runtime --test qwen_modes
 ```
 
 CI runs these GUI tests on macOS, where a windowing environment is available.
-
-MOSS has a separate opt-in native regression using pinned model files and the
-bundled public Chinese fixture. Its command and resource requirements are in the
-[MOSS integration record](research/moss-native-integration.md). Normal CI runs
-its deterministic frontend, session, cache, parsing and lifecycle tests without
-downloading model weights. Windows native MOSS acceptance remains pending.
 
 ## Qwen Q8_0 native acceptance
 
 Normal tests cover worker protocol errors, truncation refusal, vocabulary reset,
 PCM encoding, process reaping, bounded reads, background sequencing and artifact
-validation. The ignored native test uses the packaged worker and a verified GGUF
-installation; it covers consecutive sessions, dictionary isolation, empty/silent
+validation. Streaming tests cover cumulative samples, prefix state, exact
+boundaries, tail flush and late-result suppression. The ignored native tests use
+the packaged worker and a verified GGUF installation; they cover both modes,
+pre-stop results, consecutive sessions, dictionary isolation, empty/silent
 audio, cancellation and worker memory sampling:
 
 ```sh
-SAYMORE_QWEN_MODEL_DIR=/path/to/verified/gguf-directory cargo test --locked -p template-infra --test qwen3_native -- --ignored
+SAYMORE_QWEN_MODEL_DIR=/absolute/path/to/verified/gguf-directory cargo test --locked -p template-infra --test qwen3_native -- --ignored
+SAYMORE_QWEN_MODEL_DIR=/absolute/path/to/verified/gguf-directory cargo test --locked -p template-infra --lib native_prefix_is_forced -- --ignored
 ```
 
 The `qwen3_asr_probe` example downloads and verifies the current GGUF and runs
 two consecutive recognitions. `asr_latency_probe` measures the production
-adapter's capture-time scheduling. The artifact pin, acceptance results and host
-limits are in [Qwen GGUF integration](research/qwen3-gguf-integration.md).
+adapter's capture-time scheduling. Set `SAYMORE_BENCH_QWEN_MODE=streaming` or
+`non_streaming` for the two Qwen paths. The artifact pin, acceptance results and
+host limits are in [Qwen GGUF integration](research/qwen3-gguf-integration.md).
 
 ## ASR Latency Matrix
 

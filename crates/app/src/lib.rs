@@ -92,6 +92,7 @@ pub use refinement_terms::{
     dictionary_terms_for_refinement, dictionary_terms_for_refinement_from_entries,
     normalize_standard_spellings, standard_spelling_occurs,
 };
+pub use settings::QwenRecognitionMode;
 pub use settings::{
     ActiveProviders, AsrSettings, ChatCompletionsLlmSettings, ChatCompletionsProfile,
     LlmModelCatalog, LlmProviderPreset, LlmProviderProfile, LlmSettings, MOONSHINE_PROVIDER_ID,
