@@ -16,13 +16,12 @@ contains an accelerator backend.
 
 ## Current Implementation
 
-| Model                        | macOS                                | Windows | Constraint                                                                                                                                                  |
-| ---------------------------- | ------------------------------------ | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Whisper large-v3-turbo Q8_0  | Requests Metal automatically         | CPU     | macOS target enables whisper-rs `metal`; no weight conversion required.                                                                                     |
-| Qwen3-ASR                    | Metal on Apple silicon; CPU on Intel | CPU     | Pinned speech.cpp 0.8.11 worker and Q8_0 GGUF; selected backend failures are explicit, with no ONNX fallback. See [integration](qwen3-gguf-integration.md). |
-| Zipformer                    | CPU                                  | CPU     | Its sherpa-onnx build uses the CPU ONNX Runtime.                                                                                                            |
-| MOSS-Transcribe-Diarize FP16 | CPU                                  | CPU     | Experimental; shares the linked CPU ONNX Runtime with SeACo. See the [integration record](moss-native-integration.md).                                      |
-| SeACo-Paraformer             | CPU                                  | CPU     | Uses the existing linked CPU ONNX Runtime through ORT's alternative backend; must retain one runtime when adding acceleration.                              |
+| Model                       | macOS                                | Windows | Constraint                                                                                                                                                  |
+| --------------------------- | ------------------------------------ | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Whisper large-v3-turbo Q8_0 | Requests Metal automatically         | CPU     | macOS target enables whisper-rs `metal`; no weight conversion required.                                                                                     |
+| Qwen3-ASR                   | Metal on Apple silicon; CPU on Intel | CPU     | Pinned speech.cpp 0.8.11 worker and Q8_0 GGUF; selected backend failures are explicit, with no ONNX fallback. See [integration](qwen3-gguf-integration.md). |
+| Zipformer                   | CPU                                  | CPU     | Its sherpa-onnx build uses the CPU ONNX Runtime.                                                                                                            |
+| SeACo-Paraformer            | CPU                                  | CPU     | Uses the existing linked CPU ONNX Runtime through ORT's alternative backend; must retain one runtime when adding acceleration.                              |
 
 macOS system dictation is managed by Apple Speech. Saymore does not select its
 compute device or promise GPU execution.
@@ -36,27 +35,26 @@ are still used for host work, and GPU acceleration does not mean zero CPU use.
 
 ## Verification And Open Work
 
-On the development Apple M4:
+The [Qwen GGUF integration](qwen3-gguf-integration.md) records its current
+native Metal worker, verified installation, real adapter replays, and macOS
+packaging acceptance. It replaces Qwen's former CPU ONNX path.
 
-- Desktop all-target compilation succeeds with `--locked`.
-- All eight existing Whisper unit tests pass with Metal linked. They exercise
-  audio segmentation, cancellation, empty audio, vocabulary propagation and
-  isolation, and artifact rejection; they do not run real GPU inference.
-- Cargo's macOS feature tree includes `whisper-rs/metal` and `_gpu`; native
-  CMake output confirms `GGML_METAL=ON` and `GGML_METAL_EMBED_LIBRARY=ON`.
-- A real-audio CPU baseline was attempted using the production probe and the
-  bundled public Chinese fixture in `target/asr-gpu-review`. No installed model
-  was available. Downloading the pinned Hugging Face artifact failed; a separate
-  curl check reported connection reset. No performance or GPU-execution claim
-  can be made from this attempt.
-- Windows feature-tree inspection in offline mode was blocked by an uncached
-  `winapi` dependency. Windows compilation and packaged execution remain
-  pending.
+The [remaining-model investigation](other-asr-native-acceleration.md) confirms
+that Whisper already uses native Q8_0 inference with Metal. Enabling Flash
+Attention on Apple M4 reduced the short-fixture median from 2.565 s to 2.050 s,
+but repeatedly dropped two extra characters from continuous Chinese. That
+candidate was reverted; the production adapter retains its existing setting.
+This comparison measures two Metal configurations, not CPU versus GPU.
 
-Next: obtain the pinned verified artifact, run repeated production-adapter
-sessions with and without Metal, confirm the actual compute backend, and compare
-latency and output on Chinese, mixed-language, silence, and long audio. Validate
-packaged macOS execution and no-GPU fallback before treating acceleration as
-release-accepted. Then evaluate ONNX accelerator runtime packaging and operator
-coverage for the remaining CPU models; adding only a UI switch cannot enable
-them.
+The actual linked ONNX Runtime reports CoreML unavailable and CPU available.
+SeACo and Zipformer retain their CPU implementations. Their installed quantized
+graphs contain dynamic integer matrix multiplication unsupported by the
+inspected CoreML operator registry. Replacing the runtime or export requires
+actual graph partitioning and quality/latency measurements; a provider string
+alone cannot establish accelerator execution. Neither architecture is supported
+by the pinned speech.cpp runtime.
+
+Further work: broader human/noisy/mixed-language acceptance for Whisper native
+optimizations; compatible graph/runtime experiments for SeACo or Zipformer only
+when measured latency, recording-time CPU or power justify them. Windows/Intel
+inference and minimum-OS package acceptance remain platform-specific work.
