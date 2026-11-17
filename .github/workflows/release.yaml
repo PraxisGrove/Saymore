@@ -211,6 +211,12 @@ jobs:
             target/aarch64-apple-darwin/release/saymore-speech \
             target/x86_64-apple-darwin/release/saymore-speech \
             -output target/universal-apple-darwin/release/saymore-speech
+          # The packager may sign the main executable before same-depth sidecars.
+          # Bootstrap the worker; packaging replaces this with Developer ID signing.
+          codesign --force --sign - --timestamp=none \
+            target/universal-apple-darwin/release/saymore-speech
+          codesign --verify --all-architectures --strict \
+            target/universal-apple-darwin/release/saymore-speech
 
       - name: Package DMG
         env:

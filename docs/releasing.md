@@ -68,11 +68,16 @@ Qwen recognition requires the native `saymore-speech` worker beside the desktop
 executable. Cargo builds it from pinned, verified speech.cpp/ggml source
 archives; `apps/desktop/Cargo.toml` declares both binaries for packaging. The
 macOS release workflow must create universal binaries for both, and signing must
-cover the worker. Local `.app`/Preview bundles also copy it into
-`Contents/MacOS` and ship its third-party notices. Windows portable
-distributions must include `saymore-speech.exe` beside `Saymore-Portable.exe`;
-distributing the desktop EXE alone no longer provides Qwen inference. The GGUF
-weights remain a separate verified model download, not part of the installer.
+cover the worker. After merging architectures, the workflow prepares a valid
+ad-hoc worker signature before packaging: cargo-packager 0.11.8 does not order
+same-depth executables reliably, and signing the main executable can inspect its
+sidecars. The packager subsequently replaces this preparation signature with
+Developer ID signing and notarizes the bundle; final verification remains
+mandatory. Local `.app`/Preview bundles also copy it into `Contents/MacOS` and
+ship its third-party notices. Windows portable distributions must include
+`saymore-speech.exe` beside `Saymore-Portable.exe`; distributing the desktop EXE
+alone no longer provides Qwen inference. The GGUF weights remain a separate
+verified model download, not part of the installer.
 
 - macOS builds both Apple Silicon and Intel targets, combines them into one
   universal binary, and publishes a branded drag-to-Applications DMG plus
@@ -198,6 +203,22 @@ that discarded tag in this file's recovery notes.
 The new pre-tag CI guard applies only to subsequent releases. A pre-existing tag
 created by the old workflow can still be repaired even though its own release
 commit did not have a separate CI run.
+
+### November 17, 2026 native worker signing recovery
+
+The
+[v0.2.8 release attempt](https://github.com/PraxisGrove/Saymore/actions/runs/44041879967)
+built both macOS architectures and the Windows installer, but failed while
+signing the main macOS executable because the sibling `saymore-speech` contained
+an unsigned architecture. A local bundle fixture reproduced the same
+`code object is not signed at all` failure; preparing the helper signature first
+made main signing and deep, strict bundle verification pass.
+
+The workflow now prepares and verifies the universal worker signature before
+cargo-packager performs Developer ID signing and notarization. The unpublished
+`v0.2.8` tag stays on `75521bdf8745ff1b772a85599ca692d3734b9770`; the correction
+is prepared as `v0.2.9`. No tag is moved and no unsigned release fallback is
+added.
 
 ### November 15, 2026 Windows version guard recovery
 
