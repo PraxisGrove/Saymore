@@ -92,7 +92,6 @@ pub use refinement_terms::{
     dictionary_terms_for_refinement, dictionary_terms_for_refinement_from_entries,
     normalize_standard_spellings, standard_spelling_occurs,
 };
-pub use settings::QwenRecognitionMode;
 pub use settings::{
     ActiveProviders, AsrSettings, ChatCompletionsLlmSettings, ChatCompletionsProfile,
     LlmModelCatalog, LlmProviderPreset, LlmProviderProfile, LlmSettings, MOONSHINE_PROVIDER_ID,
@@ -103,6 +102,7 @@ pub use settings::{
     SettingsStore, SettingsStoreError, VolcengineAsrSettings, WHISPER_PROVIDER_ID,
     WHISPER_PROVIDER_TYPE, ZIPFORMER_PROVIDER_ID, ZIPFORMER_PROVIDER_TYPE,
 };
+pub use settings::{QwenRecognitionMode, WhisperRecognitionMode};
 pub use speech_recognition::{
     SpeechRecognitionError, SpeechRecognitionHints, StreamingRecognitionSession,
     StreamingSpeechRecognizer,
