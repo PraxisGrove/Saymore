@@ -160,12 +160,14 @@ It records completion only after all build inputs and licenses have been copied;
 incomplete destinations are recreated on the next attempt. These dependency
 versions were already in Cargo.lock. Apple silicon enables embedded Metal
 shaders and Accelerate; Intel macOS and Windows use CPU. Windows builds the
-worker with the static MSVC runtime. The process boundary isolates its ggml from
-whisper.cpp's version. No Python or separately installed runtime is needed. Both
-the desktop executable and worker must be distributed together; `cargo-packager`
-and the Preview/local bundler do this. Universal macOS packaging merges both
-workers as well as both desktop binaries. Windows portable artifacts include
-`saymore-speech.exe` beside the application and the third-party notices. See the
+worker with the static MSVC runtime. The worker uses ggml's own thread pool,
+with OpenMP disabled to avoid an additional DLL/dylib dependency. The process
+boundary isolates its ggml from whisper.cpp's version. No Python or separately
+installed runtime is needed. Both the desktop executable and worker must be
+distributed together; `cargo-packager` and the Preview/local bundler do this.
+Universal macOS packaging merges both workers as well as both desktop binaries.
+Windows portable artifacts include `saymore-speech.exe` beside the application
+and the third-party notices. See the
 [Qwen integration record](research/qwen3-gguf-integration.md).
 
 SeACo-Paraformer uses pinned Rust `ort` bindings in alternative-backend mode,

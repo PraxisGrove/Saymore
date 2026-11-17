@@ -51,6 +51,8 @@ fn build_worker() -> Result<(), Box<dyn Error>> {
         .build_target("speech-cli")
         .define("BUILD_SHARED_LIBS", "OFF")
         .define("GGML_NATIVE", "OFF")
+        // Use ggml's own thread pool; the packaged worker has no OpenMP DLL/dylib.
+        .define("GGML_OPENMP", "OFF")
         .define("GGML_METAL", if metal { "ON" } else { "OFF" })
         .define("GGML_METAL_EMBED_LIBRARY", if metal { "ON" } else { "OFF" })
         .define("GGML_ACCELERATE", if macos { "ON" } else { "OFF" })
