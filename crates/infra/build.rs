@@ -26,13 +26,15 @@ fn main() {
 
 fn build_worker() -> Result<(), Box<dyn Error>> {
     let out = PathBuf::from(env::var_os("OUT_DIR").ok_or("missing OUT_DIR")?);
-    let source = speech_patch::prepare(&out)?;
+    let source = speech_patch::prepare(&out)
+        .map_err(|error| format!("prepare speech.cpp in {}: {error}", out.display()))?;
     let ggml = unpack_source(
         &out,
         "ggml",
         GGML_REVISION,
         "03f751738259e0c0a8a6a98b15934afee8e6768aa21c815f75eb4a5a2ad40b50",
-    )?;
+    )
+    .map_err(|error| format!("unpack ggml in {}: {error}", out.display()))?;
     // Source archives do not contain the submodule. Copy only the pinned tree.
     let submodule = source.join("ggml");
     if !submodule.join("CMakeLists.txt").is_file() {
@@ -129,7 +131,16 @@ fn copy_tree(source: &Path, destination: &Path) -> io::Result<()> {
         if entry.file_type()?.is_dir() {
             copy_tree(&entry.path(), &target)?;
         } else {
-            fs::copy(entry.path(), target)?;
+            fs::copy(entry.path(), &target).map_err(|error| {
+                io::Error::new(
+                    error.kind(),
+                    format!(
+                        "copy native source {} to {}: {error}",
+                        entry.path().display(),
+                        target.display()
+                    ),
+                )
+            })?;
         }
     }
     Ok(())
