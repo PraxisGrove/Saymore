@@ -1790,7 +1790,7 @@ msgstr ""
 #: ui/pages/local-asr-model.slint:389
 msgctxt "models.asr.local.usage-tip.whisper"
 msgid ""
-"Multilingual dictation with higher memory use. Text appears after speaking."
+"Multilingual dictation with higher memory use. Choose streaming for live text previews."
 msgstr ""
 
 #: ui/pages/local-asr-model.slint:391
@@ -3705,16 +3705,20 @@ msgctxt "settings.storage.retired-model"
 msgid "Retired · Files can be deleted"
 msgstr ""
 
-msgctxt "models.qwen.mode.non-streaming"
+msgctxt "models.asr.mode.non-streaming"
 msgid "Non-streaming"
 msgstr ""
 
-msgctxt "models.qwen.mode.streaming"
+msgctxt "models.asr.mode.streaming"
 msgid "Streaming"
 msgstr ""
 
 msgctxt "models.qwen.mode.help"
 msgid "Streaming updates text while you speak (up to 20 minutes). Non-streaming processes complete segments in the background. Changes apply to the next recording."
+msgstr ""
+
+msgctxt "models.whisper.mode.help"
+msgid "Streaming shows live previews that may change and can increase processing time. Maximum 30 minutes. Non-streaming processes complete segments in the background. Changes apply to the next recording."
 msgstr ""
 
 msgctxt "recording.streaming-listening"

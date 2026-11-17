@@ -125,6 +125,9 @@ impl AsrSessionController {
         let qwen_mode = catalog
             .qwen_recognition_mode()
             .map_err(|error| SpeechRecognitionError::Protocol(error.to_string()))?;
+        let whisper_mode = catalog
+            .whisper_recognition_mode()
+            .map_err(|error| SpeechRecognitionError::Protocol(error.to_string()))?;
         let seaco_active = catalog.seaco_is_active();
         let zipformer_active = catalog.zipformer_is_active();
         if !seaco_active
@@ -155,7 +158,8 @@ impl AsrSessionController {
             self.qwen3_recognizer()?
                 .start_with_mode(qwen_mode, hints, on_partial)?
         } else if whisper_active {
-            self.whisper_recognizer()?.start(hints, on_partial)?
+            self.whisper_recognizer()?
+                .start_with_mode(whisper_mode, hints, on_partial)?
         } else if macos_speech_active {
             #[cfg(target_os = "macos")]
             {
@@ -172,7 +176,9 @@ impl AsrSessionController {
             VolcengineSpeechRecognizer::new(settings.asr.volcengine)?.start(hints, on_partial)?
         };
         self.live_preview.store(
-            qwen3_active && qwen_mode == template_app::QwenRecognitionMode::Streaming,
+            (qwen3_active && qwen_mode == template_app::QwenRecognitionMode::Streaming)
+                || (whisper_active
+                    && whisper_mode == template_app::WhisperRecognitionMode::Streaming),
             Ordering::Release,
         );
         *active = Some(OwnedRecognition::new(session));

@@ -42,7 +42,7 @@ export component RecordingOverlay inherits Window {
         animate opacity { duration: 110ms; easing: ease-out; }
         Text {
             x: 12px; y: 10px; width: parent.width - 24px; height: parent.height - 20px;
-            text: root.preview-text.is-empty ? @tr("recording.streaming-listening" => "Listening…") : root.preview-text;
+            text: root.preview-text.is-empty ? (root.mode == 0 ? @tr("recording.streaming-listening" => "Listening…") : root.processing-label) : root.preview-text;
             font-size: 13px;
             color: OverlayColors.recording-text;
             wrap: word-wrap;

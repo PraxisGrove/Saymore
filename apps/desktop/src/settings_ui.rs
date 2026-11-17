@@ -34,6 +34,7 @@ mod loaded_settings;
 mod model_discovery;
 mod provider_mapping;
 mod qwen_mode;
+mod whisper_mode;
 use provider_mapping::VOLCENGINE_ASR_1_MODEL;
 use provider_mapping::{
     VOLCENGINE_ASR_2_MODEL, VOLCENGINE_LEGACY_MODEL, VOLCENGINE_MODELS, provider_preset,
@@ -60,6 +61,7 @@ pub fn wire(ui: &AppWindow, store: Arc<JsonSettingsStore>) {
     wire_macos_speech(ui, Arc::clone(&store));
     apply_loaded_settings(ui, &store);
     qwen_mode::wire(ui, Arc::clone(&store));
+    whisper_mode::wire(ui, Arc::clone(&store));
     let refresh_ui = ui.as_weak();
     let refresh_store = Arc::clone(&store);
     ui.on_refresh_localized_state(move || {

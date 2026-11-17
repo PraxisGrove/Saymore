@@ -36,18 +36,18 @@ history. See [latency follow-up](../research/asr-latency-follow-up.md).
 
 ## Current Local Integrations
 
-| Model                  | Mode currently used by Saymore             | Capability qualification                                                                                                                                                                                                                                                                                                                   |
-| ---------------------- | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Qwen3-ASR 1.7B         | Selectable streaming / background segments | Both modes use Q8_0 GGUF and the resident speech.cpp worker (Metal on Apple silicon). Streaming ports the official cumulative-audio and token-rollback algorithm; non-streaming retains complete overlapping windows. This is not the official Python/vLLM runtime.                                                                        |
-| Whisper large-v3-turbo | Background segments                        | whisper.cpp includes a microphone streaming example using repeated windowed transcription. Saymore currently invokes `full` on complete windows in a background worker during capture. Repeated sliding-window transcription is not implemented here; it is not evidence that Whisper has native incremental decoder state for live audio. |
-| SeACo-Paraformer       | Background segments                        | The pinned SeACo graph consumes complete segment features and vocabulary embeddings. Its adapter submits complete windows to a background worker during capture. Do not infer live-audio support from the separate streaming Paraformer model that was previously integrated.                                                              |
-| Zipformer              | While recording                            | The pinned artifact is a streaming transducer, and `OnlineRecognizer` drains ready frames during audio pushes and emits interim hypotheses. It also returns a final result. That does not establish an interchangeable offline graph for these exact files.                                                                                |
+| Model                  | Mode currently used by Saymore             | Capability qualification                                                                                                                                                                                                                                                      |
+| ---------------------- | ------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Qwen3-ASR 1.7B         | Selectable streaming / background segments | Both modes use Q8_0 GGUF and the resident speech.cpp worker (Metal on Apple silicon). Streaming ports the official cumulative-audio and token-rollback algorithm; non-streaming retains complete overlapping windows. This is not the official Python/vLLM runtime.           |
+| Whisper large-v3-turbo | Selectable streaming / background segments | Streaming repeatedly decodes the current window for replaceable previews, then confirms complete 29-second windows and the final tail with full context. Both modes use the same Q8_0 model and whisper.cpp. This is not a native incremental acoustic encoder.               |
+| SeACo-Paraformer       | Background segments                        | The pinned SeACo graph consumes complete segment features and vocabulary embeddings. Its adapter submits complete windows to a background worker during capture. Do not infer live-audio support from the separate streaming Paraformer model that was previously integrated. |
+| Zipformer              | While recording                            | The pinned artifact is a streaming transducer, and `OnlineRecognizer` drains ready frames during audio pushes and emits interim hypotheses. It also returns a final result. That does not establish an interchangeable offline graph for these exact files.                   |
 
 All four supported adapters use the same `StreamingSpeechRecognizer` /
 `StreamingRecognitionSession` ports for ordered audio chunks. Those historical
 names do not declare model capability. The port documentation explicitly allows
-buffered finalization. Qwen's non-streaming path, Whisper and SeACo share a
-background worker: complete windows are submitted during capture and the
+buffered finalization. Qwen and Whisper in non-streaming mode, and SeACo, share
+a background worker: complete windows are submitted during capture and the
 remainder at `finish`. Non-streaming Qwen uses 30-second windows for all
 vocabulary settings, with one second of overlap; Whisper retains 29 seconds;
 SeACo retains 30 seconds. Completed text is collected on subsequent audio
@@ -57,12 +57,13 @@ limited to 30 minutes of input, bounding queued audio. Cancellation discards
 queued work and suppresses callbacks; native inference already running cannot be
 interrupted and can temporarily retain the decoder.
 
-Qwen's details page has a persisted **Streaming / Non-streaming** selector.
-Non-streaming remains the default. Changing it preserves the selected provider
-and applies to the next recording; the active recording keeps its mode and
-vocabulary snapshot. Other models retain their existing paths.
+Qwen and Whisper each have an independent persisted **Streaming /
+Non-streaming** selector. Non-streaming remains the default. Changing it
+preserves the selected provider and applies to the next recording; the active
+recording keeps its mode and vocabulary snapshot. SeACo and Zipformer retain
+their existing paths.
 
-Streaming accumulates audio in two-second steps. The first two decodes are
+Qwen streaming accumulates audio in two-second steps. The first two decodes are
 unfixed; subsequent calls roll back five native tokenizer tokens and force the
 retained assistant prefix before generating a suffix. Finish flushes a shorter
 tail; an exact chunk boundary does not trigger a second pass. The recording
@@ -81,6 +82,20 @@ See
 [the official-algorithm port record](../research/qwen-official-streaming.md).
 The earlier [mode assessment](../research/recognition-mode-switching.md) remains
 background research; its generic rolling-preview proposal was not implemented.
+
+Whisper streaming uses two-second input steps and repeatedly decodes the growing
+current window. Preview calls can shorten the acoustic context; each full
+29-second window and the final tail are confirmed with the original full-context
+decoder. Finished windows are released, bounding per-call audio and compute as
+the recording grows. The worker merges pending preview work while retaining all
+audio and rejects input over 30 minutes. A preview for unchanged audio does not
+replace full-context finalization. The shared floating overlay shows provisional
+text; only the confirmed final transcript enters polishing/delivery.
+
+With the current large-v3-turbo model, very short utterances may finish before
+the first preview. Streaming adds repeated work and can increase stop-to-final
+latency. See [Whisper streaming](../research/whisper-streaming.md) for sources,
+implementation differences, measured latency and recognition quality.
 
 ## Hotwords And Personal Dictionary
 
@@ -107,8 +122,8 @@ of the dictionary after recognition.
 
 ## Choosing A Faster Mode
 
-Qwen's default remains non-streaming. Default mode selection should use a path
-that is both supported by the pinned artifact/runtime and validated for the
+Qwen and Whisper default to non-streaming. Default mode selection should use a
+path that is both supported by the pinned artifact/runtime and validated for the
 user's device. For low delay after the recording stops, doing inference during
 capture is a useful target; Zipformer already does this. It does not establish
 that every streaming path is faster or more accurate than its final-only
@@ -116,10 +131,9 @@ counterpart. Repeated sliding-window decoding can increase total compute.
 
 Before enabling another mode, compare first-interim latency, stop-to-final
 latency, recognition accuracy, CPU/GPU cost, memory, and vocabulary behavior on
-the same audio. Whisper needs additional runtime integration for an alternative
-path; SeACo needs validation of an appropriate incremental path. Do not change
-the user's selected model or advertise “fastest” on the basis of a model name
-alone. MOSS is retired from the desktop selection.
+the same audio. SeACo needs validation of an appropriate incremental path. Do
+not change the user's selected model or advertise “fastest” on the basis of a
+model name alone. MOSS is retired from the desktop selection.
 
 ## Evidence
 

@@ -54,6 +54,10 @@ name = "qwen_modes"
 harness = false
 
 [[test]]
+name = "whisper_modes"
+harness = false
+
+[[test]]
 name = "model_discovery_runtime"
 harness = false
 

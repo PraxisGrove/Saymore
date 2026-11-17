@@ -2,8 +2,10 @@
 
 Status: this is the earlier feasibility assessment. The user subsequently chose
 the [official-algorithm native port](qwen-official-streaming.md), now
-implemented for Qwen with a Streaming / Non-streaming selector. The broader
-choices below remain proposals.
+implemented for Qwen with a Streaming / Non-streaming selector. Whisper now also
+has an independent selector using
+[whisper.cpp window previews](whisper-streaming.md). The broader choices below
+remain proposals.
 
 ## Finding
 

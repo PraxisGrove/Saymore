@@ -1680,8 +1680,8 @@ msgstr "当前模式：后台分段识别"
 #: ui/pages/local-asr-model.slint:389
 msgctxt "models.asr.local.usage-tip.whisper"
 msgid ""
-"Multilingual dictation with higher memory use. Text appears after speaking."
-msgstr "Tips：适合多语言听写，语言覆盖更广；占用更高，说完后再返回结果。"
+"Multilingual dictation with higher memory use. Choose streaming for live text previews."
+msgstr "Tips：适合多语言听写，语言覆盖更广；占用更高，可选择流式查看实时文字预览。"
 
 #: ui/pages/local-asr-model.slint:391
 msgctxt "models.asr.local.usage-tip.sensevoice"
@@ -3896,17 +3896,21 @@ msgctxt "settings.storage.retired-model"
 msgid "Retired · Files can be deleted"
 msgstr "已停用 · 可删除文件"
 
-msgctxt "models.qwen.mode.non-streaming"
+msgctxt "models.asr.mode.non-streaming"
 msgid "Non-streaming"
 msgstr "非流式"
 
-msgctxt "models.qwen.mode.streaming"
+msgctxt "models.asr.mode.streaming"
 msgid "Streaming"
 msgstr "流式"
 
 msgctxt "models.qwen.mode.help"
 msgid "Streaming updates text while you speak (up to 20 minutes). Non-streaming processes complete segments in the background. Changes apply to the next recording."
 msgstr "流式会在说话时更新文字，最长录音 20 分钟。非流式在后台处理完整片段。设置在下一次录音生效。"
+
+msgctxt "models.whisper.mode.help"
+msgid "Streaming shows live previews that may change and can increase processing time. Maximum 30 minutes. Non-streaming processes complete segments in the background. Changes apply to the next recording."
+msgstr "流式会在说话时更新预览，文字可能修订，也可能增加处理时间，最长录音 30 分钟。非流式在后台处理完整片段。设置在下一次录音生效。"
 
 msgctxt "recording.streaming-listening"
 msgid "Listening…"

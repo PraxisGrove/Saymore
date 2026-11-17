@@ -38,19 +38,22 @@ Run doctests with Cargo because nextest does not execute doctests:
 cargo test --workspace --doc
 ```
 
-The `models_navigation`, `model_discovery_runtime` and `qwen_modes` Slint
-integration tests use custom main-thread executables and are excluded from
-Nextest discovery. The navigation executable also checks home-page retry and
-scrolling at the default and minimum window sizes, plus local-provider
-download/selection callbacks. The Qwen test clicks both recognition modes,
-verifies persistence without provider selection changes, and checks the
-recording preview renders visible pixels. The discovery test exercises the
-production callback wiring against a local HTTP service, including fetching,
+The `models_navigation`, `model_discovery_runtime`, `qwen_modes` and
+`whisper_modes` Slint integration tests use custom main-thread executables and
+are excluded from Nextest discovery. The navigation executable also checks
+home-page retry and scrolling at the default and minimum window sizes, plus
+local-provider download/selection callbacks. The Qwen and Whisper tests click
+both recognition modes, verifies persistence without provider selection changes,
+and checks the recording preview renders visible pixels when a frame is
+available. Snapshot requests wait for a rendering notification; a locked or
+occluded desktop can skip visual artifacts after a bounded wait, while all
+interaction and persistence assertions still run. The discovery test exercises
+the production callback wiring against a local HTTP service, including fetching,
 manual entry, failure preservation, caching, and invalidation. Run them
 explicitly with:
 
 ```bash
-cargo test -p saymore-desktop --test models_navigation --test model_discovery_runtime --test qwen_modes
+cargo test -p saymore-desktop --test models_navigation --test model_discovery_runtime --test qwen_modes --test whisper_modes
 ```
 
 CI runs these GUI tests on macOS, where a windowing environment is available.
@@ -75,6 +78,24 @@ two consecutive recognitions. `asr_latency_probe` measures the production
 adapter's capture-time scheduling. Set `SAYMORE_BENCH_QWEN_MODE=streaming` or
 `non_streaming` for the two Qwen paths. The artifact pin, acceptance results and
 host limits are in [Qwen GGUF integration](research/qwen3-gguf-integration.md).
+
+## Whisper streaming acceptance
+
+Unit tests cover replacing/clearing previews, full-context confirmation, exact
+window boundaries, short tails, repeated text, cancellation, decoder failures,
+coalescing without audio loss and the 30-minute input bound. Store and UI tests
+check independent mode persistence without changing the active provider.
+
+```sh
+SAYMORE_WHISPER_MODEL_DIR=/absolute/path/to/verified/model-directory cargo test --locked -p template-infra --test whisper_native -- --ignored
+```
+
+The native test covers pre-stop callbacks, equality with full-context final
+recognition, vocabulary and cancellation/session isolation. Set
+`SAYMORE_BENCH_WHISPER_MODE=streaming` or `non_streaming` for the existing
+`asr_latency_probe`. Compare first callbacks with the recording duration: a
+callback after stop is not a visible live preview. Results are in the
+[Whisper streaming record](research/whisper-streaming.md).
 
 ## ASR Latency Matrix
 

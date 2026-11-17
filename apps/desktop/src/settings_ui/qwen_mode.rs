@@ -1,4 +1,4 @@
-use crate::ui::{AppWindow, QwenRecognitionMode as UiMode};
+use crate::ui::{AppWindow, LocalRecognitionMode as UiMode};
 use slint::{ComponentHandle, SharedString};
 use std::sync::Arc;
 use template_app::{ProviderConfigStore, QwenRecognitionMode};

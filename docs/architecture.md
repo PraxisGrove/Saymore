@@ -86,6 +86,18 @@ decoder state prevents previous dictations from leaking into recognition.
 Vocabulary biases decoding without forcing a spelling or guaranteeing accuracy.
 Native Whisper/GGML logs are discarded to avoid exposing paths or vocabulary.
 
+Whisper snapshots its own persisted recognition mode, defaulting to the existing
+background segments. Streaming submits two-second chunks to a private worker,
+coalesces pending previews and re-decodes a growing window. Preview-only calls
+shorten the acoustic context; complete 29-second windows and the final tail use
+the original full-context parameters. An explicit finish message avoids extra
+preview work, and provisional text cannot stand in for final confirmation.
+Completed window audio is released; total input/queued PCM is bounded to 30
+minutes. The desktop shares the mode control and guarded recording preview with
+Qwen, while storing their choices independently. See
+[Whisper streaming](research/whisper-streaming.md) for the upstream approach,
+limits and measured tradeoffs.
+
 Whisper downloads the pinned `ggml-large-v3-turbo-q8_0.bin` artifact
 (874,188,075 bytes) with size and SHA-256 verification. Its new revision
 isolates it from the previous three-file ONNX installation, which is retained
@@ -271,7 +283,7 @@ Streaming ASR remains an application-owned port. The Zipformer implementation in
 `infra` loads its pinned files once, then creates an isolated online sherpa-onnx
 stream for each dictation session. Audio pushes emit only changed non-empty
 partials; finishing drains final decoding and rejects an empty result. The
-Whisper, Qwen3 and SeACo submit complete existing model windows to a
+non-streaming Whisper/Qwen3 paths and SeACo submit complete model windows to a
 session-owned background worker during capture and decode the tail at finish.
 Completed segment text can be delivered on later audio pushes; this is coarse
 background segmentation, not native incremental audio inference. Qwen3-ASR uses
