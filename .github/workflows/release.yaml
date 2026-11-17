@@ -149,7 +149,8 @@ jobs:
     name: Package macOS universal DMG
     needs: plan
     runs-on: macos-15
-    timeout-minutes: 45
+    # Two architectures built sequentially under the repository memory limits.
+    timeout-minutes: 90
     env:
       APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
       APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
@@ -285,7 +286,7 @@ jobs:
     name: Package Windows NSIS installer
     needs: plan
     runs-on: windows-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
     env:
       WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
       WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}

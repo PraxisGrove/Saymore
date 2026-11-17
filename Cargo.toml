@@ -11,7 +11,7 @@ resolver = "2"
 authors = ["unic <yuniqueunic@gmail.com>"]
 edition = "2024"
 license-file = "LICENSE"
-version = "0.2.7"
+version = "0.2.8"
 
 [workspace.dependencies]
 async-trait = "0.1.92"
@@ -52,8 +52,8 @@ slint-build = "1.17.1"
 sys-locale = "0.3.2"
 tar = "0.4.46"
 rspolib = "0.1.2"
-template-app = { path = "crates/app", version = "0.2.7" }
-template-infra = { path = "crates/infra", version = "0.2.7" }
+template-app = { path = "crates/app", version = "0.2.8" }
+template-infra = { path = "crates/infra", version = "0.2.8" }
 thiserror = "2"
 tempfile = "3"
 tracing = "0.1"
@@ -84,6 +84,8 @@ unwrap_used = "deny"
 
 [profile.dev]
 debug = "limited"
+# Avoid large query caches for the generated Slint modules.
+incremental = false
 
 [profile.release]
 codegen-units = 4

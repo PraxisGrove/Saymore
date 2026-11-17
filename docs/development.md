@@ -4,6 +4,25 @@ The base workflow uses Cargo plus `cargo-nextest` and `cargo-deny`. Optional
 tools can improve local ergonomics, but the mature-project gate should stay
 explicit and reproducible.
 
+## Build Resource Limits
+
+The default Cargo build uses one job (`.cargo/config.toml`) and disables
+incremental compilation for the development/test profile (`Cargo.toml`). The
+generated Slint modules appear in several desktop test executables; compiling
+them concurrently can put substantial pressure on a 16 GiB machine. Incremental
+query caches also accumulated roughly 48 GiB in this checkout. These defaults
+trade some rebuild speed for lower peak memory and predictable cache size. A
+machine with sufficient headroom can override concurrency with
+`CARGO_BUILD_JOBS`, after measuring its peak usage.
+
+Run builds, native-model benchmarks and packaging sequentially. With all Cargo
+processes stopped, remove `target/debug/incremental` to discard old query
+caches; `cargo clean --locked --profile dev -p saymore-desktop` removes desktop
+debug artifacts while retaining dependency caches. Both are regenerable. Avoid
+deleting all of `target` indiscriminately: it also contains downloaded models,
+benchmark fixtures/results and packaged apps. Clearing files frees disk space;
+limiting concurrent compilers controls RAM pressure.
+
 ## Verification Cadence
 
 During implementation, run focused tests and checks for the code being changed.

@@ -1,3 +1,7 @@
+[build]
+# Generated Slint code makes concurrent desktop/test compilations memory intensive.
+jobs = 1
+
 [env]
 # Build distributable whisper.cpp CPU code rather than optimizing for the build host.
 GGML_NATIVE = "OFF"
