@@ -150,17 +150,19 @@ speech.cpp and its pinned ggml, applies
 Rust debug builds, and stages `saymore-speech` beside the Cargo profile's
 executables. A cold build requires access to GitHub codeload, Git (to apply the
 source patch), CMake and a C/C++ compiler; subsequent builds reuse the verified
-source/build cache. `cmake` orchestrates the native build; `ureq` is build-only
-source acquisition, and runtime `base64` carries PCM through the private worker
-pipe. These dependency versions were already in Cargo.lock. Apple silicon
-enables embedded Metal shaders and Accelerate; Intel macOS and Windows use CPU.
-Windows builds the worker with the static MSVC runtime. The process boundary
-isolates its ggml from whisper.cpp's version. No Python or separately installed
-runtime is needed. Both the desktop executable and worker must be distributed
-together; `cargo-packager` and the Preview/local bundler do this. Universal
-macOS packaging merges both workers as well as both desktop binaries. Windows
-portable artifacts include `saymore-speech.exe` beside the application and the
-third-party notices. See the
+source/build cache. `.gitattributes` keeps native patches in LF form even when
+Windows uses `core.autocrlf=true`; converting patch context to CRLF prevents it
+from matching the verified LF source archive. `cmake` orchestrates the native
+build; `ureq` is build-only source acquisition, and runtime `base64` carries PCM
+through the private worker pipe. These dependency versions were already in
+Cargo.lock. Apple silicon enables embedded Metal shaders and Accelerate; Intel
+macOS and Windows use CPU. Windows builds the worker with the static MSVC
+runtime. The process boundary isolates its ggml from whisper.cpp's version. No
+Python or separately installed runtime is needed. Both the desktop executable
+and worker must be distributed together; `cargo-packager` and the Preview/local
+bundler do this. Universal macOS packaging merges both workers as well as both
+desktop binaries. Windows portable artifacts include `saymore-speech.exe` beside
+the application and the third-party notices. See the
 [Qwen integration record](research/qwen3-gguf-integration.md).
 
 SeACo-Paraformer uses pinned Rust `ort` bindings in alternative-backend mode,

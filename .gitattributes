@@ -1,0 +1,2 @@
+# Native source archives use LF; CRLF conversion changes patch context bytes.
+crates/infra/native/*.patch text eol=lf
