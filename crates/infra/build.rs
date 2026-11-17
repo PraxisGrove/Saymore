@@ -8,6 +8,8 @@ use std::{
     time::Duration,
 };
 
+#[path = "build/native_sources.rs"]
+mod native_sources;
 #[path = "build/speech_patch.rs"]
 mod speech_patch;
 
@@ -17,6 +19,7 @@ const GGML_REVISION: &str = "cbdeccfd49ec9c702c175c273d36c47520cf4710";
 fn main() {
     println!("cargo:rerun-if-changed=build.rs");
     println!("cargo:rerun-if-changed=build/speech_patch.rs");
+    println!("cargo:rerun-if-changed=build/native_sources.rs");
     println!("cargo:rerun-if-changed=native/qwen-streaming.patch");
     if let Err(error) = build_worker() {
         eprintln!("could not build the pinned Qwen speech.cpp worker: {error}");
@@ -37,9 +40,7 @@ fn build_worker() -> Result<(), Box<dyn Error>> {
     .map_err(|error| format!("unpack ggml in {}: {error}", out.display()))?;
     // Source archives do not contain the submodule. Copy only the pinned tree.
     let submodule = source.join("ggml");
-    if !submodule.join("CMakeLists.txt").is_file() {
-        copy_tree(&ggml, &submodule)?;
-    }
+    native_sources::stage(&ggml, &submodule, GGML_REVISION)?;
     let target = env::var("TARGET")?;
     let macos = target.contains("apple-darwin");
     let metal = macos && target.starts_with("aarch64");
@@ -121,27 +122,4 @@ fn unpack_source(
     }
     fs::write(destination.join(".saymore-verified"), sha256)?;
     Ok(destination)
-}
-
-fn copy_tree(source: &Path, destination: &Path) -> io::Result<()> {
-    fs::create_dir_all(destination)?;
-    for entry in fs::read_dir(source)? {
-        let entry = entry?;
-        let target = destination.join(entry.file_name());
-        if entry.file_type()?.is_dir() {
-            copy_tree(&entry.path(), &target)?;
-        } else {
-            fs::copy(entry.path(), &target).map_err(|error| {
-                io::Error::new(
-                    error.kind(),
-                    format!(
-                        "copy native source {} to {}: {error}",
-                        entry.path().display(),
-                        target.display()
-                    ),
-                )
-            })?;
-        }
-    }
-    Ok(())
 }
