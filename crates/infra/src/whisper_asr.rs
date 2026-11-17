@@ -6,7 +6,7 @@ use std::{
 
 use template_app::{
     SpeechRecognitionError, SpeechRecognitionHints, StreamingRecognitionSession,
-    StreamingSpeechRecognizer,
+    StreamingSpeechRecognizer, WhisperRecognitionMode,
 };
 use whisper_rs::{FullParams, SamplingStrategy, WhisperContext, WhisperContextParameters};
 
@@ -16,6 +16,7 @@ use crate::{
 };
 
 mod hints;
+mod streaming;
 #[cfg(test)]
 mod tests;
 
@@ -63,6 +64,23 @@ impl WhisperSpeechRecognizer {
         })
     }
 
+    /// Starts a session with a fixed recognition strategy and vocabulary snapshot.
+    pub fn start_with_mode(
+        &self,
+        mode: WhisperRecognitionMode,
+        hints: SpeechRecognitionHints,
+        on_partial: Arc<dyn Fn(String) + Send + Sync>,
+    ) -> Result<Box<dyn StreamingRecognitionSession>, SpeechRecognitionError> {
+        match mode {
+            WhisperRecognitionMode::NonStreaming => self.start(hints, on_partial),
+            WhisperRecognitionMode::Streaming => streaming::start(
+                Arc::clone(&self.decoder),
+                hints::vocabulary_prompt(hints.terms()),
+                on_partial,
+            ),
+        }
+    }
+
     #[cfg(test)]
     fn with_decoder(decoder: Arc<dyn WhisperDecoder>) -> Self {
         Self { decoder }
@@ -93,14 +111,39 @@ impl StreamingSpeechRecognizer for WhisperSpeechRecognizer {
 /// Implementations must isolate decoder state between calls and never log the prompt.
 trait WhisperDecoder: Send + Sync {
     fn decode(&self, samples: &[i16], prompt: &str) -> Result<String, SpeechRecognitionError>;
+
+    /// Provisional text may use a shorter acoustic context; it never commits a window.
+    fn preview(&self, samples: &[i16], prompt: &str) -> Result<String, SpeechRecognitionError> {
+        self.decode(samples, prompt)
+    }
 }
 
 struct CppWhisperDecoder {
     context: Mutex<WhisperContext>,
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum AcousticContext {
+    Full,
+    Preview,
+}
+
 impl WhisperDecoder for CppWhisperDecoder {
     fn decode(&self, samples: &[i16], prompt: &str) -> Result<String, SpeechRecognitionError> {
+        self.run(samples, prompt, AcousticContext::Full)
+    }
+    fn preview(&self, samples: &[i16], prompt: &str) -> Result<String, SpeechRecognitionError> {
+        self.run(samples, prompt, AcousticContext::Preview)
+    }
+}
+
+impl CppWhisperDecoder {
+    fn run(
+        &self,
+        samples: &[i16],
+        prompt: &str,
+        acoustic: AcousticContext,
+    ) -> Result<String, SpeechRecognitionError> {
         let context = self.context.lock().map_err(lock_error)?;
         // Whisper's byte-level tokenizer cannot produce more tokens than input
         // bytes. Allocate that upper bound rather than a smaller token budget.
@@ -112,6 +155,13 @@ impl WhisperDecoder for CppWhisperDecoder {
             .map_err(|error| runtime_error("create decoder state", error))?;
         let mut parameters = FullParams::new(SamplingStrategy::Greedy { best_of: 1 });
         parameters.set_n_threads(4);
+        if let AcousticContext::Preview = acoustic {
+            // Encoder positions cover 20 ms. Include one second of padding;
+            // final recognition retains the pinned model's full 30-second context.
+            let positions = samples.len().saturating_add(16_000).div_ceil(320).min(1500);
+            parameters.set_audio_ctx(positions as i32);
+        }
+
         parameters.set_translate(false);
         parameters.set_language(None);
         parameters.set_no_context(true);

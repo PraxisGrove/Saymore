@@ -12,7 +12,7 @@ use std::{
     time::{Duration, Instant},
 };
 use template_app::{SpeechRecognitionHints, StreamingSpeechRecognizer};
-use template_infra::{SeacoSpeechRecognizer, WhisperSpeechRecognizer, ZipformerSpeechRecognizer};
+use template_infra::{SeacoSpeechRecognizer, ZipformerSpeechRecognizer};
 fn main() -> Result<(), Box<dyn Error>> {
     init_diagnostics();
     let mut args = env::args_os().skip(1);
@@ -46,11 +46,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let observed = Arc::clone(&first_partial);
     let session = recognizer.start(
         SpeechRecognitionHints::default(),
-        Arc::new(move |_| {
-            if let Ok(mut value) = observed.lock() {
-                value.get_or_insert(start.elapsed().as_secs_f64());
-            }
-        }),
+        capture_first(observed, start),
     )?;
     let scheduling =
         env::var("SAYMORE_BENCH_SCHEDULING").unwrap_or_else(|_| "during-capture".into());
@@ -77,6 +73,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let measurement = serde_json::json!({
         "model": model, "feed": feed, "scheduling": scheduling,
         "qwen_mode": env::var("SAYMORE_BENCH_QWEN_MODE").unwrap_or_else(|_| "non_streaming".into()),
+        "whisper_mode": env::var("SAYMORE_BENCH_WHISPER_MODE").unwrap_or_else(|_| "non_streaming".into()),
         "decoder_mode": decoder_mode(&model),
         "audio_seconds": samples.len() as f64 / 16000.0,
         "load_seconds": load_seconds,
@@ -86,7 +83,8 @@ fn main() -> Result<(), Box<dyn Error>> {
         "capture_to_text_ready_seconds": start.elapsed().as_secs_f64(),
         "cold": cold, "refinement": refinement, "processed": processed,
         "delivery": "not_measured",
-        "first_partial_seconds": first,
+        "first_partial_seconds": first.as_ref().map(|value| value.seconds),
+        "first_partial_text": first.as_ref().map(|value| value.text.as_str()),
         "text": text,
     });
     println!("{}", serde_json::to_string_pretty(&measurement)?);
@@ -100,6 +98,10 @@ fn decoder_mode(model: &str) -> &'static str {
         && env::var("SAYMORE_BENCH_QWEN_MODE").is_ok_and(|value| value == "streaming")
     {
         "official_streaming_algorithm_port"
+    } else if model == "whisper"
+        && env::var("SAYMORE_BENCH_WHISPER_MODE").is_ok_and(|value| value == "streaming")
+    {
+        "repeated_window_streaming"
     } else {
         "offline_segments"
     }
@@ -128,10 +130,32 @@ fn validate_refinement(value: &str) -> Result<(), io::Error> {
     }
 }
 
-fn first_observation(value: &Mutex<Option<f64>>) -> Result<Option<f64>, io::Error> {
+#[derive(Clone)]
+struct FirstPartial {
+    seconds: f64,
+    text: String,
+}
+
+fn capture_first(
+    observed: Arc<Mutex<Option<FirstPartial>>>,
+    started: Instant,
+) -> Arc<dyn Fn(String) + Send + Sync> {
+    Arc::new(move |text| {
+        if let Ok(mut value) = observed.lock() {
+            value.get_or_insert(FirstPartial {
+                seconds: started.elapsed().as_secs_f64(),
+                text,
+            });
+        }
+    })
+}
+
+fn first_observation(
+    value: &Mutex<Option<FirstPartial>>,
+) -> Result<Option<FirstPartial>, io::Error> {
     value
         .lock()
-        .map(|value| *value)
+        .map(|value| value.clone())
         .map_err(|_| io::Error::other("partial observation lock failed"))
 }
 
@@ -167,7 +191,7 @@ fn load_recognizer(
 ) -> Result<Box<dyn StreamingSpeechRecognizer>, Box<dyn Error>> {
     Ok(match model {
         "zipformer" => Box::new(ZipformerSpeechRecognizer::load(directory)?),
-        "whisper" => Box::new(WhisperSpeechRecognizer::load(directory)?),
+        "whisper" => Box::new(latency_support::whisper::WhisperReplay::load(directory)?),
         "qwen3" => Box::new(latency_support::qwen::QwenReplay::load(directory)?),
         "seaco" => Box::new(SeacoSpeechRecognizer::load(directory)?),
         _ => return Err(usage().into()),

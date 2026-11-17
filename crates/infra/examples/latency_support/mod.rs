@@ -1,6 +1,7 @@
 //! Explicit benchmark-only provider configuration; never reads user settings.
 pub mod qwen;
 pub mod scheduling;
+pub mod whisper;
 
 use std::{env, error::Error, io, sync::Arc, time::Instant};
 use template_app::{
