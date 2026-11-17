@@ -47,10 +47,12 @@ both recognition modes, verifies persistence without provider selection changes,
 and checks the recording preview renders visible pixels when a frame is
 available. Snapshot requests wait for a rendering notification; a locked or
 occluded desktop can skip visual artifacts after a bounded wait, while all
-interaction and persistence assertions still run. The discovery test exercises
-the production callback wiring against a local HTTP service, including fetching,
-manual entry, failure preservation, caching, and invalidation. Run them
-explicitly with:
+interaction and persistence assertions still run. Mode tests use a shorter
+native window and position clicks relative to its actual client size, including
+desktop size clamping. Captures allow reveal animations to settle after the
+first frame. The discovery test exercises the production callback wiring against
+a local HTTP service, including fetching, manual entry, failure preservation,
+caching, and invalidation. Run them explicitly with:
 
 ```bash
 cargo test -p saymore-desktop --test models_navigation --test model_discovery_runtime --test qwen_modes --test whisper_modes

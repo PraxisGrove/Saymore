@@ -117,10 +117,12 @@ Verification:
   from the normal nextest run. Doctests passed.
 - The real Q8_0 native test passed, covering pre-stop preview, full-context
   final equality, vocabulary, cancellation and session isolation.
-- All four GUI executables passed their mandatory interaction assertions. The
-  final local run occurred with macOS locked, so fresh snapshots were skipped.
-  Tests now wait for a rendered frame instead of calling the OpenGL screenshot
-  path on an uninitialized canvas; production overlay setup is reused.
+- All four GUI executables passed their mandatory interaction assertions. An
+  initial locked-desktop run skipped fresh snapshots. Later smaller-window and
+  English-locale runs passed both mode tests and produced reviewed selector and
+  preview captures. Tests use the actual native window size, wait for a rendered
+  frame and allow reveal animations to settle; production overlay setup is
+  reused.
 - The size gate scanned 252 files with no warnings or errors.
 
 The user also requested generated-file cleanup and a release. Cleanup removed

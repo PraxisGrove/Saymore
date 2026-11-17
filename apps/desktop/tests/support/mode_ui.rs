@@ -32,6 +32,20 @@ pub fn click(ui: &ui::AppWindow, x: f32, y: f32) {
     }
 }
 
+pub fn click_mode(ui: &ui::AppWindow, mode: ui::LocalRecognitionMode) {
+    // The modal is centered; native desktops can clamp the requested window height.
+    let size = ui.window().size().to_logical(ui.window().scale_factor());
+    let x = match mode {
+        ui::LocalRecognitionMode::Streaming => 690.0,
+        ui::LocalRecognitionMode::NonStreaming => 590.0,
+    };
+    click(
+        ui,
+        x + (size.width - 920.0) / 2.0,
+        244.0 + (size.height - 700.0) / 2.0,
+    );
+}
+
 pub enum FrameStatus {
     Rendered,
     Unavailable,
@@ -65,8 +79,12 @@ fn complete<F: FnOnce(FrameStatus) + 'static>(pending: &RefCell<Option<F>>, stat
                 "Snapshot unavailable: the backend did not produce a new frame; interaction assertions still run"
             );
         }
-        // Leave the rendering callback before borrowing the canvas for a snapshot.
-        slint::Timer::single_shot(Duration::ZERO, move || then(state));
+        // Leave the renderer and allow the 110/160 ms reveal animations to settle.
+        let delay = match state {
+            FrameStatus::Rendered => Duration::from_millis(200),
+            FrameStatus::Unavailable => Duration::ZERO,
+        };
+        slint::Timer::single_shot(delay, move || then(state));
     }
 }
 

@@ -37,9 +37,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         },
     ])));
     window.set_qwen3_asr_download_supported(true);
+    window
+        .window()
+        .set_size(slint::LogicalSize::new(920.0, 600.0));
     window.show()?;
     window.window().try_dispatch_event(WindowEvent::Resized {
-        size: slint::LogicalSize::new(920.0, 700.0),
+        size: slint::LogicalSize::new(920.0, 600.0),
     })?;
     let overlay = ui::RecordingOverlay::new()?;
     overlay.set_preview_enabled(true);
@@ -57,7 +60,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             std::process::exit(1);
         };
         click(&window, 350.0, 200.0);
-        click(&window, 690.0, 256.0);
+        support::click_mode(&window, ui::LocalRecognitionMode::Streaming);
         require(window.get_qwen_recognition_mode() == ui::LocalRecognitionMode::Streaming);
         require(observed.load_catalog().is_ok_and(|catalog| {
             catalog.whisper_is_active()
@@ -69,7 +72,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 if matches!(frame, support::FrameStatus::Rendered) {
                     save_snapshot(window.window(), "qwen-streaming-ui", "mode-selector");
                 }
-                click(&window, 590.0, 256.0);
+                support::click_mode(&window, ui::LocalRecognitionMode::NonStreaming);
                 require(
                     window.get_qwen_recognition_mode() == ui::LocalRecognitionMode::NonStreaming,
                 );
