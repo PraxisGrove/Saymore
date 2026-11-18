@@ -8,25 +8,41 @@ home-page layout at the default 920 × 700 and minimum 820 × 560 window sizes.
 
 ## Home Page Findings And Fixes
 
-| Problem                                                      | Evidence                                                                                                                                            | Resolution                                                                         |
-| ------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
-| Usage content becomes unreachable in a short window          | The usage card starts at y=313 and requires at least 300 px, but the minimum window leaves only 540 px for the page; there was no scroll container. | The home content now scrolls vertically below a 616 px content height.             |
-| Shortcut and configuration titles compete with status badges | Unconstrained title text and right-aligned badges occupied the same title row, particularly with English labels.                                    | Status badges have separate rows; the shortcut title has a bounded, wrapping area. |
-| Shortcut instructions collide with Edit                      | The instructions had no width bound while Edit was positioned at the right edge of the same row.                                                    | Instructions wrap within their own area, leaving room for Edit.                    |
-| Retry covers the average-speed caption                       | Retry started at y=105 inside the metric column; the metric caption starts at y=110.                                                                | Retry now occupies the usage card's top-right action area.                         |
+| Problem                                             | Evidence                                                                                                                                            | Resolution                                                                          |
+| --------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| Usage content becomes unreachable in a short window | The usage card starts at y=313 and requires at least 300 px, but the minimum window leaves only 540 px for the page; there was no scroll container. | The home content now scrolls vertically below a 616 px content height.              |
+| Status badges look detached from their card titles  | Separate rows placed the shortcut badge below its title and the overall configuration badge below Text delivery.                                    | Each header reserves space on the right for its badge. The shortcut title can wrap. |
+| Shortcut instructions collide with Edit             | The instructions had no width bound while Edit was positioned at the right edge of the same row.                                                    | Instructions wrap within their own area, leaving room for Edit.                     |
+| Retry covers the average-speed caption              | Retry started at y=105 inside the metric column; the metric caption starts at y=110.                                                                | Retry now occupies the usage card's top-right action area.                          |
+
+Both summary cards use the same header. The shortcut keycap aligns with the
+three configuration icons, and the shortcut instructions align with their
+captions. Each caption is centered directly beneath its circular icon. The link
+arrow sits to the right of the text within the same click target. The first and
+last configuration items align with the header's left and right insets. The row
+distributes the remaining width equally between the three items.
 
 The headline also has a width bound and elides instead of drawing beyond the
 content column. These changes belong to `apps/desktop/ui/pages/home.slint`.
+
+For a standalone live preview of Home, open the production window from the
+repository root. Saving an imported Slint file refreshes the window.
+
+```sh
+slint-viewer --auto-reload --component AppWindow apps/desktop/ui/app-window.slint
+```
 
 ## Verification
 
 - Desktop compilation with all targets validates the Slint declarations.
 - The existing `models_navigation` executable now also exercises home-page
-  resize, retry, scrolling to the end, and scrolling back at both supported
-  sizes. The home cases live in `tests/support/home_layout.rs`.
+  resize, configuration actions, retry, and scrolling in both directions at both
+  supported sizes. The home cases live in `tests/support/home_layout.rs`.
 - The semantic-color gate reports no direct color literals outside color owners.
-- Review of a rendered macOS Chinese/light home page confirms that the title,
-  status badges, instructions, and retry occupy separate areas.
+- Slint renders of the default theme in light and dark appearance, in English
+  and Simplified Chinese at both window sizes, show matching top and bottom
+  edges for the enabled/disabled and pending/ready badges. At minimum width, the
+  English shortcut title wraps onto two lines.
 - Windows DPI behavior, all themes, and the complete bilingual visual matrix
   remain unverified. The GUI event tests do not replace those visual checks.
 
