@@ -53,10 +53,12 @@ export component SpeechRecognitionPage inherits Rectangle {
     callback open-macos-speech-details();
     callback open-placeholder-details(AsrProviderCardKind);
 
-    private property <int> provider-row-count: (root.provider-cards.length + 1) / 2;
+    private property <length> card-height: 88px;
+    private property <length> row-gap: 12px;
+    private property <int> provider-row-count: Math.ceil(root.provider-cards.length / 2);
     private property <length> provider-content-height: root.provider-row-count == 0
         ? 0px
-        : root.provider-row-count * 120px - 12px;
+        : root.provider-row-count * (root.card-height + root.row-gap) - root.row-gap;
 
     background: transparent;
     init => {
@@ -82,8 +84,9 @@ export component SpeechRecognitionPage inherits Rectangle {
             private property <bool> compatible-configured: self.compatible-service
                 && root.custom-configured && card.kind == root.configured-custom-kind;
             x: Math.mod(card-index, 2) == 0 ? 0px : (provider-list.viewport-width + 16px) / 2;
-            y: Math.floor(card-index / 2) * 120px;
+            y: Math.floor(card-index / 2) * (root.card-height + root.row-gap);
             width: (provider-list.viewport-width - 16px) / 2;
+            height: root.card-height;
             recommended: card.kind == AsrProviderCardKind.volcengine;
             logo: card.kind == AsrProviderCardKind.saymore-cloud
                 ? @image-url("../../icons/saymore-mark-3d-136.png")

@@ -32,14 +32,6 @@ msgctxt "models.asr.local.hints.unavailable-detail"
 msgid "The current recognition integration does not use dictionary hints."
 msgstr ""
 
-msgctxt "models.asr.local.hints.badge"
-msgid "Hotwords"
-msgstr ""
-
-msgctxt "models.asr.local.hints.badge-unavailable"
-msgid "Not wired"
-msgstr ""
-
 #: ui/about-product-card.slint:53
 msgctxt "settings.product.tagline"
 msgid "Speak your mind, hands-free."
@@ -1688,36 +1680,11 @@ msgctxt "models.asr.local.memory-approximate"
 msgid "Approx. {}"
 msgstr ""
 
-#: ui/pages/local-asr-model.slint:344
-msgctxt "models.asr.local.status.switching"
-msgid "Switching · {}"
-msgstr ""
-
-#: ui/pages/local-asr-model.slint:346
-msgctxt "models.asr.local.status.downloading"
-msgid "Downloading · {}"
-msgstr ""
-
-#: ui/pages/local-asr-model.slint:348
-msgctxt "models.asr.local.status.paused"
-msgid "Paused · {}"
-msgstr ""
-
-#: ui/pages/local-asr-model.slint:350
-msgctxt "models.asr.local.status.cancelling"
-msgid "Cancelling download · {}"
-msgstr ""
-
 #: ui/pages/local-asr-model.slint:352 ui/pages/speech-recognition.slint:165
 #: ui/pages/local-asr-model.slint:352 ui/pages/speech-recognition.slint:165 ui/pages/speech-recognition.slint:173
 #: ui/pages/local-asr-model.slint:352 ui/pages/speech-recognition.slint:165 ui/pages/speech-recognition.slint:173
 msgctxt "models.asr.local.status.downloaded"
 msgid "Downloaded · {}"
-msgstr ""
-
-#: ui/pages/local-asr-model.slint:353
-msgctxt "models.asr.local.status.not-downloaded"
-msgid "Not downloaded · {}"
 msgstr ""
 
 #: ui/pages/local-asr-model.slint:357
@@ -3713,14 +3680,26 @@ msgctxt "models.asr.mode.streaming"
 msgid "Streaming"
 msgstr ""
 
-msgctxt "models.qwen.mode.help"
-msgid "Streaming updates text while you speak (up to 20 minutes). Non-streaming processes complete segments in the background. Changes apply to the next recording."
-msgstr ""
-
-msgctxt "models.whisper.mode.help"
-msgid "Streaming shows live previews that may change and can increase processing time. Maximum 30 minutes. Non-streaming processes complete segments in the background. Changes apply to the next recording."
-msgstr ""
-
 msgctxt "recording.streaming-listening"
 msgid "Listening…"
+msgstr ""
+
+msgctxt "models.asr.mode.title"
+msgid "Recognition mode"
+msgstr ""
+
+msgctxt "models.asr.local.use"
+msgid "Use model"
+msgstr ""
+
+msgctxt "models.asr.mode.segment-help"
+msgid "Processes complete segments in the background. Applies to the next recording."
+msgstr ""
+
+msgctxt "models.asr.mode.qwen-preview"
+msgid "Live text while you speak, up to 20 minutes. Applies to the next recording."
+msgstr ""
+
+msgctxt "models.asr.mode.whisper-preview"
+msgid "Live text may change and take longer to finalize. Up to 30 minutes, starting with the next recording."
 msgstr ""

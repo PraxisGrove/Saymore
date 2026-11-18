@@ -2,15 +2,16 @@
 
 ## Meaning Of The UI Label
 
-The local-model details page describes **Saymore's current recognition mode**:
+Fixed-mode model details describe **Saymore's current recognition mode**:
 
 - `Current mode: recognize while recording` / `当前模式：边录音边识别`.
 - `Current mode: background recognition in segments` / `当前模式：后台分段识别`.
 
 This is an integration status, not a permanent streaming/non-streaming
 classification of the model. Do not translate “final only” as a claim that the
-model cannot support streaming. The mode appears on its own text row instead of
-being grouped with the model's language and local-processing badges.
+model cannot support streaming. Whisper and Qwen show the selected mode in a
+two-option control, with the explanation and applicable recording limit
+immediately below it.
 
 Keep four concepts separate:
 

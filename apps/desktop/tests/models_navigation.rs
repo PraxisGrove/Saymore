@@ -135,11 +135,11 @@ fn check_additional_provider_actions(ui: &AppWindow) {
     click(ui, 735.0, 150.0);
     // Use the real card/modal event path at the default 920 x 700 window size.
     click(ui, 350.0, 200.0);
-    click(ui, 680.0, 350.0);
-    click(ui, 560.0, 350.0);
+    click(ui, 680.0, 214.0);
+    click(ui, 560.0, 214.0);
     click(ui, 735.0, 150.0);
     click(ui, 700.0, 200.0);
-    click(ui, 680.0, 350.0);
+    click(ui, 680.0, 214.0);
     ui.set_zipformer_download_state(LocalModelDownloadState::Downloaded);
     click(ui, 650.0, 150.0);
     assert_eq!(

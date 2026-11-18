@@ -42,7 +42,7 @@ pub fn click_mode(ui: &ui::AppWindow, mode: ui::LocalRecognitionMode) {
     click(
         ui,
         x + (size.width - 920.0) / 2.0,
-        244.0 + (size.height - 700.0) / 2.0,
+        320.0 + (size.height - 700.0) / 2.0,
     );
 }
 

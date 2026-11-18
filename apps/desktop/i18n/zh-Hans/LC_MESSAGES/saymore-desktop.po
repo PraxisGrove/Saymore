@@ -31,14 +31,6 @@ msgctxt "models.asr.local.hints.unavailable-detail"
 msgid "The current recognition integration does not use dictionary hints."
 msgstr "当前识别接入尚未使用词典提示。"
 
-msgctxt "models.asr.local.hints.badge"
-msgid "Hotwords"
-msgstr "词典支持"
-
-msgctxt "models.asr.local.hints.badge-unavailable"
-msgid "Not wired"
-msgstr "未接入"
-
 #: ui/about-product-card.slint:53
 msgctxt "settings.product.tagline"
 msgid "Speak your mind, hands-free."
@@ -1580,36 +1572,11 @@ msgctxt "models.asr.local.memory-approximate"
 msgid "Approx. {}"
 msgstr "约 {}"
 
-#: ui/pages/local-asr-model.slint:344
-msgctxt "models.asr.local.status.switching"
-msgid "Switching · {}"
-msgstr "正在切换 · {}"
-
-#: ui/pages/local-asr-model.slint:346
-msgctxt "models.asr.local.status.downloading"
-msgid "Downloading · {}"
-msgstr "正在下载 · {}"
-
-#: ui/pages/local-asr-model.slint:348
-msgctxt "models.asr.local.status.paused"
-msgid "Paused · {}"
-msgstr "已暂停 · {}"
-
-#: ui/pages/local-asr-model.slint:350
-msgctxt "models.asr.local.status.cancelling"
-msgid "Cancelling download · {}"
-msgstr "正在取消下载 · {}"
-
 #: ui/pages/local-asr-model.slint:352 ui/pages/speech-recognition.slint:165
 #: ui/pages/speech-recognition.slint:173
 msgctxt "models.asr.local.status.downloaded"
 msgid "Downloaded · {}"
 msgstr "已下载 · {}"
-
-#: ui/pages/local-asr-model.slint:353
-msgctxt "models.asr.local.status.not-downloaded"
-msgid "Not downloaded · {}"
-msgstr "尚未下载 · {}"
 
 #: ui/pages/local-asr-model.slint:357
 msgctxt "models.asr.local.activation-loading"
@@ -3904,14 +3871,26 @@ msgctxt "models.asr.mode.streaming"
 msgid "Streaming"
 msgstr "流式"
 
-msgctxt "models.qwen.mode.help"
-msgid "Streaming updates text while you speak (up to 20 minutes). Non-streaming processes complete segments in the background. Changes apply to the next recording."
-msgstr "流式会在说话时更新文字，最长录音 20 分钟。非流式在后台处理完整片段。设置在下一次录音生效。"
-
-msgctxt "models.whisper.mode.help"
-msgid "Streaming shows live previews that may change and can increase processing time. Maximum 30 minutes. Non-streaming processes complete segments in the background. Changes apply to the next recording."
-msgstr "流式会在说话时更新预览，文字可能修订，也可能增加处理时间，最长录音 30 分钟。非流式在后台处理完整片段。设置在下一次录音生效。"
-
 msgctxt "recording.streaming-listening"
 msgid "Listening…"
 msgstr "正在聆听…"
+
+msgctxt "models.asr.mode.title"
+msgid "Recognition mode"
+msgstr "识别模式"
+
+msgctxt "models.asr.local.use"
+msgid "Use model"
+msgstr "使用此模型"
+
+msgctxt "models.asr.mode.segment-help"
+msgid "Processes complete segments in the background. Applies to the next recording."
+msgstr "在后台分段识别，下次录音生效。"
+
+msgctxt "models.asr.mode.qwen-preview"
+msgid "Live text while you speak, up to 20 minutes. Applies to the next recording."
+msgstr "边说边显示文字，最长 20 分钟，下次录音生效。"
+
+msgctxt "models.asr.mode.whisper-preview"
+msgid "Live text may change and take longer to finalize. Up to 30 minutes, starting with the next recording."
+msgstr "边说边显示预览，文字可能修订，定稿可能稍慢。最长 30 分钟，下次录音生效。"

@@ -9,35 +9,6 @@ export enum LocalModelDownloadState {
     downloaded,
 }
 
-export component LocalModelSummaryPill inherits Rectangle {
-    in property <image> icon;
-    in property <string> label;
-
-    width: 104px;
-    height: 36px;
-    border-radius: 18px;
-    background: AppColors.surface-faint;
-
-    Image {
-        x: 12px;
-        y: 9px;
-        width: 18px;
-        height: 18px;
-        source: root.icon;
-        colorize: AppColors.text-muted;
-    }
-    Text {
-        x: 38px;
-        width: parent.width - 44px;
-        text: root.label;
-        color: AppColors.text;
-        font-size: 12px;
-        font-weight: 600;
-        vertical-alignment: center;
-        overflow: elide;
-    }
-}
-
 export component LocalModelBusySpinner inherits Image {
     in property <bool> running: false;
     in property <brush> tint: AppColors.brand-strong;
@@ -63,13 +34,12 @@ export component LocalModelMetric inherits Rectangle {
     in property <image> icon;
     in property <string> label;
     in property <string> value;
-    in property <length> content-offset: 0px;
     in property <bool> muted-value: false;
     in property <bool> live-value: false;
     background: transparent;
 
     Image {
-        x: root.content-offset;
+        x: 0px;
         y: 5px;
         width: 14px;
         height: 14px;
@@ -77,16 +47,16 @@ export component LocalModelMetric inherits Rectangle {
         colorize: AppColors.text-muted;
     }
     metric-label := Text {
-        x: root.content-offset + 22px;
+        x: 22px;
         y: 2px;
         text: root.label;
-        color: AppColors.text;
-        font-size: 12px;
-        font-weight: 700;
+        color: AppColors.text-muted;
+        font-size: 11px;
+        font-weight: 500;
     }
     metric-value := Text {
-        x: root.content-offset + 22px;
-        y: 27px;
+        x: 22px;
+        y: 21px;
         height: 18px;
         width: max(0px, root.width - self.x);
         text: root.value;
@@ -96,8 +66,8 @@ export component LocalModelMetric inherits Rectangle {
         overflow: elide;
     }
     if root.live-value: Rectangle {
-        x: root.content-offset + 4px;
-        y: 32px;
+        x: 4px;
+        y: 27px;
         width: 6px;
         height: 6px;
         border-radius: 3px;
@@ -164,7 +134,6 @@ export component LocalModelActionButton inherits Rectangle {
 }
 
 export component LocalModelSelectionControl inherits Rectangle {
-    in property <LocalModelDownloadState> download-state;
     in property <bool> selected: false;
     in property <bool> enabled: false;
     in property <bool> pending: false;
@@ -174,15 +143,7 @@ export component LocalModelSelectionControl inherits Rectangle {
         ? @tr("models.asr.selection.activating" => "Switching")
         : root.selected
         ? @tr("models.asr.selection.current" => "Current")
-        : root.download-state == LocalModelDownloadState.downloading
-            ? @tr("models.asr.local.downloading" => "Downloading")
-            : root.download-state == LocalModelDownloadState.paused
-                ? @tr("models.asr.local.paused" => "Paused")
-                : root.download-state == LocalModelDownloadState.cancelling
-                    ? @tr("models.asr.local.cancelling" => "Cancelling")
-            : root.download-state == LocalModelDownloadState.downloaded
-                ? @tr("models.asr.local.downloaded" => "Downloaded")
-                : @tr("models.asr.local.not-downloaded" => "Not downloaded");
+        : @tr("models.asr.local.use" => "Use model");
 
     width: max(132px, selection-label.preferred-width + 44px);
     height: 34px;

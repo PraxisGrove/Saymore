@@ -55,6 +55,18 @@ cargo run -p xtask --locked -- ui-colors
 cargo fmt --all --check
 ```
 
+## Models
+
+Speech recognition cards center the source label, provider name, and chevron
+vertically within the same title row. The logo sits below the source, and the
+summary and status sit below the name. Each card is 88 px tall, with 12 px
+between rows.
+
+Local speech model details put the file state and download or import action at
+the top. Resource requirements, recognition mode and its explanation, the test,
+and dictionary guidance follow in reading order. Longer errors and test results
+can still scroll. Whisper and Qwen show help for the selected mode.
+
 ## Next Pass
 
 Continue with Models and its configuration dialogs, then History, Dictionary,

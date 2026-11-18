@@ -3,7 +3,7 @@ import { AppColors } from "../color-system.slint";
 import { RecognitionTestPanel } from "asr-recognition-test.slint";
 import { RecognitionModeControl, LocalRecognitionMode } from "recognition-mode-control.slint";
 
-import { LocalModelDownloadState, LocalModelSummaryPill, LocalModelMetric, LocalModelActionButton, LocalModelSelectionControl } from "local-asr-controls.slint";
+import { LocalModelDownloadState, LocalModelMetric, LocalModelActionButton, LocalModelSelectionControl } from "local-asr-controls.slint";
 export { LocalModelDownloadState } from "local-asr-controls.slint";
 
 export component LocalAsrModelModal inherits Rectangle {
@@ -63,19 +63,12 @@ export component LocalAsrModelModal inherits Rectangle {
     private property <bool> paused: root.download-state == LocalModelDownloadState.paused;
     private property <bool> cancelling: root.download-state == LocalModelDownloadState.cancelling;
     private property <bool> test-ready: root.installed && root.adapter-ready && !root.selection-pending;
-    private property <string> model-status: root.selection-pending
-        ? @tr("models.asr.local.status.switching" => "Switching · {}", root.title)
-        : root.downloading
-        ? @tr("models.asr.local.status.downloading" => "Downloading · {}", root.title)
-        : root.queued
-            ? @tr("models.asr.local.status.queued" => "Queued · {}", root.title)
-        : root.paused
-            ? @tr("models.asr.local.status.paused" => "Paused · {}", root.title)
-            : root.cancelling
-                ? @tr("models.asr.local.status.cancelling" => "Cancelling download · {}", root.title)
-        : root.installed
-            ? @tr("models.asr.local.status.downloaded" => "Downloaded · {}", root.title)
-            : @tr("models.asr.local.status.not-downloaded" => "Not downloaded · {}", root.title);
+    private property <string> file-status: root.installed ? @tr("models.asr.local.downloaded" => "Downloaded")
+        : root.downloading ? @tr("models.asr.local.downloading" => "Downloading")
+        : root.queued ? @tr("models.asr.local.queued" => "Queued")
+        : root.paused ? @tr("models.asr.local.paused" => "Paused")
+        : root.cancelling ? @tr("models.asr.local.cancelling" => "Cancelling")
+        : @tr("models.asr.local.not-downloaded" => "Not downloaded");
     private property <string> model-detail: root.operation-error != ""
         ? root.operation-error
         : root.selection-pending
@@ -109,6 +102,7 @@ export component LocalAsrModelModal inherits Rectangle {
         ? !root.selected && !root.selection-pending
         : root.download-supported;
     // Describe the current adapter, not the model family's complete capabilities.
+    private property <LocalRecognitionMode> selected-mode: root.kind == AsrProviderCardKind.qwen3-asr ? root.qwen-mode : root.whisper-mode;
     private property <string> current-mode: root.kind == AsrProviderCardKind.zipformer
         || (root.kind == AsrProviderCardKind.qwen3-asr && root.qwen-mode == LocalRecognitionMode.streaming)
         || (root.kind == AsrProviderCardKind.whisper-large-v3-turbo && root.whisper-mode == LocalRecognitionMode.streaming)
@@ -127,13 +121,13 @@ export component LocalAsrModelModal inherits Rectangle {
     private property <string> dictionary-hints-detail: root.dictionary-hints-supported
         ? @tr("models.asr.local.hints.detail" => "Uses your personal dictionary during recognition without text polishing. Entries are filtered to fit the model's limits; hints do not guarantee correct spelling.")
         : @tr("models.asr.local.hints.unavailable-detail" => "The current recognition integration does not use dictionary hints.");
-    private property <string> usage-tip: root.kind == AsrProviderCardKind.whisper-large-v3-turbo
-            ? @tr("models.asr.local.usage-tip.whisper" => "Multilingual dictation with higher memory use. Choose streaming for live text previews.")
+    private property <string> language-label: root.kind == AsrProviderCardKind.whisper-large-v3-turbo
+        ? @tr("models.asr.summary.multilingual" => "Multilingual")
+        : root.kind == AsrProviderCardKind.qwen3-asr
+        ? @tr("models.asr.summary.chinese-dialects" => "ZH · Dialects")
         : root.kind == AsrProviderCardKind.seaco-paraformer
-            ? @tr("models.asr.local.usage-tip.seaco" => "Offline Chinese recognition with native dictionary hints. Download the model or import the same verified files.")
-        : root.kind == AsrProviderCardKind.zipformer
-            ? @tr("models.asr.local.usage-tip.zipformer" => "Streaming Chinese-English recognition with native dictionary hints. Dictionary hints may improve term recognition; results vary.")
-            : @tr("models.asr.local.usage-tip.qwen3" => "Handles dialects, multiple languages, and complex speech. Needs a stronger device.");
+        ? @tr("models.asr.summary.chinese" => "Chinese")
+        : @tr("models.asr.summary.chinese-english" => "ZH · EN");
 
     modal-focus := FocusScope {
         width: parent.width;
@@ -166,7 +160,7 @@ export component LocalAsrModelModal inherits Rectangle {
             Text {
                 x: 80px;
                 y: 18px;
-                width: dialog.panel-width - 276px;
+                width: dialog.panel-width - (root.installed ? 276px : 146px);
                 text: root.title;
                 color: AppColors.ink;
                 font-size: 18px;
@@ -176,22 +170,17 @@ export component LocalAsrModelModal inherits Rectangle {
             Text {
                 x: 80px;
                 y: 45px;
-                width: dialog.panel-width - 276px;
-                text: root.kind == AsrProviderCardKind.seaco-paraformer
-                    ? @tr("models.asr.local.subtitle.seaco" => "INT8 · Chinese · Dictionary hints")
-                    : root.kind == AsrProviderCardKind.zipformer
-                        ? @tr("models.asr.local.subtitle.zipformer" => "INT8 encoder · ZH · EN · Dictionary hints")
-                    : root.download-supported
-                    ? @tr("models.asr.local.subtitle.verified" => "Open source · Verified")
-                    : @tr("models.asr.local.subtitle.pending" => "Open source · Verification pending");
+                width: dialog.panel-width - (root.installed ? 276px : 146px);
+                text: @tr("models.asr.summary.no-network" => "Offline") + " · " + root.language-label + " · "
+                    + (root.download-supported ? @tr("models.asr.local.subtitle.verified" => "Open source · Verified")
+                    : @tr("models.asr.local.subtitle.pending" => "Open source · Verification pending"));
                 color: AppColors.text-muted;
                 font-size: 12px;
                 overflow: elide;
             }
-            LocalModelSelectionControl {
+            if root.installed: LocalModelSelectionControl {
                 x: dialog.panel-width - self.width - 54px;
                 y: 16px;
-                download-state: root.download-state;
                 selected: root.selected;
                 pending: root.selection-pending;
                 enabled: root.installed && root.adapter-ready && !root.selected && !root.selection-pending;
@@ -200,227 +189,211 @@ export component LocalAsrModelModal inherits Rectangle {
 
             detail-body := Flickable {
                 x: 0px;
-                y: 72px;
+                y: 68px;
                 width: dialog.panel-width;
-                height: dialog.panel-height - 88px;
+                height: dialog.panel-height - self.y - 16px;
                 viewport-width: self.width;
-                viewport-height: max(self.height, usage-tip.y + usage-tip.height + 12px);
+                viewport-height: max(self.height, dictionary-info.y + dictionary-info.height + 4px);
                 interactive: self.viewport-height > self.height;
 
-            LocalModelSummaryPill { x: 24px; y: 8px; icon: @image-url("../../icons/lucide/monitor.svg"); label: @tr("models.asr.summary.local-processing" => "Local"); }
-            LocalModelSummaryPill { x: 153px; y: 8px; icon: @image-url("../../icons/lucide/globe.svg"); label: @tr("models.asr.summary.no-network" => "Offline"); }
-            LocalModelSummaryPill {
-                x: 281px;
-                y: 8px;
-                icon: @image-url("../../icons/lucide/book-open.svg");
-                label: root.kind == AsrProviderCardKind.whisper-large-v3-turbo
-                        ? @tr("models.asr.summary.multilingual" => "Multilingual")
-                    : root.kind == AsrProviderCardKind.qwen3-asr
-                        ? @tr("models.asr.summary.chinese-dialects" => "ZH · Dialects")
-                    : root.kind == AsrProviderCardKind.seaco-paraformer
-                        ? @tr("models.asr.summary.chinese" => "Chinese")
-                    : @tr("models.asr.summary.chinese-english" => "ZH · EN");
-            }
-            LocalModelSummaryPill {
-                x: 410px;
-                y: 8px;
-                icon: root.dictionary-hints-supported ? @image-url("../../icons/lucide/check.svg") : @image-url("../../icons/lucide/book-open.svg");
-                label: root.dictionary-hints-supported
-                    ? @tr("models.asr.local.hints.badge" => "Hotwords")
-                    : @tr("models.asr.local.hints.badge-unavailable" => "Not wired");
-                accessible-role: text;
-                accessible-label: root.dictionary-hints-title;
-            }
-            Text {
-                x: 28px;
-                y: 48px;
-                width: root.selectable-mode ? dialog.panel-width - 260px : dialog.panel-width - 56px;
-                height: 18px;
-                overflow: elide;
-                text: root.current-mode;
-                color: AppColors.text-muted;
-                font-size: 11px;
-                vertical-alignment: center;
-            }
+                model-files := Rectangle {
+                    x: 28px;
+                    y: 2px;
+                    width: dialog.panel-width - 56px;
+                    height: max(56px, model-detail.y + model-detail.height + 9px);
+                    border-radius: 8px;
+                    background: AppColors.surface-faint;
 
-            if root.selectable-mode: RecognitionModeControl {
-                x: dialog.panel-width - 220px; y: 43px; width: 192px;
-                mode: root.kind == AsrProviderCardKind.qwen3-asr ? root.qwen-mode : root.whisper-mode;
-                changed(value) => {
-                    if root.kind == AsrProviderCardKind.qwen3-asr { root.qwen-mode-changed(value); }
-                    else { root.whisper-mode-changed(value); }
-                }
-            }
-
-            metrics := Rectangle {
-                x: 28px;
-                y: 68px;
-                width: 486px;
-                height: 52px;
-                background: transparent;
-
-                LocalModelMetric {
-                    x: 0px;
-                    width: parent.width / 3;
-                    height: parent.height;
-                    content-offset: 12px;
-                    icon: @image-url("../../icons/lucide/download.svg");
-                    label: @tr("models.asr.local.download-size" => "Download");
-                    value: root.download-size;
-                }
-                LocalModelMetric {
-                    x: parent.width / 3;
-                    width: parent.width / 3;
-                    height: parent.height;
-                    content-offset: 12px;
-                    icon: @image-url("../../icons/lucide/memory-stick.svg");
-                    label: root.showing-live-memory
-                        ? @tr("models.asr.local.memory-current" => "Memory")
-                        : @tr("models.asr.local.memory" => "Memory");
-                    value: root.memory-display;
-                    live-value: root.showing-live-memory;
-                    muted-value: root.selection-pending;
-                }
-                LocalModelMetric {
-                    x: parent.width * 2 / 3;
-                    width: parent.width / 3;
-                    height: parent.height;
-                    content-offset: 12px;
-                    icon: @image-url("../../icons/lucide/badge-check.svg");
-                    label: @tr("models.asr.local.compatibility" => "Device");
-                    value: root.adapter-ready
-                        ? @tr("models.asr.status.supported" => "Supported")
-                        : @tr("models.asr.placeholder.unverified" => "Unverified");
-                    muted-value: !root.adapter-ready;
-                }
-            }
-
-            model-files := Rectangle {
-                x: 28px;
-                y: 132px;
-                width: 486px;
-                height: model-detail.y + model-detail.height + 12px;
-                background: transparent;
-
-                Image { x: 12px; y: 10px; width: 15px; height: 15px; source: @image-url("../../icons/lucide/package-check.svg"); colorize: AppColors.text-muted; }
-                Text { x: 34px; y: 9px; text: @tr("models.asr.local.model-files" => "Files"); color: AppColors.text; font-size: 12px; font-weight: 700; }
-                model-action := LocalModelActionButton {
-                    x: parent.width - self.width - 16px;
-                    y: 13px;
-                    visible: !root.cancelling;
-                    label: root.action-label;
-                    hover-label: root.downloading ? @tr("models.asr.local.pause" => "Pause") : "";
-                    enabled: root.action-enabled;
-                    primary: !root.installed && !root.queued && !root.downloading && !root.paused;
-                    pending: root.downloading;
-                    danger: root.installed && !root.selected;
-                    activated => {
-                        if root.installed { root.delete-requested(root.kind); }
-                        else if root.downloading { root.pause-requested(root.kind); }
-                        else { root.download-requested(root.kind); }
+                    private property <bool> second-action: root.queued || root.downloading || root.paused
+                        || (root.import-supported && !root.installed && !root.cancelling);
+                    private property <length> copy-width: model-action.x - (self.second-action ? 126px : 0px) - 26px;
+                    Text { x: 14px; y: 8px; width: parent.copy-width; text: root.file-status; color: AppColors.ink; font-size: 13px; font-weight: 650; }
+                    model-action := LocalModelActionButton {
+                        x: parent.width - self.width - 12px;
+                        y: 11px;
+                        visible: !root.cancelling;
+                        label: root.action-label;
+                        hover-label: root.downloading ? @tr("models.asr.local.pause" => "Pause") : "";
+                        enabled: root.action-enabled;
+                        primary: !root.installed && !root.queued && !root.downloading && !root.paused;
+                        pending: root.downloading;
+                        danger: root.installed && !root.selected;
+                        activated => {
+                            if root.installed { root.delete-requested(root.kind); }
+                            else if root.downloading { root.pause-requested(root.kind); }
+                            else { root.download-requested(root.kind); }
+                        }
                     }
-                }
-                if root.import-supported && !root.installed && !root.queued && !root.downloading && !root.paused && !root.cancelling: LocalModelActionButton {
-                    x: model-action.x - self.width - 8px;
-                    y: 13px;
-                    label: @tr("models.asr.local.import" => "Import model");
-                    enabled: !root.selection-pending;
-                    activated => { root.import-requested(); }
-                }
-                if root.queued || root.downloading || root.paused: Rectangle {
-                    x: model-action.x - self.width - 8px;
-                    y: 13px;
-                    width: 46px;
-                    height: 32px;
-                    background: transparent;
-                    accessible-role: button;
-                    accessible-label: @tr("models.asr.local.cancel" => "Cancel");
-                    accessible-action-default => { root.cancel-download-requested(root.kind); }
-                    Text {
-                        width: parent.width;
-                        height: parent.height;
-                        text: @tr("models.asr.local.cancel" => "Cancel");
-                        color: cancel-touch.has-hover ? AppColors.danger : AppColors.text-muted;
-                        font-size: 12px;
-                        font-weight: 650;
-                        horizontal-alignment: right;
-                        vertical-alignment: center;
+                    if root.import-supported && !root.installed && !root.queued && !root.downloading && !root.paused && !root.cancelling: LocalModelActionButton {
+                        x: model-action.x - self.width - 8px;
+                        y: 11px;
+                        label: @tr("models.asr.local.import" => "Import model");
+                        enabled: !root.selection-pending;
+                        activated => { root.import-requested(); }
                     }
-                    cancel-touch := TouchArea {
-                        mouse-cursor: pointer;
-                        clicked => { root.cancel-download-requested(root.kind); }
+                    if root.queued || root.downloading || root.paused: Rectangle {
+                        x: model-action.x - self.width - 8px;
+                        y: 11px;
+                        width: 46px;
+                        height: 32px;
+                        background: transparent;
+                        accessible-role: button;
+                        accessible-label: @tr("models.asr.local.cancel" => "Cancel");
+                        accessible-action-default => { root.cancel-download-requested(root.kind); }
+                        Text {
+                            width: parent.width;
+                            height: parent.height;
+                            text: @tr("models.asr.local.cancel" => "Cancel");
+                            color: cancel-touch.has-hover ? AppColors.danger : AppColors.text-muted;
+                            font-size: 12px;
+                            font-weight: 650;
+                            horizontal-alignment: right;
+                            vertical-alignment: center;
+                        }
+                        cancel-touch := TouchArea {
+                            mouse-cursor: pointer;
+                            clicked => { root.cancel-download-requested(root.kind); }
+                        }
                     }
-                }
-                Text { x: 34px; y: 56px; width: parent.width - 50px; text: root.model-status; color: AppColors.ink; font-size: 12px; font-weight: 600; overflow: elide; }
-                model-detail := Text { x: 34px; y: 78px; width: parent.width - 50px; height: max(32px, self.preferred-height); text: root.model-detail; color: root.operation-error != "" ? AppColors.danger : AppColors.text-muted; font-size: 11px; wrap: word-wrap; }
-                if root.downloading || root.paused: Rectangle {
-                    x: model-action.x;
-                    y: 49px;
-                    width: model-action.width;
-                    height: 4px;
-                    border-radius: 2px;
-                    background: AppColors.selected;
-                    clip: true;
-
-                    Rectangle {
-                        x: 0px;
-                        y: 0px;
-                        width: parent.width * root.bounded-progress;
-                        height: parent.height;
+                    model-detail := Text { x: 14px; y: 29px; width: parent.copy-width; height: self.preferred-height; text: root.model-detail; color: root.operation-error != "" || root.download-error != "" ? AppColors.danger : AppColors.text-muted; font-size: 11px; wrap: word-wrap; }
+                    if root.downloading || root.paused: Rectangle {
+                        x: model-action.x;
+                        y: 49px;
+                        width: model-action.width;
+                        height: 4px;
                         border-radius: 2px;
-                        background: AppColors.brand;
-                        animate width { duration: 180ms; easing: ease-out; }
+                        background: AppColors.selected;
+                        clip: true;
+
+                        Rectangle {
+                            x: 0px;
+                            y: 0px;
+                            width: parent.width * root.bounded-progress;
+                            height: parent.height;
+                            border-radius: 2px;
+                            background: AppColors.brand;
+                            animate width { duration: 180ms; easing: ease-out; }
+                        }
+                    }
+                    if root.cancelling: LocalModelActionButton {
+                        x: parent.width - self.width - 12px;
+                        y: 11px;
+                        label: @tr("models.asr.local.cancelling" => "Cancelling");
+                        enabled: false;
+                        pending: true;
                     }
                 }
-                if root.cancelling: LocalModelActionButton {
-                    x: parent.width - self.width - 16px;
-                    y: 13px;
-                    label: @tr("models.asr.local.cancelling" => "Cancelling");
-                    enabled: false;
-                    pending: true;
+
+                metrics := Rectangle {
+                    x: 28px;
+                    y: model-files.y + model-files.height + 10px;
+                    width: dialog.panel-width - 56px;
+                    height: 43px;
+                    background: transparent;
+
+                    LocalModelMetric {
+                        x: 0px;
+                        width: parent.width / 3;
+                        height: parent.height;
+                        icon: @image-url("../../icons/lucide/download.svg");
+                        label: @tr("models.asr.local.download-size" => "Download");
+                        value: root.download-size;
+                    }
+                    LocalModelMetric {
+                        x: parent.width / 3;
+                        width: parent.width / 3;
+                        height: parent.height;
+                        icon: @image-url("../../icons/lucide/memory-stick.svg");
+                        label: root.showing-live-memory
+                            ? @tr("models.asr.local.memory-current" => "Memory")
+                            : @tr("models.asr.local.memory" => "Memory");
+                        value: root.memory-display;
+                        live-value: root.showing-live-memory;
+                        muted-value: root.selection-pending;
+                    }
+                    LocalModelMetric {
+                        x: parent.width * 2 / 3;
+                        width: parent.width / 3;
+                        height: parent.height;
+                        icon: @image-url("../../icons/lucide/badge-check.svg");
+                        label: @tr("models.asr.local.compatibility" => "Device");
+                        value: root.adapter-ready
+                            ? @tr("models.asr.status.supported" => "Supported")
+                            : @tr("models.asr.placeholder.unverified" => "Unverified");
+                        muted-value: !root.adapter-ready;
+                    }
                 }
-            }
 
-            recognition-test := RecognitionTestPanel {
-                x: 28px;
-                y: model-files.y + model-files.height + 16px;
-                width: 486px;
-                background: AppColors.surface-faint;
-                testing: root.testing;
-                succeeded: root.test-succeeded;
-                failed: root.test-failed;
-                ready: root.test-ready;
-                elapsed: root.test-elapsed;
-                transcript: root.test-result;
-                activated => { root.run-test(root.kind); }
-            }
+                mode-label := Text {
+                    x: 28px;
+                    y: metrics.y + metrics.height + 12px;
+                    width: root.selectable-mode ? dialog.panel-width - 260px : dialog.panel-width - 56px;
+                    height: 26px;
+                    overflow: elide;
+                    text: root.selectable-mode ? @tr("models.asr.mode.title" => "Recognition mode") : root.current-mode;
+                    color: AppColors.ink;
+                    font-size: 13px;
+                    font-weight: 650;
+                    vertical-alignment: center;
+                }
 
-            dictionary-info := Text {
-                x: 28px;
-                y: recognition-test.y + recognition-test.height + 16px;
-                width: dialog.panel-width - 56px;
-                height: self.preferred-height;
-                text: root.dictionary-hints-title + "\n" + root.dictionary-hints-detail;
-                color: AppColors.text;
-                font-size: 12px;
-                wrap: word-wrap;
-            }
+                if root.selectable-mode: RecognitionModeControl {
+                    x: dialog.panel-width - 220px; y: mode-label.y; width: 192px;
+                    mode: root.selected-mode;
+                    changed(value) => {
+                        if root.kind == AsrProviderCardKind.qwen3-asr { root.qwen-mode-changed(value); }
+                        else { root.whisper-mode-changed(value); }
+                    }
+                }
 
-            usage-tip := Text {
-                x: 28px;
-                y: dictionary-info.y + dictionary-info.height + 16px;
-                width: dialog.panel-width - 56px;
-                height: max(36px, self.preferred-height);
-                text: root.kind == AsrProviderCardKind.qwen3-asr
-                    ? @tr("models.qwen.mode.help" => "Streaming updates text while you speak (up to 20 minutes). Non-streaming processes complete segments in the background. Changes apply to the next recording.")
-                    : root.kind == AsrProviderCardKind.whisper-large-v3-turbo
-                    ? @tr("models.whisper.mode.help" => "Streaming shows live previews that may change and can increase processing time. Maximum 30 minutes. Non-streaming processes complete segments in the background. Changes apply to the next recording.")
-                    : root.usage-tip;
-                color: AppColors.text;
-                font-size: 12px;
-                vertical-alignment: center;
-                wrap: word-wrap;
-            }
+                usage-tip := Text {
+                    x: 28px;
+                    y: mode-label.y + mode-label.height + 4px;
+                    width: dialog.panel-width - 56px;
+                    height: self.preferred-height;
+                    text: root.selectable-mode && root.selected-mode == LocalRecognitionMode.non-streaming
+                        ? @tr("models.asr.mode.segment-help" => "Processes complete segments in the background. Applies to the next recording.")
+                        : root.kind == AsrProviderCardKind.qwen3-asr
+                        ? @tr("models.asr.mode.qwen-preview" => "Live text while you speak, up to 20 minutes. Applies to the next recording.")
+                        : root.kind == AsrProviderCardKind.whisper-large-v3-turbo
+                        ? @tr("models.asr.mode.whisper-preview" => "Live text may change and take longer to finalize. Up to 30 minutes, starting with the next recording.")
+                        : root.kind == AsrProviderCardKind.seaco-paraformer
+                        ? @tr("models.asr.local.usage-tip.seaco" => "Offline Chinese recognition with native dictionary hints. Download the model or import the same verified files.")
+                        : @tr("models.asr.local.usage-tip.zipformer" => "Streaming Chinese-English recognition with native dictionary hints. Dictionary hints may improve term recognition; results vary.");
+                    color: AppColors.text-muted;
+                    font-size: 12px;
+                    vertical-alignment: center;
+                    wrap: word-wrap;
+                }
+
+                recognition-test := RecognitionTestPanel {
+                    x: 28px;
+                    y: usage-tip.y + usage-tip.height + 12px;
+                    width: dialog.panel-width - 56px;
+                    background: AppColors.surface-faint;
+                    testing: root.testing;
+                    succeeded: root.test-succeeded;
+                    failed: root.test-failed;
+                    ready: root.test-ready;
+                    elapsed: root.test-elapsed;
+                    transcript: root.test-result;
+                    activated => { root.run-test(root.kind); }
+                }
+
+                dictionary-title := Text {
+                    x: 28px; y: recognition-test.y + recognition-test.height + 12px;
+                    width: dialog.panel-width - 56px;
+                    text: root.dictionary-hints-title; color: AppColors.ink;
+                    font-size: 12px; font-weight: 650; wrap: word-wrap;
+                }
+                dictionary-info := Text {
+                    x: 28px; y: dictionary-title.y + dictionary-title.preferred-height + 3px;
+                    width: dialog.panel-width - 56px;
+                    height: self.preferred-height;
+                    text: root.dictionary-hints-detail;
+                    color: AppColors.text-muted; font-size: 12px; wrap: word-wrap;
+                }
+
             }
 
             if detail-body.viewport-height > detail-body.height: Rectangle {
