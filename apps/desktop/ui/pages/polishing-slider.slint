@@ -1,0 +1,82 @@
+import { AppColors } from "../color-system.slint";
+
+export component PolishingSlider inherits FocusScope {
+    in property <int> level;
+    in property <[string]> labels;
+    out property <int> preview: touch.pressed ? round(pointer-level) : level;
+    callback selected(int);
+
+    private property <length> diameter: 24px;
+    private property <length> step-width: (root.width - root.diameter) / 3;
+    private property <float> pointer-level: clamp((touch.mouse-x - diameter / 2) / step-width, 0, 3);
+    private property <bool> dragging: touch.pressed && abs(touch.mouse-x - touch.pressed-x) > 2px;
+    private property <float> position: dragging ? pointer-level : preview;
+    animate position { duration: root.dragging ? 0ms : 150ms; easing: ease-out; }
+    height: 44px;
+
+    function choose(value: int) {
+        if root.enabled && value != root.level && value >= 0 && value <= 3 {
+            root.selected(value);
+        }
+    }
+    accessible-role: slider;
+    accessible-enabled: root.enabled;
+    accessible-label: @tr("models.polishing.strength" => "Polishing strength") + ", " + root.labels[root.level];
+    accessible-orientation: horizontal;
+    accessible-value: root.level;
+    accessible-value-minimum: 0;
+    accessible-value-maximum: 3;
+    accessible-value-step: 1;
+    accessible-action-increment => { root.choose(root.level + 1); }
+    accessible-action-decrement => { root.choose(root.level - 1); }
+    accessible-action-set-value(v) => { if v.is-float() { root.choose(round(v.to-float())); } }
+    key-pressed(e) => {
+        if e.text == Key.RightArrow { root.choose(root.level + 1); return accept; }
+        if e.text == Key.LeftArrow { root.choose(root.level - 1); return accept; }
+        if e.text == Key.Home { root.choose(0); return accept; }
+        if e.text == Key.End { root.choose(3); return accept; }
+        return reject;
+    }
+
+    rail := Rectangle {
+        x: 0px; y: (root.height - self.height) / 2;
+        width: root.width; height: root.diameter;
+        border-radius: self.height / 2;
+        background: AppColors.surface-muted;
+        border-width: 1px;
+        border-color: AppColors.border.with-alpha(0.65);
+        Rectangle {
+            x: 0px; y: 0px;
+            width: thumb.x + thumb.width; height: parent.height;
+            border-radius: parent.border-radius;
+            background: AppColors.brand;
+        }
+        for i in [0, 1, 2, 3]: Rectangle {
+            x: (root.diameter - self.width) / 2 + i * root.step-width;
+            y: (parent.height - self.height) / 2;
+            width: 4px; height: 4px; border-radius: 2px;
+            background: i < root.position ? AppColors.on-brand.with-alpha(0.66) : AppColors.text-muted.with-alpha(0.48);
+        }
+        thumb := Rectangle {
+            x: root.position * root.step-width; y: 0px;
+            width: root.diameter; height: parent.height;
+            border-radius: self.height / 2;
+            background: AppColors.surface;
+            border-color: root.has-focus ? AppColors.brand-strong : AppColors.border;
+            border-width: 1px;
+            drop-shadow-color: AppColors.shadow;
+            drop-shadow-blur: 2px;
+            drop-shadow-offset-y: 1px;
+        }
+    }
+    touch := TouchArea {
+        enabled: root.enabled;
+        mouse-cursor: self.enabled ? pointer : default;
+        pointer-event(e) => {
+            if e.button == PointerEventButton.left && e.kind == PointerEventKind.down { root.focus(); }
+            if e.button == PointerEventButton.left && e.kind == PointerEventKind.up {
+                root.choose(round(root.pointer-level));
+            }
+        }
+    }
+}

@@ -67,9 +67,25 @@ the top. Resource requirements, recognition mode and its explanation, the test,
 and dictionary guidance follow in reading order. Longer errors and test results
 can still scroll. Whisper and Qwen show help for the selected mode.
 
+Polishing has four stops: Off, Light, Standard and Thorough. Click a stop, drag
+and release, or focus the slider and use the arrow keys. Dragging previews the
+description. Enabling a strength uses the existing provider consent and
+connection test before applying the selection. The provider directory remains
+available when polishing is off.
+
+The polishing page uses a 26 px page title and 16 px section headings. Tabs,
+provider names and the selected strength use 14 px text. Descriptions and status
+use 12 px text. The strength label stays next to its slider. A single divider
+separates this setting from the provider directory. Each provider card centers
+its chevron vertically on the row containing the provider name and status.
+
+Open `apps/desktop/examples/model-ui.slint` in VS Code and choose **Slint: Show
+Preview** to try both tabs with in-memory controls. The speech recognition tab
+mirrors the macOS release provider catalog and uses sample provider states.
+
 ## Next Pass
 
-Continue with Models and its configuration dialogs, then History, Dictionary,
+Continue with cloud provider configuration dialogs, then History, Dictionary,
 and the five Settings sections. Check minimum-size scrolling, long localized
 text, empty/loading/error states, keyboard access, and light/dark appearance.
 These are pending review areas, not confirmed defects. Full workspace tests and

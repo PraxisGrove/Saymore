@@ -1422,25 +1422,10 @@ msgctxt "models.test.testing-connection"
 msgid "Testing connection"
 msgstr "正在测试连接"
 
-#: ui/pages/llm-provider-components.slint:137
-msgctxt "models.polishing.enable"
-msgid "Enable text polishing"
-msgstr "启用文本润色"
-
-#: ui/pages/llm-provider-components.slint:138
-msgctxt "models.polishing.enable.helper"
-msgid "Polish recognized text with the current provider"
-msgstr "使用当前提供商润色识别文本"
-
 #: ui/pages/llm-provider-components.slint:138
 msgctxt "models.polishing.enable.configure-first"
 msgid "Configure a provider before enabling"
 msgstr "请先配置提供商"
-
-#: ui/pages/llm-provider-components.slint:145
-msgctxt "models.polishing.enable.accessible-label"
-msgid "Enable text polishing"
-msgstr "启用文本润色"
 
 #: ui/pages/llm-provider-components.slint:188
 msgctxt "models.provider.api-model-summary"
@@ -3874,6 +3859,14 @@ msgstr "流式"
 msgctxt "recording.streaming-listening"
 msgid "Listening…"
 msgstr "正在聆听…"
+
+msgctxt "models.polishing.off"
+msgid "Off"
+msgstr "关闭"
+
+msgctxt "models.polishing.off.helper"
+msgid "Keep the original transcript"
+msgstr "保留语音识别原文"
 
 msgctxt "models.asr.mode.title"
 msgid "Recognition mode"

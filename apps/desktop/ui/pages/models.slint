@@ -12,6 +12,7 @@ import {
     SystemSpeechStatus,
 } from "../components.slint";
 import { AppColors } from "../color-system.slint";
+import { ItemLabel, PageHeading } from "../typography.slint";
 import { ScrollView } from "std-widgets.slint";
 import { SpeechRecognitionPage } from "speech-recognition.slint";
 import { TextPolishingPage } from "llm-provider-components.slint";
@@ -27,17 +28,16 @@ component ModelTab inherits Rectangle {
     accessible-label: root.label;
     accessible-action-default => { root.activated(); }
 
-    tab-label := Text {
+    tab-label := ItemLabel {
         y: 0px;
         text: root.label;
         color: root.selected ? AppColors.ink : AppColors.text-muted;
-        font-size: 14px;
-        font-weight: root.selected ? 700 : 600;
+        font-weight: root.selected ? 600 : 400;
     }
     if root.selected: Rectangle {
-        y: 28px;
+        y: parent.height - self.height;
         width: parent.width;
-        height: 3px;
+        height: 2px;
         border-radius: 2px;
         background: AppColors.brand;
     }
@@ -204,7 +204,7 @@ export component ModelsPage inherits Rectangle {
     callback open-macos-speech-details();
     callback open-asr-placeholder(AsrProviderCardKind);
     callback cancel-asr-config();
-    callback request-llm-enable();
+    callback request-llm-enable(PolishingStrength);
     callback set-llm-enabled(bool, string);
     callback set-polishing-strength(PolishingStrength);
     callback save-llm-config(LlmProvider, string, string, string);
@@ -240,7 +240,7 @@ export component ModelsPage inherits Rectangle {
     Timer { interval: 5s; running: root.api-key-visible; triggered => { root.api-key-visible = false; } }
     background: transparent;
 
-    Text { x: 0px; y: 44px; text: @tr("models.title" => "Models"); color: AppColors.ink; font-size: 27px; font-weight: 700; }
+    PageHeading { x: 0px; y: 44px; text: @tr("models.title" => "Models"); }
     transcription-tab := ModelTab { x: 0px; y: 89px; label: @tr("models.tab.speech-recognition" => "Transcription"); selected: root.active-tab == 0; activated => { root.active-tab = 0; root.service-menu-open = false; root.model-menu-open = false; root.api-key-visible = false; root.manual-model = false; } }
     ModelTab { x: transcription-tab.x + transcription-tab.width + 24px; y: 89px; label: @tr("models.tab.text-polishing" => "Polishing"); selected: root.active-tab == 1; activated => { root.active-tab = 1; root.service-menu-open = false; root.model-menu-open = false; root.api-key-visible = false; root.manual-model = false; } }
 
@@ -297,13 +297,14 @@ export component ModelsPage inherits Rectangle {
         height: parent.height - 140px;
         llm-enabled: root.llm-enabled;
         strength: root.polishing-strength;
-        strength-status: root.polishing-strength-status;
+        strength-status: root.llm-draft-error ? root.llm-config-status : root.polishing-strength-status;
         testing: root.llm-testing;
         current-provider: root.active-llm-provider;
         configured: root.llm-provider-configured;
-        toggle-enabled => {
-            if root.llm-enabled { root.set-llm-enabled(false, root.llm-provider-target); }
-            else { root.request-llm-enable(); }
+        disable => { root.set-llm-enabled(false, root.llm-provider-target); }
+        enable(strength) => {
+            root.llm-provider = root.active-llm-provider;
+            root.request-llm-enable(strength);
         }
         open-provider(provider) => {
             root.llm-provider = provider;

@@ -1,4 +1,30 @@
+import { AppColors } from "color-system.slint";
+
 export global Typography {
     in-out property <string> ui-font-family: "";
     in-out property <string> mono-font-family: "";
+}
+
+export component PageHeading inherits Text {
+    font-size: 26px;
+    font-weight: 700;
+    color: AppColors.ink;
+}
+
+export component SectionHeading inherits Text {
+    font-size: 16px;
+    font-weight: 600;
+    color: AppColors.ink;
+}
+
+export component ItemLabel inherits Text {
+    font-size: 14px;
+    font-weight: 500;
+    color: AppColors.ink;
+}
+
+export component SupportingText inherits Text {
+    font-size: 12px;
+    font-weight: 400;
+    color: AppColors.text-muted;
 }

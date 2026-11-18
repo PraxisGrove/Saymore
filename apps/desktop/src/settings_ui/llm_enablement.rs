@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{cell::Cell, rc::Rc, sync::Arc};
 
 use slint::{ComponentHandle, SharedString};
 use template_app::{
@@ -8,28 +8,36 @@ use template_app::{
 };
 use template_infra::JsonSettingsStore;
 
-use crate::ui::{AppWindow, Translations};
+use crate::ui::{AppWindow, PolishingStrength, Translations};
 
 use super::{
     apply_loaded_settings, provider_connection::DesktopProviderConnectionTester, provider_preset,
 };
 
 pub(super) fn wire(ui: &AppWindow, store: Arc<JsonSettingsStore>) {
-    wire_enable_request(ui, Arc::clone(&store));
-    wire_enable_confirmation(ui, store);
+    let requested = Rc::new(Cell::new(ui.get_polishing_strength()));
+    wire_enable_request(ui, Arc::clone(&store), Rc::clone(&requested));
+    wire_enable_confirmation(ui, store, requested);
 }
 
-fn wire_enable_request(ui: &AppWindow, store: Arc<JsonSettingsStore>) {
+fn wire_enable_request(
+    ui: &AppWindow,
+    store: Arc<JsonSettingsStore>,
+    requested: Rc<Cell<PolishingStrength>>,
+) {
     let prepare_ui = ui.as_weak();
-    ui.on_request_llm_enable(move || {
+    ui.on_request_llm_enable(move |strength| {
         let Some(ui) = prepare_ui.upgrade() else {
             return;
         };
         if ui.get_llm_testing() {
             return;
         }
+        requested.set(strength);
+        ui.set_llm_draft_error(false);
         let provider = provider_preset(ui.get_llm_provider());
         let Ok(catalog) = store.load_catalog() else {
+            ui.set_llm_draft_error(true);
             ui.set_llm_config_status(
                 ui.global::<Translations>()
                     .get_common_configuration_load_failed(),
@@ -37,10 +45,12 @@ fn wire_enable_request(ui: &AppWindow, store: Arc<JsonSettingsStore>) {
             return;
         };
         let Some(provider_settings) = catalog.llm_provider_settings(provider) else {
+            ui.set_llm_draft_error(true);
             ui.set_llm_config_status(ui.global::<Translations>().get_models_save_api_key_first());
             return;
         };
         if !llm_configuration_ready(provider, &provider_settings) {
+            ui.set_llm_draft_error(true);
             ui.set_llm_config_status(ui.global::<Translations>().get_models_save_api_key_first());
             return;
         }
@@ -49,6 +59,7 @@ fn wire_enable_request(ui: &AppWindow, store: Arc<JsonSettingsStore>) {
         ui.set_llm_provider_target(SharedString::from(&base_url));
         ui.set_llm_provider_local(local);
         let Ok(settings) = store.load() else {
+            ui.set_llm_draft_error(true);
             ui.set_llm_config_status(
                 ui.global::<Translations>()
                     .get_common_configuration_load_failed(),
@@ -59,12 +70,16 @@ fn wire_enable_request(ui: &AppWindow, store: Arc<JsonSettingsStore>) {
             ui.set_llm_confirmation_for_draft(false);
             ui.set_llm_confirmation_visible(true);
         } else {
-            start_llm_test(&ui, Arc::clone(&store), provider);
+            start_llm_test(&ui, Arc::clone(&store), provider, requested.get());
         }
     });
 }
 
-fn wire_enable_confirmation(ui: &AppWindow, store: Arc<JsonSettingsStore>) {
+fn wire_enable_confirmation(
+    ui: &AppWindow,
+    store: Arc<JsonSettingsStore>,
+    requested: Rc<Cell<PolishingStrength>>,
+) {
     let llm_ui = ui.as_weak();
     ui.on_set_llm_enabled(move |enabled, expected_base_url| {
         let Some(ui) = llm_ui.upgrade() else {
@@ -77,6 +92,7 @@ fn wire_enable_confirmation(ui: &AppWindow, store: Arc<JsonSettingsStore>) {
             });
             ui.set_llm_enabled(result.is_err());
             let translations = ui.global::<Translations>();
+            ui.set_llm_draft_error(result.is_err());
             ui.set_llm_config_status(if result.is_ok() {
                 translations.get_models_not_enabled()
             } else {
@@ -86,6 +102,7 @@ fn wire_enable_confirmation(ui: &AppWindow, store: Arc<JsonSettingsStore>) {
         }
         let provider = provider_preset(ui.get_llm_provider());
         let Ok(catalog) = store.load_catalog() else {
+            ui.set_llm_draft_error(true);
             ui.set_llm_config_status(
                 ui.global::<Translations>()
                     .get_common_configuration_load_failed(),
@@ -93,21 +110,24 @@ fn wire_enable_confirmation(ui: &AppWindow, store: Arc<JsonSettingsStore>) {
             return;
         };
         let Some(settings) = catalog.llm_provider_settings(provider) else {
+            ui.set_llm_draft_error(true);
             ui.set_llm_config_status(ui.global::<Translations>().get_models_provider_changed());
             return;
         };
         if settings.base_url != expected_base_url.trim() {
+            ui.set_llm_draft_error(true);
             ui.set_llm_config_status(ui.global::<Translations>().get_models_provider_changed());
             return;
         }
         if persist_llm_consent(&store, &settings.base_url).is_err() {
+            ui.set_llm_draft_error(true);
             ui.set_llm_config_status(
                 ui.global::<Translations>()
                     .get_models_authorization_save_failed(),
             );
             return;
         }
-        start_llm_test(&ui, Arc::clone(&store), provider);
+        start_llm_test(&ui, Arc::clone(&store), provider, requested.get());
     });
 }
 
@@ -122,7 +142,12 @@ pub(super) fn persist_llm_consent(
     })
 }
 
-fn start_llm_test(ui: &AppWindow, store: Arc<JsonSettingsStore>, provider: LlmProviderPreset) {
+fn start_llm_test(
+    ui: &AppWindow,
+    store: Arc<JsonSettingsStore>,
+    provider: LlmProviderPreset,
+    strength: PolishingStrength,
+) {
     ui.set_llm_enabled(false);
     ui.set_llm_testing(true);
     ui.set_llm_draft_error(false);
@@ -146,7 +171,10 @@ fn start_llm_test(ui: &AppWindow, store: Arc<JsonSettingsStore>, provider: LlmPr
             let event_store = Arc::clone(&store);
             let _ = test_ui.upgrade_in_event_loop(move |ui| {
                 apply_loaded_settings(&ui, &event_store);
-                if result.is_err() {
+                if result.is_ok() && ui.get_llm_enabled() && ui.get_polishing_strength() != strength
+                {
+                    ui.invoke_set_polishing_strength(strength);
+                } else if result.is_err() {
                     ui.set_llm_draft_error(true);
                     ui.set_llm_config_status(ui.global::<Translations>().get_models_test_failed());
                 }

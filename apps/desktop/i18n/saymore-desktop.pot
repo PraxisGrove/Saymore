@@ -1513,24 +1513,9 @@ msgctxt "models.test.testing-connection"
 msgid "Testing connection"
 msgstr ""
 
-#: ui/pages/llm-provider-components.slint:137
-msgctxt "models.polishing.enable"
-msgid "Enable text polishing"
-msgstr ""
-
-#: ui/pages/llm-provider-components.slint:138
-msgctxt "models.polishing.enable.helper"
-msgid "Polish recognized text with the current provider"
-msgstr ""
-
 #: ui/pages/llm-provider-components.slint:138
 msgctxt "models.polishing.enable.configure-first"
 msgid "Configure a provider before enabling"
-msgstr ""
-
-#: ui/pages/llm-provider-components.slint:145
-msgctxt "models.polishing.enable.accessible-label"
-msgid "Enable text polishing"
 msgstr ""
 
 #: ui/pages/llm-provider-components.slint:188
@@ -3682,6 +3667,14 @@ msgstr ""
 
 msgctxt "recording.streaming-listening"
 msgid "Listening…"
+msgstr ""
+
+msgctxt "models.polishing.off"
+msgid "Off"
+msgstr ""
+
+msgctxt "models.polishing.off.helper"
+msgid "Keep the original transcript"
 msgstr ""
 
 msgctxt "models.asr.mode.title"

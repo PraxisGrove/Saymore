@@ -396,7 +396,7 @@ export component AppWindow inherits Window {
     callback open-speech-recognition-settings();
     callback request-macos-asr-test();
     callback cancel-asr-config();
-    callback request-llm-enable();
+    callback request-llm-enable(PolishingStrength);
     callback set-llm-enabled(bool, string);
     callback set-polishing-strength(PolishingStrength);
     callback save-llm-config(LlmProvider, string, string, string);
@@ -591,7 +591,7 @@ export component AppWindow inherits Window {
                     root.asr-placeholder-modal-visible = true;
                 }
                 cancel-asr-config => { root.cancel-asr-config(); }
-                request-llm-enable => { root.request-llm-enable(); }
+                request-llm-enable(strength) => { root.request-llm-enable(strength); }
                 set-llm-enabled(enabled, base-url) => { root.set-llm-enabled(enabled, base-url); }
                 set-polishing-strength(strength) => { root.set-polishing-strength(strength); }
                 save-llm-config(provider, api-key, base-url, model) => { root.save-llm-config(provider, api-key, base-url, model); }
@@ -1099,7 +1099,7 @@ export component AppWindow inherits Window {
                 root.llm-draft-model
             );
         }
-        test-and-enable => { root.request-llm-enable(); }
+        test-and-enable => { root.request-llm-enable(root.polishing-strength); }
         select-provider => { root.select-llm-provider(root.llm-provider); }
         select-model(model) => { root.select-llm-model(root.llm-provider, model); }
         refresh-models => { root.refresh-models(); }
