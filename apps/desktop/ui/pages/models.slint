@@ -232,11 +232,6 @@ export component ModelsPage inherits Rectangle {
     private property <length> config-height: root.advanced-visible ? 270px : 228px;
     private property <length> action-y: root.advanced-visible ? 560px : 525px;
     changed model-discovery-error => { if root.model-discovery-error { root.model-menu-open = true; } }
-    changed asr-api-key => { root.asr-config-dirty = true; root.asr-draft-error = false; root.asr-error-field = AsrConfigurationField.none; }
-    changed asr-model => { root.asr-config-dirty = true; root.asr-draft-error = false; root.asr-error-field = AsrConfigurationField.none; }
-    changed custom-asr-api-key => { root.asr-config-dirty = true; root.asr-draft-error = false; root.asr-error-field = AsrConfigurationField.none; }
-    changed custom-asr-base-url => { root.asr-config-dirty = true; root.asr-draft-error = false; root.asr-error-field = AsrConfigurationField.none; }
-    changed custom-asr-model => { root.asr-config-dirty = true; root.asr-draft-error = false; root.asr-error-field = AsrConfigurationField.none; }
     Timer { interval: 5s; running: root.api-key-visible; triggered => { root.api-key-visible = false; } }
     background: transparent;
 

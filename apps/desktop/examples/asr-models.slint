@@ -1,0 +1,180 @@
+// Native catalog preview. Downloads, activation, and cloud tests run in memory.
+import { ModelsPreview } from "model-ui.slint";
+import { AsrProvider, AsrProviderCardKind, CloudAsrService, LocalModelDownloadState,
+    LocalModelTestState, LocalModelTestStatus } from "../ui/app-window.slint";
+
+export component AsrModelsPreview inherits ModelsPreview {
+    title: "Saymore · ASR 模型交互预览（模拟）";
+    model-tab: 0;
+    // Same display precision as local_model_runtime::format_model_size.
+    qwen3-asr-download-size: "2.03 GB";
+    seaco-download-size: "370 MB";
+    zipformer-download-size: "199 MB";
+
+    private property <[LocalModelDownloadState]> installs: [
+        LocalModelDownloadState.not-downloaded, LocalModelDownloadState.not-downloaded,
+        LocalModelDownloadState.not-downloaded, LocalModelDownloadState.not-downloaded,
+    ];
+    private property <[float]> progress: [0, 0, 0, 0];
+    private property <[LocalModelTestStatus]> tests: [
+        LocalModelTestStatus.idle, LocalModelTestStatus.idle, LocalModelTestStatus.idle, LocalModelTestStatus.idle,
+    ];
+    pure function test-state(i: int) -> LocalModelTestState {
+        return { status: root.tests[i], elapsed: "", transcript: root.tests[i] == LocalModelTestStatus.succeeded ? "可以通过语音进行人机交互" : "" };
+    }
+    private property <AsrProviderCardKind> current: AsrProviderCardKind.saymore-cloud;
+    pure function index(kind: AsrProviderCardKind) -> int {
+        if kind == AsrProviderCardKind.whisper-large-v3-turbo { return 0; }
+        if kind == AsrProviderCardKind.qwen3-asr { return 1; }
+        if kind == AsrProviderCardKind.seaco-paraformer { return 2; }
+        return 3;
+    }
+    whisper-download-state: root.installs[0];
+    qwen3-asr-download-state: root.installs[1];
+    seaco-download-state: root.installs[2];
+    zipformer-download-state: root.installs[3];
+    whisper-download-progress: root.progress[0];
+    qwen3-asr-download-progress: root.progress[1];
+    seaco-download-progress: root.progress[2];
+    zipformer-download-progress: root.progress[3];
+    whisper-installed-size: root.whisper-download-size;
+    qwen3-asr-installed-size: root.qwen3-asr-download-size;
+    seaco-installed-size: root.seaco-download-size;
+    zipformer-installed-size: root.zipformer-download-size;
+    whisper-selected: root.current == AsrProviderCardKind.whisper-large-v3-turbo;
+    qwen3-asr-selected: root.current == AsrProviderCardKind.qwen3-asr;
+    seaco-selected: root.current == AsrProviderCardKind.seaco-paraformer;
+    zipformer-selected: root.current == AsrProviderCardKind.zipformer;
+    whisper-test: root.test-state(0);
+    qwen3-asr-test: root.test-state(1);
+    seaco-test: root.test-state(2);
+    zipformer-test: root.test-state(3);
+
+    request-local-model-download(kind) => { root.installs[root.index(kind)] = LocalModelDownloadState.downloading; }
+    request-local-model-pause(kind) => { root.installs[root.index(kind)] = LocalModelDownloadState.paused; }
+    request-local-model-cancel-download(kind) => { root.clear-install(kind); }
+    request-local-model-delete(kind) => { root.clear-install(kind); }
+    request-seaco-import => { root.installs[2] = LocalModelDownloadState.downloaded; }
+    request-local-model-selection(kind) => { root.current = kind; }
+    request-local-model-test(kind) => { root.tests[root.index(kind)] = LocalModelTestStatus.running; }
+    function clear-install(kind: AsrProviderCardKind) {
+        root.installs[root.index(kind)] = LocalModelDownloadState.not-downloaded;
+        root.progress[root.index(kind)] = 0;
+        root.tests[root.index(kind)] = LocalModelTestStatus.idle;
+    }
+    for state[i] in root.installs: Rectangle {
+        width: 0px; height: 0px;
+        Timer {
+            interval: 400ms;
+            running: state == LocalModelDownloadState.downloading;
+            triggered => {
+                root.progress[i] = min(1, root.progress[i] + 0.125);
+                if root.progress[i] == 1 { root.installs[i] = LocalModelDownloadState.downloaded; }
+            }
+        }
+        Timer {
+            interval: 650ms;
+            running: root.tests[i] == LocalModelTestStatus.running;
+            triggered => { root.tests[i] = LocalModelTestStatus.succeeded; }
+        }
+    }
+    private property <bool> saving-draft;
+    function clear-test() {
+        root.asr-test-succeeded = false;
+        root.asr-draft-error = false;
+        root.asr-test-result = "";
+        root.asr-test-elapsed = "";
+        root.asr-config-status = "";
+    }
+    function begin-test() {
+        root.clear-test();
+        root.asr-testing = true;
+    }
+    Timer {
+        interval: 650ms;
+        running: root.asr-testing;
+        triggered => {
+            if root.saving-draft {
+                if root.asr-provider == AsrProvider.volcengine {
+                    root.saved-volc-key = root.asr-api-key;
+                    root.saved-volc-model = root.asr-model;
+                    root.volcengine-asr-configured = true;
+                } else {
+                    if root.current == root.configured-custom-asr-kind {
+                        root.current = root.draft-custom-asr-kind;
+                    }
+                    root.saved-key = root.custom-asr-api-key;
+                    root.saved-url = root.custom-asr-base-url;
+                    root.saved-model = root.custom-asr-model;
+                    root.configured-custom-asr-kind = root.draft-custom-asr-kind;
+                    root.custom-asr-configured = true;
+                }
+                root.asr-config-dirty = false;
+                root.saving-draft = false;
+            }
+            root.asr-testing = false;
+            root.asr-test-succeeded = true;
+            root.asr-test-result = "可以通过语音进行人机交互";
+        }
+    }
+
+    // The three presets share one saved compatible endpoint in Saymore.
+    // The preview remembers mock fields only for the lifetime of this window.
+    private property <string> saved-key;
+    private property <string> saved-url;
+    private property <string> saved-model;
+    private property <string> saved-volc-key;
+    private property <string> saved-volc-model: "volc.seedasr.sauc.duration";
+    cloud-asr-selected: root.current == AsrProviderCardKind.volcengine
+        || root.current == root.configured-custom-asr-kind;
+    prepare-cloud-asr(service) => {
+        root.clear-test();
+        root.available-models = [];
+        root.asr-provider = AsrProvider.custom;
+        root.draft-custom-asr-kind = service == CloudAsrService.openai ? AsrProviderCardKind.openai
+            : service == CloudAsrService.groq ? AsrProviderCardKind.groq : AsrProviderCardKind.mistral;
+        root.custom-asr-service-name = service == CloudAsrService.openai ? "OpenAI" : service == CloudAsrService.groq ? "Groq" : "Mistral";
+        let saved = root.custom-asr-configured && root.draft-custom-asr-kind == root.configured-custom-asr-kind;
+        root.custom-asr-api-key = saved ? root.saved-key : "";
+        root.custom-asr-base-url = saved ? root.saved-url : service == CloudAsrService.openai ? "https://api.openai.com/v1"
+            : service == CloudAsrService.groq ? "https://api.groq.com/openai/v1" : "https://api.mistral.ai/v1";
+        root.custom-asr-model = saved ? root.saved-model : service == CloudAsrService.openai ? "gpt-transcribe"
+            : service == CloudAsrService.groq ? "whisper-large-v3-turbo" : "voxtral-mini-transcribe-3";
+        root.asr-config-dirty = !saved;
+    }
+    select-asr-provider(provider) => {
+        root.clear-test();
+        root.available-models = [];
+        root.asr-api-key = root.saved-volc-key;
+        root.asr-model = root.saved-volc-model;
+        root.custom-asr-api-key = root.saved-key;
+        root.custom-asr-base-url = root.saved-url;
+        root.custom-asr-model = root.saved-model;
+        root.asr-config-dirty = false;
+    }
+    save-asr-config(provider, key, url, model) => {
+        if key.is-empty || model.is-empty || (provider == AsrProvider.custom && url.is-empty) {
+            root.asr-draft-error = true;
+            root.asr-config-status = "请填写测试所需的字段";
+        } else {
+            root.saving-draft = true;
+            root.begin-test();
+        }
+    }
+    request-asr-test => { root.begin-test(); }
+    activate-asr-provider(provider) => {
+        root.active-asr-provider = provider;
+        root.current = provider == AsrProvider.volcengine ? AsrProviderCardKind.volcengine : root.configured-custom-asr-kind;
+    }
+    refresh-models => {
+        if root.custom-asr-service-name == "OpenAI" {
+            root.available-models = ["gpt-transcribe", "gpt-4o-transcribe", "whisper-1"];
+        } else if root.custom-asr-service-name == "Groq" {
+            root.available-models = ["whisper-large-v3-turbo", "whisper-large-v3"];
+        } else if root.custom-asr-service-name == "Mistral" {
+            root.available-models = ["voxtral-mini-transcribe-3", "voxtral-small-transcribe-3"];
+        } else {
+            root.available-models = root.custom-asr-model.is-empty ? [] : [root.custom-asr-model];
+        }
+    }
+}

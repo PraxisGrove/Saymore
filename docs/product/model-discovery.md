@@ -12,7 +12,8 @@ configured API base URL. A full `/audio/transcriptions` URL is also accepted;
 model discovery replaces that suffix with `/models`. Results are normalized,
 sorted, and deduplicated. The current model stays selected when present in the
 response; otherwise the first returned model is selected. The dropdown and
-editable model ID remain available together after fetching.
+editable model ID remain available together after fetching. Connection testing
+and saving wait for discovery to finish so they use the model shown in the form.
 
 Volcengine streaming recognition uses its two application-supported resource
 IDs. Local models use the pinned download manifests. These are preset lists, not

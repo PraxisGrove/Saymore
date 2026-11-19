@@ -1,4 +1,5 @@
 import { AppColors } from "../color-system.slint";
+import { ActionFocus, DialogFocus } from "../action-focus.slint";
 
 export enum ProviderStatusTone {
     neutral,
@@ -51,10 +52,30 @@ export component ProviderStatusBadge inherits Rectangle {
     }
 }
 
+export component AsrProviderLogo inherits Rectangle {
+    in property <image> source;
+    in property <bool> colorized;
+    in property <bool> needs-dark-backplate;
+    private property <bool> backed: root.needs-dark-backplate && AppColors.dark-mode;
+
+    if root.backed: Rectangle {
+        width: parent.width; height: parent.height * 0.7;
+        y: (parent.height - self.height) / 2;
+        border-radius: 6px; background: AppColors.text;
+    }
+    Image {
+        x: root.backed ? 4px : 0px; y: self.x;
+        width: parent.width - 2 * self.x; height: parent.height - 2 * self.y;
+        source: root.source; colorize: root.colorized ? AppColors.ink : transparent;
+        image-fit: contain; image-rendering: smooth;
+    }
+}
+
 export component AsrProviderCard inherits Rectangle {
     in property <image> logo;
     in property <length> logo-size: 44px;
     in property <bool> colorize-logo: false;
+    in property <bool> logo-needs-dark-backplate;
     in property <image> summary-icon;
     in property <string> source-type;
     in property <string> provider-name;
@@ -68,16 +89,22 @@ export component AsrProviderCard inherits Rectangle {
     callback activated();
 
     border-radius: 10px;
+    forward-focus: card-focus;
+    border-width: card-focus.show-ring ? 1px : 0px;
+    border-color: AppColors.text-muted;
     background: !root.enabled ? AppColors.surface
         : card-touch.pressed ? AppColors.selected
-        : card-focus.has-focus ? AppColors.selected
+        : root.selected && card-touch.has-hover ? AppColors.selected
+        : root.selected ? AppColors.brand-soft
         : card-touch.has-hover ? AppColors.surface-subtle
-        : root.selected ? AppColors.brand-soft : AppColors.surface;
-    animate background { duration: 140ms; easing: ease-out; }
+        : AppColors.surface;
+    opacity: root.enabled && card-touch.pressed ? 0.88 : 1;
+    animate background { duration: card-touch.pressed ? 0ms : 100ms; easing: ease-out; }
 
     source-label := Text {
         x: 6px;
-        y: provider-copy.y;
+        // Optically center the smaller lettering with the provider name.
+        y: provider-copy.y + 0.5px;
         width: 82px;
         height: 20px;
         text: root.source-type;
@@ -89,15 +116,14 @@ export component AsrProviderCard inherits Rectangle {
         overflow: elide;
     }
 
-    Image {
+    AsrProviderLogo {
         x: source-label.x + (source-label.width - self.width) / 2;
         y: provider-copy.y + provider-name-label.height + 4px;
         width: root.logo-size;
         height: root.logo-size;
         source: root.logo;
-        colorize: root.colorize-logo ? AppColors.ink : transparent;
-        image-fit: contain;
-        image-rendering: smooth;
+        colorized: root.colorize-logo;
+        needs-dark-backplate: root.logo-needs-dark-backplate;
     }
 
     provider-copy := Rectangle {
@@ -175,25 +201,19 @@ export component AsrProviderCard inherits Rectangle {
         colorize: root.enabled ? AppColors.text-muted : AppColors.chart-neutral;
     }
 
-    card-focus := FocusScope {
-        enabled: root.enabled;
+    card-focus := ActionFocus {
+        enabled: root.enabled && !DialogFocus.open;
         accessible-role: button;
         accessible-label: root.provider-name;
-        accessible-enabled: root.enabled;
-        accessible-action-default => { if root.enabled { root.activated(); } }
-        key-pressed(event) => {
-            if root.enabled && (event.text == "\n" || event.text == " ") {
-                root.activated();
-                return accept;
-            }
-            return reject;
-        }
+        accessible-enabled: self.enabled;
+        accessible-action-default => { if self.enabled { root.activated(); } }
+        activated => { root.activated(); }
     }
     card-touch := TouchArea {
         enabled: root.enabled;
         mouse-cursor: root.enabled ? pointer : default;
         clicked => {
-            card-focus.focus();
+            card-focus.focus-from-pointer();
             root.activated();
         }
     }

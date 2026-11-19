@@ -103,12 +103,13 @@ pub(super) fn set_activation_pending(ui: &AppWindow, model: LocalModel, pending:
 }
 
 pub(super) fn reset_model_ui(ui: &AppWindow, model: LocalModel) {
+    recognition_test::set_state(ui, model, Default::default());
     set_download_state(ui, model, LocalModelDownloadState::NotDownloaded, 0.0);
     set_model_selected(ui, model, false);
     set_activation_pending(ui, model, false);
     set_runtime_memory(ui, model, false, SharedString::default());
     set_installed_size(ui, model, SharedString::default());
-    ui.set_local_model_operation_error(SharedString::default());
+    ui.invoke_report_local_operation(model.card_kind(), SharedString::default());
 }
 
 pub(super) fn apply_model_sizes(
@@ -170,19 +171,12 @@ pub(super) fn apply_download_failure(
     ui.set_local_model_download_failure_visible(true);
 }
 
-pub(super) fn apply_operation_failure(ui: &AppWindow, error: String) {
-    ui.set_asr_test_succeeded(false);
-    ui.set_asr_draft_error(true);
-    ui.set_asr_test_result(SharedString::from(error));
-}
-
 pub(super) fn apply_activation_failure(ui: &AppWindow, model: LocalModel, error: String) {
     set_activation_pending(ui, model, false);
-    ui.set_local_model_operation_error(error.into());
+    ui.invoke_report_local_operation(model.card_kind(), error.into());
 }
 
 pub(super) fn apply_runtime_memory(ui: &AppWindow, model: LocalModel, memory_bytes: Option<u64>) {
-    ui.set_local_model_operation_error(SharedString::default());
     let Some(memory_bytes) = memory_bytes else {
         set_runtime_memory(ui, model, false, SharedString::default());
         return;
@@ -216,12 +210,12 @@ fn set_runtime_memory(ui: &AppWindow, model: LocalModel, live: bool, usage: Shar
 }
 
 fn format_memory_usage(bytes: u64) -> String {
-    const MEBIBYTE: f64 = 1_048_576.0;
-    const GIBIBYTE: f64 = 1_073_741_824.0;
-    if bytes >= GIBIBYTE as u64 {
-        format!("{:.2} GB", bytes as f64 / GIBIBYTE)
+    const MEGABYTE: u64 = 1_000_000;
+    const GIGABYTE: u64 = 1_000 * MEGABYTE;
+    if bytes >= GIGABYTE {
+        format!("{:.2} GB", bytes as f64 / GIGABYTE as f64)
     } else {
-        format!("{:.0} MB", bytes as f64 / MEBIBYTE)
+        format!("{:.0} MB", bytes as f64 / MEGABYTE as f64)
     }
 }
 
@@ -241,8 +235,10 @@ mod tests {
 
     #[test]
     fn formats_sampled_runtime_memory_for_the_ui() {
-        assert_eq!("768 MB", format_memory_usage(768 * 1_048_576));
-        assert_eq!("2.13 GB", format_memory_usage(2_287_072_256));
+        assert_eq!("805 MB", format_memory_usage(768 * 1_048_576));
+        assert_eq!("999 MB", format_memory_usage(999_000_000));
+        assert_eq!("1.00 GB", format_memory_usage(1_000_000_000));
+        assert_eq!("2.29 GB", format_memory_usage(2_287_072_256));
     }
 
     #[test]

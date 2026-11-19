@@ -110,7 +110,7 @@ pub(crate) fn wire(
         Arc::clone(&asr),
     );
     wire_provider_selection_lifecycle(ui, Arc::clone(&asr));
-    wire_runtime_memory_refresh(ui);
+    wire_runtime_memory_refresh(ui, Arc::clone(&asr));
     wire_delete(
         ui,
         Arc::clone(&settings),
@@ -129,7 +129,7 @@ pub(crate) fn wire(
     Ok(())
 }
 
-fn wire_runtime_memory_refresh(ui: &AppWindow) {
+fn wire_runtime_memory_refresh(ui: &AppWindow, asr: Arc<AsrSessionController>) {
     let weak = ui.as_weak();
     ui.on_refresh_local_model_runtime_memory(move |kind| {
         let Some(model) = LocalModel::from_card(kind) else {
@@ -138,12 +138,21 @@ fn wire_runtime_memory_refresh(ui: &AppWindow) {
         let Some(ui) = weak.upgrade() else {
             return;
         };
-        if model_selected(&ui, model)
-            && let Some(memory_bytes) = current_process_resident_memory_bytes()
-        {
-            apply_runtime_memory(&ui, model, Some(memory_bytes));
-        }
+        refresh_runtime_memory(&ui, &asr, model);
     });
+}
+
+fn refresh_runtime_memory(ui: &AppWindow, asr: &AsrSessionController, model: LocalModel) {
+    if !model_selected(ui, model) || activation_pending(ui, model) {
+        return;
+    }
+    let reading = match model {
+        LocalModel::Qwen3 => asr.qwen3_process_memory(),
+        LocalModel::Whisper | LocalModel::Seaco | LocalModel::Zipformer => {
+            current_process_resident_memory_bytes()
+        }
+    };
+    apply_runtime_memory(ui, model, reading);
 }
 
 fn wire_provider_selection_lifecycle(ui: &AppWindow, asr: Arc<AsrSessionController>) {
@@ -191,12 +200,15 @@ fn wire_selection(
         let Some(ui) = weak.upgrade() else {
             return;
         };
-        if activation_pending(&ui, model) || model_selected(&ui, model) {
+        if activation_pending(&ui, model)
+            || model_selected(&ui, model)
+            || recognition_test::running(&ui, model)
+        {
             return;
         }
         let feedback_started = Instant::now();
         set_activation_pending(&ui, model, true);
-        ui.set_local_model_operation_error(SharedString::default());
+        ui.invoke_report_local_operation(model.card_kind(), SharedString::default());
         let result_ui = weak.clone();
         let settings = Arc::clone(&settings);
         let asr = Arc::clone(&asr);
@@ -204,19 +216,14 @@ fn wire_selection(
             .name(model.thread_name("activate"))
             .spawn(move || {
                 let result = activate(settings.as_ref(), asr.as_ref(), model)
-                    .map_err(|error| error.to_string())
-                    .map(|activation| activation.memory_bytes);
+                    .map_err(|error| error.to_string());
                 std::thread::sleep(remaining_activation_feedback(feedback_started.elapsed()));
                 let event_settings = Arc::clone(&settings);
                 let _ = result_ui.upgrade_in_event_loop(move |ui| match result {
-                    Ok(memory_bytes) => {
+                    Ok(()) => {
                         settings_ui::reload_settings(&ui, &event_settings);
-                        apply_runtime_memory(
-                            &ui,
-                            model,
-                            current_process_resident_memory_bytes().or(memory_bytes),
-                        );
                         set_activation_pending(&ui, model, false);
+                        refresh_runtime_memory(&ui, &asr, model);
                     }
                     Err(error) => apply_activation_failure(&ui, model, error),
                 });
@@ -229,7 +236,7 @@ fn wire_selection(
 
 fn preload_selected_model(ui: &AppWindow, model: LocalModel, asr: Arc<AsrSessionController>) {
     set_activation_pending(ui, model, true);
-    ui.set_local_model_operation_error(SharedString::default());
+    ui.invoke_report_local_operation(model.card_kind(), SharedString::default());
     let result_ui = ui.as_weak();
     let spawn = std::thread::Builder::new()
         .name(model.thread_name("preload"))
@@ -238,11 +245,7 @@ fn preload_selected_model(ui: &AppWindow, model: LocalModel, asr: Arc<AsrSession
             let _ = result_ui.upgrade_in_event_loop(move |ui| {
                 set_activation_pending(&ui, model, false);
                 match result {
-                    Ok(memory_bytes) => apply_runtime_memory(
-                        &ui,
-                        model,
-                        current_process_resident_memory_bytes().or(memory_bytes),
-                    ),
+                    Ok(()) => refresh_runtime_memory(&ui, &asr, model),
                     Err(error) => apply_activation_failure(&ui, model, error),
                 }
             });
@@ -281,7 +284,7 @@ fn wire_delete(
         let Some(ui) = weak.upgrade() else {
             return;
         };
-        if activation_pending(&ui, model) {
+        if activation_pending(&ui, model) || recognition_test::running(&ui, model) {
             return;
         }
         let result = delete(
@@ -297,7 +300,7 @@ fn wire_delete(
                 reset_model_ui(&ui, model);
                 ui.invoke_refresh_usage();
             }
-            Err(error) => apply_operation_failure(&ui, error),
+            Err(error) => ui.invoke_report_local_operation(model.card_kind(), error.into()),
         }
     });
 }

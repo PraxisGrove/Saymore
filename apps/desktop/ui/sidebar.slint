@@ -1,5 +1,6 @@
 import { AppPage, NavItem } from "components.slint";
 import { AppColors } from "color-system.slint";
+import { DialogFocus } from "action-focus.slint";
 
 export component AppSidebar inherits Rectangle {
     in-out property <AppPage> current-page: AppPage.home;
@@ -57,9 +58,10 @@ export component AppSidebar inherits Rectangle {
             animate background { duration: 100ms; easing: ease-out; }
             accessible-role: button;
             accessible-label: @tr("storage.manage.accessible-label" => "Manage local storage");
-            accessible-action-default => { root.manage-storage(); }
+            accessible-enabled: !DialogFocus.open;
+            accessible-action-default => { if !DialogFocus.open { root.manage-storage(); } }
             Text { text: @tr("storage.manage.action" => "Manage storage"); color: AppColors.text; font-size: 10px; font-weight: 600; horizontal-alignment: center; vertical-alignment: center; }
-            manage-touch := TouchArea { mouse-cursor: pointer; clicked => { root.manage-storage(); } }
+            manage-touch := TouchArea { enabled: !DialogFocus.open; mouse-cursor: pointer; clicked => { root.manage-storage(); } }
         }
     }
 

@@ -1,6 +1,8 @@
 import { ScrollView } from "std-widgets.slint";
 import { AppColors } from "../color-system.slint";
 import { ModalShell, ModalSize } from "../components.slint";
+import { DeleteIconButton } from "../delete-icon-button.slint";
+import { DialogFocus } from "../action-focus.slint";
 
 export enum HistoryRetentionOption { never, one-day, seven-days, thirty-days, forever }
 
@@ -57,7 +59,6 @@ component RetentionOptionButton inherits Rectangle {
 component HistoryIconButton inherits Rectangle {
     in property <image> icon;
     in property <string> label;
-    in property <bool> danger: false;
     in property <bool> enabled: true;
     in property <bool> success: false;
     out property <bool> has-hover: touch.has-hover;
@@ -65,7 +66,7 @@ component HistoryIconButton inherits Rectangle {
     width: 34px;
     height: 34px;
     border-radius: 7px;
-    background: root.success ? AppColors.success-soft : (touch.has-hover ? (root.danger ? AppColors.danger-soft : AppColors.surface-subtle) : transparent);
+    background: root.success ? AppColors.success-soft : (touch.has-hover ? AppColors.surface-subtle : transparent);
     animate background { duration: 140ms; easing: ease-out; }
     accessible-role: button;
     accessible-label: root.label;
@@ -76,7 +77,7 @@ component HistoryIconButton inherits Rectangle {
         x: 9px;
         y: 9px;
         source: root.icon;
-        colorize: root.danger ? AppColors.danger : AppColors.text-muted;
+        colorize: AppColors.text-muted;
         opacity: root.success ? 0 : 1;
         animate opacity { duration: 120ms; easing: ease-out; }
     }
@@ -257,7 +258,7 @@ export component HistoryDialog inherits Rectangle {
     callback reset();
     callback confirm-dictionary-assist();
 
-    property <bool> active: root.detail-visible || root.clear-confirmation-visible || root.reset-confirmation-visible || root.dictionary-assist-consent-visible;
+    out property <bool> active: root.detail-visible || root.clear-confirmation-visible || root.reset-confirmation-visible || root.dictionary-assist-consent-visible;
     property <bool> detail-copied: false;
     property <bool> repolish-available: !root.selected-item.raw-text.is-empty;
     property <string> repolish-status: root.repolish-state == HistoryRepolishState.succeeded ? @tr("history.repolish.succeeded" => "Polished again and copied to the clipboard.")
@@ -542,7 +543,8 @@ export component HistoryPage inherits Rectangle {
                     VerticalLayout {
                         spacing: 0px;
                         for item[index] in group.items: history-row := Rectangle {
-                            property <bool> hovered: row-touch.has-hover || copy-button.has-hover || delete-button.has-hover;
+                            property <bool> hovered: row-touch.has-hover || copy-button.has-hover
+                                || delete-button.has-hover || delete-button.has-keyboard-focus;
                             property <bool> copied: root.copied-id == item.id;
                             height: 58px;
                             background: self.hovered ? AppColors.brand-soft : transparent;
@@ -569,7 +571,13 @@ export component HistoryPage inherits Rectangle {
                                 opacity: parent.hovered ? 1 : 0;
                                 animate opacity { duration: 140ms; easing: ease-out; }
                                 copy-button := HistoryIconButton { icon: @image-url("../../icons/lucide/copy.svg"); label: history-row.copied ? @tr("common.copied" => "Copied") : @tr("history.copy-content" => "Copy content"); success: history-row.copied; activated => { root.copied-id = item.id; root.copy(item.id); } }
-                                delete-button := HistoryIconButton { icon: @image-url("../../icons/lucide/trash-2.svg"); label: @tr("history.delete-record" => "Delete record"); danger: true; activated => { root.delete-record(item.id); } }
+                                delete-button := DeleteIconButton {
+                                    width: 34px;
+                                    height: 34px;
+                                    enabled: !DialogFocus.open;
+                                    accessible-label: @tr("history.delete-record" => "Delete record");
+                                    activated => { root.delete-record(item.id); }
+                                }
                             }
                         }
                     }

@@ -3,85 +3,52 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use template_app::{SpeechRecognitionError, StreamingSpeechRecognizer};
+use template_app::SpeechRecognitionError;
 use template_infra::{SeacoSpeechRecognizer, ZipformerSpeechRecognizer};
 
-use super::{
-    AsrSessionController, current_process_resident_memory_bytes, ensure_self_test,
-    resident_memory_delta,
-};
+use super::{AsrSessionController, ensure_self_test};
 
-#[derive(Clone)]
-pub(super) struct LoadedLocal {
-    pub(super) recognizer: Arc<dyn StreamingSpeechRecognizer>,
-    pub(super) resident_memory_bytes: Option<u64>,
-}
-
-fn load_cached<T: StreamingSpeechRecognizer + 'static>(
-    cache: &Mutex<Option<LoadedLocal>>,
+pub(super) fn load_cached<T>(
+    cache: &Mutex<Option<Arc<T>>>,
     directory: &Path,
     load: impl FnOnce(&Path) -> Result<T, SpeechRecognitionError>,
-) -> Result<LoadedLocal, SpeechRecognitionError> {
+) -> Result<Arc<T>, SpeechRecognitionError> {
     let mut cache = cache.lock().map_err(|_| {
         SpeechRecognitionError::Transport("local ASR cache lock was poisoned".to_owned())
     })?;
-    if let Some(loaded) = cache.as_ref() {
-        return Ok(loaded.clone());
+    if let Some(recognizer) = cache.as_ref() {
+        return Ok(Arc::clone(recognizer));
     }
-    let before = current_process_resident_memory_bytes();
     let recognizer = Arc::new(load(directory)?);
-    let loaded = LoadedLocal {
-        recognizer,
-        resident_memory_bytes: resident_memory_delta(
-            before,
-            current_process_resident_memory_bytes(),
-        ),
-    };
-    *cache = Some(loaded.clone());
-    Ok(loaded)
+    *cache = Some(Arc::clone(&recognizer));
+    Ok(recognizer)
 }
 
 impl AsrSessionController {
-    pub fn seaco_recognizer(
-        &self,
-    ) -> Result<Arc<dyn StreamingSpeechRecognizer>, SpeechRecognitionError> {
+    pub fn seaco_recognizer(&self) -> Result<Arc<SeacoSpeechRecognizer>, SpeechRecognitionError> {
         load_cached(
             &self.seaco,
             &self.seaco_model_directory,
             SeacoSpeechRecognizer::load,
         )
-        .map(|loaded| loaded.recognizer)
     }
 
     pub fn zipformer_recognizer(
         &self,
-    ) -> Result<Arc<dyn StreamingSpeechRecognizer>, SpeechRecognitionError> {
+    ) -> Result<Arc<ZipformerSpeechRecognizer>, SpeechRecognitionError> {
         load_cached(
             &self.zipformer,
             &self.zipformer_model_directory,
             ZipformerSpeechRecognizer::load,
         )
-        .map(|loaded| loaded.recognizer)
     }
 
-    pub fn prepare_seaco(&self) -> Result<Option<u64>, SpeechRecognitionError> {
-        let loaded = load_cached(
-            &self.seaco,
-            &self.seaco_model_directory,
-            SeacoSpeechRecognizer::load,
-        )?;
-        ensure_self_test(loaded.recognizer.as_ref())?;
-        Ok(loaded.resident_memory_bytes)
+    pub fn prepare_seaco(&self) -> Result<(), SpeechRecognitionError> {
+        ensure_self_test(self.seaco_recognizer()?.as_ref())
     }
 
-    pub fn prepare_zipformer(&self) -> Result<Option<u64>, SpeechRecognitionError> {
-        let loaded = load_cached(
-            &self.zipformer,
-            &self.zipformer_model_directory,
-            ZipformerSpeechRecognizer::load,
-        )?;
-        ensure_self_test(loaded.recognizer.as_ref())?;
-        Ok(loaded.resident_memory_bytes)
+    pub fn prepare_zipformer(&self) -> Result<(), SpeechRecognitionError> {
+        ensure_self_test(self.zipformer_recognizer()?.as_ref())
     }
 
     pub fn clear_seaco(&self) {

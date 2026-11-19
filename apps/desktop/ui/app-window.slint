@@ -1,8 +1,10 @@
 import { AppSidebar } from "sidebar.slint";
+import { DialogFocus } from "action-focus.slint";
 import { HomePage } from "pages/home.slint";
 import { ModelConsentDialog, ModelsPage } from "pages/models.slint";
 import { LlmConfigurationModal } from "pages/llm-provider-components.slint";
-import { AsrConfigurationModal, MacOsSpeechModal, UnavailableAsrProviderModal } from "pages/asr-provider-components.slint";
+import { AsrConfigurationModal } from "pages/cloud-asr-dialog.slint";
+import { MacOsSpeechModal, UnavailableAsrProviderModal } from "pages/asr-provider-components.slint";
 import { LocalAsrModelModal, LocalModelDownloadFailureDialog, LocalModelDownloadState } from "pages/local-asr-model.slint";
 import { HistoryDialog, HistoryGroup, HistoryListItem, HistoryPage, HistoryRepolishState, HistoryRetentionOption } from "pages/history.slint";
 import { DictionaryAddDialog, DictionaryDraft, DictionaryEvidenceItem, DictionaryFilterKind, DictionaryListItem, DictionaryPage, DictionaryRow } from "pages/dictionary.slint";
@@ -33,11 +35,24 @@ export { AppColors, ColorSchemePreference, ThemeId } from "color-system.slint";
 export { OverlayColors } from "overlay-color-system.slint";
 export { Typography } from "typography.slint";
 
+export enum LocalModelTestStatus { idle, running, succeeded, failed }
+
+export struct LocalModelTestState {
+    status: LocalModelTestStatus,
+    elapsed: string,
+    transcript: string,
+}
+
 export component AppWindow inherits Window {
     private property <string> translation-marker: Translations.language-save-failed;
     private property <bool> asr-modal-visible: false;
     private property <bool> macos-speech-modal-visible: false;
     private property <bool> asr-placeholder-modal-visible: false;
+    private property <bool> dialog-open: root.asr-modal-visible || root.macos-speech-modal-visible
+        || root.asr-placeholder-modal-visible || root.llm-modal-visible || root.llm-confirmation-visible
+        || root.local-model-download-failure-visible || history-dialog.active
+        || root.dictionary-add-visible || root.dictionary-edit-visible;
+    changed dialog-open => { DialogFocus.open = root.dialog-open; }
     private property <AsrProviderCardKind> asr-placeholder-kind: AsrProviderCardKind.saymore-cloud;
     private property <bool> local-asr-model-visible: root.asr-placeholder-kind == AsrProviderCardKind.qwen3-asr
         || root.asr-placeholder-kind == AsrProviderCardKind.whisper-large-v3-turbo
@@ -184,6 +199,10 @@ export component AppWindow inherits Window {
     in-out property <bool> asr-test-succeeded: false;
     in-out property <string> asr-test-elapsed: "";
     in-out property <string> asr-test-result: "";
+    in-out property <LocalModelTestState> whisper-test;
+    in-out property <LocalModelTestState> qwen3-asr-test;
+    in-out property <LocalModelTestState> seaco-test;
+    in-out property <LocalModelTestState> zipformer-test;
     in-out property <bool> asr-pending-test: false;
     in-out property <bool> asr-config-dirty: false;
     in-out property <AsrConfigurationField> asr-error-field: AsrConfigurationField.none;
@@ -255,7 +274,18 @@ export component AppWindow inherits Window {
     in-out property <AsrProviderCardKind> local-model-download-failure-kind: AsrProviderCardKind.qwen3-asr;
     in property <bool> local-model-download-space-failure: false;
     in property <string> local-model-download-error: "";
-    in property <string> local-model-operation-error: "";
+    in-out property <string> local-model-operation-error: "";
+    private property <string> whisper-operation-error;
+    private property <string> qwen-operation-error;
+    private property <string> seaco-operation-error;
+    private property <string> zipformer-operation-error;
+    public function report-local-operation(kind: AsrProviderCardKind, message: string) {
+        root.local-model-operation-error = message;
+        if kind == AsrProviderCardKind.whisper-large-v3-turbo { root.whisper-operation-error = message; }
+        if kind == AsrProviderCardKind.qwen3-asr { root.qwen-operation-error = message; }
+        if kind == AsrProviderCardKind.seaco-paraformer { root.seaco-operation-error = message; }
+        if kind == AsrProviderCardKind.zipformer { root.zipformer-operation-error = message; }
+    }
     in-out property <bool> llm-enabled: false;
     in-out property <PolishingStrength> polishing-strength: PolishingStrength.light;
     in property <string> polishing-strength-status: "";
@@ -854,6 +884,8 @@ export component AppWindow inherits Window {
         height: parent.height;
         provider: root.asr-provider;
         service-name: root.custom-asr-service-name;
+        replaces-compatible-config: root.asr-provider == AsrProvider.custom && root.custom-asr-configured
+            && root.draft-custom-asr-kind != root.configured-custom-asr-kind;
         volcengine-api-key <=> root.asr-api-key;
         volcengine-model <=> root.asr-model;
         custom-api-key <=> root.custom-asr-api-key;
@@ -876,6 +908,11 @@ export component AppWindow inherits Window {
         model-discovery-loading: root.model-discovery-loading;
         model-discovery-error: root.model-discovery-error;
         model-discovery-status: root.model-discovery-status;
+        edited => {
+            root.asr-config-dirty = true;
+            root.asr-draft-error = false;
+            root.asr-error-field = AsrConfigurationField.none;
+        }
         cancelled => {
             root.invalidate-model-discovery();
             root.asr-modal-visible = false;
@@ -1003,13 +1040,19 @@ export component AppWindow inherits Window {
             : root.asr-placeholder-kind == AsrProviderCardKind.qwen3-asr
             ? root.qwen3-asr-runtime-memory-usage
             : root.whisper-runtime-memory-usage;
-        testing: root.asr-testing;
-        test-succeeded: root.asr-test-succeeded;
-        test-failed: root.asr-draft-error;
-        test-elapsed: root.asr-test-elapsed;
-        test-result: root.asr-test-result;
-        download-error: root.local-model-download-error;
-        operation-error: root.local-model-operation-error;
+        private property <LocalModelTestState> sample-test: root.asr-placeholder-kind == AsrProviderCardKind.seaco-paraformer
+            ? root.seaco-test : root.asr-placeholder-kind == AsrProviderCardKind.zipformer
+            ? root.zipformer-test : root.asr-placeholder-kind == AsrProviderCardKind.qwen3-asr
+            ? root.qwen3-asr-test : root.whisper-test;
+        testing: self.sample-test.status == LocalModelTestStatus.running;
+        test-succeeded: self.sample-test.status == LocalModelTestStatus.succeeded;
+        test-failed: self.sample-test.status == LocalModelTestStatus.failed;
+        test-elapsed: self.sample-test.elapsed;
+        test-result: self.sample-test.transcript;
+        download-error: self.kind == root.local-model-download-failure-kind ? root.local-model-download-error : "";
+        operation-error: self.kind == AsrProviderCardKind.seaco-paraformer ? root.seaco-operation-error
+            : self.kind == AsrProviderCardKind.zipformer ? root.zipformer-operation-error
+            : self.kind == AsrProviderCardKind.qwen3-asr ? root.qwen-operation-error : root.whisper-operation-error;
         cancelled => { root.asr-placeholder-modal-visible = false; }
         import-requested => { root.request-seaco-import(); }
         download-requested(kind) => { root.request-local-model-download(kind); }
@@ -1021,7 +1064,7 @@ export component AppWindow inherits Window {
         refresh-runtime-memory(kind) => { root.refresh-local-model-runtime-memory(kind); }
     }
 
-    HistoryDialog {
+    history-dialog := HistoryDialog {
         width: parent.width;
         height: parent.height;
         detail-visible <=> root.history-detail-visible;

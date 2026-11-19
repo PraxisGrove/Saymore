@@ -1,5 +1,6 @@
 import { LlmProvider, LlmProviderConfigurationState, PolishingStrength } from "../components.slint";
 import { AppColors } from "../color-system.slint";
+import { ActionFocus, DialogFocus } from "../action-focus.slint";
 import { ItemLabel, SectionHeading, SupportingText } from "../typography.slint";
 import { PolishingSlider } from "polishing-slider.slint";
 import { ScrollView } from "std-widgets.slint";
@@ -16,13 +17,18 @@ component LlmProviderCard inherits Rectangle {
     callback activated();
 
     height: 76px;
+    forward-focus: card-focus;
     border-radius: 9px;
-    background: card-touch.has-hover && root.enabled ? AppColors.surface-subtle : AppColors.surface;
+    border-width: card-focus.show-ring ? 1px : 0px;
+    border-color: AppColors.text-muted;
+    background: !root.enabled ? AppColors.surface : card-touch.pressed ? AppColors.selected
+        : card-touch.has-hover ? AppColors.surface-subtle : AppColors.surface;
+    animate background { duration: card-touch.pressed ? 0ms : 100ms; easing: ease-out; }
     opacity: root.enabled ? (card-touch.pressed ? 0.86 : 1) : 0.64;
     accessible-role: button;
     accessible-label: root.name + ", " + root.status;
-    accessible-enabled: root.enabled;
-    accessible-action-default => { if root.enabled { root.activated(); } }
+    accessible-enabled: card-focus.enabled;
+    accessible-action-default => { if card-focus.enabled { root.activated(); } }
 
     Image { x: 14px; y: (parent.height - self.height) / 2; width: 32px; height: 32px; source: root.icon; colorize: root.tint-icon ? AppColors.ink : transparent; image-fit: contain; image-rendering: smooth; }
     provider-copy := VerticalLayout {
@@ -71,7 +77,15 @@ component LlmProviderCard inherits Rectangle {
         source: @image-url("../../icons/lucide/chevron-right.svg");
         colorize: AppColors.text-muted;
     }
-    card-touch := TouchArea { enabled: root.enabled; mouse-cursor: self.enabled ? pointer : default; clicked => { root.activated(); } }
+    card-focus := ActionFocus {
+        enabled: root.enabled && !DialogFocus.open;
+        activated => { root.activated(); }
+    }
+    card-touch := TouchArea {
+        enabled: root.enabled;
+        mouse-cursor: self.enabled ? pointer : default;
+        clicked => { card-focus.focus-from-pointer(); root.activated(); }
+    }
 }
 
 export component TextPolishingPage inherits Rectangle {
@@ -139,9 +153,10 @@ export component TextPolishingPage inherits Rectangle {
                 horizontal-alignment: right;
             }
             slider := PolishingSlider {
+                private property <bool> available: !root.testing && (root.has-config || root.llm-enabled);
                 width: min(248px, controls.width * 0.38);
-                enabled: !root.testing && (root.has-config || root.llm-enabled);
-                opacity: self.enabled ? 1 : 0.5;
+                enabled: self.available && !DialogFocus.open;
+                opacity: self.available ? 1 : 0.5;
                 level: root.level;
                 labels: [@tr("models.polishing.off" => "Off"), @tr("models.polishing.strength.light" => "Light"),
                     @tr("models.polishing.strength.standard" => "Standard"), @tr("models.polishing.strength.thorough" => "Thorough")];

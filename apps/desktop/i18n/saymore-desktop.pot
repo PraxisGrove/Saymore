@@ -12,26 +12,6 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=1; plural=0;\n"
 
-msgctxt "models.asr.local.hints.native"
-msgid "Hotwords / dictionary: supported (recognition bias)"
-msgstr ""
-
-msgctxt "models.asr.local.hints.prompt"
-msgid "Hotwords / dictionary: supported (prompt guidance)"
-msgstr ""
-
-msgctxt "models.asr.local.hints.unavailable"
-msgid "Hotwords / dictionary: not integrated"
-msgstr ""
-
-msgctxt "models.asr.local.hints.detail"
-msgid "Uses your personal dictionary during recognition without text polishing. Entries are filtered to fit the model's limits; hints do not guarantee correct spelling."
-msgstr ""
-
-msgctxt "models.asr.local.hints.unavailable-detail"
-msgid "The current recognition integration does not use dictionary hints."
-msgstr ""
-
 #: ui/about-product-card.slint:53
 msgctxt "settings.product.tagline"
 msgid "Speak your mind, hands-free."
@@ -549,34 +529,49 @@ msgctxt "models.volcengine.model-v2"
 msgid "Doubao Streaming Speech Recognition 2.0"
 msgstr ""
 
-#: ui/pages/asr-provider-components.slint:519
-msgctxt "models.asr.volcengine.dialog-title"
-msgid "Configure Volcengine"
-msgstr ""
-
-#: ui/pages/asr-provider-components.slint:520
-msgctxt "models.asr.custom.dialog-title"
-msgid "Configure custom ASR"
-msgstr ""
-
-#: ui/pages/asr-provider-components.slint
-msgctxt "models.asr.service.dialog-title"
-msgid "Configure {}"
-msgstr ""
-
 #: ui/pages/asr-provider-components.slint
 msgctxt "models.asr.service.dialog-subtitle"
 msgid "Saving replaces your current compatible service configuration."
 msgstr ""
 
-#: ui/pages/asr-provider-components.slint:538
-msgctxt "models.asr.volcengine.dialog-subtitle"
-msgid "Run a standard audio recognition test before enabling this provider."
+msgctxt "models.asr.cloud.test-connection"
+msgid "Test connection"
 msgstr ""
 
-#: ui/pages/asr-provider-components.slint:539
-msgctxt "models.asr.custom.dialog-subtitle"
-msgid "OpenAI-compatible audio transcription endpoint"
+msgctxt "models.asr.cloud.test-and-save"
+msgid "Test and save"
+msgstr ""
+
+msgctxt "models.asr.cloud.model-list"
+msgid "Model list"
+msgstr ""
+
+msgctxt "models.asr.cloud.choose-model"
+msgid "Choose model"
+msgstr ""
+
+msgctxt "models.asr.cloud.test-help"
+msgid "Test transcription with the built-in 3.9-second audio sample."
+msgstr ""
+
+msgctxt "models.asr.cloud.volc-streaming"
+msgid "Doubao streaming recognition"
+msgstr ""
+
+msgctxt "models.asr.cloud.transcription"
+msgid "Cloud audio transcription"
+msgstr ""
+
+msgctxt "models.asr.cloud.openai-summary"
+msgid "GPT and Whisper transcription"
+msgstr ""
+
+msgctxt "models.asr.cloud.groq-summary"
+msgid "Hosted Whisper Large V3"
+msgstr ""
+
+msgctxt "models.asr.cloud.mistral-summary"
+msgid "Voxtral Mini and Small transcription"
 msgstr ""
 
 #: ui/pages/asr-provider-components.slint:569
@@ -601,11 +596,6 @@ msgctxt "models.model-field"
 msgid "Model"
 msgstr ""
 
-#: ui/pages/asr-provider-components.slint:599
-msgctxt "models.asr.volcengine.model-id"
-msgid "Model ID"
-msgstr ""
-
 #: ui/pages/asr-provider-components.slint:630
 #: ui/pages/asr-provider-components.slint:630
 #: ui/pages/asr-provider-components.slint:630
@@ -617,11 +607,6 @@ msgstr ""
 #: ui/pages/asr-provider-components.slint:637
 msgctxt "models.custom-speech-api-key"
 msgid "Custom speech recognition API key"
-msgstr ""
-
-#: ui/pages/asr-provider-components.slint:651
-msgctxt "models.asr.fetch.loading-accessible"
-msgid "Fetching speech models"
 msgstr ""
 
 #: ui/pages/asr-provider-components.slint:652
@@ -1629,11 +1614,6 @@ msgctxt "models.asr.selection.activating"
 msgid "Switching"
 msgstr ""
 
-#: ui/pages/local-asr-model.slint:182
-msgctxt "models.asr.local.downloading"
-msgid "Downloading"
-msgstr ""
-
 #: ui/pages/local-asr-model.slint:184
 msgctxt "models.asr.local.paused"
 msgid "Paused"
@@ -1643,21 +1623,6 @@ msgstr ""
 #: ui/pages/local-asr-model.slint:186 ui/pages/local-asr-model.slint:376
 msgctxt "models.asr.local.cancelling"
 msgid "Cancelling"
-msgstr ""
-
-#: ui/pages/local-asr-model.slint:188
-msgctxt "models.asr.local.downloaded"
-msgid "Downloaded"
-msgstr ""
-
-#: ui/pages/local-asr-model.slint:189
-msgctxt "models.asr.local.not-downloaded"
-msgid "Not downloaded"
-msgstr ""
-
-#: ui/pages/local-asr-model.slint:334
-msgctxt "models.asr.local.memory-loading"
-msgid "Loading model…"
 msgstr ""
 
 #: ui/pages/local-asr-model.slint:337
@@ -1672,41 +1637,9 @@ msgctxt "models.asr.local.status.downloaded"
 msgid "Downloaded · {}"
 msgstr ""
 
-#: ui/pages/local-asr-model.slint:357
-msgctxt "models.asr.local.activation-loading"
-msgid "Loading the model into memory"
-msgstr ""
-
-#: ui/pages/local-asr-model.slint:363
-msgctxt "models.asr.local.progress-detail"
-msgid "{}% of {}"
-msgstr ""
-
-#: ui/pages/local-asr-model.slint:365
-msgctxt "models.asr.local.paused-detail"
-msgid "{}% of {} · Continue when ready"
-msgstr ""
-
-#: ui/pages/local-asr-model.slint:367
-msgctxt "models.asr.local.cancelling-detail"
-msgid "Removing downloaded temporary files…"
-msgstr ""
-
 #: ui/pages/local-asr-model.slint:369
 msgctxt "models.asr.local.delete-current-disabled"
 msgid "Switch providers to delete"
-msgstr ""
-
-#: ui/pages/local-asr-model.slint:371
-msgctxt "models.asr.local.delete-ready-size"
-msgid "Stored locally · {} on disk"
-msgstr ""
-
-#: ui/pages/local-asr-model.slint:372 ui/pages/speech-recognition.slint:166
-#: ui/pages/local-asr-model.slint:372 ui/pages/speech-recognition.slint:166 ui/pages/speech-recognition.slint:174
-#: ui/pages/local-asr-model.slint:372 ui/pages/speech-recognition.slint:166 ui/pages/speech-recognition.slint:174
-msgctxt "models.asr.local.download-ready"
-msgid "Download to use this model offline"
 msgstr ""
 
 #: ui/pages/local-asr-model.slint:374 ui/pages/local-asr-model.slint:695
@@ -1719,24 +1652,9 @@ msgctxt "models.asr.local.continue"
 msgid "Continue"
 msgstr ""
 
-#: ui/pages/local-asr-model.slint:377
-msgctxt "models.asr.local.delete"
-msgid "Delete"
-msgstr ""
-
 #: ui/pages/local-asr-model.slint:378
 msgctxt "models.asr.local.download-action"
 msgid "Download"
-msgstr ""
-
-#: ui/pages/local-asr-model.slint:384
-msgctxt "models.asr.local.mode.during-recording"
-msgid "Current mode: recognize while recording"
-msgstr ""
-
-#: ui/pages/local-asr-model.slint:385
-msgctxt "models.asr.local.mode.chunked"
-msgid "Current mode: background recognition in segments"
 msgstr ""
 
 #: ui/pages/local-asr-model.slint:389
@@ -1757,19 +1675,9 @@ msgid ""
 "device."
 msgstr ""
 
-#: ui/pages/local-asr-model.slint:435
-msgctxt "models.asr.local.subtitle.verified"
-msgid "Open source · Verified"
-msgstr ""
-
 #: ui/pages/local-asr-model.slint:437
 msgctxt "models.asr.local.subtitle.sensevoice"
 msgid "Lightweight five-language model · Final only · INT8"
-msgstr ""
-
-#: ui/pages/local-asr-model.slint:438
-msgctxt "models.asr.local.subtitle.pending"
-msgid "Open source · Verification pending"
 msgstr ""
 
 #: ui/pages/local-asr-model.slint:469
@@ -1790,11 +1698,6 @@ msgstr ""
 #: ui/pages/local-asr-model.slint:474 ui/pages/privacy-data.slint:248
 msgctxt "models.asr.summary.five-languages"
 msgid "ZH · EN · JA · KO · YUE"
-msgstr ""
-
-#: ui/pages/local-asr-model.slint:501
-msgctxt "models.asr.local.memory-current"
-msgid "Memory"
 msgstr ""
 
 #: ui/pages/local-asr-model.slint:544
@@ -2517,16 +2420,6 @@ msgstr ""
 #: ui/pages/speech-recognition.slint:154
 msgctxt "models.asr.summary.system-unavailable"
 msgid "System speech adapter is not yet connected"
-msgstr ""
-
-#: ui/pages/speech-recognition.slint:157
-msgctxt "models.asr.summary.api-key-configured"
-msgid "API key configured"
-msgstr ""
-
-#: ui/pages/speech-recognition.slint:158
-msgctxt "models.asr.summary.volcengine"
-msgid "API key and model configuration"
 msgstr ""
 
 #: ui/pages/speech-recognition.slint:161
@@ -3608,23 +3501,13 @@ msgid "Choose recognition model"
 msgstr ""
 
 #: ui/pages/local-asr-model.slint
-msgctxt "models.asr.local.memory-unmeasured"
-msgid "Not measured"
-msgstr ""
-
-#: ui/pages/local-asr-model.slint
 msgctxt "models.asr.local.import"
 msgid "Import model"
 msgstr ""
 
 #: ui/pages/local-asr-model.slint
-msgctxt "models.asr.local.usage-tip.seaco"
-msgid "Offline Chinese recognition with native dictionary hints. Download the model or import the same verified files."
-msgstr ""
-
-#: ui/pages/local-asr-model.slint
-msgctxt "models.asr.local.usage-tip.zipformer"
-msgid "Streaming Chinese-English recognition with native dictionary hints. Dictionary hints may improve term recognition; results vary."
+msgctxt "models.asr.local.import-help"
+msgid "Select the folder for this model version. Saymore verifies the files before importing."
 msgstr ""
 
 #: ui/pages/local-asr-model.slint
@@ -3657,14 +3540,6 @@ msgctxt "settings.storage.retired-model"
 msgid "Retired · Files can be deleted"
 msgstr ""
 
-msgctxt "models.asr.mode.non-streaming"
-msgid "Non-streaming"
-msgstr ""
-
-msgctxt "models.asr.mode.streaming"
-msgid "Streaming"
-msgstr ""
-
 msgctxt "recording.streaming-listening"
 msgid "Listening…"
 msgstr ""
@@ -3685,14 +3560,134 @@ msgctxt "models.asr.local.use"
 msgid "Use model"
 msgstr ""
 
-msgctxt "models.asr.mode.segment-help"
-msgid "Processes complete segments in the background. Applies to the next recording."
+msgctxt "models.asr.whisper.subtitle"
+msgid "OpenAI · Local speech recognition"
 msgstr ""
 
-msgctxt "models.asr.mode.qwen-preview"
-msgid "Live text while you speak, up to 20 minutes. Applies to the next recording."
+msgctxt "models.asr.whisper.not-installed"
+msgid "Not installed"
 msgstr ""
 
-msgctxt "models.asr.mode.whisper-preview"
-msgid "Live text may change and take longer to finalize. Up to 30 minutes, starting with the next recording."
+msgctxt "models.asr.whisper.inactive"
+msgid "Installed · Not in use"
+msgstr ""
+
+msgctxt "models.asr.whisper.in-use"
+msgid "In use"
+msgstr ""
+
+msgctxt "models.asr.qwen.product-headline"
+msgid "Dictate in Mandarin\nand Chinese dialects."
+msgstr ""
+
+msgctxt "models.asr.qwen.product-copy"
+msgid "See a draft as you speak or transcribe in the background. Your dictionary helps with names and terms."
+msgstr ""
+
+msgctxt "models.asr.seaco.product-headline"
+msgid "Transcribe Chinese\non your device."
+msgstr ""
+
+msgctxt "models.asr.seaco.product-copy"
+msgid "Add names and terms to your dictionary. Saymore refers to them during dictation even when text polishing is off."
+msgstr ""
+
+msgctxt "models.asr.zipformer.product-headline"
+msgid "Chinese and English,\non your device."
+msgstr ""
+
+msgctxt "models.asr.zipformer.product-copy"
+msgid "Speech is recognized as you record. The transcript appears when you finish. Your dictionary helps with names and terms."
+msgstr ""
+
+msgctxt "models.asr.local.switchable-mode"
+msgid "Non-streaming / streaming"
+msgstr ""
+
+msgctxt "models.asr.local.recording-limit-value"
+msgid "10 min"
+msgstr ""
+
+msgctxt "models.asr.local.recognizer-memory"
+msgid "Recognition process memory"
+msgstr ""
+
+msgctxt "models.asr.local.mode-segments-help"
+msgid "Transcribes in the background. The transcript appears when you stop. Applies to the next recording."
+msgstr ""
+
+msgctxt "models.asr.local.mode-live-help"
+msgid "Shows draft text as you speak. Applies to the next recording."
+msgstr ""
+
+msgctxt "models.asr.whisper.recording-limit"
+msgid "Recording limit"
+msgstr ""
+
+msgctxt "models.asr.whisper.memory-estimate"
+msgid "Estimated memory"
+msgstr ""
+
+msgctxt "models.asr.whisper.memory-estimate-help"
+msgid "Based on peak process memory while transcribing a 3.9-second sample on an Apple M5. Usage varies by device and recording."
+msgstr ""
+
+msgctxt "models.asr.whisper.download-size"
+msgid "Download · {}"
+msgstr ""
+
+msgctxt "models.asr.whisper.app-memory"
+msgid "App memory"
+msgstr ""
+
+msgctxt "models.asr.mode.non-streaming"
+msgid "Non-streaming"
+msgstr ""
+
+msgctxt "models.asr.mode.streaming"
+msgid "Streaming"
+msgstr ""
+
+msgctxt "models.asr.whisper.product-headline"
+msgid "Multilingual dictation,\non your device."
+msgstr ""
+
+msgctxt "models.asr.whisper.product-copy"
+msgid "Preview text as you dictate in Chinese, English, and more. Your dictionary helps with names and terms."
+msgstr ""
+
+msgctxt "models.asr.whisper.unverified-device"
+msgid "Installed · Device unverified"
+msgstr ""
+
+msgctxt "models.asr.whisper.installed-subtitle"
+msgid "OpenAI · Offline multilingual recognition"
+msgstr ""
+
+msgctxt "models.asr.whisper.catalog-summary"
+msgid "Multilingual dictation"
+msgstr ""
+
+msgctxt "models.asr.qwen.catalog-summary"
+msgid "Mandarin and dialects"
+msgstr ""
+
+msgctxt "models.asr.seaco.catalog-summary"
+msgid "Chinese · Hotword boosting"
+msgstr ""
+
+msgctxt "models.asr.zipformer.catalog-summary"
+msgid "ZH / EN · Streaming"
+msgstr ""
+
+msgctxt "models.asr.local.recognizer-memory-help"
+msgid "Current memory used by the separate Qwen recognition process."
+msgstr ""
+
+msgctxt "models.asr.local.app-memory-help"
+msgid "Current memory used by the whole Saymore app."
+msgstr ""
+
+msgctxt "models.asr.local.queued"
+msgid "Queued"
 msgstr ""

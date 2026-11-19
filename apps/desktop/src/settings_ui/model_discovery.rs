@@ -45,7 +45,7 @@ pub(super) fn wire(ui: &AppWindow, store: Arc<JsonSettingsStore>) {
         let Some(ui) = discovery_ui.upgrade() else {
             return;
         };
-        if ui.get_model_discovery_loading() {
+        if ui.get_model_discovery_loading() || (ui.get_model_tab() == 0 && ui.get_asr_testing()) {
             return;
         }
         if let Some(request) = prepare_discovery(&ui) {
@@ -262,7 +262,13 @@ fn apply_models(ui: &AppWindow, target: DiscoveryTarget, models: Vec<String>) {
     let selected = selected_model(ui, target, &models);
     match target {
         DiscoveryTarget::Volcengine => ui.set_asr_model(SharedString::from(selected)),
-        DiscoveryTarget::CustomAsr => ui.set_custom_asr_model(SharedString::from(selected)),
+        DiscoveryTarget::CustomAsr if selected != ui.get_custom_asr_model().as_str() => {
+            ui.set_custom_asr_model(SharedString::from(selected));
+            ui.set_asr_config_dirty(true);
+            ui.set_asr_draft_error(false);
+            ui.set_asr_error_field(crate::ui::AsrConfigurationField::None);
+        }
+        DiscoveryTarget::CustomAsr => {}
         DiscoveryTarget::Llm(_) => ui.set_llm_draft_model(SharedString::from(selected)),
     }
     apply_model_list(ui, models);

@@ -1,0 +1,26 @@
+export global DialogFocus {
+    in-out property <bool> open;
+}
+
+export component ActionFocus inherits FocusScope {
+    private property <bool> from-pointer;
+    out property <bool> show-ring: root.enabled && root.has-focus && !root.from-pointer;
+    callback activated();
+
+    public function focus-from-pointer() {
+        root.from-pointer = true;
+        root.focus();
+    }
+
+    focus-changed-event => {
+        if !root.has-focus { root.from-pointer = false; }
+    }
+    key-pressed(event) => {
+        root.from-pointer = false;
+        if root.enabled && (event.text == Key.Return || event.text == " ") {
+            if !event.repeat { root.activated(); }
+            return accept;
+        }
+        return reject;
+    }
+}

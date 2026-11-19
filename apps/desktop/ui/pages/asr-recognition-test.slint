@@ -1,6 +1,8 @@
 import { AppColors } from "../color-system.slint";
+import { ActionFocus } from "../action-focus.slint";
 
 export component RecognitionTestPanel inherits Rectangle {
+    in property <bool> inline-presentation: false;
     in property <bool> testing: false;
     in property <bool> succeeded: false;
     in property <bool> failed: false;
@@ -10,26 +12,28 @@ export component RecognitionTestPanel inherits Rectangle {
     callback activated();
 
     private property <bool> has-result: root.succeeded || root.failed;
-    private property <bool> action-emphasized: !root.succeeded;
+    private property <bool> action-emphasized: !root.succeeded && !root.inline-presentation;
+    private property <length> side-padding: root.inline-presentation ? 0px : 16px;
     private property <string> action-label: root.testing ? @tr("models.test.testing" => "Testing…")
         : root.succeeded ? @tr("models.test.again" => "Test again")
         : root.failed ? @tr("models.test.retry" => "Retry test")
         : @tr("models.test.action" => "Run");
 
-    height: root.has-result ? 92px : 64px;
+    height: !root.has-result ? 64px : !root.inline-presentation ? 92px
+        : result-copy.visible ? result-copy.y + result-copy.height + 6px : 69px;
     border-radius: 8px;
-    background: AppColors.surface-subtle;
+    background: root.inline-presentation ? transparent : AppColors.surface-subtle;
 
     Text {
-        x: 16px;
+        x: root.side-padding;
         y: 9px;
         text: @tr("models.test.title" => "Test");
         color: AppColors.text;
-        font-size: 12px;
-        font-weight: 700;
+        font-size: root.inline-presentation ? 14px : 12px;
+        font-weight: root.inline-presentation ? 550 : 700;
     }
     Text {
-        x: 16px;
+        x: root.side-padding;
         y: 29px;
         text: @tr("models.test.fixed-audio" => "3.9-sec sample");
         color: AppColors.text-muted;
@@ -37,11 +41,12 @@ export component RecognitionTestPanel inherits Rectangle {
     }
 
     if root.has-result: HorizontalLayout {
-        x: 16px;
+        x: root.side-padding;
         y: 45px;
         width: parent.width - 168px;
         height: 18px;
         spacing: 6px;
+        alignment: root.inline-presentation ? LayoutAlignment.start : LayoutAlignment.stretch;
         cross-axis-alignment: center;
 
         Text {
@@ -71,31 +76,42 @@ export component RecognitionTestPanel inherits Rectangle {
             overflow: elide;
         }
     }
-    if root.has-result && !root.transcript.is-empty: Text {
-        x: 16px;
-        y: 69px;
-        width: parent.width - 168px;
-        text: @tr("models.test.transcript" => "Transcript: {}", root.transcript);
+    result-copy := Text {
+        visible: root.has-result && !root.transcript.is-empty;
+        x: root.side-padding;
+        y: root.inline-presentation ? 64px : 69px;
+        width: root.inline-presentation ? parent.width : parent.width - 168px;
+        height: root.inline-presentation ? min(self.preferred-height, 36px) : self.preferred-height;
+        text: root.inline-presentation && root.failed ? root.transcript
+            : @tr("models.test.transcript" => "Transcript: {}", root.transcript);
         color: AppColors.text;
         font-size: 12px;
+        wrap: root.inline-presentation ? TextWrap.word-wrap : TextWrap.no-wrap;
         overflow: elide;
+        if root.inline-presentation && result-copy.preferred-height > result-copy.height: Tooltip {
+            text: @markdown("\{result-copy.text}");
+        }
     }
 
-    Rectangle {
-        x: parent.width - 122px;
-        y: root.has-result ? 45px : 16px;
+    test-button := Rectangle {
+        private property <bool> available: root.ready && !root.testing;
+        forward-focus: test-focus;
+        x: parent.width - self.width - root.side-padding;
+        y: root.has-result && !root.inline-presentation ? 45px : 16px;
         width: 106px;
         height: 32px;
         border-radius: 7px;
-        border-width: 0px;
+        border-width: test-focus.show-ring ? 1px : 0px;
+        border-color: AppColors.text-muted;
         background: !root.ready || root.testing ? AppColors.surface-muted
-            : root.succeeded ? (action-touch.has-hover ? AppColors.selected : AppColors.surface-muted)
+            : !root.action-emphasized ? (action-touch.has-hover ? AppColors.selected : AppColors.surface-muted)
             : action-touch.has-hover ? AppColors.selected : AppColors.brand-soft;
-        opacity: root.ready ? 1 : 0.55;
+        opacity: !root.ready ? 0.55 : self.available && action-touch.pressed ? 0.82 : 1;
+        animate opacity { duration: action-touch.pressed ? 0ms : 70ms; easing: ease-out; }
         accessible-role: button;
         accessible-label: root.action-label;
-        accessible-enabled: root.ready && !root.testing;
-        accessible-action-default => { if root.ready && !root.testing { root.activated(); } }
+        accessible-enabled: self.available;
+        accessible-action-default => { if self.available { root.activated(); } }
 
         HorizontalLayout {
             width: parent.width;
@@ -113,10 +129,14 @@ export component RecognitionTestPanel inherits Rectangle {
                 overflow: elide;
             }
         }
+        test-focus := ActionFocus {
+            enabled: test-button.available;
+            activated => { root.activated(); }
+        }
         action-touch := TouchArea {
-            enabled: root.ready && !root.testing;
+            enabled: test-button.available;
             mouse-cursor: self.enabled ? pointer : default;
-            clicked => { root.activated(); }
+            clicked => { test-focus.focus-from-pointer(); root.activated(); }
         }
     }
 }

@@ -1,0 +1,65 @@
+import { AppColors } from "color-system.slint";
+
+export component DeleteIconButton inherits Rectangle {
+    in property <bool> enabled: true;
+    out property <bool> has-hover: touch.has-hover;
+    out property <bool> has-keyboard-focus: focus.has-focus;
+    private property <string> hint: root.accessible-description.is-empty
+        ? root.accessible-label : root.accessible-label + " · " + root.accessible-description;
+    private property <bool> key-down;
+    private property <bool> hovered: root.enabled && touch.has-hover;
+    private property <bool> held: root.enabled && (root.key-down || (root.hovered && touch.pressed));
+    callback activated();
+
+    width: 36px; height: 32px;
+    forward-focus: focus;
+    accessible-role: button;
+    accessible-enabled: root.enabled;
+    accessible-action-default => { if root.enabled { root.activated(); } }
+
+    Rectangle {
+        width: root.width; height: root.height;
+        y: root.held ? 1px : root.hovered ? -2px : 0px;
+        border-radius: 7px;
+        background: !root.enabled ? AppColors.surface-muted.mix(AppColors.surface, 0.5)
+            : root.held ? AppColors.danger.mix(AppColors.danger-soft, 0.10)
+            : root.hovered ? AppColors.danger-soft : AppColors.surface-muted;
+        border-width: focus.has-focus ? 1px : 0px; border-color: AppColors.text-muted;
+        drop-shadow-blur: root.hovered && !root.held ? 4px : 0px;
+        drop-shadow-offset-y: root.hovered && !root.held ? 2px : 0px;
+        drop-shadow-color: AppColors.shadow;
+        animate y, background { duration: root.held ? 45ms : 110ms; easing: ease-out; }
+        Image {
+            private property <length> size-offset: root.held ? -1px : root.hovered ? 2px : 0px;
+            x: (parent.width - self.width) / 2; y: (parent.height - self.height) / 2;
+            width: 16px + self.size-offset; height: self.width;
+            source: @image-url("../icons/lucide/trash-2.svg");
+            colorize: !root.enabled ? AppColors.text-muted : root.held || root.hovered
+                ? AppColors.delete-icon-hover : AppColors.delete-icon-idle;
+            animate size-offset { duration: root.held ? 45ms : 110ms; easing: ease-out; }
+        }
+    }
+    focus := FocusScope {
+        enabled: root.enabled;
+        focus-changed-event => { if !self.has-focus { root.key-down = false; } }
+        key-pressed(event) => {
+            if event.text == " " || event.text == Key.Return { root.key-down = true; return accept; }
+            return reject;
+        }
+        key-released(event) => {
+            if event.text == " " || event.text == Key.Return {
+                if root.key-down {
+                    root.key-down = false;
+                    if root.enabled { root.activated(); }
+                }
+                return accept;
+            }
+            return reject;
+        }
+    }
+    touch := TouchArea {
+        mouse-cursor: root.enabled ? pointer : default;
+        clicked => { if root.enabled { root.activated(); } }
+        Tooltip { text: @markdown("\{root.hint}"); }
+    }
+}

@@ -1,6 +1,7 @@
 import { AsrProviderCardKind } from "../components.slint";
 import { AppColors } from "../color-system.slint";
 import { Typography } from "../typography.slint";
+import { DeleteIconButton } from "../delete-icon-button.slint";
 
 component CompactActionButton inherits Rectangle {
     in property <string> label;
@@ -145,20 +146,6 @@ component PrivacyPolicyRow inherits Rectangle {
     policy-touch := TouchArea { mouse-cursor: pointer; clicked => { root.activated(); } }
 }
 
-component ModelDeleteButton inherits Rectangle {
-    in property <bool> enabled: true;
-    callback activated();
-    width: 36px; height: 32px; border-radius: 7px;
-    background: delete-touch.has-hover && root.enabled ? AppColors.danger-soft : AppColors.surface-muted;
-    opacity: root.enabled ? 1 : 0.5;
-    accessible-role: button;
-    accessible-label: @tr("settings.storage.remove-model" => "Remove model");
-    accessible-enabled: root.enabled;
-    accessible-action-default => { if root.enabled { root.activated(); } }
-    Image { x: 10px; y: 8px; width: 16px; height: 16px; source: @image-url("../../icons/lucide/trash-2.svg"); colorize: AppColors.danger; }
-    delete-touch := TouchArea { enabled: root.enabled; mouse-cursor: root.enabled ? pointer : default; clicked => { root.activated(); } }
-}
-
 component InstalledModelRow inherits Rectangle {
     in property <image> logo;
     in property <color> marker-color;
@@ -177,7 +164,11 @@ component InstalledModelRow inherits Rectangle {
     Text { x: 94px; y: 42px; width: parent.width - 300px; text: root.detail; color: root.active ? AppColors.success : AppColors.text-muted; font-size: 9px; overflow: elide; }
     Text { x: parent.width - 210px; y: 29px; width: 100px; height: 22px; text: root.size; color: AppColors.ink; font-family: Typography.mono-font-family; font-size: 11px; font-weight: 600; horizontal-alignment: right; vertical-alignment: center; }
     if root.active: Rectangle { x: parent.width - 92px; y: 25px; width: 66px; height: 30px; border-radius: 8px; background: AppColors.success-soft; Text { text: @tr("settings.storage.in-use" => "In use"); color: AppColors.success; font-size: 10px; font-weight: 600; horizontal-alignment: center; vertical-alignment: center; } }
-    if !root.active: ModelDeleteButton { x: parent.width - 62px; y: 26px; enabled: !root.pending; activated => { root.delete-requested(); } }
+    if !root.active: DeleteIconButton {
+        x: parent.width - 62px; y: 26px; enabled: !root.pending;
+        accessible-label: @tr("settings.storage.remove-model" => "Remove model");
+        activated => { root.delete-requested(); }
+    }
 }
 
 component ModelUsageBar inherits Rectangle {
@@ -271,7 +262,11 @@ component LocalModelsPage inherits Rectangle {
         Text { x: 94px; y: 17px; width: parent.width - 300px; text: "CT-Transformer 中英标点 INT8"; color: AppColors.text; font-size: 13px; font-weight: 500; overflow: elide; }
         Text { x: 94px; y: 38px; width: parent.width - 300px; text: @tr("settings.storage.retired-model" => "Retired · Files can be deleted"); color: AppColors.text-muted; font-size: 9px; overflow: elide; }
         Text { x: parent.width - 210px; y: 28px; width: 100px; height: 22px; text: root.punctuation-size; color: AppColors.ink; font-family: Typography.mono-font-family; font-size: 11px; font-weight: 600; horizontal-alignment: right; vertical-alignment: center; }
-        ModelDeleteButton { x: parent.width - 62px; y: 19px; enabled: !root.punctuation-pending; activated => { root.delete-punctuation(); } }
+        DeleteIconButton {
+            x: parent.width - 62px; y: 19px; enabled: !root.punctuation-pending;
+            accessible-label: @tr("settings.storage.remove-model" => "Remove model");
+            activated => { root.delete-punctuation(); }
+        }
     }
     if !root.punctuation-installed: Rectangle { x: 0px; y: 230px + root.installed-count * 84px; width: parent.width; height: 70px; border-radius: 10px; background: AppColors.surface; Text { text: @tr("settings.storage.no-auxiliary-model" => "No auxiliary model installed"); color: AppColors.text-muted; font-size: 11px; horizontal-alignment: center; vertical-alignment: center; } }
 }

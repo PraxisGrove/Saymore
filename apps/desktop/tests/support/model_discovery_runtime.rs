@@ -11,8 +11,8 @@ mod asr_presets;
 mod model_discovery;
 
 pub fn wire(ui: &crate::ui::AppWindow, store: std::sync::Arc<template_infra::JsonSettingsStore>) {
-    model_discovery::wire(ui, store);
-    asr_presets::wire(ui);
+    model_discovery::wire(ui, std::sync::Arc::clone(&store));
+    asr_presets::wire(ui, store);
 }
 
 pub fn restore_catalog(ui: &crate::ui::AppWindow, store: &template_infra::JsonSettingsStore) {

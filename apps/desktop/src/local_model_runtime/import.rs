@@ -22,7 +22,7 @@ pub(super) fn wire(
         let settings = Arc::clone(&settings);
         let storage = Arc::clone(&storage);
         set_activation_pending(&ui, model, true);
-        ui.set_local_model_operation_error(SharedString::default());
+        ui.invoke_report_local_operation(model.card_kind(), SharedString::default());
         let result_ui = weak.clone();
         let spawn = std::thread::Builder::new()
             .name(model.thread_name("import"))

@@ -55,17 +55,59 @@ cargo run -p xtask --locked -- ui-colors
 cargo fmt --all --check
 ```
 
+## Control feedback
+
+Sidebar items, provider cards and action buttons respond to pointer presses
+inside a fixed hit area. Tab navigation gives the focused control an outline.
+Delete icons in local model details, storage, history rows and dictionary draft
+rows share a pale red resting color. Hover deepens the red and lifts the icon by
+2 px. Pressing lowers the icon, and releasing outside cancels the click.
+Disabled delete icons stay gray and still.
+
 ## Models
 
 Speech recognition cards center the source label, provider name, and chevron
-vertically within the same title row. The logo sits below the source, and the
-summary and status sit below the name. Each card is 88 px tall, with 12 px
-between rows.
+vertically within the same title row. The smaller source text sits 0.5 px lower
+to align its visible strokes with the name. The logo sits below the source, and
+the summary and status sit below the name. Each card is 88 px tall, with 12 px
+between rows. Available downloads summarize the model's language or recording
+mode in the list. Installed cards show the file size.
 
-Local speech model details put the file state and download or import action at
-the top. Resource requirements, recognition mode and its explanation, the test,
-and dictionary guidance follow in reading order. Longer errors and test results
-can still scroll. Whisper and Qwen show help for the selected mode.
+All four downloadable speech models use a 540 px dialog that grows with the
+visible content. The header, test output, resource readings and footer fit
+together at the minimum 820 × 560 window size.
+
+Before installation, each model has a two-line positioning statement, a short
+description of what the user hears or sees and how the dictionary helps, and a
+decorative waveform. Feature descriptions share the headline's left edge. The
+import button explains the folder and version requirements in its tooltip. The
+facts row shows compatibility, the desktop's 10-minute recording limit, and
+either the integrated recognition mode or Whisper's documented memory estimate.
+The download action gives the package size. SeACo also offers local import.
+Progress, pause, resume and cancellation share the download footer.
+
+After installation, Whisper and Qwen offer **Non-streaming** and **Streaming**
+in a segmented control. SeACo displays its fixed non-streaming mode and
+Zipformer its streaming mode. Zipformer delivers text when recording ends.
+Hovering over a mode option explains when text appears. File size and live
+memory sit side by side directly below the mode. Qwen reports its recognition
+worker's resident memory. The other models report Saymore's process memory. The
+reading refreshes every two seconds while active. Inactive, switching and
+unavailable readings have distinct labels. The sample test occupies the last
+section above the footer. Each model keeps its own test status and transcript.
+Tests can run before activation. The footer places a trash icon beside **Use
+model** and disables deletion during testing, activation and use. Hovering
+identifies the action in a tooltip. Users manage vocabulary in Dictionary.
+
+The cloud dialogs use the API key and model as the main inputs. OpenAI, Groq and
+Mistral show their preset service address in an expandable row. The custom
+compatible API exposes the editable address directly. Volcengine uses its own
+key and model selection. A changed configuration offers **Test and save**. A
+successful transcription of the bundled 3.9-second sample saves the draft. A
+configured service can then be set as current or tested again. Field errors stay
+beside their input. The three named compatible presets share one saved
+configuration with the custom endpoint. The dialog explains replacement when
+switching between compatible configurations.
 
 Polishing has four stops: Off, Light, Standard and Thorough. Click a stop, drag
 and release, or focus the slider and use the arrow keys. Dragging previews the
@@ -81,12 +123,12 @@ its chevron vertically on the row containing the provider name and status.
 
 Open `apps/desktop/examples/model-ui.slint` in VS Code and choose **Slint: Show
 Preview** to try both tabs with in-memory controls. The speech recognition tab
-mirrors the macOS release provider catalog and uses sample provider states.
+mirrors the macOS release provider catalog and uses sample provider states. Open
+`apps/desktop/examples/asr-models.slint` to compare all four local installation
+flows and four cloud configuration flows. The interactive Slint preview
+simulates downloads, tests and settings in memory.
 
 ## Next Pass
 
-Continue with cloud provider configuration dialogs, then History, Dictionary,
-and the five Settings sections. Check minimum-size scrolling, long localized
-text, empty/loading/error states, keyboard access, and light/dark appearance.
-These are pending review areas, not confirmed defects. Full workspace tests and
-packaged Windows visual acceptance have not been run for this home-only change.
+History, Dictionary and the five Settings sections remain to be reviewed at
+minimum window size, in both appearances, and with longer localized strings.

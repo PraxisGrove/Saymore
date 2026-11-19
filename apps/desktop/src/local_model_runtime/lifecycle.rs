@@ -10,12 +10,12 @@ use super::LocalModel;
 use crate::asr_runtime::AsrSessionController;
 
 pub(super) trait ModelRuntime: Send + Sync {
-    fn prepare(&self, model: LocalModel) -> Result<Option<u64>, SpeechRecognitionError>;
+    fn prepare(&self, model: LocalModel) -> Result<(), SpeechRecognitionError>;
     fn clear(&self, model: LocalModel);
 }
 
 impl ModelRuntime for AsrSessionController {
-    fn prepare(&self, model: LocalModel) -> Result<Option<u64>, SpeechRecognitionError> {
+    fn prepare(&self, model: LocalModel) -> Result<(), SpeechRecognitionError> {
         match model {
             LocalModel::Whisper => self.prepare_whisper(),
             LocalModel::Qwen3 => self.prepare_qwen3(),
@@ -68,11 +68,6 @@ impl fmt::Display for LifecycleError {
 impl Error for LifecycleError {}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(super) struct ActivationOutcome {
-    pub(super) memory_bytes: Option<u64>,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) struct ReconciledState {
     pub(super) selected: bool,
     pub(super) provider_selection_changed: bool,
@@ -82,11 +77,11 @@ pub(super) fn activate(
     settings: &dyn ProviderConfigStore,
     runtime: &dyn ModelRuntime,
     model: LocalModel,
-) -> Result<ActivationOutcome, LifecycleError> {
+) -> Result<(), LifecycleError> {
     let catalog = load_catalog(settings)?;
     let expected_provider = catalog.active.asr.clone();
     let previous_model = active_local_model(&catalog);
-    let memory_bytes = runtime
+    runtime
         .prepare(model)
         .map_err(|error| LifecycleError::Unavailable(error.to_string()))?;
 
@@ -109,7 +104,7 @@ pub(super) fn activate(
     if let Some(previous_model) = previous_model.filter(|previous| *previous != model) {
         runtime.clear(previous_model);
     }
-    Ok(ActivationOutcome { memory_bytes })
+    Ok(())
 }
 
 pub(super) fn reconcile(
@@ -180,7 +175,7 @@ pub(super) fn delete(
 pub(super) fn prepare(
     runtime: &dyn ModelRuntime,
     model: LocalModel,
-) -> Result<Option<u64>, SpeechRecognitionError> {
+) -> Result<(), SpeechRecognitionError> {
     runtime.prepare(model)
 }
 

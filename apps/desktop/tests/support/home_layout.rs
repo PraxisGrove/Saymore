@@ -5,8 +5,6 @@ use std::cell::Cell;
 use std::rc::Rc;
 
 pub fn check_home_layout(ui: &AppWindow) {
-    // Close the model dialog left by the provider action checks.
-    click(ui, 735.0, 150.0);
     ui.set_current_page(AppPage::Home);
     ui.set_usage_error(true);
     let reloads = Rc::new(Cell::new(0));

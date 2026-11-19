@@ -14,12 +14,7 @@ fn activation_switches_only_after_prepare_succeeds() {
 
     let result = activate(&settings, &runtime, LocalModel::Qwen3);
 
-    assert_eq!(
-        Ok(ActivationOutcome {
-            memory_bytes: Some(42)
-        }),
-        result
-    );
+    assert_eq!(Ok(()), result);
     assert!(settings.catalog().qwen3_asr_is_active());
     assert_eq!(vec!["prepare:qwen3", "clear:whisper"], runtime.events());
 }
@@ -237,7 +232,7 @@ impl FakeRuntime {
 }
 
 impl ModelRuntime for FakeRuntime {
-    fn prepare(&self, model: LocalModel) -> Result<Option<u64>, SpeechRecognitionError> {
+    fn prepare(&self, model: LocalModel) -> Result<(), SpeechRecognitionError> {
         if let Ok(mut events) = self.events.lock() {
             events.push(format!("prepare:{}", short_name(model)));
         }
@@ -249,7 +244,7 @@ impl ModelRuntime for FakeRuntime {
         if self.fail_prepare {
             Err(SpeechRecognitionError::Protocol("load failed".to_owned()))
         } else {
-            Ok(Some(42))
+            Ok(())
         }
     }
 

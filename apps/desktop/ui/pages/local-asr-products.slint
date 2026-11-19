@@ -1,0 +1,44 @@
+import { AsrProviderCardKind } from "../components.slint";
+
+export struct LocalAsrProduct {
+    name: string,
+    icon: image,
+    language: string,
+    headline: string,
+    description: string,
+}
+
+export global LocalAsrProducts {
+    public pure function for-kind(kind: AsrProviderCardKind) -> LocalAsrProduct {
+        if kind == AsrProviderCardKind.qwen3-asr {
+            return {
+                name: "Qwen3-ASR 1.7B", icon: @image-url("../../icons/providers/qwen.png"),
+                language: @tr("models.asr.summary.chinese-dialects" => "ZH · Dialects"),
+                headline: @tr("models.asr.qwen.product-headline" => "Dictate in Mandarin\nand Chinese dialects."),
+                description: @tr("models.asr.qwen.product-copy" => "See a draft as you speak or transcribe in the background. Your dictionary helps with names and terms."),
+            };
+        }
+        if kind == AsrProviderCardKind.seaco-paraformer {
+            return {
+                name: "SeACo-Paraformer", icon: @image-url("../../icons/providers/funasr.png"),
+                language: @tr("models.asr.summary.chinese" => "Chinese"),
+                headline: @tr("models.asr.seaco.product-headline" => "Transcribe Chinese\non your device."),
+                description: @tr("models.asr.seaco.product-copy" => "Add names and terms to your dictionary. Saymore refers to them during dictation even when text polishing is off."),
+            };
+        }
+        if kind == AsrProviderCardKind.zipformer {
+            return {
+                name: "Zipformer", icon: @image-url("../../icons/lucide/mic.svg"),
+                language: @tr("models.asr.summary.chinese-english" => "ZH · EN"),
+                headline: @tr("models.asr.zipformer.product-headline" => "Chinese and English,\non your device."),
+                description: @tr("models.asr.zipformer.product-copy" => "Speech is recognized as you record. The transcript appears when you finish. Your dictionary helps with names and terms."),
+            };
+        }
+        return {
+            name: "Whisper large-v3-turbo", icon: @image-url("../../icons/providers/openai.png"),
+            language: @tr("models.asr.summary.multilingual" => "Multilingual"),
+            headline: @tr("models.asr.whisper.product-headline" => "Multilingual dictation,\non your device."),
+            description: @tr("models.asr.whisper.product-copy" => "Preview text as you dictate in Chinese, English, and more. Your dictionary helps with names and terms."),
+        };
+    }
+}
