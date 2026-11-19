@@ -1,4 +1,7 @@
-use chrono::{Local, NaiveDate, TimeZone};
+use jiff::{
+    Timestamp,
+    civil::{Date, DateTime},
+};
 use rusqlite::{OptionalExtension, Transaction, params};
 use template_app::{
     DailyUsage, HistoryCursor, NewHistoryRecord, StorageError, UsageSnapshot, UsageStore,
@@ -12,8 +15,8 @@ const MAX_SQLITE_INTEGER: i64 = i64::MAX;
 impl UsageStore for SqliteStorage {
     fn usage_snapshot(
         &self,
-        period_start: NaiveDate,
-        period_end: NaiveDate,
+        period_start: Date,
+        period_end: Date,
     ) -> Result<UsageSnapshot, StorageError> {
         self.request(|response| Command::UsageSnapshot {
             period_start,
@@ -38,8 +41,8 @@ pub(super) fn record(
 
 pub(super) fn snapshot(
     database: &mut Database,
-    period_start: NaiveDate,
-    period_end: NaiveDate,
+    period_start: Date,
+    period_end: Date,
 ) -> Result<UsageSnapshot, StorageError> {
     if period_start > period_end {
         return Err(StorageError::Invalid(
@@ -66,7 +69,7 @@ pub(super) fn snapshot(
     let mut snapshot = UsageSnapshot::default();
     for row in rows {
         let (stored_date, audio_duration_ms, character_count) = row.map_err(unavailable)?;
-        let date = NaiveDate::parse_from_str(&stored_date, "%Y-%m-%d").map_err(invalid)?;
+        let date = Date::strptime("%Y-%m-%d", &stored_date).map_err(invalid)?;
         snapshot.total_duration_ms = snapshot.total_duration_ms.saturating_add(audio_duration_ms);
         snapshot.total_characters = snapshot.total_characters.saturating_add(character_count);
         if (period_start..=period_end).contains(&date) {
@@ -137,12 +140,8 @@ fn record_values(
     if inserted == 0 {
         return Ok(());
     }
-    let local_date = Local
-        .timestamp_millis_opt(created_at_ms)
-        .single()
-        .ok_or_else(|| StorageError::Invalid("usage timestamp is out of range".to_owned()))?
-        .date_naive()
-        .format("%Y-%m-%d")
+    let local_date = local_usage_day(created_at_ms, crate::system_local_datetime)?
+        .strftime("%Y-%m-%d")
         .to_string();
     let audio_duration_ms = i64::try_from(audio_duration_ms)
         .map_err(|_| StorageError::Invalid("usage duration is too large".to_owned()))?;
@@ -172,6 +171,15 @@ fn record_values(
     Ok(())
 }
 
+fn local_usage_day(
+    created_at_ms: i64,
+    local_datetime: impl FnOnce(Timestamp) -> DateTime,
+) -> Result<Date, StorageError> {
+    let instant = Timestamp::from_millisecond(created_at_ms)
+        .map_err(|_| StorageError::Invalid("usage timestamp is out of range".to_owned()))?;
+    Ok(local_datetime(instant).date())
+}
+
 fn history_backfilled(connection: &rusqlite::Connection) -> Result<bool, StorageError> {
     connection
         .query_row(
@@ -188,4 +196,34 @@ fn non_whitespace_characters(text: &str) -> u64 {
     text.chars()
         .filter(|character| !character.is_whitespace())
         .count() as u64
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use jiff::{civil::date, tz::TimeZone};
+
+    #[test]
+    #[allow(clippy::panic_in_result_fn)]
+    fn usage_day_follows_local_midnight_across_daylight_saving_changes()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let zone = TimeZone::get("America/New_York")?;
+        for (instant, expected_day) in [
+            ("2024-03-10T04:59:59.999Z", date(2024, 3, 9)),
+            ("2024-03-10T05:00:00Z", date(2024, 3, 10)),
+            ("2024-03-11T03:59:59.999Z", date(2024, 3, 10)),
+            ("2024-03-11T04:00:00Z", date(2024, 3, 11)),
+            ("2024-11-03T04:00:00Z", date(2024, 11, 3)),
+            ("2024-11-04T04:59:59.999Z", date(2024, 11, 3)),
+            ("2024-11-04T05:00:00Z", date(2024, 11, 4)),
+        ] {
+            let millis = instant.parse::<Timestamp>()?.as_millisecond();
+            assert_eq!(
+                expected_day,
+                local_usage_day(millis, |timestamp| zone.to_datetime(timestamp))?,
+                "{instant}"
+            );
+        }
+        Ok(())
+    }
 }

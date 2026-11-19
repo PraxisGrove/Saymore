@@ -1,0 +1,91 @@
+import { AppColors } from "../color-system.slint";
+import { ItemLabel, SectionHeading, SupportingText } from "../typography.slint";
+import { LocalRecognitionMode, RecognitionModeControl } from "recognition-mode-control.slint";
+import { RecognitionTestPanel } from "asr-recognition-test.slint";
+
+export component LocalAsrUsage inherits Rectangle {
+    in property <LocalRecognitionMode> mode;
+    in property <string> fixed-mode;
+    in property <bool> separate-recognition-process;
+    private property <string> memory-help: root.separate-recognition-process
+        ? @tr("models.asr.local.recognizer-memory-help" => "Current memory used by the separate Qwen recognition process.")
+        : @tr("models.asr.local.app-memory-help" => "Current memory used by the whole Saymore app.");
+    in property <bool> selected;
+    in property <bool> pending;
+    in property <bool> ready;
+    in property <bool> testing;
+    in property <bool> test-succeeded;
+    in property <bool> test-failed;
+    in property <string> test-elapsed;
+    in property <string> test-result;
+    in property <string> installed-size;
+    in property <string> sampled-memory;
+    callback mode-changed(LocalRecognitionMode);
+    callback run-test();
+
+    preferred-height: test.y + test.height;
+    height: self.preferred-height;
+
+    controls := HorizontalLayout {
+        x: 0px; y: 2px; width: root.width; height: self.preferred-height;
+        spacing: 12px; cross-axis-alignment: center;
+        SectionHeading {
+            text: @tr("models.asr.mode.title" => "Recognition mode");
+            horizontal-stretch: 1; wrap: word-wrap;
+        }
+        if !root.fixed-mode.is-empty: ItemLabel { text: root.fixed-mode; }
+        if root.fixed-mode.is-empty: RecognitionModeControl {
+            width: min(260px, root.width * 0.56);
+            mode: root.mode;
+            changed(value) => { root.mode-changed(value); }
+        }
+    }
+    file-row := HorizontalLayout {
+        x: 0px; y: controls.y + controls.height + 16px;
+        width: root.width; height: self.preferred-height;
+        spacing: 12px; cross-axis-alignment: center;
+        private property <length> metric-width: (self.width - self.spacing) / 2;
+        VerticalLayout {
+            width: file-row.metric-width; spacing: 3px;
+            SupportingText { text: @tr("models.asr.local.model-files" => "Files"); }
+            ItemLabel {
+                text: root.installed-size.is-empty ? @tr("storage.usage.unavailable" => "Unavailable") : root.installed-size;
+                font-weight: 600;
+            }
+        }
+        Rectangle {
+            width: file-row.metric-width; preferred-height: memory-copy.preferred-height;
+            memory-copy := VerticalLayout {
+                spacing: 3px;
+                SupportingText {
+                    horizontal-alignment: right;
+                    text: root.separate-recognition-process
+                        ? @tr("models.asr.local.recognizer-memory" => "Recognition process memory")
+                        : @tr("models.asr.whisper.app-memory" => "App memory");
+                }
+                ItemLabel {
+                    horizontal-alignment: right;
+                    accessible-description: root.memory-help;
+                    private property <bool> has-reading: root.selected && !root.pending && !root.sampled-memory.is-empty;
+                    text: root.pending ? @tr("models.asr.selection.activating" => "Switching")
+                        : !root.selected ? @tr("models.status.not-enabled" => "Not enabled")
+                        : self.has-reading ? root.sampled-memory : @tr("storage.usage.unavailable" => "Unavailable");
+                    color: self.has-reading ? AppColors.ink : AppColors.text-muted;
+                    font-weight: self.has-reading ? 600 : 500;
+                }
+            }
+            Tooltip { text: @markdown("\{root.memory-help}"); }
+        }
+    }
+    test-divider := Rectangle {
+        x: 0px; y: file-row.y + file-row.height + 14px;
+        width: root.width; height: 1px; background: AppColors.border;
+    }
+    test := RecognitionTestPanel {
+        x: 0px; y: test-divider.y + test-divider.height + 6px; width: root.width;
+        inline-presentation: true;
+        testing: root.testing; succeeded: root.test-succeeded; failed: root.test-failed;
+        ready: root.ready && !root.pending; elapsed: root.test-elapsed; transcript: root.test-result;
+        activated => { root.run-test(); }
+    }
+}

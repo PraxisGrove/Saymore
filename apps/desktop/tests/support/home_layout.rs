@@ -5,21 +5,33 @@ use std::cell::Cell;
 use std::rc::Rc;
 
 pub fn check_home_layout(ui: &AppWindow) {
-    // Close the model dialog left by the provider action checks.
-    click(ui, 735.0, 150.0);
     ui.set_current_page(AppPage::Home);
     ui.set_usage_error(true);
     let reloads = Rc::new(Cell::new(0));
     let observed = Rc::clone(&reloads);
     ui.on_refresh_usage(move || observed.set(observed.get() + 1));
 
-    for (width, height) in [(820.0, 560.0), (920.0, 700.0)] {
+    let settings_action = Rc::new(Cell::new(None));
+    let microphone = Rc::clone(&settings_action);
+    ui.on_open_microphone_settings(move || microphone.set(Some("microphone")));
+    let delivery = Rc::clone(&settings_action);
+    ui.on_open_accessibility_settings(move || delivery.set(Some("delivery")));
+
+    for (width, height, mic_x) in [(820.0, 560.0, 670.0), (920.0, 700.0, 744.0)] {
         require(
             ui.window().try_dispatch_event(WindowEvent::Resized {
                 size: slint::LogicalSize::new(width, height),
             }),
             "resize home page",
         );
+        click(ui, mic_x, 227.0);
+        assert_eq!(
+            settings_action.take(),
+            Some("microphone"),
+            "microphone icon"
+        );
+        click(ui, width - 68.0, 266.0);
+        assert_eq!(settings_action.take(), Some("delivery"), "delivery caption");
         let before = reloads.get();
         click(ui, width - 60.0, 351.0);
         assert_eq!(reloads.get(), before + 1, "home retry is reachable");

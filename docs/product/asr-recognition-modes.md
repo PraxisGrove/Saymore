@@ -2,15 +2,13 @@
 
 ## Meaning Of The UI Label
 
-The local-model details page describes **Saymore's current recognition mode**:
-
-- `Current mode: recognize while recording` / `当前模式：边录音边识别`.
-- `Current mode: background recognition in segments` / `当前模式：后台分段识别`.
-
-This is an integration status, not a permanent streaming/non-streaming
-classification of the model. Do not translate “final only” as a claim that the
-model cannot support streaming. The mode appears on its own text row instead of
-being grouped with the model's language and local-processing badges.
+Whisper and Qwen offer **Non-streaming** and **Streaming** in a segmented
+control. SeACo displays **Non-streaming** and Zipformer displays **Streaming**
+as read-only text. Zipformer processes audio during capture and delivers the
+transcript at the end of the recording. The control exposes the mode explanation
+on hover and to assistive technology. The desktop warns after nine minutes and
+stops at ten minutes for all four models. The adapter limits below also apply to
+integrations that feed audio directly into those adapters.
 
 Keep four concepts separate:
 
@@ -99,11 +97,9 @@ implementation differences, measured latency and recognition quality.
 
 ## Hotwords And Personal Dictionary
 
-Local-model details also show whether the **current recognition integration**
-uses the personal dictionary. A checked Hotwords badge and a detail section
-identify supported integrations and distinguish recognition bias from prompt
-guidance. Unknown or future model kinds default to “not integrated”; they must
-not inherit a supported label merely because another model supports hints.
+Each introduction describes how the integrated model uses the personal
+dictionary for names and terms. Users manage those entries in Dictionary. The
+recognition paths and limits for the four integrated models follow.
 
 | Model            | Current dictionary path                          | Adapter limits                                                            |
 | ---------------- | ------------------------------------------------ | ------------------------------------------------------------------------- |

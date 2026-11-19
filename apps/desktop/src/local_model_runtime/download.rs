@@ -350,7 +350,7 @@ fn wire_start(ui: &AppWindow, runtime: Arc<DownloadRuntime>) {
         ui.set_local_model_download_failure_visible(false);
         ui.set_local_model_download_space_failure(false);
         ui.set_local_model_download_error(SharedString::default());
-        ui.set_local_model_operation_error(SharedString::default());
+        ui.invoke_report_local_operation(model.card_kind(), SharedString::default());
         runtime.start_ready();
     });
 }

@@ -17,13 +17,12 @@ use template_infra::{
     JsonSettingsStore, OpenAiCompatibleSpeechRecognizer, QWEN3_ASR_MODEL_ID,
     QWEN3_ASR_MODEL_REVISION, Qwen3AsrSpeechRecognizer, VolcengineSpeechRecognizer,
     WHISPER_MODEL_ID, WHISPER_MODEL_REVISION, WhisperSpeechRecognizer,
-    current_process_resident_memory_bytes,
 };
 
 mod additional_models;
-use additional_models::LoadedLocal;
 use template_infra::{
-    SEACO_MODEL_ID, SEACO_MODEL_REVISION, ZIPFORMER_MODEL_ID, ZIPFORMER_MODEL_REVISION,
+    SEACO_MODEL_ID, SEACO_MODEL_REVISION, SeacoSpeechRecognizer, ZIPFORMER_MODEL_ID,
+    ZIPFORMER_MODEL_REVISION, ZipformerSpeechRecognizer,
 };
 pub(crate) mod self_test;
 
@@ -33,23 +32,13 @@ pub struct AsrSessionController {
     active: Mutex<Option<OwnedRecognition>>,
     live_preview: AtomicBool,
     whisper_model_directory: PathBuf,
-    whisper: Mutex<Option<LoadedWhisper>>,
+    whisper: Mutex<Option<Arc<WhisperSpeechRecognizer>>>,
     qwen3_model_directory: PathBuf,
-    qwen3: Mutex<Option<LoadedQwen3>>,
+    qwen3: Mutex<Option<Arc<Qwen3AsrSpeechRecognizer>>>,
     seaco_model_directory: PathBuf,
-    seaco: Mutex<Option<LoadedLocal>>,
+    seaco: Mutex<Option<Arc<SeacoSpeechRecognizer>>>,
     zipformer_model_directory: PathBuf,
-    zipformer: Mutex<Option<LoadedLocal>>,
-}
-
-struct LoadedWhisper {
-    recognizer: Arc<WhisperSpeechRecognizer>,
-    resident_memory_bytes: Option<u64>,
-}
-
-struct LoadedQwen3 {
-    recognizer: Arc<Qwen3AsrSpeechRecognizer>,
-    resident_memory_bytes: Option<u64>,
+    zipformer: Mutex<Option<Arc<ZipformerSpeechRecognizer>>>,
 }
 
 impl AsrSessionController {
@@ -82,10 +71,8 @@ impl AsrSessionController {
         }
     }
 
-    pub fn prepare_whisper(&self) -> Result<Option<u64>, SpeechRecognitionError> {
-        let loaded = self.whisper_runtime()?;
-        ensure_self_test(loaded.recognizer.as_ref())?;
-        Ok(loaded.resident_memory_bytes)
+    pub fn prepare_whisper(&self) -> Result<(), SpeechRecognitionError> {
+        ensure_self_test(self.whisper_recognizer()?.as_ref())
     }
 
     pub fn clear_whisper(&self) {
@@ -94,10 +81,8 @@ impl AsrSessionController {
         }
     }
 
-    pub fn prepare_qwen3(&self) -> Result<Option<u64>, SpeechRecognitionError> {
-        let loaded = self.qwen3_runtime()?;
-        ensure_self_test(loaded.recognizer.as_ref())?;
-        Ok(loaded.resident_memory_bytes)
+    pub fn prepare_qwen3(&self) -> Result<(), SpeechRecognitionError> {
+        ensure_self_test(self.qwen3_recognizer()?.as_ref())
     }
 
     pub fn clear_qwen3(&self) {
@@ -210,51 +195,29 @@ impl AsrSessionController {
     pub fn whisper_recognizer(
         &self,
     ) -> Result<Arc<WhisperSpeechRecognizer>, SpeechRecognitionError> {
-        self.whisper_runtime().map(|loaded| loaded.recognizer)
+        additional_models::load_cached(
+            &self.whisper,
+            &self.whisper_model_directory,
+            WhisperSpeechRecognizer::load,
+        )
     }
 
     pub fn qwen3_recognizer(
         &self,
     ) -> Result<Arc<Qwen3AsrSpeechRecognizer>, SpeechRecognitionError> {
-        self.qwen3_runtime().map(|loaded| loaded.recognizer)
+        additional_models::load_cached(
+            &self.qwen3,
+            &self.qwen3_model_directory,
+            Qwen3AsrSpeechRecognizer::load,
+        )
     }
 
-    fn whisper_runtime(&self) -> Result<LoadedWhisper, SpeechRecognitionError> {
-        let mut recognizer = self.whisper.lock().map_err(|_| {
-            SpeechRecognitionError::Transport("Whisper cache lock was poisoned".to_owned())
-        })?;
-        if let Some(loaded) = recognizer.as_ref() {
-            return Ok(loaded.clone());
-        }
-        let resident_before = current_process_resident_memory_bytes();
-        let loaded = Arc::new(WhisperSpeechRecognizer::load(
-            &self.whisper_model_directory,
-        )?);
-        let resident_memory_bytes =
-            resident_memory_delta(resident_before, current_process_resident_memory_bytes());
-        let loaded = LoadedWhisper {
-            recognizer: loaded,
-            resident_memory_bytes,
-        };
-        *recognizer = Some(loaded.clone());
-        Ok(loaded)
-    }
-
-    fn qwen3_runtime(&self) -> Result<LoadedQwen3, SpeechRecognitionError> {
-        let mut recognizer = self.qwen3.lock().map_err(|_| {
-            SpeechRecognitionError::Transport("Qwen3-ASR cache lock was poisoned".to_owned())
-        })?;
-        if let Some(loaded) = recognizer.as_ref() {
-            return Ok(loaded.clone());
-        }
-        let loaded = Arc::new(Qwen3AsrSpeechRecognizer::load(&self.qwen3_model_directory)?);
-        let resident_memory_bytes = loaded.resident_memory_bytes();
-        let loaded = LoadedQwen3 {
-            recognizer: loaded,
-            resident_memory_bytes,
-        };
-        *recognizer = Some(loaded.clone());
-        Ok(loaded)
+    pub fn qwen3_process_memory(&self) -> Option<u64> {
+        self.qwen3
+            .try_lock()
+            .ok()?
+            .as_ref()?
+            .resident_memory_bytes()
     }
 
     pub fn push_audio(&self, samples: Vec<i16>) -> Result<(), SpeechRecognitionError> {
@@ -297,31 +260,6 @@ impl AsrSessionController {
     }
 }
 
-impl Clone for LoadedWhisper {
-    fn clone(&self) -> Self {
-        Self {
-            recognizer: Arc::clone(&self.recognizer),
-            resident_memory_bytes: self.resident_memory_bytes,
-        }
-    }
-}
-
-impl Clone for LoadedQwen3 {
-    fn clone(&self) -> Self {
-        Self {
-            recognizer: Arc::clone(&self.recognizer),
-            resident_memory_bytes: self.resident_memory_bytes,
-        }
-    }
-}
-
-fn resident_memory_delta(before: Option<u64>, after: Option<u64>) -> Option<u64> {
-    before
-        .zip(after)
-        .and_then(|(before, after)| after.checked_sub(before))
-        .filter(|bytes| *bytes > 0)
-}
-
 fn ensure_self_test(
     recognizer: &dyn StreamingSpeechRecognizer,
 ) -> Result<(), SpeechRecognitionError> {
@@ -346,18 +284,5 @@ impl RestoredRecordingTranscriber for AsrSessionController {
             self.cancel();
         }
         result
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::resident_memory_delta;
-
-    #[test]
-    fn resident_memory_delta_requires_a_positive_complete_sample() {
-        assert_eq!(Some(512), resident_memory_delta(Some(1_024), Some(1_536)));
-        assert_eq!(None, resident_memory_delta(Some(1_024), Some(1_024)));
-        assert_eq!(None, resident_memory_delta(Some(1_024), Some(512)));
-        assert_eq!(None, resident_memory_delta(None, Some(1_536)));
     }
 }

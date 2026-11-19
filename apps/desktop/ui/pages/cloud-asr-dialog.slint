@@ -1,0 +1,241 @@
+import { AppColors } from "../color-system.slint";
+import { AppSelect, AsrConfigurationField, AsrProvider, ModalShell } from "../components.slint";
+import { ItemLabel, SupportingText } from "../typography.slint";
+import { CloudServiceAddress, ModalButton, ModalSecretField, ModalTextField } from "cloud-asr-fields.slint";
+
+component FeedbackText inherits SupportingText {
+    wrap: word-wrap;
+    color: AppColors.danger; max-height: 36px; overflow: elide;
+    Tooltip { text: @markdown("\{root.text}"); }
+}
+
+export component AsrConfigurationModal inherits Rectangle {
+    in property <AsrProvider> provider: AsrProvider.volcengine;
+    in property <string> service-name;
+    in property <bool> replaces-compatible-config;
+    in-out property <string> volcengine-api-key;
+    in-out property <string> volcengine-model;
+    in-out property <string> custom-api-key;
+    in-out property <string> custom-base-url;
+    in-out property <string> custom-model;
+    in property <bool> configured;
+    in property <bool> selected;
+    in property <bool> selection-enabled;
+    in property <bool> dirty;
+    in property <bool> testing;
+    in property <bool> test-succeeded;
+    in property <string> test-elapsed;
+    in property <string> test-result;
+    in property <bool> draft-error;
+    in property <AsrConfigurationField> error-field;
+    in property <string> status-message;
+    in-out property <[string]> available-models;
+    in property <bool> model-discovery-loading;
+    in property <bool> model-discovery-error;
+    in property <string> model-discovery-status;
+    callback cancelled();
+    callback edited();
+    callback test-and-save();
+    callback test-connection();
+    callback refresh-models();
+    callback open-key-page();
+    callback select-provider();
+
+    private property <bool> volc: root.provider == AsrProvider.volcengine;
+    private property <bool> saved: root.configured && !root.dirty;
+    private property <bool> show-use: root.saved && !root.selected;
+    private property <bool> ready: !root.model-discovery-loading && (root.volc
+        ? !root.volcengine-api-key.is-empty && !root.volcengine-model.is-empty
+        : !root.custom-base-url.is-empty && !root.custom-api-key.is-empty && !root.custom-model.is-empty);
+    private property <bool> can-fetch: !root.custom-base-url.is-empty
+        && (!root.service-name.is-empty || !root.custom-api-key.is-empty)
+        && !root.model-discovery-loading && !root.testing;
+    private property <bool> passed: root.test-succeeded && root.saved && !root.testing;
+    private property <string> test-label: root.testing ? @tr("models.test.testing" => "Testing…")
+        : @tr("models.asr.cloud.test-connection" => "Test connection");
+    private property <string> test-help: @tr("models.asr.cloud.test-help" => "Test transcription with the built-in 3.9-second audio sample.");
+
+    modal-focus := FocusScope {
+        width: parent.width; height: parent.height;
+        capture-key-pressed(event) => {
+            if event.text == Key.Escape && !root.testing { root.cancelled(); return accept; }
+            return reject;
+        }
+        dialog := ModalShell {
+            width: parent.width; height: parent.height;
+            close-enabled: !root.testing;
+            close-requested => { root.cancelled(); }
+            panel-height-override: body.y + body.preferred-height + 15px + footer.height;
+
+            Image {
+                x: 28px; y: 20px; width: 36px; height: 36px;
+                source: root.volc ? @image-url("../../icons/providers/volcengine.png")
+                    : root.service-name == "OpenAI" ? @image-url("../../icons/providers/openai.png")
+                    : root.service-name == "Groq" ? @image-url("../../icons/providers/groq.svg")
+                    : root.service-name == "Mistral" ? @image-url("../../icons/providers/mistral.svg")
+                    : @image-url("../../icons/lucide/plus.svg");
+                colorize: !root.volc && root.service-name != "Mistral" ? AppColors.ink : transparent;
+                image-fit: contain;
+            }
+            Text {
+                x: 74px; y: 17px; width: dialog.panel-width - 146px; height: 24px;
+                text: root.volc ? @tr("models.provider.volcengine" => "Volcengine")
+                    : root.service-name.is-empty ? @tr("models.provider.custom-compatible" => "Custom compatible API")
+                    : root.service-name;
+                color: AppColors.ink; font-size: 18px; font-weight: 700; overflow: elide;
+            }
+            SupportingText {
+                x: 74px; y: 44px; width: dialog.panel-width - 146px;
+                text: root.volc ? @tr("models.asr.cloud.volc-streaming" => "Doubao streaming recognition")
+                    : @tr("models.asr.cloud.transcription" => "Cloud audio transcription");
+            }
+
+            body := VerticalLayout {
+                x: 28px; y: 78px; width: dialog.panel-width - 56px; height: self.preferred-height;
+                spacing: 12px;
+                VerticalLayout {
+                    spacing: 4px;
+                    HorizontalLayout {
+                        height: 22px; cross-axis-alignment: center;
+                        ItemLabel { text: "API Key"; horizontal-stretch: 1; }
+                        if root.volc: ModalButton {
+                            height: 24px; quiet: true;
+                            label: @tr("models.get-api-key" => "Get API key"); enabled: !root.testing;
+                            activated => { root.open-key-page(); }
+                        }
+                    }
+                    if root.volc: ModalSecretField {
+                        value <=> root.volcengine-api-key; enabled: !root.testing;
+                        edited => { root.edited(); }
+                        accessible-name: @tr("models.volcengine-api-key" => "Volcengine API key");
+                        error: root.error-field == AsrConfigurationField.api-key;
+                    }
+                    if !root.volc: ModalSecretField {
+                        value <=> root.custom-api-key; enabled: !root.testing;
+                        edited => { root.edited(); }
+                        accessible-name: @tr("models.custom-speech-api-key" => "Custom speech recognition API key");
+                        error: root.error-field == AsrConfigurationField.api-key;
+                    }
+                    if root.error-field == AsrConfigurationField.api-key: FeedbackText { text: root.status-message; }
+                }
+
+                if !root.volc && root.service-name.is-empty: CloudServiceAddress {
+                    value <=> root.custom-base-url; enabled: !root.testing;
+                    edited => { root.edited(); }
+                    error: root.error-field == AsrConfigurationField.base-url ? root.status-message : "";
+                }
+
+                VerticalLayout {
+                    spacing: 4px;
+                    HorizontalLayout {
+                        height: 24px; spacing: 8px; cross-axis-alignment: center;
+                        ItemLabel { text: @tr("models.model-field" => "Model"); horizontal-stretch: 1; }
+                        if root.volc: SupportingText {
+                            text: root.volcengine-model == "volc.bigasr.sauc.duration"
+                                ? @tr("models.volcengine.model-v1" => "Doubao Streaming Speech Recognition 1.0")
+                                : @tr("models.volcengine.model-v2" => "Doubao Streaming Speech Recognition 2.0");
+                        }
+                        if !root.volc && (root.service-name.is-empty || root.available-models.length == 0): ModalButton {
+                            height: 24px; quiet: true; enabled: root.can-fetch;
+                            label: root.model-discovery-loading ? @tr("models.asr.fetch.loading" => "Fetching…")
+                                : root.service-name.is-empty ? @tr("models.asr.fetch.action" => "Get models")
+                                : @tr("models.asr.cloud.model-list" => "Model list");
+                            activated => { root.refresh-models(); }
+                        }
+                    }
+                    if root.volc: AppSelect {
+                        height: 38px; horizontal-stretch: 1; enabled: !root.testing;
+                        model: ["volc.bigasr.sauc.duration", "volc.seedasr.sauc.duration"];
+                        current-value <=> root.volcengine-model;
+                        selected(_) => { root.edited(); }
+                    }
+                    if !root.volc: HorizontalLayout {
+                        spacing: 8px;
+                        ModalTextField {
+                            horizontal-stretch: 1; value <=> root.custom-model; enabled: !root.testing;
+                            edited => { root.edited(); }
+                            placeholder: @tr("models.model-id.placeholder" => "Enter the model ID from your provider");
+                            accessible-name: @tr("models.model-field" => "Model");
+                            error: root.error-field == AsrConfigurationField.model;
+                        }
+                        if root.available-models.length > 0: AppSelect {
+                            width: (parent.width - parent.spacing) * 0.46; height: 38px;
+                            model: root.available-models; enabled: !root.testing;
+                            current-value <=> root.custom-model;
+                            selected(_) => { root.edited(); }
+                            display-text: @tr("models.asr.cloud.choose-model" => "Choose model");
+                        }
+                    }
+                    if root.error-field == AsrConfigurationField.model: FeedbackText { text: root.status-message; }
+                    if !root.volc && !root.model-discovery-status.is-empty: SupportingText {
+                        text: root.model-discovery-status; wrap: word-wrap;
+                        color: root.model-discovery-error ? AppColors.danger : AppColors.text-muted;
+                    }
+                }
+                if !root.volc && !root.service-name.is-empty: CloudServiceAddress {
+                    compact: true; value <=> root.custom-base-url; enabled: !root.testing;
+                    edited => { root.edited(); }
+                    error: root.error-field == AsrConfigurationField.base-url ? root.status-message : "";
+                }
+
+                if root.replaces-compatible-config: SupportingText {
+                    text: @tr("models.asr.service.dialog-subtitle" => "Saving replaces your current compatible service configuration.");
+                    wrap: word-wrap;
+                }
+                if root.draft-error && root.error-field == AsrConfigurationField.form: FeedbackText {
+                    text: root.status-message;
+                }
+                if root.passed: VerticalLayout {
+                    spacing: 4px;
+                    SupportingText {
+                        text: @tr("models.test.succeeded" => "Recognition succeeded")
+                            + (root.test-elapsed.is-empty ? "" : " " + @tr("models.test.elapsed" => "· {} sec", root.test-elapsed));
+                        color: AppColors.success; font-weight: 600;
+                    }
+                    if !root.test-result.is-empty: SupportingText {
+                        text: root.test-result; color: AppColors.text; wrap: word-wrap;
+                        max-height: 36px; overflow: elide;
+                        Tooltip { text: @markdown("\{root.test-result}"); }
+                    }
+                }
+            }
+            footer := Rectangle {
+                x: body.x; y: dialog.panel-height - self.height; width: body.width; height: 64px;
+                Rectangle { x: 0px; y: 0px; width: parent.width; height: 1px; background: AppColors.border; }
+                HorizontalLayout {
+                    width: parent.width; height: parent.height; spacing: 8px; cross-axis-alignment: center;
+                    SupportingText {
+                        horizontal-stretch: 1; wrap: word-wrap;
+                        text: root.selected && root.saved ? @tr("models.asr.selection.current" => "Current")
+                            : root.configured && root.dirty ? @tr("models.status.unsaved.plain" => "Unsaved changes")
+                            : root.configured ? @tr("models.status.configured" => "Configured")
+                            : @tr("models.status.not-configured.plain" => "Not configured");
+                    }
+                    if root.show-use: ModalButton {
+                        height: 34px; label: root.test-label; help: root.test-help;
+                        enabled: root.ready && !root.testing;
+                        activated => { root.test-connection(); }
+                    }
+                    ModalButton {
+                        height: 34px; primary: true;
+                        help: root.show-use ? "" : root.test-help;
+                        label: root.show-use ? @tr("models.asr.selection.set-current" => "Use")
+                            : root.testing || root.saved ? root.test-label
+                            : @tr("models.asr.cloud.test-and-save" => "Test and save");
+                        enabled: !root.testing && (root.show-use ? root.selection-enabled : root.ready);
+                        activated => {
+                            if root.show-use { root.select-provider(); }
+                            else if root.saved { root.test-connection(); }
+                            else { root.test-and-save(); }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    init => {
+        // The model picker also serves polishing. Start each ASR dialog with its own list.
+        root.available-models = [];
+        modal-focus.focus();
+    }
+}

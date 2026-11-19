@@ -1,4 +1,4 @@
-use crate::ui::{AppWindow, LocalRecognitionMode as UiMode};
+use crate::ui::{AppWindow, AsrProviderCardKind, LocalRecognitionMode as UiMode};
 use slint::{ComponentHandle, SharedString};
 use std::sync::Arc;
 use template_app::{ProviderConfigStore, WhisperRecognitionMode};
@@ -10,7 +10,10 @@ pub(super) fn wire(ui: &AppWindow, store: Arc<JsonSettingsStore>) {
         .and_then(|catalog| catalog.whisper_recognition_mode())
     {
         Ok(mode) => ui.set_whisper_recognition_mode(to_ui(mode)),
-        Err(error) => ui.set_local_model_operation_error(error.to_string().into()),
+        Err(error) => ui.invoke_report_local_operation(
+            AsrProviderCardKind::WhisperLargeV3Turbo,
+            error.to_string().into(),
+        ),
     }
     let weak = ui.as_weak();
     ui.on_change_whisper_recognition_mode(move |mode| {
@@ -24,9 +27,15 @@ pub(super) fn wire(ui: &AppWindow, store: Arc<JsonSettingsStore>) {
         match store.set_whisper_recognition_mode(selected) {
             Ok(()) => {
                 ui.set_whisper_recognition_mode(mode);
-                ui.set_local_model_operation_error(SharedString::default());
+                ui.invoke_report_local_operation(
+                    AsrProviderCardKind::WhisperLargeV3Turbo,
+                    SharedString::default(),
+                );
             }
-            Err(error) => ui.set_local_model_operation_error(error.to_string().into()),
+            Err(error) => ui.invoke_report_local_operation(
+                AsrProviderCardKind::WhisperLargeV3Turbo,
+                error.to_string().into(),
+            ),
         }
     });
 }

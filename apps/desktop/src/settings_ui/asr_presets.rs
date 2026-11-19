@@ -1,11 +1,14 @@
+use std::sync::Arc;
+
 use slint::{ComponentHandle, SharedString};
-use template_app::CloudAsrPreset;
+use template_app::{CloudAsrPreset, SettingsStore};
+use template_infra::JsonSettingsStore;
 
 use crate::ui::{
     AppWindow, AsrConfigurationField, AsrProvider, AsrProviderCardKind, CloudAsrService,
 };
 
-pub(super) fn wire(ui: &AppWindow) {
+pub(super) fn wire(ui: &AppWindow, store: Arc<JsonSettingsStore>) {
     let weak_ui = ui.as_weak();
     ui.on_prepare_cloud_asr(move |service| {
         let Some(ui) = weak_ui.upgrade() else {
@@ -23,12 +26,19 @@ pub(super) fn wire(ui: &AppWindow) {
             &ui.get_custom_asr_api_key(),
             &ui.get_custom_asr_model(),
         );
+        let matches_saved = store.load().is_ok_and(|settings| {
+            let saved = settings.asr.openai_compatible;
+            !saved.api_key.is_empty()
+                && saved.api_key == draft.api_key
+                && saved.base_url == draft.base_url
+                && saved.model == draft.model
+        });
         ui.invoke_invalidate_model_discovery();
         ui.set_asr_provider(AsrProvider::Custom);
         ui.set_custom_asr_base_url(draft.base_url.into());
         ui.set_custom_asr_api_key(draft.api_key.into());
         ui.set_custom_asr_model(draft.model.into());
-        ui.set_asr_config_dirty(true);
+        ui.set_asr_config_dirty(!matches_saved);
         ui.set_asr_draft_error(false);
         ui.set_asr_error_field(AsrConfigurationField::None);
         ui.set_asr_config_status(SharedString::default());
@@ -67,7 +77,11 @@ impl PresetDraft {
     fn new(preset: CloudAsrPreset, current_url: &str, api_key: &str, model: &str) -> Self {
         let same_service = CloudAsrPreset::from_base_url(current_url) == Some(preset);
         Self {
-            base_url: preset.base_url().to_owned(),
+            base_url: if same_service {
+                current_url.trim().to_owned()
+            } else {
+                preset.base_url().to_owned()
+            },
             api_key: if same_service {
                 api_key.to_owned()
             } else {
@@ -129,6 +143,10 @@ mod tests {
             " https://api.groq.com/openai/v1/audio/transcriptions/ ",
             "saved-key",
             "whisper-large-v3",
+        );
+        assert_eq!(
+            "https://api.groq.com/openai/v1/audio/transcriptions/",
+            draft.base_url
         );
         assert_eq!("saved-key", draft.api_key);
         assert_eq!("whisper-large-v3", draft.model);

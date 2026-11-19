@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use chrono::Utc;
+use jiff::Timestamp;
 use slint::{ComponentHandle, ModelRc, SharedString, VecModel};
 use template_app::{LlmProviderPreset, ProviderCatalog, ProviderConfigStore};
 use template_infra::JsonSettingsStore;
@@ -76,7 +76,7 @@ pub(super) fn apply_discovered_models(
             provider.profile().chat_completions,
             models.clone(),
             &selected,
-            Utc::now().timestamp_millis(),
+            Timestamp::now().as_millisecond(),
         ),
         DiscoveryTarget::Volcengine | DiscoveryTarget::CustomAsr => Ok(true),
     };

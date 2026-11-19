@@ -152,3 +152,43 @@ cargo test --locked -p saymore-desktop --test whisper_modes --test qwen_modes
 ```
 
 Windows CPU performance and the full 30-minute bound are not yet measured.
+
+## Sample transcription memory benchmark
+
+The benchmark recorded **about 1.1 GB** for the bundled 3.859-second Mandarin
+sample on an Apple M5 (16 GiB, macOS 26.3.2). This is the peak physical
+footprint reported by macOS for an isolated recognition process, from launch
+through model load and transcription. Apple describes this metric in
+[Profile and optimize your game's memory](https://developer.apple.com/videos/play/wwdc2022/10106/).
+The reference is specific to this device and sample. The live reading in the
+installed model's details measures the current resident size of the entire
+Saymore desktop process.
+
+Each run started a new process using the desktop build's production
+`WhisperSpeechRecognizer`, the
+[pinned Q8_0 weights](whisper-dictionary-engine-migration.md), and Metal. The
+probe fed `apps/desktop/assets/asr-test/standard-zh.pcm` at recording speed with
+an empty dictionary and no text polishing. All four runs returned the same
+transcript, `可以通过语音进行人机交互`. The table uses decimal MB (10⁶ bytes).
+
+| Mode and run          | RSS after load | Peak RSS | Peak physical footprint |
+| --------------------- | -------------: | -------: | ----------------------: |
+| Background segments 1 |       1,000 MB | 1,069 MB |                1,099 MB |
+| Background segments 2 |       1,011 MB | 1,087 MB |                1,094 MB |
+| Live preview 1        |       1,011 MB | 1,094 MB |                1,102 MB |
+| Live preview 2        |       1,011 MB | 1,094 MB |                1,101 MB |
+
+Both peaks come from `/usr/bin/time -l`. The checked-in `asr_latency_probe`
+accepts the same adapter, sample and capture schedule. To repeat the peak check,
+build the probe with the command above, then run the following on a Mac with the
+verified model in `MODEL_DIR`:
+
+```sh
+for mode in non_streaming streaming; do
+  for run in 1 2; do
+    SAYMORE_BENCH_COLD=1 SAYMORE_BENCH_WHISPER_MODE="$mode" /usr/bin/time -l \
+      target/release/examples/asr_latency_probe whisper "$MODEL_DIR" \
+      apps/desktop/assets/asr-test/standard-zh.pcm capture disabled
+  done
+done
+```

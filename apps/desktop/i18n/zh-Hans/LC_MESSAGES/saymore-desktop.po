@@ -11,34 +11,6 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=1; plural=0;\n"
 
-msgctxt "models.asr.local.hints.native"
-msgid "Hotwords / dictionary: supported (recognition bias)"
-msgstr "热词 / 词典：支持（识别时热词增强）"
-
-msgctxt "models.asr.local.hints.prompt"
-msgid "Hotwords / dictionary: supported (prompt guidance)"
-msgstr "热词 / 词典：支持（提示词引导）"
-
-msgctxt "models.asr.local.hints.unavailable"
-msgid "Hotwords / dictionary: not integrated"
-msgstr "热词 / 词典：当前尚未接入"
-
-msgctxt "models.asr.local.hints.detail"
-msgid "Uses your personal dictionary during recognition without text polishing. Entries are filtered to fit the model's limits; hints do not guarantee correct spelling."
-msgstr "识别时自动使用个人词典，无需开启文本润色。词条会按模型限制筛选，提示不能保证每次都识别正确。"
-
-msgctxt "models.asr.local.hints.unavailable-detail"
-msgid "The current recognition integration does not use dictionary hints."
-msgstr "当前识别接入尚未使用词典提示。"
-
-msgctxt "models.asr.local.hints.badge"
-msgid "Hotwords"
-msgstr "词典支持"
-
-msgctxt "models.asr.local.hints.badge-unavailable"
-msgid "Not wired"
-msgstr "未接入"
-
 #: ui/about-product-card.slint:53
 msgctxt "settings.product.tagline"
 msgid "Speak your mind, hands-free."
@@ -525,35 +497,50 @@ msgctxt "models.volcengine.model-v2"
 msgid "Doubao Streaming Speech Recognition 2.0"
 msgstr "豆包流式语音识别模型 2.0"
 
-#: ui/pages/asr-provider-components.slint:519
-msgctxt "models.asr.volcengine.dialog-title"
-msgid "Configure Volcengine"
-msgstr "配置火山引擎"
-
-#: ui/pages/asr-provider-components.slint:520
-msgctxt "models.asr.custom.dialog-title"
-msgid "Configure custom ASR"
-msgstr "配置自定义 ASR"
-
-#: ui/pages/asr-provider-components.slint
-msgctxt "models.asr.service.dialog-title"
-msgid "Configure {}"
-msgstr "配置 {}"
-
 #: ui/pages/asr-provider-components.slint
 msgctxt "models.asr.service.dialog-subtitle"
 msgid "Saving replaces your current compatible service configuration."
 msgstr "保存将替换现有的兼容接口服务配置。"
 
-#: ui/pages/asr-provider-components.slint:538
-msgctxt "models.asr.volcengine.dialog-subtitle"
-msgid "Run a standard audio recognition test before enabling this provider."
-msgstr "启用前先运行一次标准音频识别测试。"
+msgctxt "models.asr.cloud.test-connection"
+msgid "Test connection"
+msgstr "测试连接"
 
-#: ui/pages/asr-provider-components.slint:539
-msgctxt "models.asr.custom.dialog-subtitle"
-msgid "OpenAI-compatible audio transcription endpoint"
-msgstr "兼容 OpenAI 音频转写协议的服务端点"
+msgctxt "models.asr.cloud.test-and-save"
+msgid "Test and save"
+msgstr "测试并保存"
+
+msgctxt "models.asr.cloud.model-list"
+msgid "Model list"
+msgstr "模型列表"
+
+msgctxt "models.asr.cloud.choose-model"
+msgid "Choose model"
+msgstr "选择模型"
+
+msgctxt "models.asr.cloud.test-help"
+msgid "Test transcription with the built-in 3.9-second audio sample."
+msgstr "用内置的 3.9 秒音频测试此服务的转写。"
+
+msgctxt "models.asr.cloud.volc-streaming"
+msgid "Doubao streaming recognition"
+msgstr "豆包流式语音识别"
+
+msgctxt "models.asr.cloud.transcription"
+msgid "Cloud audio transcription"
+msgstr "云端音频转写"
+
+msgctxt "models.asr.cloud.openai-summary"
+msgid "GPT and Whisper transcription"
+msgstr "GPT 和 Whisper 转写"
+
+msgctxt "models.asr.cloud.groq-summary"
+msgid "Hosted Whisper Large V3"
+msgstr "云端 Whisper Large V3"
+
+msgctxt "models.asr.cloud.mistral-summary"
+msgid "Voxtral Mini and Small transcription"
+msgstr "Voxtral Mini 和 Small 转写"
 
 #: ui/pages/asr-provider-components.slint:569
 msgctxt "models.get-api-key"
@@ -570,11 +557,6 @@ msgctxt "models.model-field"
 msgid "Model"
 msgstr "模型"
 
-#: ui/pages/asr-provider-components.slint:599
-msgctxt "models.asr.volcengine.model-id"
-msgid "Model ID"
-msgstr "模型 ID"
-
 #: ui/pages/asr-provider-components.slint:630
 msgctxt "models.base-url"
 msgid "Service URL"
@@ -584,11 +566,6 @@ msgstr "服务地址"
 msgctxt "models.custom-speech-api-key"
 msgid "Custom speech recognition API key"
 msgstr "自定义语音识别 API Key"
-
-#: ui/pages/asr-provider-components.slint:651
-msgctxt "models.asr.fetch.loading-accessible"
-msgid "Fetching speech models"
-msgstr "正在获取语音识别模型"
 
 #: ui/pages/asr-provider-components.slint:652
 msgctxt "models.asr.fetch.action"
@@ -1430,25 +1407,10 @@ msgctxt "models.test.testing-connection"
 msgid "Testing connection"
 msgstr "正在测试连接"
 
-#: ui/pages/llm-provider-components.slint:137
-msgctxt "models.polishing.enable"
-msgid "Enable text polishing"
-msgstr "启用文本润色"
-
-#: ui/pages/llm-provider-components.slint:138
-msgctxt "models.polishing.enable.helper"
-msgid "Polish recognized text with the current provider"
-msgstr "使用当前提供商润色识别文本"
-
 #: ui/pages/llm-provider-components.slint:138
 msgctxt "models.polishing.enable.configure-first"
 msgid "Configure a provider before enabling"
 msgstr "请先配置提供商"
-
-#: ui/pages/llm-provider-components.slint:145
-msgctxt "models.polishing.enable.accessible-label"
-msgid "Enable text polishing"
-msgstr "启用文本润色"
 
 #: ui/pages/llm-provider-components.slint:188
 msgctxt "models.provider.api-model-summary"
@@ -1545,11 +1507,6 @@ msgctxt "models.asr.selection.activating"
 msgid "Switching"
 msgstr "正在切换模型"
 
-#: ui/pages/local-asr-model.slint:182
-msgctxt "models.asr.local.downloading"
-msgid "Downloading"
-msgstr "下载中"
-
 #: ui/pages/local-asr-model.slint:184
 msgctxt "models.asr.local.paused"
 msgid "Paused"
@@ -1560,45 +1517,10 @@ msgctxt "models.asr.local.cancelling"
 msgid "Cancelling"
 msgstr "正在取消"
 
-#: ui/pages/local-asr-model.slint:188
-msgctxt "models.asr.local.downloaded"
-msgid "Downloaded"
-msgstr "已下载"
-
-#: ui/pages/local-asr-model.slint:189
-msgctxt "models.asr.local.not-downloaded"
-msgid "Not downloaded"
-msgstr "未下载"
-
-#: ui/pages/local-asr-model.slint:334
-msgctxt "models.asr.local.memory-loading"
-msgid "Loading model…"
-msgstr "正在载入…"
-
 #: ui/pages/local-asr-model.slint:337
 msgctxt "models.asr.local.memory-approximate"
 msgid "Approx. {}"
 msgstr "约 {}"
-
-#: ui/pages/local-asr-model.slint:344
-msgctxt "models.asr.local.status.switching"
-msgid "Switching · {}"
-msgstr "正在切换 · {}"
-
-#: ui/pages/local-asr-model.slint:346
-msgctxt "models.asr.local.status.downloading"
-msgid "Downloading · {}"
-msgstr "正在下载 · {}"
-
-#: ui/pages/local-asr-model.slint:348
-msgctxt "models.asr.local.status.paused"
-msgid "Paused · {}"
-msgstr "已暂停 · {}"
-
-#: ui/pages/local-asr-model.slint:350
-msgctxt "models.asr.local.status.cancelling"
-msgid "Cancelling download · {}"
-msgstr "正在取消下载 · {}"
 
 #: ui/pages/local-asr-model.slint:352 ui/pages/speech-recognition.slint:165
 #: ui/pages/speech-recognition.slint:173
@@ -1606,46 +1528,10 @@ msgctxt "models.asr.local.status.downloaded"
 msgid "Downloaded · {}"
 msgstr "已下载 · {}"
 
-#: ui/pages/local-asr-model.slint:353
-msgctxt "models.asr.local.status.not-downloaded"
-msgid "Not downloaded · {}"
-msgstr "尚未下载 · {}"
-
-#: ui/pages/local-asr-model.slint:357
-msgctxt "models.asr.local.activation-loading"
-msgid "Loading the model into memory"
-msgstr "正在将模型载入运行内存"
-
-#: ui/pages/local-asr-model.slint:363
-msgctxt "models.asr.local.progress-detail"
-msgid "{}% of {}"
-msgstr "已下载 {}%，共 {}"
-
-#: ui/pages/local-asr-model.slint:365
-msgctxt "models.asr.local.paused-detail"
-msgid "{}% of {} · Continue when ready"
-msgstr "已下载 {}%，共 {} · 可继续下载"
-
-#: ui/pages/local-asr-model.slint:367
-msgctxt "models.asr.local.cancelling-detail"
-msgid "Removing downloaded temporary files…"
-msgstr "正在删除已下载的临时文件…"
-
 #: ui/pages/local-asr-model.slint:369
 msgctxt "models.asr.local.delete-current-disabled"
 msgid "Switch providers to delete"
 msgstr "当前正在使用，切换服务后可以删除模型"
-
-#: ui/pages/local-asr-model.slint:371
-msgctxt "models.asr.local.delete-ready-size"
-msgid "Stored locally · {} on disk"
-msgstr "模型已保存在本地 · 占用 {}"
-
-#: ui/pages/local-asr-model.slint:372 ui/pages/speech-recognition.slint:166
-#: ui/pages/speech-recognition.slint:174
-msgctxt "models.asr.local.download-ready"
-msgid "Download to use this model offline"
-msgstr "下载后即可在本地离线使用"
 
 #: ui/pages/local-asr-model.slint:374 ui/pages/local-asr-model.slint:695
 msgctxt "models.asr.local.downloading-percent"
@@ -1657,25 +1543,10 @@ msgctxt "models.asr.local.continue"
 msgid "Continue"
 msgstr "继续"
 
-#: ui/pages/local-asr-model.slint:377
-msgctxt "models.asr.local.delete"
-msgid "Delete"
-msgstr "删除模型"
-
 #: ui/pages/local-asr-model.slint:378
 msgctxt "models.asr.local.download-action"
 msgid "Download"
 msgstr "下载模型"
-
-#: ui/pages/local-asr-model.slint:384
-msgctxt "models.asr.local.mode.during-recording"
-msgid "Current mode: recognize while recording"
-msgstr "当前模式：边录音边识别"
-
-#: ui/pages/local-asr-model.slint:385
-msgctxt "models.asr.local.mode.chunked"
-msgid "Current mode: background recognition in segments"
-msgstr "当前模式：后台分段识别"
 
 #: ui/pages/local-asr-model.slint:389
 msgctxt "models.asr.local.usage-tip.whisper"
@@ -1697,20 +1568,10 @@ msgid ""
 "device."
 msgstr "Tips：适合方言、多语种和复杂表达；模型较大，对设备性能要求更高。"
 
-#: ui/pages/local-asr-model.slint:435
-msgctxt "models.asr.local.subtitle.verified"
-msgid "Open source · Verified"
-msgstr "本地开源模型 · 已校验"
-
 #: ui/pages/local-asr-model.slint:437
 msgctxt "models.asr.local.subtitle.sensevoice"
 msgid "Lightweight five-language model · Final only · INT8"
 msgstr "轻量五语模型 · 非流式 · INT8"
-
-#: ui/pages/local-asr-model.slint:438
-msgctxt "models.asr.local.subtitle.pending"
-msgid "Open source · Verification pending"
-msgstr "本地开源模型 · 待校验"
 
 #: ui/pages/local-asr-model.slint:469
 msgctxt "models.asr.summary.chinese-english"
@@ -1731,11 +1592,6 @@ msgstr "中文及方言"
 msgctxt "models.asr.summary.five-languages"
 msgid "ZH · EN · JA · KO · YUE"
 msgstr "中英日韩粤"
-
-#: ui/pages/local-asr-model.slint:501
-msgctxt "models.asr.local.memory-current"
-msgid "Memory"
-msgstr "当前占用"
 
 #: ui/pages/local-asr-model.slint:544
 msgctxt "models.asr.local.pause"
@@ -2458,16 +2314,6 @@ msgstr "Apple 语音识别暂时不可用"
 msgctxt "models.asr.summary.system-unavailable"
 msgid "System speech adapter is not yet connected"
 msgstr "系统语音 Adapter 尚未接入"
-
-#: ui/pages/speech-recognition.slint:157
-msgctxt "models.asr.summary.api-key-configured"
-msgid "API key configured"
-msgstr "API Key 已配置"
-
-#: ui/pages/speech-recognition.slint:158
-msgctxt "models.asr.summary.volcengine"
-msgid "API key and model configuration"
-msgstr "API Key 与模型配置"
 
 #: ui/pages/speech-recognition.slint:161
 msgctxt "models.asr.summary.custom-configured"
@@ -3847,24 +3693,14 @@ msgid "Choose recognition model"
 msgstr "选择识别模型"
 
 #: ui/pages/local-asr-model.slint
-msgctxt "models.asr.local.memory-unmeasured"
-msgid "Not measured"
-msgstr "尚未测量"
-
-#: ui/pages/local-asr-model.slint
 msgctxt "models.asr.local.import"
 msgid "Import model"
 msgstr "导入模型"
 
 #: ui/pages/local-asr-model.slint
-msgctxt "models.asr.local.usage-tip.seaco"
-msgid "Offline Chinese recognition with native dictionary hints. Download the model or import the same verified files."
-msgstr "离线中文识别，原生支持个人词典提示。下载模型，或导入相同版本且通过校验的文件。"
-
-#: ui/pages/local-asr-model.slint
-msgctxt "models.asr.local.usage-tip.zipformer"
-msgid "Streaming Chinese-English recognition with native dictionary hints. Dictionary hints may improve term recognition; results vary."
-msgstr "中英双语流式识别，原生支持个人词典提示。词典提示可能改善术语识别，实际效果因内容而异。"
+msgctxt "models.asr.local.import-help"
+msgid "Select the folder for this model version. Saymore verifies the files before importing."
+msgstr "选择此版本的模型文件夹，Saymore 会在导入前校验文件。"
 
 #: ui/pages/local-asr-model.slint
 msgctxt "models.asr.local.usage-tip.moonshine"
@@ -3896,6 +3732,106 @@ msgctxt "settings.storage.retired-model"
 msgid "Retired · Files can be deleted"
 msgstr "已停用 · 可删除文件"
 
+msgctxt "recording.streaming-listening"
+msgid "Listening…"
+msgstr "正在聆听…"
+
+msgctxt "models.polishing.off"
+msgid "Off"
+msgstr "关闭"
+
+msgctxt "models.polishing.off.helper"
+msgid "Keep the original transcript"
+msgstr "保留语音识别原文"
+
+msgctxt "models.asr.mode.title"
+msgid "Recognition mode"
+msgstr "识别模式"
+
+msgctxt "models.asr.local.use"
+msgid "Use model"
+msgstr "使用此模型"
+
+msgctxt "models.asr.whisper.subtitle"
+msgid "OpenAI · Local speech recognition"
+msgstr "OpenAI · 本地语音识别"
+
+msgctxt "models.asr.whisper.not-installed"
+msgid "Not installed"
+msgstr "未安装"
+
+msgctxt "models.asr.whisper.inactive"
+msgid "Installed · Not in use"
+msgstr "已安装 · 尚未启用"
+
+msgctxt "models.asr.whisper.in-use"
+msgid "In use"
+msgstr "当前使用中"
+
+msgctxt "models.asr.qwen.product-headline"
+msgid "Dictate in Mandarin\nand Chinese dialects."
+msgstr "普通话与方言，\n在本机听写。"
+
+msgctxt "models.asr.qwen.product-copy"
+msgid "See a draft as you speak or transcribe in the background. Your dictionary helps with names and terms."
+msgstr "录音时可预览草稿，也可在后台分段转写。\n个人词典可帮助识别人名和术语。"
+
+msgctxt "models.asr.seaco.product-headline"
+msgid "Transcribe Chinese\non your device."
+msgstr "把中文录音\n转成文字。"
+
+msgctxt "models.asr.seaco.product-copy"
+msgid "Add names and terms to your dictionary. Saymore refers to them during dictation even when text polishing is off."
+msgstr "在个人词典里添加人名和术语。\n即使关闭文本润色，听写时也会参考这些词。"
+
+msgctxt "models.asr.zipformer.product-headline"
+msgid "Chinese and English,\non your device."
+msgstr "中英双语，\n在本机听写。"
+
+msgctxt "models.asr.zipformer.product-copy"
+msgid "Speech is recognized as you record. The transcript appears when you finish. Your dictionary helps with names and terms."
+msgstr "录音时持续识别，结束后显示全文。\n个人词典可帮助识别人名和术语。"
+
+msgctxt "models.asr.local.switchable-mode"
+msgid "Non-streaming / streaming"
+msgstr "非流式 / 流式"
+
+msgctxt "models.asr.local.recording-limit-value"
+msgid "10 min"
+msgstr "10 分钟"
+
+msgctxt "models.asr.local.recognizer-memory"
+msgid "Recognition process memory"
+msgstr "识别进程内存"
+
+msgctxt "models.asr.local.mode-segments-help"
+msgid "Transcribes in the background. The transcript appears when you stop. Applies to the next recording."
+msgstr "在后台分段转写，录完显示全文。下次录音生效。"
+
+msgctxt "models.asr.local.mode-live-help"
+msgid "Shows draft text as you speak. Applies to the next recording."
+msgstr "录音时显示文字草稿。下次录音生效。"
+
+msgctxt "models.asr.whisper.recording-limit"
+msgid "Recording limit"
+msgstr "单次录音上限"
+
+msgctxt "models.asr.whisper.memory-estimate"
+msgid "Estimated memory"
+msgstr "预估运行内存"
+
+msgctxt "models.asr.whisper.memory-estimate-help"
+msgid "Based on peak process memory while transcribing a 3.9-second sample on an Apple M5. Usage varies by device and recording."
+msgstr "参考 Apple M5 转写 3.9 秒录音时的进程内存峰值。实际占用随设备和录音而变。"
+
+msgctxt "models.asr.whisper.download-size"
+msgid "Download · {}"
+msgstr "下载模型 · {}"
+
+msgctxt "models.asr.whisper.app-memory"
+msgid "App memory"
+msgstr "应用内存"
+
 msgctxt "models.asr.mode.non-streaming"
 msgid "Non-streaming"
 msgstr "非流式"
@@ -3904,14 +3840,46 @@ msgctxt "models.asr.mode.streaming"
 msgid "Streaming"
 msgstr "流式"
 
-msgctxt "models.qwen.mode.help"
-msgid "Streaming updates text while you speak (up to 20 minutes). Non-streaming processes complete segments in the background. Changes apply to the next recording."
-msgstr "流式会在说话时更新文字，最长录音 20 分钟。非流式在后台处理完整片段。设置在下一次录音生效。"
+msgctxt "models.asr.whisper.product-headline"
+msgid "Multilingual dictation,\non your device."
+msgstr "多语言听写，\n在本机完成。"
 
-msgctxt "models.whisper.mode.help"
-msgid "Streaming shows live previews that may change and can increase processing time. Maximum 30 minutes. Non-streaming processes complete segments in the background. Changes apply to the next recording."
-msgstr "流式会在说话时更新预览，文字可能修订，也可能增加处理时间，最长录音 30 分钟。非流式在后台处理完整片段。设置在下一次录音生效。"
+msgctxt "models.asr.whisper.product-copy"
+msgid "Preview text as you dictate in Chinese, English, and more. Your dictionary helps with names and terms."
+msgstr "听写中文、英文等语言时，可预览文字草稿。\n识别时会参考个人词典中的人名和术语。"
 
-msgctxt "recording.streaming-listening"
-msgid "Listening…"
-msgstr "正在聆听…"
+msgctxt "models.asr.whisper.unverified-device"
+msgid "Installed · Device unverified"
+msgstr "已安装 · 设备兼容性未验证"
+
+msgctxt "models.asr.whisper.installed-subtitle"
+msgid "OpenAI · Offline multilingual recognition"
+msgstr "OpenAI · 离线多语言识别"
+
+msgctxt "models.asr.whisper.catalog-summary"
+msgid "Multilingual dictation"
+msgstr "多语言听写"
+
+msgctxt "models.asr.qwen.catalog-summary"
+msgid "Mandarin and dialects"
+msgstr "普通话及方言"
+
+msgctxt "models.asr.seaco.catalog-summary"
+msgid "Chinese · Hotword boosting"
+msgstr "中文 · 热词增强"
+
+msgctxt "models.asr.zipformer.catalog-summary"
+msgid "ZH / EN · Streaming"
+msgstr "中英双语 · 流式"
+
+msgctxt "models.asr.local.recognizer-memory-help"
+msgid "Current memory used by the separate Qwen recognition process."
+msgstr "Qwen 独立识别进程当前占用的内存。"
+
+msgctxt "models.asr.local.app-memory-help"
+msgid "Current memory used by the whole Saymore app."
+msgstr "整个 Saymore 应用进程当前占用的内存。"
+
+msgctxt "models.asr.local.queued"
+msgid "Queued"
+msgstr "排队中"

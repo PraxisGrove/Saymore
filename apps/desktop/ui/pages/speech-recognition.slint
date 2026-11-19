@@ -53,10 +53,12 @@ export component SpeechRecognitionPage inherits Rectangle {
     callback open-macos-speech-details();
     callback open-placeholder-details(AsrProviderCardKind);
 
-    private property <int> provider-row-count: (root.provider-cards.length + 1) / 2;
+    private property <length> card-height: 88px;
+    private property <length> row-gap: 12px;
+    private property <int> provider-row-count: Math.ceil(root.provider-cards.length / 2);
     private property <length> provider-content-height: root.provider-row-count == 0
         ? 0px
-        : root.provider-row-count * 120px - 12px;
+        : root.provider-row-count * (root.card-height + root.row-gap) - root.row-gap;
 
     background: transparent;
     init => {
@@ -82,8 +84,9 @@ export component SpeechRecognitionPage inherits Rectangle {
             private property <bool> compatible-configured: self.compatible-service
                 && root.custom-configured && card.kind == root.configured-custom-kind;
             x: Math.mod(card-index, 2) == 0 ? 0px : (provider-list.viewport-width + 16px) / 2;
-            y: Math.floor(card-index / 2) * 120px;
+            y: Math.floor(card-index / 2) * (root.card-height + root.row-gap);
             width: (provider-list.viewport-width - 16px) / 2;
+            height: root.card-height;
             recommended: card.kind == AsrProviderCardKind.volcengine;
             logo: card.kind == AsrProviderCardKind.saymore-cloud
                 ? @image-url("../../icons/saymore-mark-3d-136.png")
@@ -111,6 +114,7 @@ export component SpeechRecognitionPage inherits Rectangle {
             logo-size: card.kind == AsrProviderCardKind.saymore-cloud
                 || card.kind == AsrProviderCardKind.macos-dictation
                 ? 36px : 44px;
+            logo-needs-dark-backplate: card.kind == AsrProviderCardKind.seaco-paraformer;
             colorize-logo: card.kind == AsrProviderCardKind.saymore-cloud
                 || card.kind == AsrProviderCardKind.custom
                 || card.kind == AsrProviderCardKind.macos-dictation
@@ -170,9 +174,13 @@ export component SpeechRecognitionPage inherits Rectangle {
                     : card.kind == AsrProviderCardKind.windows-speech
                         ? @tr("models.asr.summary.system-unavailable" => "System speech adapter is not yet connected")
                 : card.kind == AsrProviderCardKind.volcengine
-                ? root.volcengine-configured
-                    ? @tr("models.asr.summary.api-key-configured" => "API key configured")
-                    : @tr("models.asr.summary.volcengine" => "API key and model configuration")
+                    ? @tr("models.asr.cloud.volc-streaming" => "Doubao streaming recognition")
+                : card.kind == AsrProviderCardKind.openai
+                    ? @tr("models.asr.cloud.openai-summary" => "GPT and Whisper transcription")
+                : card.kind == AsrProviderCardKind.groq
+                    ? @tr("models.asr.cloud.groq-summary" => "Hosted Whisper Large V3")
+                : card.kind == AsrProviderCardKind.mistral
+                    ? @tr("models.asr.cloud.mistral-summary" => "Voxtral Mini and Small transcription")
                 : self.compatible-service
                     ? self.compatible-configured
                         ? @tr("models.asr.summary.custom-configured" => "Address and credentials configured")
@@ -180,19 +188,19 @@ export component SpeechRecognitionPage inherits Rectangle {
                     : card.kind == AsrProviderCardKind.whisper-large-v3-turbo
                         ? root.whisper-downloaded
                             ? @tr("models.asr.local.status.downloaded" => "Downloaded · {}", root.whisper-installed-size)
-                            : @tr("models.asr.local.download-ready" => "Download to use this model offline")
+                            : @tr("models.asr.whisper.catalog-summary" => "Multilingual dictation")
                     : card.kind == AsrProviderCardKind.qwen3-asr
                         ? root.qwen3-downloaded
                             ? @tr("models.asr.local.status.downloaded" => "Downloaded · {}", root.qwen3-installed-size)
-                            : @tr("models.asr.local.download-ready" => "Download to use this model offline")
+                            : @tr("models.asr.qwen.catalog-summary" => "Mandarin and dialects")
                     : card.kind == AsrProviderCardKind.seaco-paraformer
                         ? root.seaco-downloaded
                             ? @tr("models.asr.local.status.downloaded" => "Downloaded · {}", root.seaco-installed-size)
-                            : @tr("models.asr.local.download-ready" => "Download to use this model offline")
+                            : @tr("models.asr.seaco.catalog-summary" => "Chinese · Hotword boosting")
                     : card.kind == AsrProviderCardKind.zipformer
                         ? root.zipformer-downloaded
                             ? @tr("models.asr.local.status.downloaded" => "Downloaded · {}", root.zipformer-installed-size)
-                            : @tr("models.asr.local.download-ready" => "Download to use this model offline")
+                            : @tr("models.asr.zipformer.catalog-summary" => "ZH / EN · Streaming")
                     : @tr("models.asr.summary.local-unavailable" => "Download and production adapter are not yet connected");
             status: !card.available
                 ? @tr("models.asr.status.unavailable" => "Unavailable")

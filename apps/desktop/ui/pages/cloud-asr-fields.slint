@@ -1,0 +1,251 @@
+import { AppColors } from "../color-system.slint";
+import { ActionFocus } from "../action-focus.slint";
+
+export component ModalButton inherits Rectangle {
+    in property <string> label;
+    in property <bool> primary: false;
+    in property <bool> quiet: false;
+    in property <string> help;
+    in property <bool> enabled: true;
+    callback activated();
+
+    width: max(96px, button-label.preferred-width + 28px);
+    height: 38px;
+    forward-focus: button-focus;
+    border-radius: 7px;
+    border-width: button-focus.show-ring || (!root.primary && !root.quiet) ? 1px : 0px;
+    border-color: button-focus.show-ring ? AppColors.ink
+        : AppColors.border;
+    background: !root.enabled ? AppColors.surface-muted
+        : root.primary ? (button-touch.has-hover ? AppColors.brand-hover : AppColors.brand)
+        : button-touch.pressed ? AppColors.selected
+        : button-touch.has-hover ? AppColors.surface-subtle : root.quiet ? transparent : AppColors.surface;
+    opacity: !root.enabled ? 0.55 : root.primary && button-touch.pressed ? 0.84 : 1;
+    animate background { duration: button-touch.pressed ? 0ms : 100ms; easing: ease-out; }
+
+    button-label := Text {
+        text: root.label;
+        color: !root.enabled ? AppColors.text-muted
+            : root.primary ? AppColors.on-brand
+            : root.quiet ? AppColors.brand-strong : AppColors.text;
+        font-size: 12px;
+        font-weight: 650;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+    button-focus := ActionFocus {
+        enabled: root.enabled;
+        accessible-role: button;
+        accessible-label: root.label;
+        accessible-description: root.help;
+        accessible-enabled: root.enabled;
+        accessible-action-default => { if root.enabled { root.activated(); } }
+        activated => { root.activated(); }
+    }
+    button-touch := TouchArea {
+        enabled: root.enabled || !root.help.is-empty;
+        mouse-cursor: root.enabled ? pointer : default;
+        clicked => {
+            if root.enabled {
+                button-focus.focus-from-pointer();
+                root.activated();
+            }
+        }
+        Tooltip { text: @markdown("\{root.help}"); }
+    }
+}
+
+export component ModalTextField inherits Rectangle {
+    in-out property <string> value;
+    callback edited();
+    in property <string> placeholder;
+    in property <string> accessible-name;
+    in property <bool> enabled: true;
+    in property <bool> error: false;
+    forward-focus: field-input;
+
+    height: 38px;
+    border-radius: 7px;
+    border-width: 1px;
+    border-color: root.error ? AppColors.danger
+        : field-input.has-focus ? AppColors.brand-strong : AppColors.border;
+    background: AppColors.sidebar;
+    clip: true;
+
+    if root.value.is-empty: Text {
+        x: 12px;
+        width: parent.width - 24px;
+        text: root.placeholder;
+        color: AppColors.text-muted;
+        font-size: 13px;
+        vertical-alignment: center;
+        overflow: elide;
+    }
+    field-input := TextInput {
+        enabled: root.enabled;
+        x: 12px;
+        width: parent.width - 24px;
+        text <=> root.value;
+        edited => { root.edited(); }
+        accessible-label: root.accessible-name;
+        color: AppColors.text;
+        font-size: 13px;
+        vertical-alignment: center;
+    }
+}
+
+export component ModalSecretField inherits Rectangle {
+    in-out property <string> value;
+    callback edited();
+    in property <string> accessible-name;
+    in property <bool> enabled: true;
+    in property <bool> error: false;
+    in-out property <bool> reveal: false;
+    forward-focus: secret-input;
+
+    height: 38px;
+    border-radius: 7px;
+    border-width: 1px;
+    border-color: root.error ? AppColors.danger
+        : secret-input.has-focus ? AppColors.brand-strong : AppColors.border;
+    background: AppColors.sidebar;
+    clip: true;
+
+    ContextMenuArea {
+        x: 12px;
+        width: parent.width - 54px;
+        Menu {
+            MenuItem { title: @tr("common.cut" => "Cut"); activated => { secret-input.cut(); } }
+            MenuItem { title: @tr("common.copy" => "Copy"); activated => { secret-input.copy(); } }
+            MenuItem { title: @tr("common.paste" => "Paste"); activated => { secret-input.paste(); } }
+            MenuItem { title: @tr("common.select-all" => "Select All"); activated => { secret-input.select-all(); } }
+        }
+        secret-input := TextInput {
+            enabled: root.enabled;
+            text <=> root.value;
+            edited => { root.edited(); }
+            input-type: root.reveal ? InputType.text : InputType.password;
+            accessible-label: root.accessible-name;
+            accessible-value: root.value.is-empty ? "" : @tr("common.value-entered" => "Entered");
+            color: AppColors.text;
+            font-size: 13px;
+            vertical-alignment: center;
+        }
+    }
+    reveal-button := Rectangle {
+        x: parent.width - 40px;
+        width: 40px;
+        height: 38px;
+        background: transparent;
+
+        Rectangle {
+            x: 5px;
+            y: 4px;
+            width: 30px;
+            height: 30px;
+            border-radius: 6px;
+            background: reveal-touch.pressed ? AppColors.selected
+                : reveal-touch.has-hover ? AppColors.surface-subtle : transparent;
+
+            Image {
+                x: 7px;
+                y: 7px;
+                width: 16px;
+                height: 16px;
+                source: root.reveal
+                    ? @image-url("../../icons/lucide/eye-off.svg")
+                    : @image-url("../../icons/lucide/eye.svg");
+                colorize: AppColors.text-muted;
+            }
+        }
+        reveal-focus := FocusScope {
+            enabled: root.enabled;
+            accessible-role: button;
+            accessible-label: root.reveal ? @tr("models.asr.hide-api-key" => "Hide API key") : @tr("models.asr.show-api-key" => "Show API key");
+            accessible-action-default => { root.reveal = !root.reveal; }
+            key-pressed(event) => {
+                if event.text == "\n" || event.text == " " {
+                    root.reveal = !root.reveal;
+                    return accept;
+                }
+                return reject;
+            }
+        }
+        reveal-touch := TouchArea {
+            enabled: root.enabled;
+            mouse-cursor: pointer;
+            clicked => {
+                reveal-focus.focus();
+                root.reveal = !root.reveal;
+            }
+        }
+    }
+}
+
+export component CloudServiceAddress inherits VerticalLayout {
+    in-out property <string> value;
+    callback edited();
+    in property <bool> compact;
+    in property <bool> enabled: true;
+    in property <string> error;
+    private property <bool> editing: false;
+    private property <bool> show-input: !root.compact || root.editing || root.value.is-empty || !root.error.is-empty;
+    // Keep the editor open when the first keystroke clears a validation error.
+    changed error => { if !root.error.is-empty { root.editing = true; } }
+    changed value => { if root.value.is-empty { root.editing = true; } }
+    init => { root.editing = root.value.is-empty || !root.error.is-empty; }
+    spacing: 4px;
+    if !root.compact: Text {
+        text: @tr("models.base-url" => "Service URL");
+        font-size: 14px; font-weight: 500; color: AppColors.ink;
+    }
+    if root.compact: FocusScope {
+        height: 30px;
+        enabled: root.enabled;
+        accessible-role: button;
+        accessible-label: @tr("models.base-url" => "Service URL");
+        accessible-description: root.value;
+        accessible-expandable: true;
+        accessible-expanded: root.show-input;
+        accessible-action-default => { root.editing = !root.show-input; }
+        key-pressed(event) => {
+            if event.text == Key.Return || event.text == " " { root.editing = !root.show-input; return accept; }
+            return reject;
+        }
+        Rectangle {
+            border-radius: 5px;
+            background: address-touch.has-hover ? AppColors.surface-subtle : transparent;
+            border-width: parent.has-focus ? 1px : 0px; border-color: AppColors.border;
+            HorizontalLayout {
+                padding-left: 2px; padding-right: 4px; spacing: 8px; cross-axis-alignment: center;
+                Text { text: @tr("models.base-url" => "Service URL"); font-size: 12px; color: AppColors.text-muted; }
+                Text {
+                    text: root.show-input ? "" : root.value;
+                    horizontal-stretch: 1; horizontal-alignment: right; overflow: elide;
+                    font-size: 12px; color: AppColors.text;
+                }
+                Image {
+                    width: 14px; height: 14px; colorize: AppColors.text-muted;
+                    source: root.show-input ? @image-url("../../icons/lucide/chevron-down.svg")
+                        : @image-url("../../icons/lucide/chevron-right.svg");
+                }
+            }
+        }
+        address-touch := TouchArea {
+            enabled: root.enabled; mouse-cursor: pointer;
+            clicked => { root.editing = !root.show-input; }
+        }
+    }
+    if root.show-input: ModalTextField {
+        value <=> root.value; enabled: root.enabled;
+        edited => { root.edited(); }
+        placeholder: "https://api.example.com/v1";
+        accessible-name: @tr("models.base-url" => "Service URL");
+        error: !root.error.is-empty;
+    }
+    if !root.error.is-empty: Text {
+        text: root.error; font-size: 12px; color: AppColors.danger;
+        wrap: word-wrap; overflow: elide; max-height: 36px;
+        Tooltip { text: @markdown("\{root.error}"); }
+    }
+}

@@ -2,6 +2,7 @@ import { ScrollView } from "std-widgets.slint";
 import { DictionaryRecognitionNotice } from "dictionary-recognition-notice.slint";
 import { AppColors } from "../color-system.slint";
 import { ModalShell, ModalSize } from "../components.slint";
+import { DeleteIconButton } from "../delete-icon-button.slint";
 
 export enum DictionaryFilterKind { all, automatic, manual }
 export enum DictionaryOriginKind { automatic, manual }
@@ -519,17 +520,15 @@ export component DictionaryAddDialog inherits Rectangle {
                             changed text => { root.update-row(index, draft-input.text); }
                             init => { if draft.focused { draft-input.focus(); } }
                         }
-                        if root.drafts.length > 1: Rectangle {
+                        if root.drafts.length > 1: DeleteIconButton {
                             x: parent.width - 38px;
                             y: 8px;
                             width: 30px;
                             height: 34px;
-                            border-radius: 7px;
-                            opacity: row-touch.has-hover ? 1 : 0;
+                            opacity: row-touch.has-hover || self.has-hover || self.has-keyboard-focus ? 1 : 0;
                             animate opacity { duration: 120ms; easing: ease-out; }
-                            background: delete-touch.has-hover ? AppColors.danger-soft : transparent;
-                            Image { x: 7px; y: 9px; width: 16px; height: 16px; source: @image-url("../../icons/lucide/trash-2.svg"); }
-                            delete-touch := TouchArea { mouse-cursor: pointer; clicked => { root.remove-row(index); } }
+                            accessible-label: @tr("dictionary.delete-entry" => "Delete entry");
+                            activated => { root.remove-row(index); }
                         }
                     }
                 }

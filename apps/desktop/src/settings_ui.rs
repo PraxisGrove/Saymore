@@ -71,7 +71,7 @@ pub fn wire(ui: &AppWindow, store: Arc<JsonSettingsStore>) {
     });
     model_discovery::wire(ui, Arc::clone(&store));
     asr_configuration::wire(ui, Arc::clone(&store));
-    asr_presets::wire(ui);
+    asr_presets::wire(ui, Arc::clone(&store));
     wire_llm(ui, store);
     provider_key_page::wire(ui);
 }

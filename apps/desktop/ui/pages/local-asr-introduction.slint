@@ -1,0 +1,93 @@
+import { LocalAsrProduct } from "local-asr-products.slint";
+import { AppColors } from "../color-system.slint";
+import { ItemLabel, SupportingText } from "../typography.slint";
+
+component SpecColumn inherits Rectangle {
+    in property <string> label;
+    in property <string> value;
+    in property <TextHorizontalAlignment> align: left;
+    in property <string> help;
+    preferred-height: contents.preferred-height;
+    contents := VerticalLayout {
+        spacing: 3px;
+        SupportingText { text: root.label; horizontal-alignment: root.align; }
+        ItemLabel {
+            text: root.value; horizontal-alignment: root.align;
+            font-weight: 600; wrap: word-wrap; accessible-description: root.help;
+        }
+    }
+    if !root.help.is-empty: Tooltip { text: @markdown("\{root.help}"); }
+}
+
+component SampleWaveform inherits Rectangle {
+    // Peak magnitude per equal-duration bin, normalized to the loudest bin in
+    // standard-zh.pcm (AISHELL-1 BAC009S0006W0280; see assets/asr-test/SOURCE.md).
+    private property <[int]> peaks: [
+        2, 3, 3, 2, 3, 14, 45, 57, 37, 36, 24, 31, 35, 100, 66, 23, 19, 33, 21, 12,
+        25, 25, 31, 27, 39, 33, 19, 21, 15, 63, 53, 28, 40, 18, 6, 4, 3, 4, 3, 4,
+    ];
+    for peak[index] in root.peaks: Rectangle {
+        x: (index + 0.5) * root.width / root.peaks.length - self.width / 2;
+        y: (root.height - self.height) / 2;
+        width: root.width / root.peaks.length * 0.62;
+        height: max(self.width, root.height * sqrt(peak / 100.0));
+        border-radius: self.width / 2;
+        background: AppColors.text;
+    }
+}
+
+export component LocalAsrIntroduction inherits Rectangle {
+    in property <LocalAsrProduct> product;
+    in property <string> fixed-mode;
+    in property <bool> show-memory-estimate;
+    in property <bool> compatible;
+    preferred-height: specs.y + specs.height;
+    height: self.preferred-height;
+
+    hero := Rectangle {
+        x: 0px; y: 16px; width: root.width;
+        height: copy.y + copy.height;
+        headline := Text {
+            x: 0px; y: 0px;
+            width: waveform.x - 20px; height: self.preferred-height;
+            text: root.product.headline;
+            font-size: 27px; font-weight: 650; letter-spacing: -0.6px;
+            color: AppColors.ink; wrap: word-wrap;
+        }
+        copy := Text {
+            x: 0px; y: headline.height + 12px;
+            width: headline.width; height: self.preferred-height;
+            text: root.product.description;
+            font-size: 14px; color: AppColors.text; wrap: word-wrap;
+        }
+        waveform := SampleWaveform {
+            x: hero.width - self.width; y: (hero.height - self.height) / 2;
+            width: min(164px, hero.width * 0.36);
+            height: min(hero.height * 0.88, self.width * 0.72);
+        }
+    }
+    specs := HorizontalLayout {
+        x: 0px; y: hero.y + hero.height + 28px;
+        width: root.width; height: self.preferred-height;
+        SpecColumn {
+            width: specs.width / 3;
+            label: @tr("models.asr.local.compatibility" => "Device");
+            value: root.compatible ? @tr("models.asr.status.supported" => "Supported")
+                                   : @tr("models.asr.placeholder.unverified" => "Unverified");
+        }
+        SpecColumn {
+            width: specs.width / 3; align: center;
+            label: @tr("models.asr.whisper.recording-limit" => "Recording limit");
+            value: @tr("models.asr.local.recording-limit-value" => "10 min");
+        }
+        SpecColumn {
+            width: specs.width / 3; align: right;
+            label: root.show-memory-estimate ? @tr("models.asr.whisper.memory-estimate" => "Estimated memory")
+                                             : @tr("models.asr.mode.title" => "Recognition mode");
+            // Rounded from the short transcription runs in docs/research/whisper-streaming.md.
+            value: root.show-memory-estimate ? @tr("models.asr.local.memory-approximate" => "Approx. {}", "1.1 GB")
+                : root.fixed-mode.is-empty ? @tr("models.asr.local.switchable-mode" => "Non-streaming / streaming") : root.fixed-mode;
+            help: root.show-memory-estimate ? @tr("models.asr.whisper.memory-estimate-help" => "Based on peak process memory while transcribing a 3.9-second sample on an Apple M5. Usage varies by device and recording.") : "";
+        }
+    }
+}

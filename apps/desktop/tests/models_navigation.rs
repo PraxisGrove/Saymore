@@ -2,7 +2,7 @@ use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 use std::time::Duration;
 
-use slint::platform::{PointerEventButton, WindowEvent};
+use slint::platform::WindowEvent;
 use slint::{ComponentHandle, ModelRc, Timer, VecModel};
 
 #[allow(
@@ -16,12 +16,24 @@ mod ui {
 }
 
 use ui::{AppPage, AppWindow};
+#[path = "support/model_controls.rs"]
+mod controls;
+use controls::{
+    AccessibleRole::{Button, RadioButton, Text},
+    bounds, click as press, click_at as click, visible_bounds,
+};
 
 #[path = "support/home_layout.rs"]
 mod home_layout;
+#[path = "support/polishing_consent.rs"]
+mod polishing_consent;
 
 fn main() {
     let ui = require(AppWindow::new(), "construct app window");
+    require(
+        slint::select_bundled_translation("en"),
+        "select translation",
+    );
     require(ui.show(), "display app window");
     ui.set_model_tab(1);
     ui.set_focus_asr_config(true);
@@ -57,7 +69,7 @@ fn main() {
             ));
             check_additional_provider_actions(&ui);
             home_layout::check_home_layout(&ui);
-            let _ = slint::quit_event_loop();
+            polishing_consent::check_slider_while_confirming(ui);
         });
     });
 
@@ -75,24 +87,6 @@ fn require<T, E: std::fmt::Display>(result: Result<T, E>, action: &str) -> T {
 fn fail(message: &str) -> ! {
     eprintln!("models navigation test failed: {message}");
     std::process::exit(1);
-}
-
-fn click(ui: &AppWindow, x: f32, y: f32) {
-    for event in [
-        WindowEvent::PointerPressed {
-            position: slint::LogicalPosition::new(x, y),
-            button: PointerEventButton::Left,
-        },
-        WindowEvent::PointerReleased {
-            position: slint::LogicalPosition::new(x, y),
-            button: PointerEventButton::Left,
-        },
-    ] {
-        require(
-            ui.window().try_dispatch_event(event),
-            "dispatch model action",
-        );
-    }
 }
 
 fn check_additional_provider_actions(ui: &AppWindow) {
@@ -131,17 +125,37 @@ fn check_additional_provider_actions(ui: &AppWindow) {
         }),
         "pin the default window size",
     );
-    // The navigation check opened the cloud configuration dialog; close it first.
-    click(ui, 735.0, 150.0);
-    // Use the real card/modal event path at the default 920 x 700 window size.
-    click(ui, 350.0, 200.0);
-    click(ui, 680.0, 350.0);
-    click(ui, 560.0, 350.0);
-    click(ui, 735.0, 150.0);
-    click(ui, 700.0, 200.0);
-    click(ui, 680.0, 350.0);
+    // Dismiss the cloud configuration opened by the navigation check.
+    press(ui, Button, "Close");
+    press(ui, Button, "SeACo-Paraformer");
+    press(ui, Button, "Download");
+    press(ui, Button, "Import model");
+    ui.set_seaco_download_state(LocalModelDownloadState::Downloaded);
+    bounds(ui, Text, "Non-streaming");
+    assert!(visible_bounds(ui, RadioButton, "Streaming").is_none());
+    press(ui, Button, "Close");
+    press(ui, Button, "Zipformer");
+    assert!(visible_bounds(ui, Button, "Import model").is_none());
+    press(ui, Button, "Download");
     ui.set_zipformer_download_state(LocalModelDownloadState::Downloaded);
-    click(ui, 650.0, 150.0);
+    bounds(ui, Text, "Streaming");
+    assert!(visible_bounds(ui, RadioButton, "Streaming").is_none());
+
+    // A pending result for a different local model must not leak into the current dialog.
+    ui.set_seaco_test(ui::LocalModelTestState {
+        status: ui::LocalModelTestStatus::Succeeded,
+        transcript: "SeACo sample".into(),
+        ..Default::default()
+    });
+    ui.invoke_report_local_operation(Kind::SeacoParaformer, "SeACo activation failed".into());
+    assert!(visible_bounds(ui, Text, "Transcript: SeACo sample").is_none());
+    assert!(visible_bounds(ui, Text, "SeACo activation failed").is_none());
+    press(ui, Button, "Use model");
+    press(ui, Button, "Close");
+    press(ui, Button, "SeACo-Paraformer");
+    bounds(ui, Text, "Transcript: SeACo sample");
+    bounds(ui, Text, "SeACo activation failed");
+    press(ui, Button, "Close");
     assert_eq!(
         vec![
             ("download", Kind::SeacoParaformer),

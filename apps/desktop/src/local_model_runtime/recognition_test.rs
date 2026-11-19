@@ -1,5 +1,26 @@
 use super::*;
 
+use crate::ui::{LocalModelTestState, LocalModelTestStatus};
+
+pub(super) fn running(ui: &AppWindow, model: LocalModel) -> bool {
+    let state = match model {
+        LocalModel::Whisper => ui.get_whisper_test(),
+        LocalModel::Qwen3 => ui.get_qwen3_asr_test(),
+        LocalModel::Seaco => ui.get_seaco_test(),
+        LocalModel::Zipformer => ui.get_zipformer_test(),
+    };
+    state.status == LocalModelTestStatus::Running
+}
+
+pub(super) fn set_state(ui: &AppWindow, model: LocalModel, state: LocalModelTestState) {
+    match model {
+        LocalModel::Whisper => ui.set_whisper_test(state),
+        LocalModel::Qwen3 => ui.set_qwen3_asr_test(state),
+        LocalModel::Seaco => ui.set_seaco_test(state),
+        LocalModel::Zipformer => ui.set_zipformer_test(state),
+    }
+}
+
 pub(super) fn wire(
     ui: &AppWindow,
     installers: Arc<LocalModelInstallers>,
@@ -16,12 +37,17 @@ pub(super) fn wire(
         let Some(ui) = weak.upgrade() else {
             return;
         };
-        if activation_pending(&ui, model) {
+        if activation_pending(&ui, model) || running(&ui, model) {
             return;
         }
-        ui.set_asr_testing(true);
-        ui.set_asr_test_succeeded(false);
-        ui.set_asr_draft_error(false);
+        set_state(
+            &ui,
+            model,
+            LocalModelTestState {
+                status: LocalModelTestStatus::Running,
+                ..Default::default()
+            },
+        );
         let result_ui = weak.clone();
         let asr = Arc::clone(&asr);
         let spawn = std::thread::Builder::new()
@@ -29,24 +55,37 @@ pub(super) fn wire(
             .spawn(move || {
                 let result = run_test(model, &asr);
                 let _ = result_ui.upgrade_in_event_loop(move |ui| {
-                    ui.set_asr_testing(false);
-                    match result {
-                        Ok((elapsed, Ok(transcript))) => {
-                            ui.set_asr_test_succeeded(true);
-                            ui.set_asr_test_elapsed(format!("{:.2}", elapsed.as_secs_f64()).into());
-                            ui.set_asr_test_result(transcript.into());
+                    let (elapsed, transcript) = match result {
+                        Ok((elapsed, transcript)) => {
+                            (format!("{:.2}", elapsed.as_secs_f64()), transcript)
                         }
-                        Ok((elapsed, Err(error))) => {
-                            ui.set_asr_test_elapsed(format!("{:.2}", elapsed.as_secs_f64()).into());
-                            apply_operation_failure(&ui, error.to_string());
-                        }
-                        Err(error) => apply_operation_failure(&ui, error.to_string()),
-                    }
+                        Err(error) => (String::new(), Err(error)),
+                    };
+                    let (status, transcript) = match transcript {
+                        Ok(text) => (LocalModelTestStatus::Succeeded, text),
+                        Err(error) => (LocalModelTestStatus::Failed, error.to_string()),
+                    };
+                    set_state(
+                        &ui,
+                        model,
+                        LocalModelTestState {
+                            status,
+                            elapsed: elapsed.into(),
+                            transcript: transcript.into(),
+                        },
+                    );
                 });
             });
         if let Err(error) = spawn {
-            ui.set_asr_testing(false);
-            apply_operation_failure(&ui, error.to_string());
+            set_state(
+                &ui,
+                model,
+                LocalModelTestState {
+                    status: LocalModelTestStatus::Failed,
+                    transcript: error.to_string().into(),
+                    ..Default::default()
+                },
+            );
         }
     });
 }

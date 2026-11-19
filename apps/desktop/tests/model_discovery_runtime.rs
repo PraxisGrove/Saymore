@@ -15,6 +15,10 @@ mod ui {
     slint::include_modules!();
 }
 
+#[path = "support/asr_discovery_race.rs"]
+mod asr_discovery_race;
+#[path = "support/model_controls.rs"]
+mod controls;
 #[path = "support/model_discovery_runtime.rs"]
 mod settings_ui;
 
@@ -63,6 +67,25 @@ fn check_cloud_asr_presets(ui: &ui::AppWindow, store: &JsonSettingsStore) {
     assert!(models(ui).contains(&"whisper-large-v3-turbo".to_owned()));
     assert_eq!("whisper-large-v3", ui.get_custom_asr_model().as_str());
     assert!(!ui.get_model_discovery_loading());
+
+    // Opening an already saved preset must offer activation without a second save.
+    let mut catalog = saved.clone();
+    let groq = require(
+        CloudAsrPreset::Groq
+            .settings_with("groq-key", Some("whisper-large-v3"), |_| None)
+            .ok_or("missing Groq test configuration"),
+    );
+    catalog.configure_openai_transcriptions_asr_provider(&groq);
+    require(store.save_catalog(&catalog));
+    ui.invoke_prepare_cloud_asr(ui::CloudAsrService::Groq);
+    settle();
+    assert!(!ui.get_asr_config_dirty());
+    ui.set_custom_asr_api_key("edited-groq-key".into());
+    ui.invoke_prepare_cloud_asr(ui::CloudAsrService::Groq);
+    settle();
+    assert!(ui.get_asr_config_dirty());
+    assert_eq!(catalog, require(store.load_catalog()));
+    require(store.save_catalog(&saved));
 }
 
 fn main() {
@@ -89,13 +112,32 @@ fn main() {
     ui.set_custom_asr_base_url(server.url("/v1/audio/transcriptions").into());
     ui.set_custom_asr_api_key("speech-key".into());
     ui.set_custom_asr_model("model-b".into());
-    ui.set_focus_asr_config(true);
+    require(slint::select_bundled_translation("en"));
+    ui.set_llm_modal_visible(false);
+    ui.set_asr_provider_cards(slint::ModelRc::new(slint::VecModel::from(vec![
+        ui::AsrProviderCardSpec {
+            kind: ui::AsrProviderCardKind::Custom,
+            available: true,
+        },
+    ])));
     ui.set_current_page(ui::AppPage::Models);
+    settle();
+    // Closing a settings dialog restores the saved polishing catalog.
+    settings_ui::restore_catalog(&ui, &store);
+    assert!(models(&ui).contains(&"custom-model".to_owned()));
+    controls::click(
+        &ui,
+        controls::AccessibleRole::Button,
+        "Custom compatible API",
+    );
+    controls::bounds(&ui, controls::AccessibleRole::Button, "Get models");
+    assert!(models(&ui).is_empty(), "ASR offered a polishing model");
     fetch(&ui);
     response.assert();
     assert_eq!(vec!["model-a", "model-b"], models(&ui));
     assert_eq!("model-b", ui.get_custom_asr_model().as_str());
     assert!(!ui.get_model_discovery_error());
+    asr_discovery_race::check(&ui);
 
     // A fetched directory remains available when a user types their own model.
     ui.set_custom_asr_model("manual-speech-model".into());
@@ -405,6 +447,10 @@ fn models(ui: &ui::AppWindow) -> Vec<String> {
 fn fetch(ui: &ui::AppWindow) {
     settle();
     ui.invoke_refresh_models();
+    wait_for_discovery(ui);
+}
+
+fn wait_for_discovery(ui: &ui::AppWindow) {
     let poll = Timer::default();
     let weak = ui.as_weak();
     poll.start(TimerMode::Repeated, Duration::from_millis(10), move || {

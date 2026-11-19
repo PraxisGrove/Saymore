@@ -243,6 +243,10 @@ fn begin_connection_test(
     candidate: Result<AsrProviderConfiguration, AsrConfigError>,
     purpose: TestPurpose,
 ) {
+    // Discovery can still replace the model shown in the draft.
+    if ui.get_model_discovery_loading() {
+        return;
+    }
     let candidate = match candidate {
         Ok(candidate) => candidate,
         Err(error) => {

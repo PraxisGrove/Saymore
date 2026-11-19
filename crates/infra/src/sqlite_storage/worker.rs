@@ -7,6 +7,7 @@ use std::{
     },
 };
 
+use jiff::civil::Date;
 use rusqlite::Connection;
 use template_app::{
     DictionaryCandidateEvidence, DictionaryEntry, DictionaryLearningOutcome, HistoryCursor,
@@ -39,8 +40,8 @@ pub(super) enum Command {
         response: SyncSender<Result<Vec<String>, StorageError>>,
     },
     UsageSnapshot {
-        period_start: chrono::NaiveDate,
-        period_end: chrono::NaiveDate,
+        period_start: Date,
+        period_end: Date,
         response: SyncSender<Result<UsageSnapshot, StorageError>>,
     },
     History(HistoryCommand),
@@ -258,8 +259,8 @@ fn record_vocabulary_success(
 
 fn respond_usage_snapshot(
     database: &mut Database,
-    period_start: chrono::NaiveDate,
-    period_end: chrono::NaiveDate,
+    period_start: Date,
+    period_end: Date,
     response: SyncSender<Result<UsageSnapshot, StorageError>>,
 ) {
     send_result(

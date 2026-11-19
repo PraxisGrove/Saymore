@@ -38,21 +38,31 @@ Run doctests with Cargo because nextest does not execute doctests:
 cargo test --workspace --doc
 ```
 
-The `models_navigation`, `model_discovery_runtime`, `qwen_modes` and
-`whisper_modes` Slint integration tests use custom main-thread executables and
-are excluded from Nextest discovery. The navigation executable also checks
-home-page retry and scrolling at the default and minimum window sizes, plus
-local-provider download/selection callbacks. The Qwen and Whisper tests click
-both recognition modes, verifies persistence without provider selection changes,
-and checks the recording preview renders visible pixels when a frame is
-available. Snapshot requests wait for a rendering notification; a locked or
-occluded desktop can skip visual artifacts after a bounded wait, while all
-interaction and persistence assertions still run. Mode tests use a shorter
-native window and position clicks relative to its actual client size, including
-desktop size clamping. Captures allow reveal animations to settle after the
-first frame. The discovery test exercises the production callback wiring against
-a local HTTP service, including fetching, manual entry, failure preservation,
-caching, and invalidation. Run them explicitly with:
+Four Slint integration tests use main-thread executables and run separately from
+Nextest.
+
+- `models_navigation` checks home-page retry and scrolling at both supported
+  window sizes, local-model actions, and keyboard input while a modal is open.
+- `model_discovery_runtime` exercises the production callbacks against a local
+  HTTP service. It covers model discovery, manual entry, failed requests, cache
+  invalidation, and reopening speech configuration after viewing polishing
+  models.
+- `qwen_modes` and `whisper_modes` click the rendered recognition controls and
+  verify that changing mode preserves the active provider and persists across
+  launches. Snapshot checks wait for the next rendered frame. If the desktop
+  cannot supply a frame, interaction and persistence checks still run.
+- `whisper_modes` also checks the installed-model layout at both window sizes.
+  File size and live app memory precede the test results. The footer trash
+  button shows a tooltip on hover. Pressing it and releasing outside cancels
+  deletion. Releasing inside removes an idle model. Activation, testing and
+  active use each prevent deletion.
+
+Switching between local cards checks that late results and errors stay with
+their originating model. For a visual walkthrough of the four local models and
+cloud configuration, open the native `examples/asr-models.slint` preview, which
+uses in-memory fixtures.
+
+Run the production UI checks with:
 
 ```bash
 cargo test -p saymore-desktop --test models_navigation --test model_discovery_runtime --test qwen_modes --test whisper_modes
@@ -212,22 +222,23 @@ dark appearance at the default 920 × 700 logical window size and the minimum 82
 - Open both Transcription and Polishing. Check provider names, source labels,
   summaries, status badges, and the polishing enablement label and helper.
 - Open Qwen3-ASR, Whisper, SeACo-Paraformer, and Zipformer details. Check
-  metadata, download size, runtime memory, device status, download actions, and
-  usage tips. Cover not-downloaded, downloading, paused, installed,
-  activation-pending, and failure states; include a three-digit download
-  percentage and a long error.
-- Check SeACo's verified local import instead of a download action. Check
-  recognition-test idle, running, success, and failure states. On upgrade from a
-  build with retired Paraformer, SenseVoiceSmall, or Moonshine, verify that
-  their old selections clear without fallback, old history remains readable, and
-  model and punctuation files remain counted and manually removable from storage
-  settings. Include incomplete old downloads in cleanup acceptance. Use a
-  disposable test profile; do not corrupt or delete a user's installed models.
+  language and mode, download size, device status and download actions. After
+  installation check disk size beside the live memory reading. Qwen samples its
+  recognition worker and the others sample the application. Cover
+  not-downloaded, downloading, paused, installed, activation-pending, and
+  failure states; include a three-digit download percentage and a long error.
+- Check both SeACo's download and verified local import. Check recognition-test
+  idle, running, success, and failure states. On upgrade from a build with
+  retired Paraformer, SenseVoiceSmall, or Moonshine, verify that their old
+  selections clear without fallback, old history remains readable, and model and
+  punctuation files remain counted and manually removable from storage settings.
+  Include incomplete old downloads in cleanup acceptance. Use a disposable test
+  profile; do not corrupt or delete a user's installed models.
 - Verify that enlarged text has no clipped strokes or overlapping controls.
   Standard status and action labels must fit. Long descriptions and errors must
-  wrap, and the dialog must scroll to the final usage tip. Provider names and
-  summaries may elide at narrow widths, but must not collide with badges or
-  icons.
+  wrap, and the local-model dialog must grow to keep its footer and all results
+  in view. Provider names and summaries may elide at narrow widths, but must not
+  collide with badges or icons.
 - Move the window between displays with different scaling in both directions,
   with a local-model dialog open and closed. Compare with a fresh launch on each
   display: text must redraw at the destination scale without persistent blur,

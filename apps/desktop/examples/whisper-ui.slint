@@ -1,0 +1,107 @@
+// Interactive Slint sample. All model operations run in memory.
+import { ModelsPreview } from "model-ui.slint";
+import { AppButton, AsrProviderCardKind } from "../ui/components.slint";
+import { LocalAsrModelModal, LocalModelDownloadState } from "../ui/pages/local-asr-model.slint";
+import { LocalRecognitionMode } from "../ui/pages/recognition-mode-control.slint";
+import { LocalModelTestStatus } from "../ui/app-window.slint";
+
+export component WhisperPreview inherits ModelsPreview {
+    title: "Saymore · Whisper Slint Preview";
+    model-tab: 0;
+    private property <bool> initial-detail: true;
+    whisper-installed-size: root.whisper-download-state == LocalModelDownloadState.downloaded ? "834 MB" : "";
+
+    function reset-preview() {
+        root.whisper-download-state = LocalModelDownloadState.not-downloaded;
+        root.whisper-download-progress = 0;
+        root.whisper-selected = false;
+        root.whisper-activation-pending = false;
+        root.whisper-recognition-mode = LocalRecognitionMode.non-streaming;
+        root.whisper-test = { status: LocalModelTestStatus.idle, elapsed: "", transcript: "" };
+    }
+
+    request-local-model-download(kind) => {
+        if kind == AsrProviderCardKind.whisper-large-v3-turbo {
+            root.whisper-download-state = LocalModelDownloadState.downloading;
+        }
+    }
+    request-local-model-pause(kind) => {
+        if kind == AsrProviderCardKind.whisper-large-v3-turbo {
+            root.whisper-download-state = LocalModelDownloadState.paused;
+        }
+    }
+    request-local-model-cancel-download(kind) => {
+        if kind == AsrProviderCardKind.whisper-large-v3-turbo { root.reset-preview(); }
+    }
+    request-local-model-delete(kind) => {
+        if kind == AsrProviderCardKind.whisper-large-v3-turbo { root.reset-preview(); }
+    }
+    request-local-model-selection(kind) => {
+        if kind == AsrProviderCardKind.whisper-large-v3-turbo { root.whisper-activation-pending = true; }
+    }
+    request-local-model-test(kind) => {
+        if kind == AsrProviderCardKind.whisper-large-v3-turbo {
+            root.whisper-test = { status: LocalModelTestStatus.running, elapsed: "", transcript: "" };
+        }
+    }
+
+    Timer {
+        interval: 500ms;
+        running: root.whisper-download-state == LocalModelDownloadState.downloading;
+        triggered => {
+            root.whisper-download-progress = min(1, root.whisper-download-progress + 0.125);
+            if root.whisper-download-progress >= 1 { root.whisper-download-state = LocalModelDownloadState.downloaded; }
+        }
+    }
+    Timer {
+        interval: 750ms;
+        running: root.whisper-activation-pending;
+        triggered => {
+            root.whisper-activation-pending = false;
+            root.whisper-selected = true;
+        }
+    }
+    Timer {
+        interval: 1s;
+        running: root.whisper-test.status == LocalModelTestStatus.running;
+        triggered => {
+            root.whisper-test = { status: LocalModelTestStatus.succeeded, elapsed: "1.0", transcript: "可以通过语音进行人机交互" };
+        }
+    }
+
+    // The opening view and the catalog's own detail use the same component and callbacks.
+    if root.initial-detail: LocalAsrModelModal {
+        width: root.width;
+        height: root.height;
+        kind: AsrProviderCardKind.whisper-large-v3-turbo;
+        download-state: root.whisper-download-state;
+        download-progress: root.whisper-download-progress;
+        download-supported: root.whisper-download-supported;
+        download-size: root.whisper-download-size;
+        installed-size: root.whisper-installed-size;
+        runtime-memory-live: root.whisper-runtime-memory-active;
+        runtime-memory-usage: root.whisper-runtime-memory-usage;
+        adapter-ready: root.whisper-adapter-ready;
+        selected: root.whisper-selected;
+        selection-pending: root.whisper-activation-pending;
+        whisper-mode: root.whisper-recognition-mode;
+        testing: root.whisper-test.status == LocalModelTestStatus.running;
+        test-succeeded: root.whisper-test.status == LocalModelTestStatus.succeeded;
+        test-elapsed: root.whisper-test.elapsed;
+        test-result: root.whisper-test.transcript;
+        cancelled => { root.initial-detail = false; }
+        whisper-mode-changed(mode) => { root.change-whisper-recognition-mode(mode); }
+        download-requested(kind) => { root.request-local-model-download(kind); }
+        pause-requested(kind) => { root.request-local-model-pause(kind); }
+        cancel-download-requested(kind) => { root.request-local-model-cancel-download(kind); }
+        delete-requested(kind) => { root.request-local-model-delete(kind); }
+        select-provider(kind) => { root.request-local-model-selection(kind); }
+        run-test(kind) => { root.request-local-model-test(kind); }
+    }
+    if root.whisper-download-state != LocalModelDownloadState.not-downloaded: AppButton {
+        x: 16px; y: 12px;
+        width: self.min-width; height: self.min-height;
+        text: "重置预览";
+        clicked => { root.reset-preview(); }
+    }
+}

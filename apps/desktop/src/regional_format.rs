@@ -1,7 +1,8 @@
 use std::str::FromStr;
 
-use chrono::Locale as DateLocale;
+use jiff::civil::Date;
 use num_format::{Locale as NumberLocale, ToFormattedString};
+use pure_rust_locales::{Locale as DateLocale, locale_match};
 
 pub fn system_locale() -> Option<String> {
     sys_locale::get_locale()
@@ -11,6 +12,18 @@ pub fn date_locale(locale: Option<&str>) -> DateLocale {
     locale_candidates(locale)
         .find_map(|candidate| DateLocale::from_str(&candidate).ok())
         .unwrap_or(DateLocale::POSIX)
+}
+
+pub fn weekday_name(date: Date, locale: DateLocale) -> &'static str {
+    locale_match!(locale => LC_TIME::DAY)[date.weekday().to_sunday_zero_offset() as usize]
+}
+
+pub fn short_weekday_name(date: Date, locale: DateLocale) -> &'static str {
+    locale_match!(locale => LC_TIME::ABDAY)[date.weekday().to_sunday_zero_offset() as usize]
+}
+
+pub fn short_month_name(date: Date, locale: DateLocale) -> &'static str {
+    locale_match!(locale => LC_TIME::ABMON)[(date.month() - 1) as usize]
 }
 
 pub fn format_integer(value: u64, locale: Option<&str>) -> String {

@@ -1,0 +1,48 @@
+// Run with slint-viewer. Preview callbacks change only in-memory UI state.
+import { AppWindow, AsrProviderCardKind, LlmProvider, PolishingStrength, LocalRecognitionMode } from "../ui/app-window.slint";
+import { AppPage } from "../ui/components.slint";
+
+export component ModelsPreview inherits AppWindow {
+    title: "Saymore · Slint Preview";
+    current-page: AppPage.models;
+    model-tab: 1;
+    macos-platform: true;
+    // Match the macOS release catalog in settings_ui/asr_provider_cards.rs.
+    asr-provider-cards: [
+        { kind: AsrProviderCardKind.saymore-cloud, available: false },
+        { kind: AsrProviderCardKind.macos-dictation, available: false },
+        { kind: AsrProviderCardKind.whisper-large-v3-turbo, available: true },
+        { kind: AsrProviderCardKind.qwen3-asr, available: true },
+        { kind: AsrProviderCardKind.seaco-paraformer, available: true },
+        { kind: AsrProviderCardKind.zipformer, available: true },
+        { kind: AsrProviderCardKind.volcengine, available: true },
+        { kind: AsrProviderCardKind.openai, available: true },
+        { kind: AsrProviderCardKind.groq, available: true },
+        { kind: AsrProviderCardKind.mistral, available: true },
+        { kind: AsrProviderCardKind.custom, available: true },
+    ];
+    whisper-download-supported: true;
+    whisper-adapter-ready: true;
+    whisper-download-size: "834 MB";
+    qwen3-asr-download-supported: true;
+    qwen3-asr-adapter-ready: true;
+    seaco-download-supported: true;
+    seaco-adapter-ready: true;
+    seaco-import-supported: true;
+    zipformer-download-supported: true;
+    zipformer-adapter-ready: true;
+    change-whisper-recognition-mode(mode) => { root.whisper-recognition-mode = mode; }
+    change-qwen-recognition-mode(mode) => { root.qwen-recognition-mode = mode; }
+
+    llm-enabled: true;
+    active-llm-provider: LlmProvider.deepseek;
+    llm-provider: LlmProvider.deepseek;
+    llm-provider-configured: { deepseek: true };
+    polishing-strength: PolishingStrength.light;
+    set-polishing-strength(value) => { root.polishing-strength = value; }
+    set-llm-enabled(value, _) => { root.llm-enabled = value; }
+    request-llm-enable(value) => {
+        root.polishing-strength = value;
+        root.llm-enabled = true;
+    }
+}

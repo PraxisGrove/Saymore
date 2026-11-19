@@ -1,31 +1,105 @@
 import { AppColors } from "../color-system.slint";
 export enum LocalRecognitionMode { non-streaming, streaming }
 
+component ModeOption inherits FocusScope {
+    in property <string> label;
+    in property <string> help;
+    in property <bool> selected;
+    private property <bool> pointer-focused: false;
+    callback activate();
+    callback navigate(LocalRecognitionMode);
+
+    accessible-role: radio-button;
+    accessible-label: root.label;
+    accessible-description: root.help;
+    accessible-checkable: true;
+    accessible-checked: root.selected;
+    accessible-action-default => { root.activate(); }
+    focus-changed-event => {
+        if !root.has-focus { root.pointer-focused = false; }
+    }
+    key-pressed(event) => {
+        root.pointer-focused = false;
+        if event.text == Key.LeftArrow { root.navigate(LocalRecognitionMode.non-streaming); return accept; }
+        if event.text == Key.RightArrow { root.navigate(LocalRecognitionMode.streaming); return accept; }
+        if event.text == " " || event.text == Key.Return { root.activate(); return accept; }
+        return reject;
+    }
+
+    Rectangle {
+        border-radius: self.height / 2;
+        background: AppColors.text-muted;
+        opacity: touch.pressed ? 0.16 : touch.has-hover && !root.selected ? 0.07 : 0;
+        animate opacity { duration: touch.pressed ? 0ms : 90ms; easing: ease-out; }
+    }
+    Text {
+        text: root.label;
+        color: root.selected || touch.has-hover ? AppColors.ink : AppColors.text;
+        font-size: 12px;
+        font-weight: root.selected ? 650 : 500;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+    if root.has-focus && !root.pointer-focused && !touch.pressed: Rectangle {
+        x: 1px; y: 1px; width: parent.width - 2px; height: parent.height - 2px;
+        border-radius: self.height / 2;
+        border-width: 1px;
+        border-color: AppColors.text-muted;
+        background: transparent;
+    }
+    touch := TouchArea {
+        mouse-cursor: pointer;
+        Tooltip { text: @markdown("\{root.help}"); }
+        clicked => {
+            root.pointer-focused = true;
+            root.activate();
+        }
+    }
+}
+
 export component RecognitionModeControl inherits Rectangle {
     in property <LocalRecognitionMode> mode: LocalRecognitionMode.non-streaming;
     callback changed(LocalRecognitionMode);
-    height: 26px;
-    for label[index] in [@tr("models.asr.mode.non-streaming" => "Non-streaming"), @tr("models.asr.mode.streaming" => "Streaming")]: Rectangle {
-        x: index * (parent.width / 2);
-        width: parent.width / 2 - 3px;
-        height: parent.height;
-        private property <LocalRecognitionMode> value: index == 0 ? LocalRecognitionMode.non-streaming : LocalRecognitionMode.streaming;
-        background: root.mode == self.value ? AppColors.selected : AppColors.surface;
-        border-radius: 6px;
-        border-width: 1px;
-        border-color: root.mode == self.value ? AppColors.brand : AppColors.border;
-        Text {
-            text: label;
-            font-size: 11px;
-            color: AppColors.ink;
-            horizontal-alignment: center;
-            vertical-alignment: center;
-            overflow: elide;
-        }
-        TouchArea {
-            accessible-role: button;
-            accessible-label: label;
-            clicked => { root.changed(parent.value); }
-        }
+    private property <length> inset: 3px;
+    private property <length> segment-width: (root.width - 2 * root.inset) / 2;
+
+    width: 244px; height: 36px;
+    border-radius: self.height / 2;
+    background: AppColors.surface-muted;
+    accessible-role: radio-group;
+    accessible-label: @tr("models.asr.mode.title" => "Recognition mode");
+    accessible-item-count: 2;
+    accessible-orientation: horizontal;
+
+    function choose(value: LocalRecognitionMode) {
+        if root.mode != value { root.changed(value); }
+        if value == LocalRecognitionMode.streaming { live.focus(); }
+        else { segments.focus(); }
+    }
+
+    thumb := Rectangle {
+        x: root.inset + (root.mode == LocalRecognitionMode.streaming ? root.segment-width : 0px);
+        y: root.inset; width: root.segment-width; height: parent.height - 2 * root.inset;
+        border-radius: self.height / 2;
+        background: AppColors.dark-mode ? AppColors.chart-neutral : AppColors.surface;
+        border-width: 1px; border-color: AppColors.border;
+        drop-shadow-color: AppColors.shadow; drop-shadow-blur: 2px; drop-shadow-offset-y: 1px;
+        animate x { duration: 140ms; easing: ease-out; }
+    }
+    segments := ModeOption {
+        x: root.inset; y: root.inset; width: root.segment-width; height: thumb.height;
+        label: @tr("models.asr.mode.non-streaming" => "Non-streaming");
+        help: @tr("models.asr.local.mode-segments-help" => "Transcribes in the background. The transcript appears when you stop. Applies to the next recording.");
+        selected: root.mode == LocalRecognitionMode.non-streaming;
+        activate => { root.choose(LocalRecognitionMode.non-streaming); }
+        navigate(value) => { root.choose(value); }
+    }
+    live := ModeOption {
+        x: root.inset + root.segment-width; y: root.inset; width: root.segment-width; height: thumb.height;
+        label: @tr("models.asr.mode.streaming" => "Streaming");
+        help: @tr("models.asr.local.mode-live-help" => "Shows draft text as you speak. Applies to the next recording.");
+        selected: root.mode == LocalRecognitionMode.streaming;
+        activate => { root.choose(LocalRecognitionMode.streaming); }
+        navigate(value) => { root.choose(value); }
     }
 }

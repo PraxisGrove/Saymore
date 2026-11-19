@@ -13,9 +13,15 @@ mod ui {
 }
 #[path = "../src/settings_ui/qwen_mode.rs"]
 mod binding;
+#[path = "support/model_controls.rs"]
+mod controls;
 #[path = "support/mode_ui.rs"]
 mod support;
-use support::{click, require, save_snapshot};
+use controls::{
+    AccessibleRole::{Button, RadioButton, Text},
+    bounds, click, visible_bounds,
+};
+use support::require;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let root =
@@ -27,6 +33,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     catalog.select_whisper_provider();
     store.save_catalog(&catalog)?;
     let window = ui::AppWindow::new()?;
+    slint::select_bundled_translation("en")?;
     binding::wire(&window, store.clone());
     window.set_current_page(ui::AppPage::Models);
     window.set_model_tab(0);
@@ -37,6 +44,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         },
     ])));
     window.set_qwen3_asr_download_supported(true);
+    window.set_qwen3_asr_adapter_ready(true);
+    window.set_qwen3_asr_download_size("2.03 GB".into());
+    let tapped = window.as_weak();
+    window.on_request_local_model_download(move |kind| {
+        require(kind == ui::AsrProviderCardKind::Qwen3Asr);
+        if let Some(window) = tapped.upgrade() {
+            window.set_qwen3_asr_download_state(ui::LocalModelDownloadState::Downloaded);
+            window.set_qwen3_asr_installed_size("2.03 GB".into());
+        }
+    });
     window
         .window()
         .set_size(slint::LogicalSize::new(920.0, 600.0));
@@ -59,20 +76,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let Some(window) = weak.upgrade() else {
             std::process::exit(1);
         };
-        click(&window, 350.0, 200.0);
-        support::click_mode(&window, ui::LocalRecognitionMode::Streaming);
+        click(&window, Button, "Qwen3-ASR 1.7B");
+        require(visible_bounds(&window, RadioButton, "Streaming").is_none());
+        click(&window, Button, "Download · 2.03 GB");
+        bounds(&window, Text, "Recognition process memory");
+        click(&window, RadioButton, "Streaming");
         require(window.get_qwen_recognition_mode() == ui::LocalRecognitionMode::Streaming);
         require(observed.load_catalog().is_ok_and(|catalog| {
             catalog.whisper_is_active()
                 && catalog.qwen_recognition_mode() == Ok(QwenRecognitionMode::Streaming)
         }));
         let weak = window.as_weak();
-        support::after_frame(window.window(), move |frame| {
+        support::after_snapshot(&window, "qwen-streaming-ui", "mode-selector", move || {
             if let Some(window) = weak.upgrade() {
-                if matches!(frame, support::FrameStatus::Rendered) {
-                    save_snapshot(window.window(), "qwen-streaming-ui", "mode-selector");
-                }
-                support::click_mode(&window, ui::LocalRecognitionMode::NonStreaming);
+                click(&window, RadioButton, "Non-streaming");
                 require(
                     window.get_qwen_recognition_mode() == ui::LocalRecognitionMode::NonStreaming,
                 );

@@ -1,4 +1,5 @@
 import { AppColors } from "color-system.slint";
+import { ActionFocus, DialogFocus } from "action-focus.slint";
 import { ScrollView } from "std-widgets.slint";
 
 export enum AppPage {
@@ -153,15 +154,19 @@ export component NavItem inherits Rectangle {
     in property <bool> selected;
     callback activated();
     height: 38px;
+    forward-focus: nav-focus;
     border-radius: 6px;
+    border-width: nav-focus.show-ring ? 1px : 0px;
+    border-color: AppColors.text-muted;
     background: root.selected ? AppColors.selected
         : nav-touch.has-hover ? AppColors.surface-subtle : transparent;
     opacity: nav-touch.pressed ? 0.82 : 1;
     animate background { duration: 120ms; easing: ease-out; }
-    animate opacity { duration: 70ms; easing: ease-out; }
+    animate opacity { duration: nav-touch.pressed ? 0ms : 70ms; easing: ease-out; }
     accessible-role: button;
     accessible-label: root.label;
-    accessible-action-default => { root.activated(); }
+    accessible-enabled: nav-focus.enabled;
+    accessible-action-default => { if nav-focus.enabled { root.activated(); } }
 
     Image {
         x: 12px;
@@ -184,7 +189,15 @@ export component NavItem inherits Rectangle {
         vertical-alignment: center;
     }
 
-    nav-touch := TouchArea { mouse-cursor: pointer; clicked => { root.activated(); } }
+    nav-focus := ActionFocus {
+        enabled: !DialogFocus.open;
+        activated => { root.activated(); }
+    }
+    nav-touch := TouchArea {
+        enabled: nav-focus.enabled;
+        mouse-cursor: pointer;
+        clicked => { nav-focus.focus-from-pointer(); root.activated(); }
+    }
 }
 
 export component PageHeading inherits Text {
@@ -205,14 +218,19 @@ export component AppButton inherits Rectangle {
 
     min-width: max(64px, button-label.preferred-width + 24px);
     min-height: 34px;
+    forward-focus: button-focus;
     horizontal-stretch: 0;
     vertical-stretch: 0;
     border-radius: 6px;
-    border-width: root.primary ? 0px : 1px;
-    border-color: root.danger ? AppColors.danger : AppColors.border;
+    border-width: !root.primary || button-focus.show-ring ? 1px : 0px;
+    border-color: button-focus.show-ring ? AppColors.ink
+        : root.enabled && root.danger ? AppColors.danger : AppColors.border;
     background: !root.enabled ? AppColors.surface-muted
         : root.primary ? (button-touch.has-hover ? AppColors.brand-hover : AppColors.brand)
+        : button-touch.pressed ? AppColors.selected
         : button-touch.has-hover ? AppColors.surface-muted : AppColors.surface;
+    opacity: root.enabled && root.primary && button-touch.pressed ? 0.84 : 1;
+    animate background { duration: button-touch.pressed ? 0ms : 100ms; easing: ease-out; }
     accessible-role: button;
     accessible-label: root.text;
     accessible-enabled: root.enabled;
@@ -228,10 +246,15 @@ export component AppButton inherits Rectangle {
         horizontal-alignment: center;
         vertical-alignment: center;
     }
+    button-focus := ActionFocus {
+        enabled: root.enabled;
+        activated => { root.clicked(); }
+    }
     button-touch := TouchArea {
         enabled: root.enabled;
         mouse-cursor: root.enabled ? pointer : default;
-        clicked => { root.clicked(); }
+        clicked => { button-focus.focus-from-pointer(); root.clicked(); }
+        Tooltip { text: @markdown("\{root.accessible-description}"); }
     }
 }
 
@@ -243,6 +266,7 @@ export component ModalShell inherits Rectangle {
     in property <bool> dismiss-on-backdrop: false;
     out property <length> panel-width: panel.width;
     out property <length> panel-height: panel.height;
+    out property <length> maximum-panel-height: max(0px, root.height - 32px);
     callback close-requested();
 
     private property <length> requested-width: root.size == ModalSize.compact ? 420px : 540px;
@@ -267,7 +291,7 @@ export component ModalShell inherits Rectangle {
 
     panel := Rectangle {
         width: min(root.requested-width, root.width - 32px);
-        height: min(root.requested-height, root.height - 32px);
+        height: min(root.requested-height, root.maximum-panel-height);
         x: (root.width - self.width) / 2 + (root.size == ModalSize.compact ? 0px : 36px);
         y: (root.height - self.height) / 2;
         border-radius: 12px;
@@ -409,7 +433,9 @@ export component AppLineEdit inherits Rectangle {
 
 export component AppSelect inherits Rectangle {
     in property <[string]> model;
+    in property <bool> enabled: true;
     in-out property <string> current-value;
+    in property <string> display-text: root.current-value;
     callback selected(string);
 
     min-width: 132px;
@@ -423,13 +449,14 @@ export component AppSelect inherits Rectangle {
     accessible-role: combobox;
     accessible-label: @tr("common.select-value.accessible-label" => "Select {}", root.current-value);
     accessible-value: root.current-value;
-    accessible-expandable: true;
-    accessible-action-expand => { select-popup.show(); }
+    accessible-enabled: root.enabled;
+    accessible-expandable: root.enabled;
+    accessible-action-expand => { if root.enabled { select-popup.show(); } }
 
     Text {
         x: 11px;
         width: parent.width - 38px;
-        text: root.current-value;
+        text: root.display-text;
         color: AppColors.text;
         font-size: 12px;
         vertical-alignment: center;
@@ -443,7 +470,7 @@ export component AppSelect inherits Rectangle {
         source: @image-url("../icons/lucide/chevron-down.svg");
         colorize: AppColors.text-muted;
     }
-    select-touch := TouchArea { mouse-cursor: pointer; clicked => { select-popup.show(); } }
+    select-touch := TouchArea { enabled: root.enabled; mouse-cursor: pointer; clicked => { select-popup.show(); } }
 
     select-popup := PopupWindow {
         x: 0px;
@@ -475,6 +502,7 @@ export component AppSelect inherits Rectangle {
                         background: option-touch.has-hover || value == root.current-value ? AppColors.surface-muted : transparent;
                         Text { x: 9px; width: parent.width - 18px; text: value; color: AppColors.text; font-size: 12px; vertical-alignment: center; overflow: elide; }
                         option-touch := TouchArea {
+                            enabled: root.enabled;
                             mouse-cursor: pointer;
                             clicked => {
                                 root.current-value = value;

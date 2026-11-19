@@ -1,4 +1,5 @@
 import { AppColors } from "../color-system.slint";
+import { ActionFocus, DialogFocus } from "../action-focus.slint";
 
 export enum ProviderStatusTone {
     neutral,
@@ -51,10 +52,30 @@ export component ProviderStatusBadge inherits Rectangle {
     }
 }
 
+export component AsrProviderLogo inherits Rectangle {
+    in property <image> source;
+    in property <bool> colorized;
+    in property <bool> needs-dark-backplate;
+    private property <bool> backed: root.needs-dark-backplate && AppColors.dark-mode;
+
+    if root.backed: Rectangle {
+        width: parent.width; height: parent.height * 0.7;
+        y: (parent.height - self.height) / 2;
+        border-radius: 6px; background: AppColors.text;
+    }
+    Image {
+        x: root.backed ? 4px : 0px; y: self.x;
+        width: parent.width - 2 * self.x; height: parent.height - 2 * self.y;
+        source: root.source; colorize: root.colorized ? AppColors.ink : transparent;
+        image-fit: contain; image-rendering: smooth;
+    }
+}
+
 export component AsrProviderCard inherits Rectangle {
     in property <image> logo;
     in property <length> logo-size: 44px;
     in property <bool> colorize-logo: false;
+    in property <bool> logo-needs-dark-backplate;
     in property <image> summary-icon;
     in property <string> source-type;
     in property <string> provider-name;
@@ -67,62 +88,56 @@ export component AsrProviderCard inherits Rectangle {
     in property <bool> enabled: true;
     callback activated();
 
-    private property <length> provider-row-y: 36px;
-    private property <length> provider-row-height: 44px;
-    height: 108px;
     border-radius: 10px;
+    forward-focus: card-focus;
+    border-width: card-focus.show-ring ? 1px : 0px;
+    border-color: AppColors.text-muted;
     background: !root.enabled ? AppColors.surface
         : card-touch.pressed ? AppColors.selected
-        : card-focus.has-focus ? AppColors.selected
+        : root.selected && card-touch.has-hover ? AppColors.selected
+        : root.selected ? AppColors.brand-soft
         : card-touch.has-hover ? AppColors.surface-subtle
-        : root.selected ? AppColors.brand-soft : AppColors.surface;
-    animate background { duration: 140ms; easing: ease-out; }
+        : AppColors.surface;
+    opacity: root.enabled && card-touch.pressed ? 0.88 : 1;
+    animate background { duration: card-touch.pressed ? 0ms : 100ms; easing: ease-out; }
 
-    Text {
-        x: 16px;
-        y: 6px;
-        width: parent.width - 48px;
+    source-label := Text {
+        x: 6px;
+        // Optically center the smaller lettering with the provider name.
+        y: provider-copy.y + 0.5px;
+        width: 82px;
         height: 20px;
         text: root.source-type;
         color: root.selected ? AppColors.brand-strong : AppColors.text-muted;
         font-size: 11px;
         font-weight: 650;
+        horizontal-alignment: center;
         vertical-alignment: center;
         overflow: elide;
     }
 
-    if !root.colorize-logo: Image {
-        x: 16px + (root.provider-row-height - root.logo-size) / 2;
-        y: root.provider-row-y + (root.provider-row-height - root.logo-size) / 2;
+    AsrProviderLogo {
+        x: source-label.x + (source-label.width - self.width) / 2;
+        y: provider-copy.y + provider-name-label.height + 4px;
         width: root.logo-size;
         height: root.logo-size;
         source: root.logo;
-        image-fit: contain;
-        image-rendering: smooth;
-    }
-    if root.colorize-logo: Image {
-        x: 16px + (root.provider-row-height - root.logo-size) / 2;
-        y: root.provider-row-y + (root.provider-row-height - root.logo-size) / 2;
-        width: root.logo-size;
-        height: root.logo-size;
-        source: root.logo;
-        colorize: AppColors.ink;
-        image-fit: contain;
-        image-rendering: smooth;
+        colorized: root.colorize-logo;
+        needs-dark-backplate: root.logo-needs-dark-backplate;
     }
 
     provider-copy := Rectangle {
-        x: 74px;
-        y: 28px;
-        width: parent.width - 122px;
-        height: root.provider-row-height;
+        x: source-label.x + source-label.width + 8px;
+        y: 10px;
+        width: parent.width - self.x - 16px;
+        height: 42px;
         background: transparent;
 
         provider-name-label := Text {
             x: 0px;
             y: 0px;
-            width: parent.width - (root.recommended ? 14px : 0px);
-            height: 20px;
+            width: chevron.x - provider-copy.x - 6px - (root.recommended ? 14px : 0px);
+            height: source-label.height;
             text: root.provider-name;
             color: root.enabled ? AppColors.ink : AppColors.text;
             font-size: 13px;
@@ -131,7 +146,7 @@ export component AsrProviderCard inherits Rectangle {
             overflow: elide;
         }
         if root.recommended: Image {
-            x: min(provider-name-label.preferred-width + 4px, parent.width - 10px);
+            x: min(provider-name-label.preferred-width, provider-name-label.width) + 4px;
             y: 5px;
             width: 10px;
             height: 10px;
@@ -142,7 +157,7 @@ export component AsrProviderCard inherits Rectangle {
         }
         Rectangle {
             x: 0px;
-            y: 26px;
+            y: parent.height - self.height;
             width: parent.width;
             height: 18px;
             background: transparent;
@@ -169,42 +184,36 @@ export component AsrProviderCard inherits Rectangle {
         }
     }
     ProviderStatusBadge {
-        x: 74px;
-        y: 78px;
+        x: provider-copy.x;
+        y: provider-copy.y + provider-copy.height + 4px;
         label: root.status;
         tone: root.status-tone;
         current: root.selected;
         available: root.available && !root.selected;
     }
 
-    Image {
+    chevron := Image {
         x: parent.width - 34px;
-        y: 39px;
+        y: provider-copy.y + (provider-name-label.height - self.height) / 2;
         width: 18px;
         height: 18px;
         source: @image-url("../../icons/lucide/chevron-right.svg");
         colorize: root.enabled ? AppColors.text-muted : AppColors.chart-neutral;
     }
 
-    card-focus := FocusScope {
-        enabled: root.enabled;
+    card-focus := ActionFocus {
+        enabled: root.enabled && !DialogFocus.open;
         accessible-role: button;
         accessible-label: root.provider-name;
-        accessible-enabled: root.enabled;
-        accessible-action-default => { if root.enabled { root.activated(); } }
-        key-pressed(event) => {
-            if root.enabled && (event.text == "\n" || event.text == " ") {
-                root.activated();
-                return accept;
-            }
-            return reject;
-        }
+        accessible-enabled: self.enabled;
+        accessible-action-default => { if self.enabled { root.activated(); } }
+        activated => { root.activated(); }
     }
     card-touch := TouchArea {
         enabled: root.enabled;
         mouse-cursor: root.enabled ? pointer : default;
         clicked => {
-            card-focus.focus();
+            card-focus.focus-from-pointer();
             root.activated();
         }
     }
