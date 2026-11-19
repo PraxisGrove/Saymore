@@ -7,10 +7,10 @@ use std::{
     thread,
 };
 
-use chrono::{Datelike, Duration, Local, NaiveDate};
+use jiff::{Timestamp, ToSpan, civil::Date};
 use slint::{ComponentHandle, ModelRc, SharedString, VecModel};
 use template_app::{USAGE_TREND_DAYS, UsageSummary, load_usage_summary};
-use template_infra::{SqliteStorage, local_storage_usage};
+use template_infra::{SqliteStorage, local_storage_usage, system_local_datetime};
 
 use crate::{regional_format, storage_usage_ui, ui::AppWindow};
 
@@ -43,7 +43,7 @@ fn refresh(
     if thread::Builder::new()
         .name("saymore-load-home-stats".to_owned())
         .spawn(move || {
-            let today = Local::now().date_naive();
+            let today = system_local_datetime(Timestamp::now()).date();
             let system_locale = regional_format::system_locale();
             let result = load_usage_summary(storage.as_ref(), today);
             let storage_usage = local_storage_usage(&data_directory);
@@ -90,12 +90,7 @@ fn refresh(
     }
 }
 
-fn apply_summary(
-    ui: &AppWindow,
-    summary: UsageSummary,
-    today: NaiveDate,
-    system_locale: Option<&str>,
-) {
+fn apply_summary(ui: &AppWindow, summary: UsageSummary, today: Date, system_locale: Option<&str>) {
     let total_minutes = rounded_minutes(summary.total_duration_ms);
     let overall_average_speed = average_speed(summary.total_characters, summary.total_duration_ms);
     let maximum = summary
@@ -181,32 +176,35 @@ fn format_values(
         .to_vec()
 }
 
-fn day_labels(today: NaiveDate, system_locale: Option<&str>) -> [String; USAGE_TREND_DAYS] {
+fn day_labels(today: Date, system_locale: Option<&str>) -> [String; USAGE_TREND_DAYS] {
     let locale = regional_format::date_locale(system_locale);
     let chinese = system_locale.is_some_and(|value| value.to_ascii_lowercase().starts_with("zh"));
     std::array::from_fn(|index| {
         let days_ago = (USAGE_TREND_DAYS - index - 1) as i64;
-        let label = (today - Duration::days(days_ago))
-            .format_localized("%a", locale)
-            .to_string();
+        let date = today.saturating_sub(days_ago.days());
+        let label = regional_format::short_weekday_name(date, locale);
         if chinese {
             format!("周{label}")
         } else {
-            label
+            label.to_owned()
         }
     })
 }
 
-fn day_dates(today: NaiveDate, system_locale: Option<&str>) -> [String; USAGE_TREND_DAYS] {
+fn day_dates(today: Date, system_locale: Option<&str>) -> [String; USAGE_TREND_DAYS] {
     let locale = regional_format::date_locale(system_locale);
     let chinese = system_locale.is_some_and(|value| value.to_ascii_lowercase().starts_with("zh"));
     std::array::from_fn(|index| {
         let days_ago = (USAGE_TREND_DAYS - index - 1) as i64;
-        let date = today - Duration::days(days_ago);
+        let date = today.saturating_sub(days_ago.days());
         if chinese {
             format!("{} 月 {} 日", date.month(), date.day())
         } else {
-            date.format_localized("%b %-d", locale).to_string()
+            format!(
+                "{} {}",
+                regional_format::short_month_name(date, locale),
+                date.day()
+            )
         }
     })
 }
@@ -219,17 +217,11 @@ mod tests {
     fn labels_cover_the_rolling_seven_day_window() {
         assert_eq!(
             ["周四", "周五", "周六", "周日", "周一", "周二", "周三"],
-            day_labels(
-                NaiveDate::from_ymd_opt(2026, 7, 15).unwrap_or_default(),
-                Some("zh-CN")
-            )
+            day_labels(jiff::civil::date(2026, 7, 15), Some("zh-CN"))
         );
         assert_eq!(
             ["Thu", "Fri", "Sat", "Sun", "Mon", "Tue", "Wed"],
-            day_labels(
-                NaiveDate::from_ymd_opt(2026, 7, 15).unwrap_or_default(),
-                Some("en-US")
-            )
+            day_labels(jiff::civil::date(2026, 7, 15), Some("en-US"))
         );
     }
 
@@ -245,10 +237,7 @@ mod tests {
                 "7 月 14 日",
                 "7 月 15 日"
             ],
-            day_dates(
-                NaiveDate::from_ymd_opt(2026, 7, 15).unwrap_or_default(),
-                Some("zh-CN")
-            )
+            day_dates(jiff::civil::date(2026, 7, 15), Some("zh-CN"))
         );
     }
 }

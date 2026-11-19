@@ -17,6 +17,9 @@ use template_infra::SqliteStorage;
 #[cfg(target_os = "windows")]
 use template_infra::WindowsShortcut;
 
+#[path = "sqlite_storage/usage.rs"]
+mod usage;
+
 #[derive(Default)]
 struct MemorySecretStore {
     key: Mutex<Option<Vec<u8>>>,
@@ -528,77 +531,6 @@ fn history_is_encrypted_and_uses_stable_keyset_pagination() -> Result<(), Box<dy
 }
 
 #[test]
-fn usage_survives_history_clear_and_duplicate_inserts_count_once()
--> Result<(), Box<dyn std::error::Error>> {
-    use chrono::{Local, TimeZone};
-
-    let directory = tempfile::tempdir()?;
-    let store = SqliteStorage::start(
-        directory.path().join("saymore.sqlite3"),
-        Arc::new(MemorySecretStore::default()),
-    )?;
-    let completed_at = Local
-        .with_ymd_and_hms(2026, 8, 3, 10, 0, 0)
-        .single()
-        .ok_or("local test date is unavailable")?;
-    let record = history_record("usage-id", completed_at.timestamp_millis(), "你好 Saymore");
-    store.insert_history(record.clone())?;
-    store.insert_history(record)?;
-
-    let before_clear =
-        store.usage_snapshot(completed_at.date_naive(), completed_at.date_naive())?;
-    assert_eq!(1_500, before_clear.total_duration_ms);
-    assert_eq!(9, before_clear.total_characters);
-    assert_eq!(1, before_clear.days.len());
-
-    store.clear_history()?;
-
-    assert!(store.history_page(None, 50)?.records.is_empty());
-    assert_eq!(
-        before_clear,
-        store.usage_snapshot(completed_at.date_naive(), completed_at.date_naive())?
-    );
-    Ok(())
-}
-
-#[test]
-fn v19_history_backfills_usage_once() -> Result<(), Box<dyn std::error::Error>> {
-    use chrono::{Local, TimeZone};
-
-    let directory = tempfile::tempdir()?;
-    let path = directory.path().join("saymore.sqlite3");
-    let secrets = Arc::new(MemorySecretStore::default());
-    let completed_at = Local
-        .with_ymd_and_hms(2026, 8, 2, 10, 0, 0)
-        .single()
-        .ok_or("local test date is unavailable")?;
-    let store = SqliteStorage::start(path.clone(), secrets.clone())?;
-    store.insert_history(history_record(
-        "legacy-usage",
-        completed_at.timestamp_millis(),
-        "旧数据",
-    ))?;
-    drop(store);
-
-    let connection = rusqlite::Connection::open(&path)?;
-    connection.execute_batch(
-        "DROP TABLE usage_daily;
-         DROP TABLE usage_recorded_dictations;
-         DROP TABLE usage_aggregation_state;
-         PRAGMA user_version = 19;",
-    )?;
-    drop(connection);
-
-    let reopened = SqliteStorage::start(path, secrets)?;
-    let first = reopened.usage_snapshot(completed_at.date_naive(), completed_at.date_naive())?;
-    let second = reopened.usage_snapshot(completed_at.date_naive(), completed_at.date_naive())?;
-    assert_eq!(1_500, first.total_duration_ms);
-    assert_eq!(3, first.total_characters);
-    assert_eq!(first, second);
-    Ok(())
-}
-
-#[test]
 fn history_search_filters_decrypted_text_and_keeps_stable_pages()
 -> Result<(), Box<dyn std::error::Error>> {
     let directory = tempfile::tempdir()?;
@@ -735,7 +667,7 @@ fn existing_history_is_locked_when_its_key_is_missing() -> Result<(), Box<dyn st
 #[test]
 fn explicit_history_reset_rotates_the_key_without_removing_dictionary_entries()
 -> Result<(), Box<dyn std::error::Error>> {
-    use chrono::{Local, TimeZone};
+    use jiff::{Timestamp, tz::TimeZone};
 
     let directory = tempfile::tempdir()?;
     let secrets = Arc::new(MemorySecretStore::default());
@@ -750,11 +682,9 @@ fn explicit_history_reset_rotates_the_key_without_removing_dictionary_entries()
         },
         1_000,
     )?;
-    let usage_date = Local
-        .timestamp_millis_opt(1_000)
-        .single()
-        .ok_or("usage date is unavailable")?
-        .date_naive();
+    let usage_date = Timestamp::from_millisecond(1_000)?
+        .to_zoned_datetime(TimeZone::system())
+        .date();
     let usage_before_reset = store.usage_snapshot(usage_date, usage_date)?;
 
     store.reset_history()?;
@@ -810,7 +740,7 @@ fn failed_key_rotation_does_not_leave_old_history_with_an_overwritten_key()
 #[test]
 fn shortening_retention_removes_expired_history_immediately()
 -> Result<(), Box<dyn std::error::Error>> {
-    use chrono::{Duration, Local, TimeZone};
+    use jiff::{Span, Timestamp, tz::TimeZone};
 
     const DAY_MS: i64 = 86_400_000;
     let now_ms = std::time::SystemTime::now()
@@ -837,12 +767,10 @@ fn shortening_retention_removes_expired_history_immediately()
             .map(|item| item.id.as_str())
             .collect::<Vec<_>>()
     );
-    let today = Local
-        .timestamp_millis_opt(now_ms)
-        .single()
-        .ok_or("usage date is unavailable")?
-        .date_naive();
-    let usage = store.usage_snapshot(today - Duration::days(3), today)?;
+    let today = Timestamp::from_millisecond(now_ms)?
+        .to_zoned_datetime(TimeZone::system())
+        .date();
+    let usage = store.usage_snapshot(today.checked_sub(Span::new().days(3))?, today)?;
     assert_eq!(3_000, usage.total_duration_ms);
     assert_eq!(4, usage.total_characters);
     Ok(())

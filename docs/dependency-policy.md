@@ -33,6 +33,28 @@ Required project tasks should normally be implemented in Rust under
 runner coordination remain in GitHub Actions; platform package construction is
 delegated to the pinned `cargo-packager` CLI.
 
+## Local dates and usage statistics
+
+Saymore uses Jiff 1.x for calendar dates and converting recorded timestamps to
+local dates. The seven-day home trend counts calendar days across daylight
+saving changes. History groups use elapsed time. SQLite stores the same
+millisecond timestamps and `YYYY-MM-DD` daily keys across the transition.
+
+Rust's standard library provides timestamps but lacks calendar and time-zone
+rules. Jiff (MIT or Unlicense) supplies both in its maintained 1.x line. The app
+crate uses civil dates. Infrastructure resolves local time for storage and
+desktop. On Windows it uses the system's time conversion so that the user's
+daylight saving setting is respected. Jiff supplies the system zone on macOS and
+a fallback on Windows through `tz-system`, `tzdb-zoneinfo` and
+`tzdb-bundle-platform`. Desktop takes weekday and month names from
+`pure-rust-locales` (MIT or Apache-2.0), the locale data used before the
+migration. Using `time` would require a separate time-zone database for
+conversions in named zones.
+
+Slint still pulls in `chrono` transitively. The workspace has removed its direct
+uses in response to
+[RUSTSEC-2026-0543](https://rustsec.org/advisories/RUSTSEC-2026-0543.html).
+
 ## Release Tooling
 
 The release workflow pins `cargo-packager` 0.11.8. It is an actively maintained

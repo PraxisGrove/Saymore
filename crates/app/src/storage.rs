@@ -1,4 +1,4 @@
-use chrono::NaiveDate;
+use jiff::civil::Date;
 use thiserror::Error;
 use unicode_normalization::UnicodeNormalization;
 
@@ -407,7 +407,7 @@ pub trait HistoryStore: Send + Sync {
 /// One privacy-safe daily usage bucket with no recognized text or provider metadata.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DailyUsage {
-    pub date: NaiveDate,
+    pub date: Date,
     pub audio_duration_ms: u64,
     pub character_count: u64,
 }
@@ -427,8 +427,8 @@ pub struct UsageSnapshot {
 pub trait UsageStore: Send + Sync {
     fn usage_snapshot(
         &self,
-        period_start: NaiveDate,
-        period_end: NaiveDate,
+        period_start: Date,
+        period_end: Date,
     ) -> Result<UsageSnapshot, StorageError>;
 }
 

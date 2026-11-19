@@ -86,7 +86,8 @@ template-app = { workspace = true }
 template-infra = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
-chrono = { workspace = true }
+jiff = { workspace = true }
+pure-rust-locales = { workspace = true }
 num-format = { workspace = true }
 uuid = { workspace = true }
 tokio = { workspace = true }

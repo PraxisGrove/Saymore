@@ -1,6 +1,7 @@
 use std::sync::{Arc, Mutex};
 
-use chrono::{DateTime, Local, TimeZone};
+use jiff::{Timestamp, civil::DateTime};
+use pure_rust_locales::Locale;
 use slint::{ComponentHandle, ModelRc, SharedString, VecModel};
 use template_app::{
     HistoryDelivery, HistoryRecord, HistoryRefinement, HistoryStore, PARAFORMER_PROVIDER_ID,
@@ -8,6 +9,7 @@ use template_app::{
 };
 use template_infra::{
     PARAFORMER_MODEL_ID, QWEN3_ASR_MODEL_ID, RetiredAsrModel, SqliteStorage, WHISPER_MODEL_ID,
+    system_local_datetime,
 };
 
 use super::{UiDataState, spawn_named};
@@ -164,6 +166,7 @@ pub(super) fn apply_history_error(ui: &AppWindow, error: template_app::StorageEr
 }
 
 pub(super) fn set_history_model(ui: &AppWindow, state: &UiDataState) {
+    let now = Timestamp::now();
     let locale = regional_format::date_locale(regional_format::system_locale().as_deref());
     let pending = state
         .pending_history_delete
@@ -183,8 +186,11 @@ pub(super) fn set_history_model(ui: &AppWindow, state: &UiDataState) {
     ] {
         let items = visible
             .iter()
-            .filter(|record| history_group(record.created_at_ms) == group)
-            .map(|record| history_item(ui, record, locale))
+            .filter(|record| history_group_at(record.created_at_ms, now) == group)
+            .map(|record| {
+                let time = history_time(record.created_at_ms, group, locale, system_local_datetime);
+                history_item(ui, record, time)
+            })
             .collect::<Vec<_>>();
         if !items.is_empty() {
             groups.push(HistoryGroup {
@@ -196,7 +202,7 @@ pub(super) fn set_history_model(ui: &AppWindow, state: &UiDataState) {
     ui.set_history_groups(ModelRc::new(VecModel::from(groups)));
 }
 
-fn history_item(ui: &AppWindow, record: &HistoryRecord, locale: chrono::Locale) -> HistoryListItem {
+fn history_item(ui: &AppWindow, record: &HistoryRecord, time: String) -> HistoryListItem {
     let translations = ui.global::<Translations>();
     let delivery = match record.delivery {
         HistoryDelivery::Delivered => translations.get_history_delivered(),
@@ -237,7 +243,7 @@ fn history_item(ui: &AppWindow, record: &HistoryRecord, locale: chrono::Locale) 
             .map(SharedString::from)
             .unwrap_or_default(),
         preview_text: SharedString::from(history_preview(&record.final_text)),
-        time: SharedString::from(history_time(record.created_at_ms, locale)),
+        time: time.into(),
         duration: translations.invoke_history_duration(
             i32::try_from(record.audio_duration_ms.div_ceil(1_000)).unwrap_or(i32::MAX),
         ),
@@ -325,15 +331,11 @@ fn history_preview(text: &str) -> String {
     text.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
-fn history_group(created_at_ms: i64) -> HistoryGroupKind {
-    history_group_at(created_at_ms, Local::now())
-}
-
-fn history_group_at(created_at_ms: i64, now: DateTime<Local>) -> HistoryGroupKind {
-    let Some(created) = Local.timestamp_millis_opt(created_at_ms).single() else {
+fn history_group_at(created_at_ms: i64, now: Timestamp) -> HistoryGroupKind {
+    let Ok(created) = Timestamp::from_millisecond(created_at_ms) else {
         return HistoryGroupKind::Older;
     };
-    let elapsed_seconds = now.signed_duration_since(created).num_seconds();
+    let elapsed_seconds = now.duration_since(created).as_secs();
     match elapsed_seconds {
         i64::MIN..86_400 => HistoryGroupKind::LastDay,
         86_400..604_800 => HistoryGroupKind::PastWeek,
@@ -352,93 +354,91 @@ fn history_group_title(ui: &AppWindow, group: HistoryGroupKind) -> SharedString 
     }
 }
 
-fn history_time(created_at_ms: i64, locale: chrono::Locale) -> String {
-    let Some(created) = Local.timestamp_millis_opt(created_at_ms).single() else {
+fn history_time(
+    created_at_ms: i64,
+    group: HistoryGroupKind,
+    locale: Locale,
+    to_local: impl FnOnce(Timestamp) -> DateTime,
+) -> String {
+    let Ok(created) = Timestamp::from_millisecond(created_at_ms) else {
         return created_at_ms.to_string();
     };
-    history_time_for_group(created, history_group(created_at_ms), locale)
-}
-
-fn history_time_for_group(
-    created: DateTime<Local>,
-    group: HistoryGroupKind,
-    locale: chrono::Locale,
-) -> String {
+    let local = to_local(created);
     match group {
-        HistoryGroupKind::LastDay => created.format("%H:%M:%S").to_string(),
-        HistoryGroupKind::PastWeek => created.format_localized("%A", locale).to_string(),
+        HistoryGroupKind::LastDay => local.strftime("%H:%M:%S").to_string(),
+        HistoryGroupKind::PastWeek => {
+            regional_format::weekday_name(local.date(), locale).to_owned()
+        }
         HistoryGroupKind::PastMonth | HistoryGroupKind::Older => {
-            created.format("%m-%d").to_string()
+            local.strftime("%m-%d").to_string()
         }
     }
 }
 
 #[cfg(test)]
+#[allow(clippy::panic_in_result_fn)]
 mod tests {
     use super::*;
+    use jiff::tz::TimeZone;
 
-    fn local_time(
-        year: i32,
-        month: u32,
-        day: u32,
-        hour: u32,
-        minute: u32,
-        second: u32,
-    ) -> DateTime<Local> {
-        match Local
-            .with_ymd_and_hms(year, month, day, hour, minute, second)
-            .single()
-        {
-            Some(value) => value,
-            None => panic!("test date should be valid in the local time zone"),
+    #[test]
+    fn history_time_uses_compact_fields_for_each_age_group() -> Result<(), jiff::Error> {
+        let now: Timestamp = "2026-07-16T01:00:00Z".parse()?;
+        for (recorded, expected_group, expected_label) in [
+            (
+                "2026-07-16T00:08:37Z",
+                HistoryGroupKind::LastDay,
+                "00:08:37",
+            ),
+            ("2026-07-14T23:17:32Z", HistoryGroupKind::PastWeek, "星期二"),
+            ("2026-07-01T23:17:32Z", HistoryGroupKind::PastMonth, "07-01"),
+            ("2026-06-15T23:17:32Z", HistoryGroupKind::Older, "06-15"),
+        ] {
+            let millis = recorded.parse::<Timestamp>()?.as_millisecond();
+            let group = history_group_at(millis, now);
+            assert_eq!(expected_group, group);
+            assert_eq!(
+                expected_label,
+                history_time(millis, group, Locale::zh_CN, |time| TimeZone::UTC
+                    .to_datetime(time))
+            );
         }
+        Ok(())
     }
 
     #[test]
-    fn history_time_uses_compact_fields_for_each_age_group() {
-        let now = local_time(2026, 7, 16, 1, 0, 0);
-        let today = local_time(2026, 7, 16, 0, 8, 37);
-        let this_week = local_time(2026, 7, 14, 23, 17, 32);
-        let this_month = local_time(2026, 7, 1, 23, 17, 32);
-        let older = local_time(2026, 6, 15, 23, 17, 32);
-
+    fn history_uses_elapsed_hours_and_local_dates_across_dst() -> Result<(), jiff::Error> {
+        let zone = TimeZone::get("America/New_York")?;
+        // Midnight to midnight spans only 23 hours when daylight saving time starts.
+        let now: Timestamp = "2026-03-09T00:00:00-04:00".parse()?;
+        let yesterday = "2026-03-08T00:00:00-05:00"
+            .parse::<Timestamp>()?
+            .as_millisecond();
+        assert_eq!(HistoryGroupKind::LastDay, history_group_at(yesterday, now));
         assert_eq!(
-            HistoryGroupKind::LastDay,
-            history_group_at(today.timestamp_millis(), now)
-        );
-        assert_eq!(
-            HistoryGroupKind::PastWeek,
-            history_group_at(this_week.timestamp_millis(), now)
-        );
-        assert_eq!(
-            HistoryGroupKind::PastMonth,
-            history_group_at(this_month.timestamp_millis(), now)
-        );
-        assert_eq!(
-            HistoryGroupKind::Older,
-            history_group_at(older.timestamp_millis(), now)
-        );
-
-        assert_eq!(
-            "00:08:37",
-            history_time_for_group(today, HistoryGroupKind::LastDay, chrono::Locale::zh_CN)
-        );
-        assert_eq!(
-            "星期二",
-            history_time_for_group(this_week, HistoryGroupKind::PastWeek, chrono::Locale::zh_CN)
-        );
-        assert_eq!(
-            "07-01",
-            history_time_for_group(
-                this_month,
-                HistoryGroupKind::PastMonth,
-                chrono::Locale::zh_CN
+            "00:00:00",
+            history_time(
+                yesterday,
+                HistoryGroupKind::LastDay,
+                Locale::en_US,
+                |time| zone.to_datetime(time)
             )
         );
+        // Exactly 24 hours ago is still Saturday locally, although already Sunday in UTC.
+        let boundary = "2026-03-08T04:00:00Z"
+            .parse::<Timestamp>()?
+            .as_millisecond();
+        assert_eq!(HistoryGroupKind::PastWeek, history_group_at(boundary, now));
         assert_eq!(
-            "06-15",
-            history_time_for_group(older, HistoryGroupKind::Older, chrono::Locale::zh_CN)
+            "Saturday",
+            history_time(
+                boundary,
+                HistoryGroupKind::PastWeek,
+                Locale::en_US,
+                |time| zone.to_datetime(time)
+            )
         );
+        Ok(())
     }
 
     #[test]

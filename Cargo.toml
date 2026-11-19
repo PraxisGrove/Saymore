@@ -21,7 +21,8 @@ libc = "0.2"
 ureq = "2.12.1"
 aes-gcm = "0.10.3"
 cpal = "0.18.1"
-chrono = { version = "0.4", default-features = false, features = ["clock", "unstable-locales"] }
+jiff = { version = "1.0.1", default-features = false, features = ["std"] }
+pure-rust-locales = "0.8.2"
 bzip2 = "0.6.1"
 csv = "1"
 flate2 = "1.1.9"

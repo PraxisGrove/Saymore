@@ -24,7 +24,7 @@ base64 = { workspace = true }
 async-trait = { workspace = true }
 aes-gcm = { workspace = true }
 csv = { workspace = true }
-chrono = { workspace = true }
+jiff = { workspace = true, features = ["tz-system", "tzdb-zoneinfo", "tzdb-bundle-platform"] }
 bzip2 = { workspace = true }
 template-app = { workspace = true }
 serde = { workspace = true }
@@ -76,6 +76,7 @@ windows = { workspace = true, features = [
     "Win32_System_Registry",
     "Win32_System_SystemInformation",
     "Win32_System_Threading",
+    "Win32_System_Time",
     "Win32_System_WinRT",
     "Win32_System_Variant",
     "Win32_UI_Accessibility",

@@ -9,6 +9,7 @@ mod background_recognition;
 mod cpal_audio_recorder;
 mod dictation_shortcut;
 mod dictionary_files;
+mod local_datetime;
 mod local_inference_device;
 mod model_discovery;
 mod model_installer;
@@ -200,6 +201,7 @@ pub use chat_completions_llm::ChatCompletionsLlmProvider;
 pub use cpal_audio_recorder::CpalAudioRecorder;
 pub use dictation_shortcut::DictationShortcutAction;
 pub use dictionary_files::{DictionaryFileError, DictionaryFileReport, DictionaryFiles};
+pub use local_datetime::system_local_datetime;
 pub use local_inference_device::{LocalInferenceDevice, local_inference_device};
 pub use model_discovery::{ModelDiscoveryError, discover_models};
 pub use model_installer::{

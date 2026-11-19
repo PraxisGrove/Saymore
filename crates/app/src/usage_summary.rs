@@ -1,6 +1,6 @@
 //! Home-page usage aggregation for presentation-layer callers.
 
-use chrono::{Duration, NaiveDate};
+use jiff::{Span, civil::Date};
 
 use crate::{StorageError, UsageStore};
 
@@ -22,14 +22,16 @@ pub struct UsageSummary {
 
 pub fn load_usage_summary(
     store: &dyn UsageStore,
-    today: NaiveDate,
+    today: Date,
 ) -> Result<UsageSummary, StorageError> {
-    let period_start = today - Duration::days((USAGE_TREND_DAYS - 1) as i64);
+    let period_start = today
+        .checked_sub(Span::new().days((USAGE_TREND_DAYS - 1) as i64))
+        .map_err(|_| StorageError::Invalid("usage period starts outside the date range".into()))?;
     let snapshot = store.usage_snapshot(period_start, today)?;
     let mut daily_duration_ms = [0_u64; USAGE_TREND_DAYS];
     let mut daily_characters = [0_u64; USAGE_TREND_DAYS];
     for day in snapshot.days {
-        let day_index = day.date.signed_duration_since(period_start).num_days();
+        let day_index = (day.date - period_start).get_days();
         if let Ok(day_index) = usize::try_from(day_index)
             && day_index < USAGE_TREND_DAYS
         {
@@ -55,33 +57,50 @@ pub fn load_usage_summary(
 mod tests {
     use std::sync::Mutex;
 
+    use jiff::civil::date;
+
     use crate::{DailyUsage, UsageSnapshot};
 
     use super::*;
 
     #[test]
     fn maps_persisted_buckets_into_the_rolling_window() {
-        let today = NaiveDate::from_ymd_opt(2026, 7, 15).unwrap_or_default();
-        let store = FakeUsageStore::new(Ok(UsageSnapshot {
-            total_duration_ms: 150_000,
-            total_characters: 14,
-            days: vec![
-                day(2026, 7, 8, 60_000, 4),
-                day(2026, 7, 14, 60_000, 3),
-                day(2026, 7, 15, 30_000, 7),
-            ],
-        }));
-
-        assert_eq!(
-            UsageSummary {
+        for (outside, first, yesterday, today) in [
+            (
+                date(2024, 2, 28),
+                date(2024, 2, 29),
+                date(2024, 3, 5),
+                date(2024, 3, 6),
+            ),
+            (
+                date(2025, 12, 28),
+                date(2025, 12, 29),
+                date(2026, 1, 3),
+                date(2026, 1, 4),
+            ),
+        ] {
+            let store = FakeUsageStore::new(Ok(UsageSnapshot {
                 total_duration_ms: 150_000,
                 total_characters: 14,
-                daily_duration_ms: [0, 0, 0, 0, 0, 60_000, 30_000],
-                daily_characters: [0, 0, 0, 0, 0, 3, 7],
-                highlighted_day: Some(5),
-            },
-            load_usage_summary(&store, today).unwrap_or_default()
-        );
+                days: vec![
+                    day(outside, 50_000, 3),
+                    day(first, 10_000, 1),
+                    day(yesterday, 60_000, 3),
+                    day(today, 30_000, 7),
+                ],
+            }));
+
+            assert_eq!(
+                Ok(UsageSummary {
+                    total_duration_ms: 150_000,
+                    total_characters: 14,
+                    daily_duration_ms: [10_000, 0, 0, 0, 0, 60_000, 30_000],
+                    daily_characters: [1, 0, 0, 0, 0, 3, 7],
+                    highlighted_day: Some(5),
+                }),
+                load_usage_summary(&store, today)
+            );
+        }
     }
 
     #[test]
@@ -89,12 +108,8 @@ mod tests {
         let store = FakeUsageStore::new(Ok(UsageSnapshot::default()));
 
         assert_eq!(
-            UsageSummary::default(),
-            load_usage_summary(
-                &store,
-                NaiveDate::from_ymd_opt(2026, 7, 15).unwrap_or_default()
-            )
-            .unwrap_or_default()
+            Ok(UsageSummary::default()),
+            load_usage_summary(&store, date(2026, 7, 15))
         );
     }
 
@@ -103,18 +118,21 @@ mod tests {
         let error = StorageError::Unavailable("usage offline".to_owned());
         let store = FakeUsageStore::new(Err(error.clone()));
 
-        assert_eq!(
-            Err(error),
-            load_usage_summary(
-                &store,
-                NaiveDate::from_ymd_opt(2026, 7, 15).unwrap_or_default()
-            )
-        );
+        assert_eq!(Err(error), load_usage_summary(&store, date(2026, 7, 15)));
     }
 
-    fn day(year: i32, month: u32, day: u32, duration: u64, characters: u64) -> DailyUsage {
+    #[test]
+    fn rejects_a_window_that_precedes_the_minimum_representable_date() {
+        let store = FakeUsageStore::new(Ok(UsageSnapshot::default()));
+        assert!(matches!(
+            load_usage_summary(&store, Date::MIN),
+            Err(StorageError::Invalid(_))
+        ));
+    }
+
+    fn day(date: Date, duration: u64, characters: u64) -> DailyUsage {
         DailyUsage {
-            date: NaiveDate::from_ymd_opt(year, month, day).unwrap_or_default(),
+            date,
             audio_duration_ms: duration,
             character_count: characters,
         }
@@ -135,8 +153,8 @@ mod tests {
     impl UsageStore for FakeUsageStore {
         fn usage_snapshot(
             &self,
-            _period_start: NaiveDate,
-            _period_end: NaiveDate,
+            _period_start: Date,
+            _period_end: Date,
         ) -> Result<UsageSnapshot, StorageError> {
             self.snapshot
                 .lock()
