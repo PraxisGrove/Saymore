@@ -9,7 +9,7 @@ use std::{
     time::Duration,
 };
 
-use futures_util::StreamExt;
+use futures_util::{StreamExt, TryStreamExt};
 use reqwest::{Client, StatusCode, header::RANGE};
 use thiserror::Error;
 use tokio_util::sync::CancellationToken;
@@ -51,6 +51,7 @@ pub const ZIPFORMER_MODEL_ID: &str = "zipformer-bilingual-zh-en-int8";
 pub const ZIPFORMER_MODEL_REVISION: &str = "98590b7ed6443e77b714204da2757d75e1a642f4";
 pub const PUNCTUATION_MODEL_ID: &str = "ct-transformer-zh-en-punctuation-int8";
 pub const PUNCTUATION_MODEL_REVISION: &str = "2024-04-12-int8";
+const MAX_ARTIFACT_DOWNLOADS: usize = 4;
 const DOWNLOAD_RETRIES: usize = 3;
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(15);
 const READ_TIMEOUT: Duration = Duration::from_secs(30);
@@ -339,11 +340,12 @@ impl VerifiedModelInstaller {
         let staging = self.staging_directory();
         fs::create_dir_all(&staging).map_err(filesystem_error)?;
         self.ensure_install_space()?;
-        for artifact in &self.manifest.downloads {
-            control.check()?;
+        futures_util::stream::iter(self.manifest.downloads.iter().map(|artifact| {
             self.download_artifact(&staging, artifact, Arc::clone(&on_progress), control)
-                .await?;
-        }
+        }))
+        .buffer_unordered(MAX_ARTIFACT_DOWNLOADS)
+        .try_collect::<Vec<_>>()
+        .await?;
         control.check()?;
         let prepared = self.prepare_activation(&staging)?;
         control.check()?;

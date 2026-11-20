@@ -253,12 +253,18 @@ confirmation and errors, and provide the concrete connection-test adapter
 without reproducing the test-before-save rule. When automatic update checks are
 enabled, startup also queries the latest stable GitHub Release. A newer version
 is presented as a dismissible in-window notice; manual checks continue to report
-their result only in Settings. Concrete audio capture, permissions, global
-shortcuts, text delivery, window behavior, and system settings actions remain
-narrow adapters rather than one aggregate platform service. A platform that does
-not yet implement one of those adapters must return an explicit unavailable
-error; it must not replace the shared UI or bootstrap with a platform-specific
-application flow.
+their result only in Settings. The user can download the platform installer
+inside the app. The infrastructure updater selects the signed macOS DMG or
+Windows installer, downloads it in up to four byte ranges when the server
+supports HTTP Range requests, reports aggregate byte progress, falls back to one
+request when ranges are unavailable, validates the published SHA-256 checksum,
+and leaves installation to the user by opening the verified installer.
+Cancellation removes incomplete staging files; no installer is executed by the
+updater. Concrete audio capture, permissions, global shortcuts, text delivery,
+window behavior, and system settings actions remain narrow adapters rather than
+one aggregate platform service. A platform that does not yet implement one of
+those adapters must return an explicit unavailable error; it must not replace
+the shared UI or bootstrap with a platform-specific application flow.
 
 The old streaming Paraformer card, adapter, download manifest and desktop
 punctuation controls are retired; SeACo-Paraformer is a separate supported
@@ -296,13 +302,17 @@ has downloaded, passed size and SHA-256 validation, loaded successfully, and
 been recorded in local storage. The manifest-driven infrastructure installer
 keeps resumable partial files in a stable model-specific staging directory,
 supports cooperative pause and cancel, and atomically renames that directory
-only after every artifact validates. The desktop owns per-model UI progress and
-removes staging files after an explicit cancel. A non-Slint desktop lifecycle
-module owns installed-model metadata reconciliation, guarded Provider
-activation, previous-runtime release, and active-model deletion protection
-through application ports and infrastructure adapters. Slint callbacks submit
-lifecycle actions and present their results; they do not reproduce the ordering
-or recovery rules. Installation remains separate from Provider selection: a
+only after every artifact validates. For new downloads larger than 64 MiB, it
+probes HTTP Range support and downloads up to four byte ranges concurrently
+before ordered assembly and SHA-256 verification; existing partial files use the
+conservative single-range resume path, and servers without Range support fall
+back automatically. The desktop owns per-model UI progress and removes staging
+files after an explicit cancel. A non-Slint desktop lifecycle module owns
+installed-model metadata reconciliation, guarded Provider activation,
+previous-runtime release, and active-model deletion protection through
+application ports and infrastructure adapters. Slint callbacks submit lifecycle
+actions and present their results; they do not reproduce the ordering or
+recovery rules. Installation remains separate from Provider selection: a
 completed download never loads or selects the model until the user explicitly
 chooses it. The desktop also owns failure presentation and runtime memory
 sampling. An installed model also carries a verification marker containing its

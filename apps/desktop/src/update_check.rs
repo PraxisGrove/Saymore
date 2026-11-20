@@ -1,27 +1,24 @@
+mod download;
+
+use crate::ui::{AppWindow, Translations, UpdateDownloadPhase, UpdateDownloadUi};
+use slint::{ComponentHandle, SharedString};
 use std::{
+    path::PathBuf,
     sync::{
         Arc, Mutex,
         atomic::{AtomicBool, Ordering},
     },
     thread,
-    time::Duration,
 };
+use template_app::{SoftwareUpdater, UpdateCancellation, UpdatePackage};
+use template_infra::{GithubSoftwareUpdater, UpdatePlatform};
 
-use serde::Deserialize;
-use slint::{ComponentHandle, SharedString};
-
-use crate::{
-    platform_open,
-    ui::{AppWindow, Translations},
-};
-
-const RELEASES_URL: &str = "https://api.github.com/repos/PraxisGrove/Saymore/releases/latest";
-const RELEASES_PREFIX: &str = "https://github.com/PraxisGrove/Saymore/releases/";
-
-#[derive(Default)]
 struct UpdateState {
-    checking: AtomicBool,
-    download_url: Mutex<Option<String>>,
+    updater: Arc<dyn SoftwareUpdater>,
+    busy: AtomicBool,
+    package: Mutex<Option<UpdatePackage>>,
+    installer: Mutex<Option<PathBuf>>,
+    cancellation: Mutex<UpdateCancellation>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -30,47 +27,46 @@ enum CheckPresentation {
     StartupNotification,
 }
 
-#[derive(Debug, Deserialize)]
-struct Release {
-    tag_name: String,
-    html_url: String,
-    #[serde(default)]
-    prerelease: bool,
-}
-
-pub fn wire(ui: &AppWindow, check_on_startup: bool) {
-    let state = Arc::new(UpdateState::default());
+pub fn wire(ui: &AppWindow, check_on_startup: bool, directory: PathBuf) {
+    let updater = match GithubSoftwareUpdater::new(directory, UpdatePlatform::current()) {
+        Ok(updater) => updater,
+        Err(_) => {
+            ui.set_update_status("failed".into());
+            ui.set_update_detail(ui.global::<Translations>().get_update_service_unavailable());
+            return;
+        }
+    };
+    let state = Arc::new(UpdateState {
+        updater: Arc::new(updater),
+        busy: AtomicBool::new(false),
+        package: Mutex::new(None),
+        installer: Mutex::new(None),
+        cancellation: Mutex::new(UpdateCancellation::default()),
+    });
     let check_ui = ui.as_weak();
-    let check_state = Arc::clone(&state);
+    let check_state = state.clone();
     ui.on_check_for_updates(move || {
         start_check(
             check_ui.clone(),
-            Arc::clone(&check_state),
+            check_state.clone(),
             CheckPresentation::Settings,
-        );
+        )
     });
-
     let download_ui = ui.as_weak();
-    let download_state = Arc::clone(&state);
-    ui.on_download_update(move || {
-        if let Some(window) = download_ui.upgrade() {
-            window.set_update_notification_visible(false);
+    let download_state = state.clone();
+    ui.on_download_update(move || download::start(download_ui.clone(), download_state.clone()));
+    let cancel_state = state.clone();
+    ui.global::<UpdateDownloadUi>().on_cancel(move || {
+        if let Ok(control) = cancel_state.cancellation.lock() {
+            control.cancel();
         }
-        let url = download_state
-            .download_url
-            .lock()
-            .ok()
-            .and_then(|guard| guard.clone());
-        open_download_page(download_ui.clone(), url);
     });
-
     let dismiss_ui = ui.as_weak();
     ui.on_dismiss_update_notification(move || {
         if let Some(window) = dismiss_ui.upgrade() {
             window.set_update_notification_visible(false);
         }
     });
-
     if check_on_startup {
         start_check(ui.as_weak(), state, CheckPresentation::StartupNotification);
     }
@@ -81,215 +77,72 @@ fn start_check(
     state: Arc<UpdateState>,
     presentation: CheckPresentation,
 ) {
-    if state
-        .checking
-        .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
-        .is_err()
-    {
+    if state.busy.swap(true, Ordering::AcqRel) {
         return;
     }
     if let Some(window) = ui.upgrade() {
-        window.set_update_status(SharedString::from("checking"));
+        window.set_update_status("checking".into());
         window.set_update_detail(SharedString::new());
     }
-
     let failure_ui = ui.clone();
-    let worker_state = Arc::clone(&state);
-    if thread::Builder::new()
-        .name("saymore-check-updates".to_owned())
+    let worker_state = state.clone();
+    let spawn = thread::Builder::new()
+        .name("saymore-check-updates".into())
         .spawn(move || {
-            let result = latest_release();
-            worker_state.checking.store(false, Ordering::Release);
+            let result = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .map_err(|_| template_app::UpdateError::Network)
+                .and_then(|runtime| {
+                    runtime.block_on(worker_state.updater.latest(env!("CARGO_PKG_VERSION")))
+                });
             let _ = ui.upgrade_in_event_loop(move |window| {
-                apply_check_result(&window, &worker_state, presentation, result);
+                let available = matches!(&result, Ok(Some(_)));
+                if let Ok(mut package) = worker_state.package.lock() {
+                    *package = result.as_ref().ok().and_then(Clone::clone);
+                }
+                if let Ok(mut installer) = worker_state.installer.lock() {
+                    *installer = None;
+                }
+                window
+                    .global::<UpdateDownloadUi>()
+                    .set_phase(UpdateDownloadPhase::Idle);
+                match result {
+                    Ok(Some(package)) => {
+                        window.set_update_status("available".into());
+                        window.set_update_version(package.version.into());
+                        window.set_update_detail(SharedString::new());
+                    }
+                    Ok(None) => {
+                        window.set_update_status("latest".into());
+                        window.set_update_version(SharedString::new());
+                        window.set_update_detail(SharedString::new());
+                    }
+                    Err(_) => {
+                        window.set_update_status("failed".into());
+                        window.set_update_version(SharedString::new());
+                        window.set_update_detail(
+                            window
+                                .global::<Translations>()
+                                .get_update_service_unavailable(),
+                        );
+                    }
+                }
+                if presentation == CheckPresentation::StartupNotification {
+                    window.set_update_notification_visible(available);
+                }
+                worker_state.busy.store(false, Ordering::Release);
             });
-        })
-        .is_err()
-    {
-        state.checking.store(false, Ordering::Release);
+        });
+    if spawn.is_err() {
+        state.busy.store(false, Ordering::Release);
         if let Some(window) = failure_ui.upgrade() {
-            if presentation == CheckPresentation::StartupNotification {
-                window.set_update_notification_visible(false);
-            }
-            window.set_update_status(SharedString::from("failed"));
+            window.set_update_status("failed".into());
             window.set_update_detail(
                 window
                     .global::<Translations>()
                     .get_update_check_start_failed(),
             );
         }
-    }
-}
-
-fn apply_check_result(
-    window: &AppWindow,
-    state: &UpdateState,
-    presentation: CheckPresentation,
-    result: Result<Option<Release>, ()>,
-) {
-    match result {
-        Ok(Some(release)) => {
-            if let Ok(mut download_url) = state.download_url.lock() {
-                *download_url = Some(release.html_url);
-            }
-            window.set_update_status(SharedString::from("available"));
-            window.set_update_version(SharedString::from(release.tag_name));
-            window.set_update_detail(SharedString::new());
-            if let Some(visible) = notification_visibility(presentation, true) {
-                window.set_update_notification_visible(visible);
-            }
-        }
-        Ok(None) => {
-            if let Ok(mut download_url) = state.download_url.lock() {
-                *download_url = None;
-            }
-            window.set_update_status(SharedString::from("latest"));
-            window.set_update_version(SharedString::new());
-            window.set_update_detail(SharedString::new());
-            if let Some(visible) = notification_visibility(presentation, false) {
-                window.set_update_notification_visible(visible);
-            }
-        }
-        Err(()) => {
-            window.set_update_status(SharedString::from("failed"));
-            window.set_update_version(SharedString::new());
-            window.set_update_detail(
-                window
-                    .global::<Translations>()
-                    .get_update_service_unavailable(),
-            );
-            if let Some(visible) = notification_visibility(presentation, false) {
-                window.set_update_notification_visible(visible);
-            }
-        }
-    }
-}
-
-fn notification_visibility(
-    presentation: CheckPresentation,
-    update_available: bool,
-) -> Option<bool> {
-    match presentation {
-        CheckPresentation::Settings => None,
-        CheckPresentation::StartupNotification => Some(update_available),
-    }
-}
-
-fn open_download_page(ui: slint::Weak<AppWindow>, url: Option<String>) {
-    let Some(url) = url.filter(|value| value.starts_with(RELEASES_PREFIX)) else {
-        if let Some(window) = ui.upgrade() {
-            window.set_update_status(SharedString::from("failed"));
-            window.set_update_detail(
-                window
-                    .global::<Translations>()
-                    .get_update_download_url_unavailable(),
-            );
-        }
-        return;
-    };
-
-    let _ = thread::Builder::new()
-        .name("saymore-open-update-download".to_owned())
-        .spawn(move || {
-            let result = platform_open::open(url);
-            if let Err(error) = result {
-                tracing::warn!(event = "update.download_page_open_failed", reason = %error);
-                let _ = ui.upgrade_in_event_loop(move |window| {
-                    window.set_update_status(SharedString::from("failed"));
-                    window.set_update_detail(
-                        window
-                            .global::<Translations>()
-                            .get_update_open_download_failed(),
-                    );
-                });
-            }
-        });
-}
-
-fn latest_release() -> Result<Option<Release>, ()> {
-    let _ = rustls::crypto::ring::default_provider().install_default();
-    let runtime = tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .build()
-        .map_err(|_| ())?;
-    runtime.block_on(async {
-        let client = reqwest::Client::builder()
-            .user_agent("Saymore update checker")
-            .connect_timeout(Duration::from_secs(5))
-            .timeout(Duration::from_secs(10))
-            .build()
-            .map_err(|_| ())?;
-        let release = client
-            .get(RELEASES_URL)
-            .send()
-            .await
-            .map_err(|_| ())?
-            .error_for_status()
-            .map_err(|_| ())?
-            .json::<Release>()
-            .await
-            .map_err(|_| ())?;
-        let has_update = !release.prerelease
-            && release.html_url.starts_with(RELEASES_PREFIX)
-            && is_newer_version(&release.tag_name, env!("CARGO_PKG_VERSION"));
-        Ok(has_update.then_some(release))
-    })
-}
-
-fn is_newer_version(remote: &str, current: &str) -> bool {
-    match (version_numbers(remote), version_numbers(current)) {
-        (Some(remote), Some(current)) => remote > current,
-        _ => false,
-    }
-}
-
-fn version_numbers(value: &str) -> Option<[u64; 3]> {
-    let value = value.trim().trim_start_matches('v');
-    let core = value.split(['-', '+']).next()?;
-    let mut numbers = [0_u64; 3];
-    for (index, part) in core.split('.').enumerate() {
-        if index >= numbers.len()
-            || part.is_empty()
-            || !part.bytes().all(|byte| byte.is_ascii_digit())
-        {
-            return None;
-        }
-        numbers[index] = part.parse().ok()?;
-    }
-    Some(numbers)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::{CheckPresentation, is_newer_version, notification_visibility, version_numbers};
-
-    #[test]
-    fn compares_release_versions_without_a_semver_dependency() {
-        assert!(is_newer_version("v0.2.0", "0.1.0"));
-        assert!(!is_newer_version("v0.1.0", "0.1.0"));
-        assert!(!is_newer_version("v0.1.0-beta.1", "0.1.0"));
-        assert!(!is_newer_version("bad", "0.1.0"));
-    }
-
-    #[test]
-    fn accepts_missing_minor_or_patch_numbers() {
-        assert_eq!(Some([2, 0, 0]), version_numbers("v2"));
-        assert_eq!(Some([2, 3, 0]), version_numbers("2.3"));
-    }
-
-    #[test]
-    fn only_startup_checks_control_notification_visibility() {
-        assert_eq!(
-            Some(true),
-            notification_visibility(CheckPresentation::StartupNotification, true)
-        );
-        assert_eq!(
-            Some(false),
-            notification_visibility(CheckPresentation::StartupNotification, false)
-        );
-        assert_eq!(
-            None,
-            notification_visibility(CheckPresentation::Settings, true)
-        );
     }
 }

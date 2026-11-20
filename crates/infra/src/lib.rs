@@ -104,6 +104,7 @@ mod macos_shortcut_monitor;
 #[cfg(target_os = "macos")]
 mod macos_text_delivery;
 
+mod software_update;
 mod volcengine_asr;
 mod whisper_asr;
 
@@ -218,6 +219,7 @@ pub use platform_secret_store::PlatformSecretStore;
 pub use process_memory::current_process_resident_memory_bytes;
 pub use qwen3_asr::Qwen3AsrSpeechRecognizer;
 pub use retired_asr_models::RetiredAsrModel;
+pub use software_update::{GithubSoftwareUpdater, UpdatePlatform};
 pub use sqlite_storage::{SqliteStorage, read_dictionary_snapshot};
 pub use storage_usage::{directory_usage_bytes, local_storage_usage};
 pub use system_clock::SystemClock;

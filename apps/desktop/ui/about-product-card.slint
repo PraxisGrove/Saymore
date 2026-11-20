@@ -1,5 +1,6 @@
 import { AppColors } from "color-system.slint";
 import { Typography } from "typography.slint";
+import { UpdateDownloadUi, UpdateDownloadProgress } from "update-download.slint";
 
 export component AboutProductCard inherits Rectangle {
     in property <string> app-version;
@@ -12,6 +13,8 @@ export component AboutProductCard inherits Rectangle {
     callback download-update();
     callback open-release-notes();
 
+    private property <string> effective-action-label: root.update-available ? UpdateDownloadUi.action-label : root.action-label;
+    private property <bool> effective-action-enabled: root.action-enabled && !UpdateDownloadUi.busy;
     private property <bool> compact: root.width < 620px;
     private property <color> product-ink: AppColors.ink;
     private property <color> product-text: AppColors.text;
@@ -22,7 +25,10 @@ export component AboutProductCard inherits Rectangle {
         : AppColors.text-muted;
     private property <bool> update-available: root.update-status == "available";
 
-    height: action.y + action.height + 12px;
+    height: action.y + action.height + 12px + progress.height;
+    progress := UpdateDownloadProgress {
+        x: 20px; y: action.y + action.height + 12px; width: parent.width - 40px;
+    }
     border-radius: 10px;
     background: AppColors.surface;
 
@@ -145,18 +151,18 @@ export component AboutProductCard inherits Rectangle {
         width: root.update-available ? max(124px, action-text.preferred-width + 38px) : max(91px, action-text.preferred-width + 35px);
         height: 32px;
         border-radius: 8px;
-        background: !root.action-enabled ? AppColors.surface-muted
+        background: !root.effective-action-enabled ? AppColors.surface-muted
             : root.update-available ? (action-touch.has-hover ? AppColors.brand-hover : AppColors.brand)
             : action-touch.has-hover ? AppColors.surface-muted
             : AppColors.surface-subtle;
-        opacity: root.action-enabled ? (action-touch.pressed ? 0.84 : 1) : 0.62;
+        opacity: root.effective-action-enabled ? (action-touch.pressed ? 0.84 : 1) : 0.62;
         animate background { duration: 120ms; easing: ease-out; }
         animate opacity { duration: 70ms; easing: ease-out; }
         accessible-role: button;
-        accessible-label: root.action-label;
-        accessible-enabled: root.action-enabled;
+        accessible-label: root.effective-action-label;
+        accessible-enabled: root.effective-action-enabled;
         accessible-action-default => {
-            if root.action-enabled {
+            if root.effective-action-enabled {
                 if root.update-available { root.download-update(); } else { root.check-for-updates(); }
             }
         }
@@ -164,7 +170,7 @@ export component AboutProductCard inherits Rectangle {
         action-text := Text {
             x: 10px;
             width: parent.width - 35px;
-            text: root.action-label;
+            text: root.effective-action-label;
             color: root.update-available ? AppColors.on-brand : root.product-text;
             font-family: Typography.ui-font-family;
             font-size: 11px;
@@ -182,8 +188,8 @@ export component AboutProductCard inherits Rectangle {
             colorize: root.update-available ? AppColors.on-brand : root.product-muted;
         }
         action-touch := TouchArea {
-            enabled: root.action-enabled;
-            mouse-cursor: root.action-enabled ? pointer : default;
+            enabled: root.effective-action-enabled;
+            mouse-cursor: root.effective-action-enabled ? pointer : default;
             clicked => {
                 if root.update-available { root.download-update(); } else { root.check-for-updates(); }
             }

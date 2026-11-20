@@ -3879,3 +3879,55 @@ msgstr "整个 Saymore 应用进程当前占用的内存。"
 msgctxt "models.asr.local.queued"
 msgid "Queued"
 msgstr "排队中"
+
+msgctxt "update.download.open"
+msgid "Open installer"
+msgstr "打开安装程序"
+
+msgctxt "update.download.retry"
+msgid "Retry download"
+msgstr "重试下载"
+
+msgctxt "update.download.downloading"
+msgid "Downloading…"
+msgstr "下载中…"
+
+msgctxt "update.download.start"
+msgid "Download update"
+msgstr "下载更新"
+
+msgctxt "update.download.integrity"
+msgid "The installer could not be verified. Please retry the download."
+msgstr "安装程序校验失败，请重试下载。"
+
+msgctxt "update.download.storage"
+msgid "Could not save the update. Check free disk space and retry."
+msgstr "无法保存更新，请检查磁盘空间后重试。"
+
+msgctxt "update.download.open-failed"
+msgid "Could not open the installer. Please try again."
+msgstr "无法打开安装程序，请重试。"
+
+msgctxt "update.download.network"
+msgid "Download failed. Check your connection and retry."
+msgstr "下载失败，请检查网络连接后重试。"
+
+msgctxt "update.download.ready"
+msgid "Download verified. Open the installer to finish updating."
+msgstr "下载已校验，请打开安装程序完成更新。"
+
+msgctxt "update.download.cancelled"
+msgid "Download cancelled"
+msgstr "下载已取消"
+
+msgctxt "update.download.verifying"
+msgid "Verifying installer…"
+msgstr "正在校验安装程序…"
+
+msgctxt "update.download.progress"
+msgid "Downloading · {}% · {}"
+msgstr "下载中 · {}% · {}"
+
+msgctxt "update.download.install-help"
+msgid "Your settings and history stay in place. Installation starts only when you open the installer."
+msgstr "你的设置和历史记录会保留，只有打开安装程序后才会开始安装。"

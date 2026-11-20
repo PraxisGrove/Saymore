@@ -204,6 +204,7 @@ fn wire_local_features(
     update_check::wire(
         &windows.ui,
         bootstrap.local_settings.automatic_update_checks,
+        bootstrap.paths.data_directory().join("updates"),
     );
     settings_links::wire(&windows.ui);
     settings_actions::wire(

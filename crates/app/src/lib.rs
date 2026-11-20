@@ -21,6 +21,7 @@ mod refinement_policy;
 mod refinement_prompt;
 mod refinement_terms;
 mod settings;
+mod software_update;
 mod speech_recognition;
 mod storage;
 mod system_audio;
@@ -103,6 +104,10 @@ pub use settings::{
     WHISPER_PROVIDER_TYPE, ZIPFORMER_PROVIDER_ID, ZIPFORMER_PROVIDER_TYPE,
 };
 pub use settings::{QwenRecognitionMode, WhisperRecognitionMode};
+pub use software_update::{
+    SoftwareUpdater, UpdateCancellation, UpdateError, UpdatePackage, UpdateProgress,
+    is_newer_release, release_version,
+};
 pub use speech_recognition::{
     SpeechRecognitionError, SpeechRecognitionHints, StreamingRecognitionSession,
     StreamingSpeechRecognizer,

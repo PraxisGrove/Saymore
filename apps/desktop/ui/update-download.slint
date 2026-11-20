@@ -1,0 +1,57 @@
+import { AppColors } from "color-system.slint";
+
+export enum UpdateDownloadPhase { idle, downloading, verifying, ready, failed, cancelled }
+
+export global UpdateDownloadUi {
+    in-out property <UpdateDownloadPhase> phase: UpdateDownloadPhase.idle;
+    in-out property <float> fraction;
+    in-out property <string> bytes-label;
+    in-out property <string> error-kind;
+    out property <bool> busy: phase == UpdateDownloadPhase.downloading || phase == UpdateDownloadPhase.verifying;
+    out property <string> action-label: phase == UpdateDownloadPhase.ready ? @tr("update.download.open" => "Open installer")
+        : phase == UpdateDownloadPhase.failed || phase == UpdateDownloadPhase.cancelled ? @tr("update.download.retry" => "Retry download")
+        : busy ? @tr("update.download.downloading" => "Downloading…")
+        : @tr("update.download.start" => "Download update");
+    callback cancel();
+}
+
+export component UpdateDownloadProgress inherits Rectangle {
+    height: UpdateDownloadUi.phase == UpdateDownloadPhase.idle ? 0px : 94px;
+    visible: UpdateDownloadUi.phase != UpdateDownloadPhase.idle;
+    private property <string> failure: UpdateDownloadUi.error-kind == "integrity" ? @tr("update.download.integrity" => "The installer could not be verified. Please retry the download.")
+        : UpdateDownloadUi.error-kind == "storage" ? @tr("update.download.storage" => "Could not save the update. Check free disk space and retry.")
+        : UpdateDownloadUi.error-kind == "open" ? @tr("update.download.open-failed" => "Could not open the installer. Please try again.")
+        : @tr("update.download.network" => "Download failed. Check your connection and retry.");
+    Text {
+        x: 0px; y: 4px; width: parent.width - (UpdateDownloadUi.busy ? 80px : 0px); height: 36px;
+        text: UpdateDownloadUi.error-kind != "" ? root.failure
+            : UpdateDownloadUi.phase == UpdateDownloadPhase.ready ? @tr("update.download.ready" => "Download verified. Open the installer to finish updating.")
+            : UpdateDownloadUi.phase == UpdateDownloadPhase.cancelled ? @tr("update.download.cancelled" => "Download cancelled")
+            : UpdateDownloadUi.phase == UpdateDownloadPhase.verifying ? @tr("update.download.verifying" => "Verifying installer…")
+            : @tr("update.download.progress" => "Downloading · {}% · {}", round(UpdateDownloadUi.fraction * 100), UpdateDownloadUi.bytes-label);
+        color: UpdateDownloadUi.error-kind != "" ? AppColors.danger : AppColors.text;
+        font-size: 11px;
+        wrap: word-wrap;
+        vertical-alignment: center;
+    }
+    if UpdateDownloadUi.busy: Rectangle {
+        x: parent.width - 70px; y: 4px; width: 70px; height: 32px;
+        border-radius: 8px;
+        background: cancel.has-hover ? AppColors.surface-muted : AppColors.surface-subtle;
+        accessible-role: button;
+        accessible-label: @tr("common.cancel" => "Cancel");
+        accessible-action-default => { UpdateDownloadUi.cancel(); }
+        Text { text: @tr("common.cancel" => "Cancel"); color: AppColors.text; font-size: 11px; horizontal-alignment: center; vertical-alignment: center; }
+        cancel := TouchArea { mouse-cursor: pointer; clicked => { UpdateDownloadUi.cancel(); } }
+    }
+    Rectangle {
+        y: 48px; width: parent.width; height: 5px; border-radius: 2.5px;
+        background: AppColors.surface-muted;
+        Rectangle { width: parent.width * clamp(UpdateDownloadUi.fraction, 0, 1); height: parent.height; border-radius: 2.5px; background: AppColors.brand; }
+    }
+    Text {
+        y: 64px; width: parent.width; height: 26px;
+        text: @tr("update.download.install-help" => "Your settings and history stay in place. Installation starts only when you open the installer.");
+        color: AppColors.text-muted; font-size: 10px; wrap: word-wrap;
+    }
+}

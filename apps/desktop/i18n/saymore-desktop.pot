@@ -3687,3 +3687,55 @@ msgstr ""
 msgctxt "models.asr.local.queued"
 msgid "Queued"
 msgstr ""
+
+msgctxt "update.download.open"
+msgid "Open installer"
+msgstr ""
+
+msgctxt "update.download.retry"
+msgid "Retry download"
+msgstr ""
+
+msgctxt "update.download.downloading"
+msgid "Downloading…"
+msgstr ""
+
+msgctxt "update.download.start"
+msgid "Download update"
+msgstr ""
+
+msgctxt "update.download.integrity"
+msgid "The installer could not be verified. Please retry the download."
+msgstr ""
+
+msgctxt "update.download.storage"
+msgid "Could not save the update. Check free disk space and retry."
+msgstr ""
+
+msgctxt "update.download.open-failed"
+msgid "Could not open the installer. Please try again."
+msgstr ""
+
+msgctxt "update.download.network"
+msgid "Download failed. Check your connection and retry."
+msgstr ""
+
+msgctxt "update.download.ready"
+msgid "Download verified. Open the installer to finish updating."
+msgstr ""
+
+msgctxt "update.download.cancelled"
+msgid "Download cancelled"
+msgstr ""
+
+msgctxt "update.download.verifying"
+msgid "Verifying installer…"
+msgstr ""
+
+msgctxt "update.download.progress"
+msgid "Downloading · {}% · {}"
+msgstr ""
+
+msgctxt "update.download.install-help"
+msgid "Your settings and history stay in place. Installation starts only when you open the installer."
+msgstr ""
