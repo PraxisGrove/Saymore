@@ -22,7 +22,7 @@ pub fn after_snapshot<C: ComponentHandle + 'static>(
 ) {
     let weak = component.as_weak();
     // Let the reveal animation finish, then request a fresh frame for capture.
-    slint::Timer::single_shot(Duration::from_millis(200), move || {
+    slint::Timer::single_shot(Duration::from_millis(300), move || {
         let Some(component) = weak.upgrade() else {
             require(false);
             return;
@@ -68,7 +68,7 @@ pub fn show_preview_and_finish(overlay: &ui::RecordingOverlay, directory: &'stat
         overlay
             .window()
             .try_dispatch_event(WindowEvent::Resized {
-                size: slint::LogicalSize::new(360.0, 128.0),
+                size: slint::LogicalSize::new(360.0, 35.0),
             })
             .is_ok(),
     );

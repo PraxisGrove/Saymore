@@ -3540,10 +3540,6 @@ msgctxt "settings.storage.retired-model"
 msgid "Retired · Files can be deleted"
 msgstr ""
 
-msgctxt "recording.streaming-listening"
-msgid "Listening…"
-msgstr ""
-
 msgctxt "models.polishing.off"
 msgid "Off"
 msgstr ""

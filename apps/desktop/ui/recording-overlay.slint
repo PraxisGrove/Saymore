@@ -5,7 +5,7 @@ export component RecordingOverlay inherits Window {
     title: "Saymore Recording";
     default-font-family: Typography.ui-font-family;
     preferred-width: root.preview-enabled ? 360px : 120px;
-    preferred-height: root.preview-enabled ? 128px : 35px;
+    preferred-height: 35px;
     min-width: root.preferred-width;
     min-height: root.preferred-height;
     max-width: root.preferred-width;
@@ -29,31 +29,10 @@ export component RecordingOverlay inherits Window {
     callback finish();
     callback undo-cancel();
 
-    if root.preview-enabled && root.mode < 2: Rectangle {
-        x: 0px;
-        y: 0px;
-        width: parent.width;
-        height: 84px;
-        opacity: root.revealed ? 1 : 0;
-        background: OverlayColors.recording-surface;
-        border-color: OverlayColors.recording-border;
-        border-width: 1px;
-        border-radius: 12px;
-        animate opacity { duration: 110ms; easing: ease-out; }
-        Text {
-            x: 12px; y: 10px; width: parent.width - 24px; height: parent.height - 20px;
-            text: root.preview-text.is-empty ? (root.mode == 0 ? @tr("recording.streaming-listening" => "Listening…") : root.processing-label) : root.preview-text;
-            font-size: 13px;
-            color: OverlayColors.recording-text;
-            wrap: word-wrap;
-            overflow: elide;
-        }
-    }
-
     capsule := Rectangle {
         x: (parent.width - self.width) / 2;
         y: parent.height - self.height;
-        width: 120px;
+        width: root.preview-enabled && root.mode < 2 ? parent.width : 120px;
         height: 35px;
         opacity: root.revealed ? 1 : 0;
         border-radius: 17.5px;
@@ -92,7 +71,8 @@ export component RecordingOverlay inherits Window {
 
             for amplitude[index] in [0.38, 0.56, 0.74, 0.90, 1.0, 0.90, 0.74, 0.56, 0.38]: wave-bar := Rectangle {
                 private property <float> pulse: 0.68 + 0.32 * abs(sin((root.wave-phase + index * 0.13) * 360deg));
-                x: 36px + index * 5.75px;
+                visible: !root.preview-enabled || root.preview-text.is-empty;
+                x: (parent.width - 49px) / 2 + index * 5.75px;
                 width: 3px;
                 height: max(3px, 3px + 17px * amplitude * recording-state.wave-energy * wave-bar.pulse);
                 y: (parent.height - self.height) / 2;
@@ -101,7 +81,7 @@ export component RecordingOverlay inherits Window {
             }
 
             Rectangle {
-                x: 89px;
+                x: parent.width - 31px;
                 y: 3.5px;
                 width: 28px;
                 height: 28px;
@@ -120,6 +100,29 @@ export component RecordingOverlay inherits Window {
                     colorize: OverlayColors.ink;
                 }
                 finish-area := TouchArea { enabled: root.mode == 0 && root.revealed; mouse-cursor: pointer; clicked => { root.finish(); } }
+            }
+        }
+
+        if root.preview-enabled && !root.preview-text.is-empty && root.mode < 2: Rectangle {
+            x: root.mode == 0 ? 38px : 128px;
+            y: 0px;
+            width: parent.width - self.x - (root.mode == 0 ? 38px : 12px);
+            height: parent.height;
+            clip: true;
+            live-text := Text {
+                text: root.preview-text;
+                width: self.preferred-width;
+                height: parent.height;
+                x: min(0px, parent.width - self.width);
+                vertical-alignment: center;
+                font-size: 13px;
+                color: OverlayColors.recording-text;
+                animate x { duration: root.revealed ? 240ms : 0ms; easing: ease-out; }
+            }
+            if live-text.width > parent.width: Rectangle {
+                width: 14px;
+                height: parent.height;
+                background: @linear-gradient(90deg, OverlayColors.recording-surface, OverlayColors.recording-surface.transparentize(1));
             }
         }
 

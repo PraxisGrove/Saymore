@@ -3732,10 +3732,6 @@ msgctxt "settings.storage.retired-model"
 msgid "Retired · Files can be deleted"
 msgstr "已停用 · 可删除文件"
 
-msgctxt "recording.streaming-listening"
-msgid "Listening…"
-msgstr "正在聆听…"
-
 msgctxt "models.polishing.off"
 msgid "Off"
 msgstr "关闭"

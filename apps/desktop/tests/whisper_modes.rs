@@ -105,7 +105,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Match the production overlay configuration before showing its native window.
     overlay
         .window()
-        .set_size(slint::LogicalSize::new(360.0, 128.0));
+        .set_size(slint::LogicalSize::new(360.0, 35.0));
     overlay.set_preview_text("这是流式识别预览。The text updates while you speak.".into());
     let preview = overlay.as_weak();
     let weak = window.as_weak();

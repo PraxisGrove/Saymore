@@ -65,9 +65,15 @@ Qwen streaming accumulates audio in two-second steps. The first two decodes are
 unfixed; subsequent calls roll back five native tokenizer tokens and force the
 retained assistant prefix before generating a suffix. Finish flushes a shorter
 tail; an exact chunk boundary does not trigger a second pass. The recording
-overlay displays the latest 100 characters of the replaceable hypothesis.
-Callbacks are checked against the recording's session identity on the UI thread.
-Only the final result enters the existing polishing and delivery workflow.
+overlay shows the replaceable hypothesis on one line inside a 360 × 35 logical
+pixel recording capsule. Cancel and finish stay fixed on either side. Text
+smoothly follows the latest tail as it grows, with a fading left edge when it
+overflows; it does not scroll continuously while speech pauses. Whitespace is
+normalized for the single line. Before the first hypothesis, the capsule shows
+the audio waveform. After stop, it retains the draft beside the processing
+indicator. Non-streaming keeps the compact 120 × 35 capsule. Callbacks are
+checked against the recording's session identity on the UI thread. Only the
+final result enters the existing polishing and delivery workflow.
 
 Streaming is bounded to 20 minutes of total audio. Capture does not wait for
 inference. When inference falls behind, queued steps are combined into the
