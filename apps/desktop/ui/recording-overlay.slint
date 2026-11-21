@@ -18,6 +18,7 @@ export component RecordingOverlay inherits Window {
     in property <string> preview-text;
     in property <float> recording-level: 0;
     in property <string> processing-label: @tr("recording.processing.transcribing" => "Transcribing");
+    in property <string> recording-label: @tr("recording.active" => "Listening");
     in-out property <int> session-generation: 0;
     in-out property <bool> revealed: false;
     // 0 = recording, 1 = processing, 2 = cancelled, 3 = refinement failed
@@ -80,6 +81,27 @@ export component RecordingOverlay inherits Window {
                 background: index == 4 ? OverlayColors.recording-wave-accent : OverlayColors.recording-control-light;
             }
 
+            if root.preview-enabled: Rectangle {
+                x: 39px;
+                y: 13px;
+                width: 7px;
+                height: 7px;
+                border-radius: 3.5px;
+                background: OverlayColors.recording-accent;
+                opacity: 0.62 + recording-state.wave-energy * 0.38;
+                animate opacity { duration: 130ms; easing: ease-out; }
+            }
+            if root.preview-enabled: Text {
+                x: 50px;
+                y: 0px;
+                width: 44px;
+                height: parent.height;
+                text: root.recording-label;
+                color: OverlayColors.recording-muted;
+                font-size: 10px;
+                font-weight: 650;
+                vertical-alignment: center;
+            }
             Rectangle {
                 x: parent.width - 31px;
                 y: 3.5px;
@@ -104,7 +126,7 @@ export component RecordingOverlay inherits Window {
         }
 
         if root.preview-enabled && !root.preview-text.is-empty && root.mode < 2: Rectangle {
-            x: root.mode == 0 ? 38px : 128px;
+            x: root.mode == 0 ? 96px : 128px;
             y: 0px;
             width: parent.width - self.x - (root.mode == 0 ? 38px : 12px);
             height: parent.height;
