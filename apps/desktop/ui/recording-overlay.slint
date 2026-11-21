@@ -4,7 +4,7 @@ import { Typography } from "typography.slint";
 export component RecordingOverlay inherits Window {
     title: "Saymore Recording";
     default-font-family: Typography.ui-font-family;
-    preferred-width: root.preview-enabled ? 220px : 120px;
+    preferred-width: root.preview-enabled ? root.preview-width : 120px;
     preferred-height: 35px;
     min-width: root.preferred-width;
     min-height: root.preferred-height;
@@ -16,6 +16,7 @@ export component RecordingOverlay inherits Window {
 
     in property <bool> preview-enabled: false;
     in property <string> preview-text;
+    in property <length> preview-width: 120px;
     in property <float> recording-level: 0;
     in property <string> processing-label: @tr("recording.processing.transcribing" => "Transcribing");
     in-out property <int> session-generation: 0;
