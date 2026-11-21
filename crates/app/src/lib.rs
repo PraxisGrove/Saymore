@@ -22,6 +22,7 @@ mod refinement_prompt;
 mod refinement_terms;
 mod settings;
 mod software_update;
+mod speech_cleanup;
 mod speech_recognition;
 mod storage;
 mod system_audio;
@@ -108,6 +109,7 @@ pub use software_update::{
     SoftwareUpdater, UpdateCancellation, UpdateError, UpdatePackage, UpdateProgress,
     is_newer_release, release_version,
 };
+pub use speech_cleanup::clean_speech;
 pub use speech_recognition::{
     SpeechRecognitionError, SpeechRecognitionHints, StreamingRecognitionSession,
     StreamingSpeechRecognizer,

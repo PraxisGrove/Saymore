@@ -6,7 +6,9 @@ use std::{
     sync::{
         Arc, Mutex,
         atomic::{AtomicBool, Ordering},
+        mpsc::{self, SyncSender},
     },
+    thread,
 };
 
 use template_app::DiagnosticEventStore;
@@ -87,6 +89,7 @@ impl DiagnosticsController {
             Err(error) => return Err(error),
         };
         append_stored_events(&mut report, events);
+        append_disk_details(&mut report, &self.directory)?;
 
         if report == empty_report {
             report.push_str(&text.no_events);
@@ -103,7 +106,7 @@ pub fn init(
 ) -> Result<DiagnosticsController, io::Error> {
     let controller = DiagnosticsController::without_logger(directory.clone(), enabled, store);
     prepare_directory(&directory)?;
-    let writer = SanitizedLogWriter::new(
+    let writer = SanitizedLogWriter::new_async(
         BoundedLogWriter::open(directory)?,
         Arc::clone(&controller.store),
     );
@@ -185,6 +188,58 @@ fn safe_events(log: &str) -> impl Iterator<Item = &str> {
         .filter(|event| is_safe_event(event))
 }
 
+const DETAIL_FIELDS: [&str; 10] = [
+    "failure_type",
+    "cleanup_changed",
+    "source_chars",
+    "candidate_chars",
+    "processed_chars",
+    "protected_fragments",
+    "changed_fragments",
+    "formatting_only",
+    "numeric_before_hash",
+    "numeric_after_hash",
+];
+
+fn safe_detail_line(line: &str) -> Option<String> {
+    let event = field_value(line, "event").filter(|event| is_safe_event(event))?;
+    let mut detail = format!("event={event}");
+    for field in DETAIL_FIELDS {
+        if let Some(value) = field_value(line, field)
+            && value.bytes().all(|byte| byte.is_ascii_alphanumeric())
+        {
+            detail.push(' ');
+            detail.push_str(field);
+            detail.push('=');
+            detail.push_str(value);
+        }
+    }
+    (detail.contains(' ') && detail.len() <= 512).then_some(detail)
+}
+
+fn append_disk_details(report: &mut String, directory: &Path) -> Result<(), io::Error> {
+    let mut details = Vec::new();
+    for path in [
+        directory.join("diagnostics.log.previous"),
+        directory.join("diagnostics.log"),
+    ] {
+        match fs::read_to_string(path) {
+            Ok(log) => details.extend(log.lines().filter_map(safe_detail_line)),
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+            Err(error) => return Err(error),
+        }
+    }
+    if !details.is_empty() {
+        report.push_str("\nDiagnostic metrics:\n");
+        for detail in details {
+            report.push_str("- ");
+            report.push_str(&detail);
+            report.push('\n');
+        }
+    }
+    Ok(())
+}
+
 fn field_value<'a>(line: &'a str, name: &str) -> Option<&'a str> {
     let marker = format!("{name}=");
     let raw = line
@@ -223,14 +278,57 @@ struct BoundedLogWriter {
     bytes_written: u64,
 }
 
+const ASYNC_EVENT_QUEUE_CAPACITY: usize = 512;
+
+enum DiagnosticEventSink {
+    #[cfg(test)]
+    Synchronous(Arc<dyn DiagnosticEventStore>),
+    Asynchronous(SyncSender<String>),
+}
+
 struct SanitizedLogWriter {
     inner: BoundedLogWriter,
-    store: Arc<dyn DiagnosticEventStore>,
+    sink: DiagnosticEventSink,
 }
 
 impl SanitizedLogWriter {
+    #[cfg(test)]
     fn new(inner: BoundedLogWriter, store: Arc<dyn DiagnosticEventStore>) -> Self {
-        Self { inner, store }
+        Self {
+            inner,
+            sink: DiagnosticEventSink::Synchronous(store),
+        }
+    }
+
+    fn new_async(inner: BoundedLogWriter, store: Arc<dyn DiagnosticEventStore>) -> Self {
+        let (sender, receiver): (SyncSender<String>, _) =
+            mpsc::sync_channel(ASYNC_EVENT_QUEUE_CAPACITY);
+        let _ = thread::Builder::new()
+            .name("saymore-diagnostics-store".to_owned())
+            .spawn(move || {
+                while let Ok(event) = receiver.recv() {
+                    let _ = store.record_diagnostic_event(&event);
+                }
+            });
+        Self {
+            inner,
+            sink: DiagnosticEventSink::Asynchronous(sender),
+        }
+    }
+
+    fn record_event(&self, event: &str) {
+        match &self.sink {
+            #[cfg(test)]
+            DiagnosticEventSink::Synchronous(store) => {
+                let _ = store.record_diagnostic_event(event);
+            }
+            DiagnosticEventSink::Asynchronous(sender) => {
+                // Disk logging is the authoritative fallback for the report. Never
+                // make a tracing call wait for SQLite, and discard queued database
+                // copies when the bounded queue is under pressure.
+                let _ = sender.try_send(event.to_owned());
+            }
+        }
     }
 }
 
@@ -242,8 +340,12 @@ impl Write for SanitizedLogWriter {
                 else {
                     continue;
                 };
-                writeln!(self.inner, "event={event}")?;
-                let _ = self.store.record_diagnostic_event(event);
+                if let Some(detail) = safe_detail_line(line) {
+                    writeln!(self.inner, "{detail}")?;
+                } else {
+                    writeln!(self.inner, "event={event}")?;
+                }
+                self.record_event(event);
             }
         }
         Ok(buffer.len())

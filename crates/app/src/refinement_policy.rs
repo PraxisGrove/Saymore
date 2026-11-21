@@ -153,21 +153,215 @@ fn numeric_facts(text: &str) -> BTreeMap<String, usize> {
 }
 
 fn numeric_fragments(text: &str) -> Vec<String> {
+    let characters = text.chars().collect::<Vec<_>>();
     let mut fragments = Vec::new();
-    let mut current = String::new();
-    for character in text.chars() {
-        if character.is_ascii_digit() || (!current.is_empty() && matches!(character, '.' | ':')) {
-            current.push(character);
-        } else if !current.is_empty() {
-            fragments.push(current.trim_end_matches(['.', ':']).to_owned());
-            current.clear();
+    let mut index = 0;
+    while index < characters.len() {
+        if !is_numeric_character(characters[index]) {
+            index += 1;
+            continue;
+        }
+        let start = index;
+        index += 1;
+        while index < characters.len()
+            && (is_numeric_character(characters[index]) || matches!(characters[index], '.' | ':'))
+        {
+            index += 1;
+        }
+        let core = characters[start..index].iter().collect::<String>();
+        let unit_start = index;
+        while index < characters.len() && characters[index].is_whitespace() {
+            index += 1;
+        }
+        let unit_value_start = index;
+        while index < characters.len() && is_numeric_unit(characters[index]) {
+            index += 1;
+        }
+        let unit = characters[unit_value_start..index]
+            .iter()
+            .collect::<String>();
+        let unit = canonical_numeric_unit(&unit);
+        if unit.is_empty() {
+            index = unit_start;
+        }
+        if (core == "一" && unit == "点")
+            || unit.is_empty()
+                && core.chars().count() == 1
+                && core.chars().any(|character| !character.is_ascii_digit())
+        {
+            continue;
+        }
+        let normalized = normalize_numeric_fragment(&core);
+        if !normalized.is_empty() {
+            fragments.push(format!("{normalized}{unit}"));
         }
     }
-    if !current.is_empty() {
-        fragments.push(current.trim_end_matches(['.', ':']).to_owned());
-    }
-    fragments.retain(|fragment| !fragment.is_empty());
     fragments
+}
+
+fn canonical_numeric_unit(unit: &str) -> String {
+    match unit {
+        "个" | "人" | "张" | "台" | "件" | "部" | "个部" | "部分" | "个部分" => {
+            "count".to_owned()
+        }
+        other => other.to_owned(),
+    }
+}
+
+fn is_numeric_character(character: char) -> bool {
+    character.is_ascii_digit()
+        || matches!(
+            character,
+            '零' | '〇'
+                | '一'
+                | '二'
+                | '两'
+                | '三'
+                | '四'
+                | '五'
+                | '六'
+                | '七'
+                | '八'
+                | '九'
+                | '十'
+                | '百'
+                | '千'
+                | '万'
+                | '亿'
+        )
+}
+
+fn is_numeric_unit(character: char) -> bool {
+    matches!(
+        character,
+        '年' | '月'
+            | '日'
+            | '号'
+            | '点'
+            | '时'
+            | '分'
+            | '秒'
+            | '个'
+            | '元'
+            | '块'
+            | '人'
+            | '张'
+            | '台'
+            | '件'
+            | '部'
+            | '天'
+            | '周'
+            | '米'
+            | '半'
+            | '%'
+    )
+}
+
+fn normalize_numeric_fragment(fragment: &str) -> String {
+    let trimmed = fragment.trim_end_matches(['.', ':']);
+    if trimmed.is_empty() {
+        return String::new();
+    }
+    if trimmed
+        .chars()
+        .all(|character| character.is_ascii_digit() || matches!(character, '.' | ':'))
+    {
+        return trimmed.to_owned();
+    }
+    normalize_chinese_number(trimmed).unwrap_or_else(|| {
+        trimmed
+            .chars()
+            .map(|character| match character {
+                '零' | '〇' => '0',
+                '一' => '1',
+                '二' | '两' => '2',
+                '三' => '3',
+                '四' => '4',
+                '五' => '5',
+                '六' => '6',
+                '七' => '7',
+                '八' => '8',
+                '九' => '9',
+                '十' => '1',
+                '百' => '0',
+                '千' => '0',
+                '万' => '0',
+                '亿' => '0',
+                other => other,
+            })
+            .collect()
+    })
+}
+
+fn normalize_chinese_number(value: &str) -> Option<String> {
+    if value.chars().all(|character| {
+        matches!(
+            character,
+            '零' | '〇' | '一' | '二' | '两' | '三' | '四' | '五' | '六' | '七' | '八' | '九'
+        )
+    }) {
+        return Some(
+            value
+                .chars()
+                .map(|character| match character {
+                    '零' | '〇' => '0',
+                    '一' => '1',
+                    '二' | '两' => '2',
+                    '三' => '3',
+                    '四' => '4',
+                    '五' => '5',
+                    '六' => '6',
+                    '七' => '7',
+                    '八' => '8',
+                    '九' => '9',
+                    _ => '0',
+                })
+                .collect(),
+        );
+    }
+    let mut total = 0_u64;
+    let mut section = 0_u64;
+    let mut number = 0_u64;
+    for character in value.chars() {
+        let digit = match character {
+            '零' | '〇' => Some(0),
+            '一' => Some(1),
+            '二' | '两' => Some(2),
+            '三' => Some(3),
+            '四' => Some(4),
+            '五' => Some(5),
+            '六' => Some(6),
+            '七' => Some(7),
+            '八' => Some(8),
+            '九' => Some(9),
+            _ => None,
+        };
+        if let Some(digit) = digit {
+            number = number.checked_mul(10)?.checked_add(digit)?;
+            continue;
+        }
+        let multiplier = match character {
+            '十' => 10,
+            '百' => 100,
+            '千' => 1_000,
+            '万' => 10_000,
+            '亿' => 100_000_000,
+            _ => return None,
+        };
+        if multiplier >= 10_000 {
+            section = section.checked_add(number)?.checked_mul(multiplier)?;
+            total = total.checked_add(section)?;
+            section = 0;
+        } else {
+            let value = if number == 0 { 1 } else { number };
+            section = section.checked_add(value.checked_mul(multiplier)?)?;
+        }
+        number = 0;
+    }
+    total
+        .checked_add(section)?
+        .checked_add(number)
+        .map(|value| value.to_string())
 }
 
 fn technical_fragments(text: &str) -> BTreeMap<String, usize> {
@@ -181,10 +375,10 @@ fn technical_fragments(text: &str) -> BTreeMap<String, usize> {
     fragment_counts(
         text.split_whitespace()
             .map(trim_token_boundaries)
+            .map(normalize_technical_token)
             .filter(|token| {
                 is_technical_token(token) || (command_context && is_ascii_command_token(token))
-            })
-            .map(str::to_owned),
+            }),
     )
 }
 
@@ -192,8 +386,8 @@ fn immutable_technical_fragments(text: &str) -> BTreeMap<String, usize> {
     fragment_counts(
         text.split_whitespace()
             .map(trim_token_boundaries)
-            .filter(|token| is_technical_token(token) && !has_internal_uppercase(token))
-            .map(str::to_owned),
+            .map(normalize_technical_token)
+            .filter(|token| is_technical_token(token) && !has_internal_uppercase(token)),
     )
 }
 
@@ -225,6 +419,20 @@ fn trim_token_boundaries(token: &str) -> &str {
                 | '`'
         )
     })
+}
+
+fn normalize_technical_token(token: &str) -> String {
+    token
+        .chars()
+        .map(|character| match character {
+            '\u{ff01}'..='\u{ff5e}' => match char::from_u32(character as u32 - 0xfee0) {
+                Some(ascii) => ascii,
+                None => character,
+            },
+            '\u{3002}' => '.',
+            other => other,
+        })
+        .collect()
 }
 
 fn is_technical_token(token: &str) -> bool {
@@ -294,4 +502,134 @@ fn fragment_counts(
         *count = count.saturating_add(1);
     }
     counts
+}
+
+#[cfg(test)]
+mod tests {
+    use super::validate_refinement;
+    use crate::final_text_processing::{RefinementOutputRejectionReason, RefinementTerm};
+
+    fn terms() -> Vec<RefinementTerm> {
+        Vec::new()
+    }
+
+    #[test]
+    fn accepts_numeric_format_normalization() {
+        let result = validate_refinement("会议安排在下午三点。", "会议安排在下午 3 点。", &terms());
+        assert_eq!(Ok(()), result);
+    }
+
+    #[test]
+    fn rejects_numeric_value_changes() {
+        let result =
+            validate_refinement("会议安排在下午 3 点。", "会议安排在下午 4 点。", &terms());
+        assert_eq!(
+            Err(RefinementOutputRejectionReason::NumericFactsChanged),
+            result
+        );
+    }
+
+    #[test]
+    fn accepts_chinese_date_normalization() {
+        let result = validate_refinement(
+            "发布日期是二零二六年十一月。",
+            "发布日期是 2026 年 11 月。",
+            &terms(),
+        );
+        assert_eq!(Ok(()), result);
+    }
+
+    #[test]
+    fn benchmark_refinement_acceptance_and_rejection_contracts() {
+        let cases = [
+            (
+                "会议安排在下午三点。",
+                "会议安排在下午 3 点。",
+                &[][..],
+                Ok(()),
+            ),
+            (
+                "发布日期是二零二六年十一月。",
+                "发布日期是 2026 年 11 月。",
+                &[][..],
+                Ok(()),
+            ),
+            (
+                "请打开 /Users/yaco/Projects/Saymore。",
+                "请打开 /Users/yaco/Projects/Other。",
+                &[][..],
+                Err(RefinementOutputRejectionReason::ProtectedFragmentChanged),
+            ),
+            (
+                "请在 github 仓库里运行 cargo test --workspace。",
+                "请在 GitHub 仓库里运行 cargo test --workspace。",
+                &["GitHub", "cargo test --workspace"][..],
+                Ok(()),
+            ),
+            (
+                "请在 github 仓库里运行 cargo test --workspace。",
+                "请在 GitHub 仓库里运行 cargo check --workspace。",
+                &["GitHub"][..],
+                Err(RefinementOutputRejectionReason::ProtectedFragmentChanged),
+            ),
+            (
+                "请在下午 3 点开会。",
+                "请在下午 4 点开会。",
+                &[][..],
+                Err(RefinementOutputRejectionReason::NumericFactsChanged),
+            ),
+        ];
+
+        for (source, candidate, terms, expected) in cases {
+            let terms = terms
+                .iter()
+                .map(|canonical| RefinementTerm {
+                    canonical: (*canonical).to_owned(),
+                })
+                .collect::<Vec<_>>();
+            assert_eq!(expected, validate_refinement(source, candidate, &terms));
+        }
+    }
+
+    #[test]
+    fn benchmark_allows_one_confirmed_phonetic_term_but_rejects_unlisted_additions() {
+        let terms = [RefinementTerm {
+            canonical: "DeepSeek".to_owned(),
+        }];
+        assert_eq!(Ok(()), validate_refinement("低配色可", "DeepSeek", &terms));
+        assert_eq!(
+            Err(RefinementOutputRejectionReason::ProtectedFragmentChanged),
+            validate_refinement("低配色可", "DeepSeek 和 OpenAI", &terms)
+        );
+    }
+
+    #[test]
+    fn normalizes_full_width_technical_tokens() {
+        assert_eq!(
+            "--lib",
+            super::normalize_technical_token("--\u{ff4c}\u{ff49}\u{ff42}"),
+        );
+    }
+
+    #[test]
+    fn rejects_changed_paths() {
+        let result = validate_refinement(
+            "请打开 /Users/yaco/Projects/Saymore。",
+            "请打开 /Users/yaco/Projects/Other。",
+            &terms(),
+        );
+        assert_eq!(
+            Err(RefinementOutputRejectionReason::ProtectedFragmentChanged),
+            result
+        );
+    }
+
+    #[test]
+    fn preserves_numeric_units() {
+        let result = validate_refinement("需要 3 个人。", "需要 3 元。", &terms());
+        assert_eq!(
+            Err(RefinementOutputRejectionReason::NumericFactsChanged),
+            result
+        );
+    }
 }

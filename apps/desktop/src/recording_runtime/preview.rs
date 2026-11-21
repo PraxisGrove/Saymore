@@ -23,20 +23,28 @@ pub(super) fn callback(
             if let Some(overlay) = overlay.upgrade()
                 && overlay.get_preview_enabled()
             {
+                let width = preview_width(&text);
                 overlay
                     .set_preview_text(text.split_whitespace().collect::<Vec<_>>().join(" ").into());
+                overlay.set_preview_width(width);
+                overlay
+                    .window()
+                    .set_size(slint::LogicalSize::new(width, 35.0));
             }
         });
     })
+}
+
+fn preview_width(text: &str) -> f32 {
+    let growth = text.chars().count().min(27) as f32 * 6.0;
+    (120.0 + growth).min(280.0)
 }
 
 pub(super) fn configure(overlay: &RecordingOverlay, asr: &AsrSessionController) {
     let preview = asr.shows_live_preview();
     overlay.set_preview_enabled(preview);
     overlay.set_preview_text(SharedString::default());
-    overlay.window().set_size(if preview {
-        slint::LogicalSize::new(360.0, 35.0)
-    } else {
-        slint::LogicalSize::new(120.0, 35.0)
-    });
+    overlay
+        .window()
+        .set_size(slint::LogicalSize::new(120.0, 35.0));
 }

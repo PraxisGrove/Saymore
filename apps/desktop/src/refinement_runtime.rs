@@ -14,7 +14,7 @@ use template_app::{
     FinalTextProcessingError, FinalTextProcessor, FinalTextRequest, HistoryRefinementRetry,
     HistoryRefinementRetryError, HistoryStore, RefinementEvaluation, RefinementFallbackReason,
     RefinementMode, RefinementOutputRejectionReason, RefinementStatus, SaymoreSettings,
-    SettingsStore, local_dictionary_revision_candidates, retry_history_refinement,
+    SettingsStore, clean_speech, local_dictionary_revision_candidates, retry_history_refinement,
     review_final_text_revision, text_revision_diffs,
 };
 #[cfg(test)]
@@ -99,19 +99,30 @@ impl RefinementRuntime {
         F: FnOnce(),
     {
         let started = Instant::now();
+        let source = request.transcript.clone();
+        let protected_terms = request.relevant_terms.clone();
         let processor = self.processor_for(plan.provider);
-        let processed = self
+        let evaluation = self
             .runtime
-            .block_on(processor.process_with_attempt_observer(
+            .block_on(processor.evaluate_with_attempt_observer(
                 request,
                 CancellationToken::new(),
+                template_app::RefinementEvaluationMode::ProductionPolicy,
                 on_provider_attempt,
             ))?;
-        log_refinement_result(id, &processed.refinement, started.elapsed().as_millis());
-        let provider_output = matches!(processed.refinement, RefinementStatus::Completed)
-            .then(|| processed.text.clone());
+        log_refinement_result(
+            id,
+            &source,
+            &evaluation.processed,
+            evaluation.provider_output.as_deref(),
+            &protected_terms,
+            started.elapsed().as_millis(),
+        );
+        let provider_output =
+            matches!(evaluation.processed.refinement, RefinementStatus::Completed)
+                .then(|| evaluation.processed.text.clone());
         Ok(RefinementEvaluation {
-            processed,
+            processed: evaluation.processed,
             provider_output,
         })
     }
@@ -266,28 +277,131 @@ fn bounded_edit_fragments(original: &str, edited: &str) -> (String, String) {
     )
 }
 
-fn log_refinement_result(id: DictationSessionId, status: &RefinementStatus, duration_ms: u128) {
-    match status {
+fn log_refinement_result(
+    id: DictationSessionId,
+    source: &str,
+    processed: &template_app::ProcessedText,
+    provider_output: Option<&str>,
+    protected_terms: &[template_app::RefinementTerm],
+    duration_ms: u128,
+) {
+    let metrics =
+        RefinementLogMetrics::from_texts(source, provider_output, &processed.text, protected_terms);
+    match &processed.refinement {
         RefinementStatus::Disabled => {
-            tracing::info!(target: "saymore::diagnostics", event = "llm.disabled", dictation_id = %id, duration_ms);
+            tracing::info!(target: "saymore::diagnostics", event = "llm.disabled", dictation_id = %id, duration_ms, cleanup_changed = metrics.cleanup_changed, source_chars = metrics.source_chars, candidate_chars = metrics.candidate_chars, processed_chars = metrics.processed_chars, protected_fragments = metrics.protected_fragments, changed_fragments = metrics.changed_fragments, formatting_only = metrics.formatting_only, numeric_before_hash = metrics.numeric_before_hash, numeric_after_hash = metrics.numeric_after_hash)
         }
         RefinementStatus::Skipped(_) => {
-            tracing::info!(target: "saymore::diagnostics",
-                event = "llm.skipped",
-                dictation_id = %id,
-                reason = "short_transcript",
-                duration_ms
-            );
+            tracing::info!(target: "saymore::diagnostics", event = "llm.skipped", dictation_id = %id, reason = "short_transcript", duration_ms, cleanup_changed = metrics.cleanup_changed, source_chars = metrics.source_chars, candidate_chars = metrics.candidate_chars, processed_chars = metrics.processed_chars, protected_fragments = metrics.protected_fragments, changed_fragments = metrics.changed_fragments, formatting_only = metrics.formatting_only, numeric_before_hash = metrics.numeric_before_hash, numeric_after_hash = metrics.numeric_after_hash)
         }
         RefinementStatus::Completed => {
-            tracing::info!(target: "saymore::diagnostics", event = "llm.completed", dictation_id = %id, duration_ms);
+            tracing::info!(target: "saymore::diagnostics", event = "llm.completed", dictation_id = %id, duration_ms, cleanup_changed = metrics.cleanup_changed, source_chars = metrics.source_chars, candidate_chars = metrics.candidate_chars, processed_chars = metrics.processed_chars, protected_fragments = metrics.protected_fragments, changed_fragments = metrics.changed_fragments, formatting_only = metrics.formatting_only, numeric_before_hash = metrics.numeric_before_hash, numeric_after_hash = metrics.numeric_after_hash)
         }
         RefinementStatus::FellBack(RefinementFallbackReason::OutputRejected(reason)) => {
-            tracing::warn!(target: "saymore::diagnostics", event = output_rejection_event(*reason), dictation_id = %id, duration_ms);
+            tracing::warn!(target: "saymore::diagnostics", event = output_rejection_event(*reason), dictation_id = %id, duration_ms, failure_type = output_rejection_failure_type(*reason), cleanup_changed = metrics.cleanup_changed, source_chars = metrics.source_chars, candidate_chars = metrics.candidate_chars, processed_chars = metrics.processed_chars, protected_fragments = metrics.protected_fragments, changed_fragments = metrics.changed_fragments, formatting_only = metrics.formatting_only, numeric_before_hash = metrics.numeric_before_hash, numeric_after_hash = metrics.numeric_after_hash)
         }
         RefinementStatus::FellBack(reason) => {
-            tracing::warn!(target: "saymore::diagnostics", event = "llm.fallback", dictation_id = %id, reason = ?reason, duration_ms);
+            tracing::warn!(target: "saymore::diagnostics", event = "llm.fallback", dictation_id = %id, reason = fallback_failure_type(reason), duration_ms, failure_type = fallback_failure_type(reason), cleanup_changed = metrics.cleanup_changed, source_chars = metrics.source_chars, candidate_chars = metrics.candidate_chars, processed_chars = metrics.processed_chars, protected_fragments = metrics.protected_fragments, changed_fragments = metrics.changed_fragments, formatting_only = metrics.formatting_only, numeric_before_hash = metrics.numeric_before_hash, numeric_after_hash = metrics.numeric_after_hash)
         }
+    }
+}
+
+struct RefinementLogMetrics {
+    cleanup_changed: bool,
+    source_chars: usize,
+    candidate_chars: usize,
+    processed_chars: usize,
+    protected_fragments: usize,
+    changed_fragments: usize,
+    formatting_only: bool,
+    numeric_before_hash: u64,
+    numeric_after_hash: u64,
+}
+
+impl RefinementLogMetrics {
+    fn from_texts(
+        source: &str,
+        candidate: Option<&str>,
+        processed: &str,
+        terms: &[template_app::RefinementTerm],
+    ) -> Self {
+        let candidate = candidate.unwrap_or_default();
+        let before = numeric_fragments(source);
+        let after = numeric_fragments(candidate);
+        let protected_terms = terms
+            .iter()
+            .filter(|term| source.contains(&term.canonical))
+            .count();
+        let changed_terms = terms
+            .iter()
+            .filter(|term| source.contains(&term.canonical) != candidate.contains(&term.canonical))
+            .count();
+        Self {
+            cleanup_changed: source != clean_speech(source),
+            source_chars: source.chars().count(),
+            candidate_chars: candidate.chars().count(),
+            processed_chars: processed.chars().count(),
+            protected_fragments: before.len() + protected_terms,
+            changed_fragments: before
+                .iter()
+                .zip(&after)
+                .filter(|(left, right)| left != right)
+                .count()
+                + before.len().abs_diff(after.len())
+                + changed_terms,
+            formatting_only: !candidate.is_empty()
+                && source != candidate
+                && comparable_text(source) == comparable_text(candidate),
+            numeric_before_hash: stable_hash(&before.join("\u{1f}")),
+            numeric_after_hash: stable_hash(&after.join("\u{1f}")),
+        }
+    }
+}
+
+fn numeric_fragments(text: &str) -> Vec<String> {
+    text.split(|character: char| {
+        !character.is_ascii_digit() && character != '.' && character != ':'
+    })
+    .filter(|fragment| fragment.chars().any(|character| character.is_ascii_digit()))
+    .map(ToOwned::to_owned)
+    .collect()
+}
+
+fn comparable_text(text: &str) -> String {
+    text.chars()
+        .filter(|character| character.is_alphanumeric())
+        .flat_map(char::to_lowercase)
+        .collect()
+}
+
+fn stable_hash(value: &str) -> u64 {
+    value.bytes().fold(14695981039346656037, |hash, byte| {
+        (hash ^ u64::from(byte)).wrapping_mul(1099511628211)
+    })
+}
+
+fn output_rejection_failure_type(reason: RefinementOutputRejectionReason) -> &'static str {
+    match reason {
+        RefinementOutputRejectionReason::EmptyOutput => "empty_output",
+        RefinementOutputRejectionReason::AbnormalGrowth => "abnormal_growth",
+        RefinementOutputRejectionReason::NonRefinementWrapper => "non_refinement_wrapper",
+        RefinementOutputRejectionReason::NumericFactsChanged => "numeric_facts_changed",
+        RefinementOutputRejectionReason::ProtectedFragmentChanged => "protected_fragment_changed",
+    }
+}
+
+fn fallback_failure_type(reason: &RefinementFallbackReason) -> &'static str {
+    match reason {
+        RefinementFallbackReason::NotConfigured => "not_configured",
+        RefinementFallbackReason::Authentication => "authentication",
+        RefinementFallbackReason::InvalidConfiguration => "invalid_configuration",
+        RefinementFallbackReason::ModelUnavailable => "model_unavailable",
+        RefinementFallbackReason::Quota => "quota",
+        RefinementFallbackReason::Transport => "transport",
+        RefinementFallbackReason::Protocol => "protocol",
+        RefinementFallbackReason::Timeout => "timeout",
+        RefinementFallbackReason::TemporarilyUnavailable => "temporarily_unavailable",
+        RefinementFallbackReason::OutputRejected(reason) => output_rejection_failure_type(*reason),
     }
 }
 

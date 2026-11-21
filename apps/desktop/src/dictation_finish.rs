@@ -89,6 +89,10 @@ pub fn finish_recording(
                 .spawn(move || finish_recording_worker(context))
                 .is_err()
             {
+                tracing::warn!(
+                    target: "saymore::diagnostics",
+                    event = "asr.finalization_worker_start_failed"
+                );
                 failure_session.complete();
                 failure_asr.cancel();
                 apply_recording_error(
@@ -122,6 +126,10 @@ pub(crate) fn finish_retained_recording(
         })
         .is_err()
     {
+        tracing::warn!(
+            target: "saymore::diagnostics",
+            event = "asr.undo_worker_start_failed"
+        );
         failure_session.complete();
         let _ = failure_ui.upgrade_in_event_loop(move |ui| {
             apply_recording_error(
@@ -202,6 +210,13 @@ fn apply_completion_result(
 ) {
     match result {
         DictationCompletionResult::Completed(completed) => {
+            tracing::info!(
+                target: "saymore::diagnostics",
+                event = "asr.finalization_completed",
+                dictation_id = %completed.id,
+                audio_duration_ms = completed.audio_duration_ms,
+                delivery_succeeded = completed.delivery.is_ok()
+            );
             crate::settings_ui::mark_asr_runtime_healthy(ui);
             delivery_runtime::present_completion(
                 ui,

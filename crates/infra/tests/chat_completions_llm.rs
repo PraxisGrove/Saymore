@@ -696,11 +696,18 @@ async fn live_configuration_matches_refinement_golden_cases()
         let provider = ChatCompletionsLlmProvider::new(settings)?;
         let processor = FinalTextProcessor::configured(Arc::new(provider));
         let mut durations = Vec::new();
+        let mut completed = 0usize;
+        let mut exact_matches = 0usize;
+        let mut cleanup_changed = 0usize;
+        let mut fallback_reasons = BTreeMap::<String, usize>::new();
         for case in cases
             .iter()
             .filter(|case| case_filter.is_empty() || case_filter.iter().any(|id| id == &case.id))
         {
             matched = true;
+            if template_app::clean_speech(&case.transcript) != case.transcript {
+                cleanup_changed = cleanup_changed.saturating_add(1);
+            }
             let mut request =
                 FinalTextRequest::new(case.transcript.clone(), RefinementMode::Enabled);
             request.language.clone_from(&case.language);
@@ -724,6 +731,16 @@ async fn live_configuration_matches_refinement_golden_cases()
             let result = evaluation.processed;
             let text_matches = result.text == case.expected
                 || case.acceptable.iter().any(|text| text == &result.text);
+            if result.refinement == RefinementStatus::Completed {
+                completed = completed.saturating_add(1);
+            } else {
+                let reason = format!("{:?}", result.refinement);
+                let count = fallback_reasons.entry(reason).or_default();
+                *count = count.saturating_add(1);
+            }
+            if text_matches {
+                exact_matches = exact_matches.saturating_add(1);
+            }
             if result.refinement != RefinementStatus::Completed || !text_matches {
                 failures.push(format!(
                     "provider '{}' case '{}' differed\nstatus: {:?}\nexpected: {:?}\nacceptable: {:?}\nactual: {:?}\nprovider output: {:?}",
@@ -739,9 +756,13 @@ async fn live_configuration_matches_refinement_golden_cases()
         }
         let (average, p50, p95) = duration_summary(&mut durations);
         eprintln!(
-            "prompt=v3 provider={} cases={} average_ms={} p50_ms={} p95_ms={}",
+            "prompt=v4 provider={} cases={} completed={} exact_matches={} cleanup_changed={} fallback_reasons={:?} average_ms={} p50_ms={} p95_ms={}",
             configured.name,
             durations.len(),
+            completed,
+            exact_matches,
+            cleanup_changed,
+            fallback_reasons,
             average.as_millis(),
             p50.as_millis(),
             p95.as_millis(),
