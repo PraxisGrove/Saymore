@@ -22,6 +22,7 @@ mod refinement_prompt;
 mod refinement_terms;
 mod settings;
 mod software_update;
+mod speech_cleanup;
 mod speech_recognition;
 mod storage;
 mod system_audio;

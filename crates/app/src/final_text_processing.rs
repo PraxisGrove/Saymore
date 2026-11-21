@@ -7,6 +7,7 @@ use tokio_util::sync::CancellationToken;
 
 use crate::refinement_policy::validate_refinement;
 use crate::refinement_prompt::instructions_for;
+use crate::speech_cleanup::clean_speech;
 
 /// Default budget for one LLM request that does not rewrite a full transcript.
 pub const LLM_REQUEST_TIMEOUT: Duration = Duration::from_secs(8);
@@ -281,7 +282,7 @@ impl FinalTextProcessor {
         F: FnOnce(),
     {
         reject_cancelled(&cancellation)?;
-        let text = clean_transcript(&request.transcript);
+        let text = clean_speech(&request.transcript);
         let RefinementMode::Enabled = request.refinement else {
             reject_cancelled(&cancellation)?;
             return Ok(evaluation_without_provider(ProcessedText {
@@ -539,14 +540,4 @@ fn fallback_reason(error: &LlmProviderError) -> RefinementFallbackReason {
         LlmProviderError::Transport(_) => RefinementFallbackReason::Transport,
         LlmProviderError::Protocol(_) => RefinementFallbackReason::Protocol,
     }
-}
-
-fn clean_transcript(transcript: &str) -> String {
-    transcript
-        .lines()
-        .map(|line| line.split_whitespace().collect::<Vec<_>>().join(" "))
-        .collect::<Vec<_>>()
-        .join("\n")
-        .trim()
-        .to_owned()
 }
