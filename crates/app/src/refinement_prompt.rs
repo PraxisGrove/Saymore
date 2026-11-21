@@ -61,6 +61,25 @@ mod tests {
     }
 
     #[test]
+    fn states_input_boundaries_and_decision_order() {
+        let instructions = instructions_for("今天先完成登录测试。", RefinementStrength::Light);
+
+        assert!(instructions.contains("`transcript` is the only content that may appear"));
+        assert!(instructions.contains("Never add a word only because it appears"));
+        assert!(instructions.contains("When two rules conflict, keep the source wording"));
+    }
+
+    #[test]
+    fn includes_only_high_value_preservation_examples() {
+        let instructions = instructions_for("今天先完成登录测试。", RefinementStrength::Light);
+
+        assert!(instructions.contains("Explicit correction:"));
+        assert!(instructions.contains("Formatting only:"));
+        assert!(instructions.contains("Question preservation:"));
+        assert!(instructions.contains("they are not transcript content"));
+    }
+
+    #[test]
     fn light_strength_keeps_the_conservative_instructions_unchanged() {
         let instructions = instructions_for("今天先完成登录测试。", RefinementStrength::Light);
         assert!(instructions.starts_with(super::REFINEMENT_INSTRUCTIONS));
