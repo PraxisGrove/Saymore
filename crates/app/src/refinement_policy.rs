@@ -180,8 +180,16 @@ fn numeric_fragments(text: &str) -> Vec<String> {
         let unit = characters[unit_value_start..index]
             .iter()
             .collect::<String>();
+        let unit = canonical_numeric_unit(&unit);
         if unit.is_empty() {
             index = unit_start;
+        }
+        if (core == "一" && unit == "点")
+            || unit.is_empty()
+                && core.chars().count() == 1
+                && core.chars().any(|character| !character.is_ascii_digit())
+        {
+            continue;
         }
         let normalized = normalize_numeric_fragment(&core);
         if !normalized.is_empty() {
@@ -189,6 +197,15 @@ fn numeric_fragments(text: &str) -> Vec<String> {
         }
     }
     fragments
+}
+
+fn canonical_numeric_unit(unit: &str) -> String {
+    match unit {
+        "个" | "人" | "张" | "台" | "件" | "部" | "个部" | "部分" | "个部分" => {
+            "count".to_owned()
+        }
+        other => other.to_owned(),
+    }
 }
 
 fn is_numeric_character(character: char) -> bool {
@@ -231,6 +248,7 @@ fn is_numeric_unit(character: char) -> bool {
             | '张'
             | '台'
             | '件'
+            | '部'
             | '天'
             | '周'
             | '米'

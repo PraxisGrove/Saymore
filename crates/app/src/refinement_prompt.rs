@@ -5,6 +5,7 @@ const STANDARD_STRENGTH_RULES: &str = include_str!("refinement_strength_standard
 const THOROUGH_STRENGTH_RULES: &str = include_str!("refinement_strength_thorough.txt");
 
 const NUMBERED_STRUCTURE_HINT: &str = "For this transcript, Saymore detected an explicit paired-branch signal. The final output must preserve every branch and place the branches on separate lines beginning with literal \"1. \" and \"2. \". This is trusted formatting metadata, not transcript content.";
+const OUTPUT_CONTRACT: &str = "Return only the polished plain text. No label, preface, explanation, quotation wrapper, JSON, Markdown heading, table, task box, or code fence. Empty or filler-only input may return empty output.";
 
 pub(crate) fn instructions_for(transcript: &str, strength: RefinementStrength) -> String {
     let mut instructions = REFINEMENT_INSTRUCTIONS.to_owned();
@@ -21,6 +22,8 @@ pub(crate) fn instructions_for(transcript: &str, strength: RefinementStrength) -
         instructions.push_str("\n\nCurrent transcript formatting requirement:\n");
         instructions.push_str(NUMBERED_STRUCTURE_HINT);
     }
+    instructions.push_str("\n\nOutput contract:\n");
+    instructions.push_str(OUTPUT_CONTRACT);
     instructions
 }
 
@@ -59,10 +62,9 @@ mod tests {
 
     #[test]
     fn light_strength_keeps_the_conservative_instructions_unchanged() {
-        assert_eq!(
-            super::REFINEMENT_INSTRUCTIONS,
-            instructions_for("今天先完成登录测试。", RefinementStrength::Light)
-        );
+        let instructions = instructions_for("今天先完成登录测试。", RefinementStrength::Light);
+        assert!(instructions.starts_with(super::REFINEMENT_INSTRUCTIONS));
+        assert!(instructions.ends_with(super::OUTPUT_CONTRACT));
     }
 
     #[test]
@@ -74,5 +76,14 @@ mod tests {
         assert!(standard.contains("Polishing strength: standard"));
         assert!(thorough.contains("Polishing strength: thorough"));
         assert_ne!(standard, thorough);
+    }
+
+    #[test]
+    fn keeps_the_output_contract_last_after_strength_and_structure_rules() {
+        let instructions = instructions_for(
+            "有的是设计稿更新了，有的是软件先改了。",
+            RefinementStrength::Thorough,
+        );
+        assert!(instructions.ends_with(super::OUTPUT_CONTRACT));
     }
 }
