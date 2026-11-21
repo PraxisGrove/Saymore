@@ -35,7 +35,7 @@ pub(super) fn configure(overlay: &RecordingOverlay, asr: &AsrSessionController) 
     overlay.set_preview_enabled(preview);
     overlay.set_preview_text(SharedString::default());
     overlay.window().set_size(if preview {
-        slint::LogicalSize::new(360.0, 35.0)
+        slint::LogicalSize::new(220.0, 35.0)
     } else {
         slint::LogicalSize::new(120.0, 35.0)
     });
