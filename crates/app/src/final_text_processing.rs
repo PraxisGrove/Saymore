@@ -252,7 +252,22 @@ impl FinalTextProcessor {
         cancellation: CancellationToken,
         mode: RefinementEvaluationMode,
     ) -> Result<RefinementEvaluation, FinalTextProcessingError> {
-        self.execute(request, cancellation, mode, || {}).await
+        self.evaluate_with_attempt_observer(request, cancellation, mode, || {})
+            .await
+    }
+
+    pub async fn evaluate_with_attempt_observer<F>(
+        &self,
+        request: FinalTextRequest,
+        cancellation: CancellationToken,
+        mode: RefinementEvaluationMode,
+        on_provider_attempt: F,
+    ) -> Result<RefinementEvaluation, FinalTextProcessingError>
+    where
+        F: FnOnce(),
+    {
+        self.execute(request, cancellation, mode, on_provider_attempt)
+            .await
     }
 
     async fn execute<F>(

@@ -105,7 +105,9 @@ identifiers and allowlisted fields. Diagnostics must not contain audio,
 transcripts, API keys, Provider request or response bodies, device names, user
 paths, or raw errors that can expose those values. Add context when an error
 crosses an ownership boundary, while keeping `crates/app` independent from
-concrete logging frameworks.
+concrete logging frameworks. Persist the database copy of diagnostic events on a
+bounded background queue; the sanitized rolling disk log remains the immediate
+report fallback, so logging must never block a user-facing path.
 
 Required maintenance automation belongs in `crates/xtask`. Shell scripts may
 provide platform-specific development ergonomics, but CI and repository gates
