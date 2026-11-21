@@ -540,6 +540,70 @@ mod tests {
     }
 
     #[test]
+    fn benchmark_refinement_acceptance_and_rejection_contracts() {
+        let cases = [
+            (
+                "会议安排在下午三点。",
+                "会议安排在下午 3 点。",
+                &[][..],
+                Ok(()),
+            ),
+            (
+                "发布日期是二零二六年十一月。",
+                "发布日期是 2026 年 11 月。",
+                &[][..],
+                Ok(()),
+            ),
+            (
+                "请打开 /Users/yaco/Projects/Saymore。",
+                "请打开 /Users/yaco/Projects/Other。",
+                &[][..],
+                Err(RefinementOutputRejectionReason::ProtectedFragmentChanged),
+            ),
+            (
+                "请在 github 仓库里运行 cargo test --workspace。",
+                "请在 GitHub 仓库里运行 cargo test --workspace。",
+                &["GitHub", "cargo test --workspace"][..],
+                Ok(()),
+            ),
+            (
+                "请在 github 仓库里运行 cargo test --workspace。",
+                "请在 GitHub 仓库里运行 cargo check --workspace。",
+                &["GitHub"][..],
+                Err(RefinementOutputRejectionReason::ProtectedFragmentChanged),
+            ),
+            (
+                "请在下午 3 点开会。",
+                "请在下午 4 点开会。",
+                &[][..],
+                Err(RefinementOutputRejectionReason::NumericFactsChanged),
+            ),
+        ];
+
+        for (source, candidate, terms, expected) in cases {
+            let terms = terms
+                .iter()
+                .map(|canonical| RefinementTerm {
+                    canonical: (*canonical).to_owned(),
+                })
+                .collect::<Vec<_>>();
+            assert_eq!(expected, validate_refinement(source, candidate, &terms));
+        }
+    }
+
+    #[test]
+    fn benchmark_allows_one_confirmed_phonetic_term_but_rejects_unlisted_additions() {
+        let terms = [RefinementTerm {
+            canonical: "DeepSeek".to_owned(),
+        }];
+        assert_eq!(Ok(()), validate_refinement("低配色可", "DeepSeek", &terms));
+        assert_eq!(
+            Err(RefinementOutputRejectionReason::ProtectedFragmentChanged),
+            validate_refinement("低配色可", "DeepSeek 和 OpenAI", &terms)
+        );
+    }
+
+    #[test]
     fn normalizes_full_width_technical_tokens() {
         assert_eq!(
             "--lib",

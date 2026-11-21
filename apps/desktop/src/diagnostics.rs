@@ -188,8 +188,9 @@ fn safe_events(log: &str) -> impl Iterator<Item = &str> {
         .filter(|event| is_safe_event(event))
 }
 
-const DETAIL_FIELDS: [&str; 9] = [
+const DETAIL_FIELDS: [&str; 10] = [
     "failure_type",
+    "cleanup_changed",
     "source_chars",
     "candidate_chars",
     "processed_chars",

@@ -14,7 +14,7 @@ use template_app::{
     FinalTextProcessingError, FinalTextProcessor, FinalTextRequest, HistoryRefinementRetry,
     HistoryRefinementRetryError, HistoryStore, RefinementEvaluation, RefinementFallbackReason,
     RefinementMode, RefinementOutputRejectionReason, RefinementStatus, SaymoreSettings,
-    SettingsStore, local_dictionary_revision_candidates, retry_history_refinement,
+    SettingsStore, clean_speech, local_dictionary_revision_candidates, retry_history_refinement,
     review_final_text_revision, text_revision_diffs,
 };
 #[cfg(test)]
@@ -289,24 +289,25 @@ fn log_refinement_result(
         RefinementLogMetrics::from_texts(source, provider_output, &processed.text, protected_terms);
     match &processed.refinement {
         RefinementStatus::Disabled => {
-            tracing::info!(target: "saymore::diagnostics", event = "llm.disabled", dictation_id = %id, duration_ms, source_chars = metrics.source_chars, candidate_chars = metrics.candidate_chars, processed_chars = metrics.processed_chars, protected_fragments = metrics.protected_fragments, changed_fragments = metrics.changed_fragments, formatting_only = metrics.formatting_only, numeric_before_hash = metrics.numeric_before_hash, numeric_after_hash = metrics.numeric_after_hash)
+            tracing::info!(target: "saymore::diagnostics", event = "llm.disabled", dictation_id = %id, duration_ms, cleanup_changed = metrics.cleanup_changed, source_chars = metrics.source_chars, candidate_chars = metrics.candidate_chars, processed_chars = metrics.processed_chars, protected_fragments = metrics.protected_fragments, changed_fragments = metrics.changed_fragments, formatting_only = metrics.formatting_only, numeric_before_hash = metrics.numeric_before_hash, numeric_after_hash = metrics.numeric_after_hash)
         }
         RefinementStatus::Skipped(_) => {
-            tracing::info!(target: "saymore::diagnostics", event = "llm.skipped", dictation_id = %id, reason = "short_transcript", duration_ms, source_chars = metrics.source_chars, candidate_chars = metrics.candidate_chars, processed_chars = metrics.processed_chars, protected_fragments = metrics.protected_fragments, changed_fragments = metrics.changed_fragments, formatting_only = metrics.formatting_only, numeric_before_hash = metrics.numeric_before_hash, numeric_after_hash = metrics.numeric_after_hash)
+            tracing::info!(target: "saymore::diagnostics", event = "llm.skipped", dictation_id = %id, reason = "short_transcript", duration_ms, cleanup_changed = metrics.cleanup_changed, source_chars = metrics.source_chars, candidate_chars = metrics.candidate_chars, processed_chars = metrics.processed_chars, protected_fragments = metrics.protected_fragments, changed_fragments = metrics.changed_fragments, formatting_only = metrics.formatting_only, numeric_before_hash = metrics.numeric_before_hash, numeric_after_hash = metrics.numeric_after_hash)
         }
         RefinementStatus::Completed => {
-            tracing::info!(target: "saymore::diagnostics", event = "llm.completed", dictation_id = %id, duration_ms, source_chars = metrics.source_chars, candidate_chars = metrics.candidate_chars, processed_chars = metrics.processed_chars, protected_fragments = metrics.protected_fragments, changed_fragments = metrics.changed_fragments, formatting_only = metrics.formatting_only, numeric_before_hash = metrics.numeric_before_hash, numeric_after_hash = metrics.numeric_after_hash)
+            tracing::info!(target: "saymore::diagnostics", event = "llm.completed", dictation_id = %id, duration_ms, cleanup_changed = metrics.cleanup_changed, source_chars = metrics.source_chars, candidate_chars = metrics.candidate_chars, processed_chars = metrics.processed_chars, protected_fragments = metrics.protected_fragments, changed_fragments = metrics.changed_fragments, formatting_only = metrics.formatting_only, numeric_before_hash = metrics.numeric_before_hash, numeric_after_hash = metrics.numeric_after_hash)
         }
         RefinementStatus::FellBack(RefinementFallbackReason::OutputRejected(reason)) => {
-            tracing::warn!(target: "saymore::diagnostics", event = output_rejection_event(*reason), dictation_id = %id, duration_ms, failure_type = output_rejection_failure_type(*reason), source_chars = metrics.source_chars, candidate_chars = metrics.candidate_chars, processed_chars = metrics.processed_chars, protected_fragments = metrics.protected_fragments, changed_fragments = metrics.changed_fragments, formatting_only = metrics.formatting_only, numeric_before_hash = metrics.numeric_before_hash, numeric_after_hash = metrics.numeric_after_hash)
+            tracing::warn!(target: "saymore::diagnostics", event = output_rejection_event(*reason), dictation_id = %id, duration_ms, failure_type = output_rejection_failure_type(*reason), cleanup_changed = metrics.cleanup_changed, source_chars = metrics.source_chars, candidate_chars = metrics.candidate_chars, processed_chars = metrics.processed_chars, protected_fragments = metrics.protected_fragments, changed_fragments = metrics.changed_fragments, formatting_only = metrics.formatting_only, numeric_before_hash = metrics.numeric_before_hash, numeric_after_hash = metrics.numeric_after_hash)
         }
         RefinementStatus::FellBack(reason) => {
-            tracing::warn!(target: "saymore::diagnostics", event = "llm.fallback", dictation_id = %id, reason = fallback_failure_type(reason), duration_ms, failure_type = fallback_failure_type(reason), source_chars = metrics.source_chars, candidate_chars = metrics.candidate_chars, processed_chars = metrics.processed_chars, protected_fragments = metrics.protected_fragments, changed_fragments = metrics.changed_fragments, formatting_only = metrics.formatting_only, numeric_before_hash = metrics.numeric_before_hash, numeric_after_hash = metrics.numeric_after_hash)
+            tracing::warn!(target: "saymore::diagnostics", event = "llm.fallback", dictation_id = %id, reason = fallback_failure_type(reason), duration_ms, failure_type = fallback_failure_type(reason), cleanup_changed = metrics.cleanup_changed, source_chars = metrics.source_chars, candidate_chars = metrics.candidate_chars, processed_chars = metrics.processed_chars, protected_fragments = metrics.protected_fragments, changed_fragments = metrics.changed_fragments, formatting_only = metrics.formatting_only, numeric_before_hash = metrics.numeric_before_hash, numeric_after_hash = metrics.numeric_after_hash)
         }
     }
 }
 
 struct RefinementLogMetrics {
+    cleanup_changed: bool,
     source_chars: usize,
     candidate_chars: usize,
     processed_chars: usize,
@@ -336,6 +337,7 @@ impl RefinementLogMetrics {
             .filter(|term| source.contains(&term.canonical) != candidate.contains(&term.canonical))
             .count();
         Self {
+            cleanup_changed: source != clean_speech(source),
             source_chars: source.chars().count(),
             candidate_chars: candidate.chars().count(),
             processed_chars: processed.chars().count(),

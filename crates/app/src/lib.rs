@@ -109,6 +109,7 @@ pub use software_update::{
     SoftwareUpdater, UpdateCancellation, UpdateError, UpdatePackage, UpdateProgress,
     is_newer_release, release_version,
 };
+pub use speech_cleanup::clean_speech;
 pub use speech_recognition::{
     SpeechRecognitionError, SpeechRecognitionHints, StreamingRecognitionSession,
     StreamingSpeechRecognizer,

@@ -7,7 +7,7 @@ const REPEATED_CJK_STUTTERS: [char; 4] = ['我', '你', '他', '这'];
 ///
 /// The cleanup intentionally leaves self-corrections, sentence reordering,
 /// terminology, numbers, and ambiguous fillers for the refinement policy.
-pub(crate) fn clean_speech(transcript: &str) -> String {
+pub fn clean_speech(transcript: &str) -> String {
     let normalized = normalize_whitespace(transcript);
     let without_fillers = remove_standalone_fillers(&normalized);
     let without_stutters = remove_repeated_cjk_stutters(&without_fillers);
