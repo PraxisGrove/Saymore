@@ -285,12 +285,13 @@ fn log_refinement_result(
     protected_terms: &[template_app::RefinementTerm],
     duration_ms: u128,
 ) {
+    if processed.refinement == RefinementStatus::Disabled {
+        return;
+    }
     let metrics =
         RefinementLogMetrics::from_texts(source, provider_output, &processed.text, protected_terms);
     match &processed.refinement {
-        RefinementStatus::Disabled => {
-            tracing::info!(target: "saymore::diagnostics", event = "llm.disabled", dictation_id = %id, duration_ms, cleanup_changed = metrics.cleanup_changed, source_chars = metrics.source_chars, candidate_chars = metrics.candidate_chars, processed_chars = metrics.processed_chars, protected_fragments = metrics.protected_fragments, changed_fragments = metrics.changed_fragments, formatting_only = metrics.formatting_only, numeric_before_hash = metrics.numeric_before_hash, numeric_after_hash = metrics.numeric_after_hash)
-        }
+        RefinementStatus::Disabled => {}
         RefinementStatus::Skipped(_) => {
             tracing::info!(target: "saymore::diagnostics", event = "llm.skipped", dictation_id = %id, reason = "short_transcript", duration_ms, cleanup_changed = metrics.cleanup_changed, source_chars = metrics.source_chars, candidate_chars = metrics.candidate_chars, processed_chars = metrics.processed_chars, protected_fragments = metrics.protected_fragments, changed_fragments = metrics.changed_fragments, formatting_only = metrics.formatting_only, numeric_before_hash = metrics.numeric_before_hash, numeric_after_hash = metrics.numeric_after_hash)
         }
@@ -474,14 +475,14 @@ mod tests {
 
         let Ok(processed) = runtime.refine_final_transcript(
             DictationSessionId::generate(),
-            FinalTextRequest::new("  原始文本。  ", RefinementMode::Disabled),
+            FinalTextRequest::new("  嗯，我我保留原话。  ", RefinementMode::Disabled),
             disabled_plan(),
             || {},
         ) else {
             panic!("non-empty transcript should be processed");
         };
 
-        assert_eq!("原始文本。", processed.processed.text);
+        assert_eq!("嗯，我我保留原话。", processed.processed.text);
         assert_eq!(RefinementStatus::Disabled, processed.processed.refinement);
         assert_eq!(None, processed.provider_output);
     }

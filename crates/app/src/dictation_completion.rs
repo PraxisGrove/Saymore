@@ -143,10 +143,11 @@ pub trait RestoredRecordingTranscriber: Send + Sync {
     ) -> Result<String, SpeechRecognitionError>;
 }
 
-/// Runs the optional provider-backed transformation of one final transcript.
+/// Processes one final transcript according to the loaded polishing policy.
 ///
-/// Implementations perform a synchronous one-shot call from the completion worker.
-/// They must not normalize dictionary spellings, deliver text, or persist history.
+/// Implementations perform a synchronous one-shot call from the completion worker
+/// and honor disabled requests without speech cleanup or a provider call. They
+/// must not normalize dictionary spellings, deliver text, or persist history.
 pub trait FinalTranscriptRefiner: Send + Sync {
     fn refine(
         &self,
@@ -260,16 +261,18 @@ impl DictationCompletion {
         }
 
         let policy = self.adapters.policy.load_policy();
-        let (refinement, strength) = match &policy {
-            Ok(policy) => (policy.refinement.clone(), policy.refinement_strength),
-            Err(DictationPolicyError::Unavailable(_)) => {
-                (RefinementMode::Disabled, RefinementStrength::default())
-            }
-        };
         let terms =
             dictionary_terms_for_refinement(self.adapters.dictionary.as_ref()).unwrap_or_default();
-        let (mut processed, llm_refined_text) =
-            self.process_transcript(id, transcript.clone(), refinement, strength, terms.clone());
+        let (mut processed, llm_refined_text) = match &policy {
+            Ok(policy) => self.process_transcript(id, transcript.clone(), policy, terms.clone()),
+            Err(DictationPolicyError::Unavailable(_)) => (
+                ProcessedText {
+                    text: transcript.clone(),
+                    refinement: RefinementStatus::Disabled,
+                },
+                None,
+            ),
+        };
         processed.text = normalize_standard_spellings(&processed.text, &terms);
 
         let delivery = self.adapters.deliverer.deliver(&processed.text);
@@ -297,22 +300,12 @@ impl DictationCompletion {
         &self,
         id: DictationSessionId,
         transcript: String,
-        refinement: RefinementMode,
-        strength: RefinementStrength,
+        policy: &DictationCompletionPolicy,
         relevant_terms: Vec<crate::RefinementTerm>,
     ) -> (ProcessedText, Option<String>) {
-        if refinement == RefinementMode::Disabled {
-            return (
-                ProcessedText {
-                    text: transcript,
-                    refinement: RefinementStatus::Disabled,
-                },
-                None,
-            );
-        }
         let fallback_text = transcript.clone();
-        let mut request = FinalTextRequest::new(transcript, refinement);
-        request.strength = strength;
+        let mut request = FinalTextRequest::new(transcript, policy.refinement.clone());
+        request.strength = policy.refinement_strength;
         request.language = Some(inferred_transcript_language(&request.transcript).to_owned());
         request.relevant_terms = relevant_terms;
         match self.adapters.refiner.refine(id, request) {

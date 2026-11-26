@@ -3,24 +3,28 @@ use std::sync::{
     atomic::{AtomicUsize, Ordering},
 };
 
+use async_trait::async_trait;
 use template_app::{
     AccessibilityAuthorization, CompletedDictation, DictationCompletion,
     DictationCompletionAdapters, DictationCompletionClock, DictationCompletionError,
     DictationCompletionPolicy, DictationCompletionResult, DictationHandoff, DictationHistoryPolicy,
     DictationHistoryResult, DictationHistorySkipReason, DictationHistoryWriter,
     DictationPolicyError, DictationPolicySource, DictationSessionId, DictionaryEntry,
-    DictionaryOrigin, DictionaryStore, FailedDictation, FinalTextProcessingError, FinalTextRequest,
-    FinalTranscriptRefiner, HistoryDelivery, HistoryRefinement, NewDictionaryEntry,
+    DictionaryOrigin, DictionaryStore, FailedDictation, FinalTextProcessingError,
+    FinalTextProcessor, FinalTextRequest, FinalTranscriptRefiner, HistoryDelivery,
+    HistoryRefinement, LlmProvider, LlmProviderError, LlmRefinementRequest, NewDictionaryEntry,
     NewHistoryRecord, OwnedRecognition, PcmRecording, ProcessedText, RefinementEvaluation,
-    RefinementFallbackReason, RefinementMode, RefinementStatus, RefinementStrength, RefinementTerm,
-    RestoredRecordingTranscriber, SpeechRecognitionError, StorageError,
-    StreamingRecognitionSession, TextDeliverer, TextDeliveryError, TextDeliveryOutcome,
+    RefinementEvaluationMode, RefinementFallbackReason, RefinementMode, RefinementStatus,
+    RefinementStrength, RefinementTerm, RestoredRecordingTranscriber, SpeechRecognitionError,
+    StorageError, StreamingRecognitionSession, TextDeliverer, TextDeliveryError,
+    TextDeliveryOutcome,
 };
+use tokio_util::sync::CancellationToken;
 
 struct Scenario {
     policy: Result<DictationCompletionPolicy, DictationPolicyError>,
     restored: Result<String, SpeechRecognitionError>,
-    refinement: Result<RefinementEvaluation, FinalTextProcessingError>,
+    refinement: Option<Result<RefinementEvaluation, FinalTextProcessingError>>,
     dictionary: Result<Vec<DictionaryEntry>, StorageError>,
     delivery: Result<TextDeliveryOutcome, TextDeliveryError>,
     history: Result<(), StorageError>,
@@ -35,7 +39,7 @@ impl Default for Scenario {
                 DictationHistoryPolicy::Disabled,
             )),
             restored: Ok("restored transcript".to_owned()),
-            refinement: Err(FinalTextProcessingError::Cancelled),
+            refinement: None,
             dictionary: Ok(Vec::new()),
             delivery: Ok(TextDeliveryOutcome::AccessibilityVerified),
             history: Ok(()),
@@ -56,6 +60,7 @@ impl Harness {
             policy_calls: AtomicUsize::new(0),
             privacy_checks: AtomicUsize::new(0),
             refinement_requests: Mutex::new(Vec::new()),
+            provider: Arc::new(OfflineProvider::default()),
             restored_calls: Mutex::new(Vec::new()),
             delivered: Mutex::new(Vec::new()),
             history_records: Mutex::new(Vec::new()),
@@ -81,6 +86,7 @@ struct TestAdapter {
     policy_calls: AtomicUsize,
     privacy_checks: AtomicUsize,
     refinement_requests: Mutex<Vec<FinalTextRequest>>,
+    provider: Arc<OfflineProvider>,
     restored_calls: Mutex<Vec<(DictationSessionId, PcmRecording)>>,
     delivered: Mutex<Vec<String>>,
     history_records: Mutex<Vec<NewHistoryRecord>>,
@@ -116,8 +122,31 @@ impl FinalTranscriptRefiner for TestAdapter {
         self.refinement_requests
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
-            .push(request);
-        self.scenario.refinement.clone()
+            .push(request.clone());
+        if let Some(result) = &self.scenario.refinement {
+            return result.clone();
+        }
+        let processor = FinalTextProcessor::configured(self.provider.clone());
+        tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .map_err(|_| FinalTextProcessingError::Cancelled)?
+            .block_on(processor.evaluate(
+                request,
+                CancellationToken::new(),
+                RefinementEvaluationMode::ProductionPolicy,
+            ))
+    }
+}
+
+#[derive(Default)]
+struct OfflineProvider(AtomicUsize);
+
+#[async_trait]
+impl LlmProvider for OfflineProvider {
+    async fn refine(&self, _request: LlmRefinementRequest) -> Result<String, LlmProviderError> {
+        self.0.fetch_add(1, Ordering::Relaxed);
+        Err(LlmProviderError::Transport("offline".to_owned()))
     }
 }
 
@@ -289,6 +318,35 @@ fn restored_dictation_uses_the_retained_recording_and_identity() {
 }
 
 #[test]
+fn disabled_polishing_preserves_speech_and_normalizes_dictionary_spellings() {
+    let id = DictationSessionId::generate();
+    let harness = Harness::new(Scenario {
+        dictionary: Ok(vec![dictionary_entry("OpenAI")]),
+        ..Scenario::default()
+    });
+
+    let result = harness
+        .completion
+        .complete(captured_handoff(id, "  嗯，我我想试试   openai  "));
+
+    assert_eq!(
+        completed(
+            id,
+            "嗯，我我想试试 OpenAI",
+            RefinementStatus::Disabled,
+            Ok(TextDeliveryOutcome::AccessibilityVerified),
+            DictationHistoryResult::Skipped(DictationHistorySkipReason::Disabled),
+        ),
+        result
+    );
+    assert_eq!(
+        vec!["嗯，我我想试试 OpenAI"],
+        strings(&harness.adapter.delivered)
+    );
+    assert_eq!(0, harness.adapter.provider.0.load(Ordering::Relaxed));
+}
+
+#[test]
 fn successful_refinement_is_normalized_before_delivery() {
     let id = DictationSessionId::generate();
     let refined = "我正在使用 openai 完成这个更清晰的口述内容";
@@ -297,13 +355,13 @@ fn successful_refinement_is_normalized_before_delivery() {
             refinement_strength: RefinementStrength::Thorough,
             ..policy(RefinementMode::Enabled, DictationHistoryPolicy::Disabled)
         }),
-        refinement: Ok(RefinementEvaluation {
+        refinement: Some(Ok(RefinementEvaluation {
             processed: ProcessedText {
                 text: refined.to_owned(),
                 refinement: RefinementStatus::Completed,
             },
             provider_output: Some(refined.to_owned()),
-        }),
+        })),
         dictionary: Ok(vec![dictionary_entry("OpenAI")]),
         delivery: Ok(TextDeliveryOutcome::ClipboardVerified),
         ..Scenario::default()
@@ -348,13 +406,13 @@ fn enabled_history_keeps_recognized_refined_and_final_text() {
             RefinementMode::Enabled,
             DictationHistoryPolicy::Enabled(Default::default()),
         )),
-        refinement: Ok(RefinementEvaluation {
+        refinement: Some(Ok(RefinementEvaluation {
             processed: ProcessedText {
                 text: refined.to_owned(),
                 refinement: RefinementStatus::Completed,
             },
             provider_output: Some(refined.to_owned()),
-        }),
+        })),
         delivery: Ok(TextDeliveryOutcome::ClipboardVerified),
         ..Scenario::default()
     });
@@ -402,6 +460,7 @@ fn refinement_failure_falls_back_without_retrying_delivery() {
             RefinementMode::Enabled,
             DictationHistoryPolicy::Disabled,
         )),
+        refinement: Some(Err(FinalTextProcessingError::Cancelled)),
         delivery: Err(TextDeliveryError::NoFocusedControl),
         ..Scenario::default()
     });
@@ -420,6 +479,58 @@ fn refinement_failure_falls_back_without_retrying_delivery() {
     );
     assert_eq!(1, values(&harness.adapter.refinement_requests).len());
     assert_eq!(vec![text], strings(&harness.adapter.delivered));
+}
+
+#[test]
+fn enabled_polishing_keeps_local_cleanup_when_provider_is_skipped_or_offline() {
+    use template_app::RefinementSkipReason;
+
+    for (transcript, delivered, status, provider_calls) in [
+        (
+            "嗯，我我来了。",
+            "我来了。",
+            RefinementStatus::Skipped(RefinementSkipReason::ShortTranscript),
+            0,
+        ),
+        (
+            "嗯，我我明天下午到办公室和团队一起检查这周的发布准备情况。",
+            "我明天下午到办公室和团队一起检查这周的发布准备情况。",
+            RefinementStatus::FellBack(RefinementFallbackReason::Transport),
+            1,
+        ),
+    ] {
+        let id = DictationSessionId::generate();
+        let harness = Harness::new(Scenario {
+            policy: Ok(policy(
+                RefinementMode::Enabled,
+                DictationHistoryPolicy::Enabled(Default::default()),
+            )),
+            ..Scenario::default()
+        });
+
+        let result = harness
+            .completion
+            .complete(captured_handoff(id, transcript));
+
+        assert_eq!(
+            completed(
+                id,
+                delivered,
+                status,
+                Ok(TextDeliveryOutcome::AccessibilityVerified),
+                DictationHistoryResult::Saved(HistoryDelivery::Delivered),
+            ),
+            result
+        );
+        assert_eq!(vec![delivered], strings(&harness.adapter.delivered));
+        assert_eq!(
+            provider_calls,
+            harness.adapter.provider.0.load(Ordering::Relaxed)
+        );
+        let records = values(&harness.adapter.history_records);
+        assert_eq!(Some(transcript), records[0].raw_asr_text.as_deref());
+        assert_eq!(None, records[0].llm_refined_text);
+    }
 }
 
 #[test]
@@ -462,7 +573,7 @@ fn restricted_delivery_never_writes_history() {
 #[test]
 fn unavailable_policy_uses_privacy_safe_fallback_and_still_delivers() {
     let id = DictationSessionId::generate();
-    let text = "final text survives policy failure";
+    let text = "嗯，我我保留原话。";
     let harness = Harness::new(Scenario {
         policy: Err(DictationPolicyError::Unavailable(
             "settings unavailable".to_owned(),
