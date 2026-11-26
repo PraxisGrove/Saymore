@@ -62,13 +62,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         size: slint::LogicalSize::new(920.0, 600.0),
     })?;
     let overlay = ui::RecordingOverlay::new()?;
-    overlay.set_preview_enabled(true);
-    overlay.set_revealed(true);
-    // Match the production overlay configuration before showing its native window.
-    overlay
-        .window()
-        .set_size(slint::LogicalSize::new(360.0, 35.0));
-    overlay.set_preview_text("这是流式识别预览。The text updates while you speak.".into());
     let preview = overlay.as_weak();
     let weak = window.as_weak();
     let observed = store.clone();
@@ -93,9 +86,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 require(
                     window.get_qwen_recognition_mode() == ui::LocalRecognitionMode::NonStreaming,
                 );
-            }
-            if let Some(overlay) = preview.upgrade() {
-                support::show_preview_and_finish(&overlay, "qwen-streaming-ui");
+                if let Some(overlay) = preview.upgrade() {
+                    support::show_preview_and_finish(&window, &overlay, "qwen-streaming-ui");
+                }
             }
         });
     });

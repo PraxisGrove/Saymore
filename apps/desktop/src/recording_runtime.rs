@@ -1,6 +1,6 @@
 use super::*;
 use crate::asr_runtime::AsrSessionController;
-mod preview;
+pub(crate) mod preview;
 use crate::ui::Translations;
 use template_app::SpeechRecognitionError;
 
@@ -338,9 +338,15 @@ fn apply_recording_start_result(
         );
     }
     if let Some(overlay) = context.overlay.upgrade() {
-        preview::configure(&overlay, &context.asr);
+        let mode = if context.asr.shows_live_preview() {
+            preview::PreviewMode::LiveTranscript
+        } else {
+            preview::PreviewMode::WaveformOnly
+        };
+        let generation = preview::begin(&overlay, mode);
         first_recording_overlay(
             &overlay,
+            generation,
             &started.input_device_name,
             context.show_device,
             context.id,
@@ -420,17 +426,13 @@ fn create_recording_metrics_callback(
 
 fn first_recording_overlay(
     overlay: &RecordingOverlay,
+    generation: i32,
     device_name: &str,
     show_device: bool,
     id: DictationSessionId,
     startup_started: Instant,
 ) {
     let _ = (device_name, show_device);
-    let generation = overlay.get_session_generation().wrapping_add(1);
-    overlay.set_session_generation(generation);
-    overlay.set_mode(0);
-    overlay.set_recording_level(0.0);
-    overlay.set_revealed(false);
     let present_started = Instant::now();
     let result = overlay_window::present(overlay.window());
     tracing::info!(

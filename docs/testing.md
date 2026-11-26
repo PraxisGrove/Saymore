@@ -49,7 +49,9 @@ Nextest.
   models.
 - `qwen_modes` and `whisper_modes` click the rendered recognition controls and
   verify that changing mode preserves the active provider and persists across
-  launches. Snapshot checks wait for the next rendered frame. If the desktop
+  launches. They drive the production recording-preview callback to check
+  dynamic width, draft retention on stop, and rejection of late results after a
+  restart. Snapshot checks wait for the next rendered frame. If the desktop
   cannot supply a frame, interaction and persistence checks still run.
 - `whisper_modes` also checks the installed-model layout at both window sizes.
   File size and live app memory precede the test results. The footer trash

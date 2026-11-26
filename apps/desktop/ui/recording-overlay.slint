@@ -120,9 +120,12 @@ export component RecordingOverlay inherits Window {
                 color: OverlayColors.recording-text;
                 animate x { duration: root.revealed ? 240ms : 0ms; easing: ease-out; }
             }
-            if live-text.width > parent.width: Rectangle {
+            Rectangle {
+                visible: live-text.width > parent.width;
+                x: 0px;
+                y: capsule.border-width;
                 width: 14px;
-                height: parent.height;
+                height: parent.height - 2 * self.y;
                 background: @linear-gradient(90deg, OverlayColors.recording-surface, OverlayColors.recording-surface.transparentize(1));
             }
         }

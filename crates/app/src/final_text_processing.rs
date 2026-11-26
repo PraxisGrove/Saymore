@@ -7,7 +7,7 @@ use tokio_util::sync::CancellationToken;
 
 use crate::refinement_policy::validate_refinement;
 use crate::refinement_prompt::instructions_for;
-use crate::speech_cleanup::clean_speech;
+use crate::speech_cleanup::{clean_speech, normalize_whitespace};
 
 /// Default budget for one LLM request that does not rewrite a full transcript.
 pub const LLM_REQUEST_TIMEOUT: Duration = Duration::from_secs(8);
@@ -282,14 +282,15 @@ impl FinalTextProcessor {
         F: FnOnce(),
     {
         reject_cancelled(&cancellation)?;
-        let text = clean_speech(&request.transcript);
         let RefinementMode::Enabled = request.refinement else {
+            let text = normalize_whitespace(&request.transcript);
             reject_cancelled(&cancellation)?;
             return Ok(evaluation_without_provider(ProcessedText {
                 text,
                 refinement: RefinementStatus::Disabled,
             }));
         };
+        let text = clean_speech(&request.transcript);
         if mode == RefinementEvaluationMode::ProductionPolicy
             && !refinement_needed(&text, &RefinementMode::Enabled)
             && request.relevant_terms.is_empty()

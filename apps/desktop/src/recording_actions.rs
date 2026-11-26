@@ -221,8 +221,7 @@ fn undo_cancelled_recording(
         ui.set_recording_status(processing_label.clone());
         ui.set_recording_detail(processing_label.clone());
         if let Some(overlay) = overlay.upgrade() {
-            overlay.set_mode(1);
-            overlay.set_processing_label(processing_label);
+            crate::recording_runtime::preview::show_processing(&overlay, processing_label);
         }
     }
     dictation_finish::finish_retained_recording(

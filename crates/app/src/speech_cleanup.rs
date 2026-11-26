@@ -14,7 +14,7 @@ pub fn clean_speech(transcript: &str) -> String {
     remove_repeated_ascii_words(&without_stutters)
 }
 
-fn normalize_whitespace(transcript: &str) -> String {
+pub(super) fn normalize_whitespace(transcript: &str) -> String {
     transcript
         .lines()
         .map(|line| line.split_whitespace().collect::<Vec<_>>().join(" "))

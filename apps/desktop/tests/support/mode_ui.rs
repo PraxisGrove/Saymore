@@ -1,8 +1,11 @@
 use crate::ui;
 #[path = "../../src/overlay_window.rs"]
 mod overlay_window;
-use slint::{ComponentHandle, platform::WindowEvent};
-use std::{cell::RefCell, rc::Rc, time::Duration};
+#[path = "../../src/recording_runtime/preview.rs"]
+mod preview;
+use slint::ComponentHandle;
+use std::{cell::RefCell, rc::Rc, sync::Arc, time::Duration};
+use template_app::{DictationSession, DictationSessionId, DictationToggleAction};
 
 #[track_caller]
 pub fn require(valid: bool) {
@@ -57,22 +60,109 @@ pub fn after_snapshot<C: ComponentHandle + 'static>(
     });
 }
 
-pub fn show_preview_and_finish(overlay: &ui::RecordingOverlay, directory: &'static str) {
-    // Match the production panel setup so an inactive test app remains visible.
-    require(overlay_window::prepare(overlay.window()).is_ok());
-    after_snapshot(overlay, directory, "streaming-preview", || {
-        let _ = slint::quit_event_loop();
-    });
-    require(overlay_window::present(overlay.window()).is_ok());
+pub fn show_preview_and_finish(
+    window: &ui::AppWindow,
+    overlay: &ui::RecordingOverlay,
+    directory: &'static str,
+) {
+    let window = window.clone_strong();
+    let overlay = overlay.clone_strong();
     require(
-        overlay
-            .window()
-            .try_dispatch_event(WindowEvent::Resized {
-                size: slint::LogicalSize::new(360.0, 35.0),
-            })
-            .is_ok(),
+        slint::spawn_local(async move {
+            let session = Arc::new(DictationSession::default());
+            let waveform = start_preview(&session, &overlay, preview::PreviewMode::WaveformOnly);
+            preview::callback(
+                window.as_weak(),
+                overlay.as_weak(),
+                session.clone(),
+                waveform,
+            )("main-window progress only".to_owned());
+            after_partials().await;
+            check_preview(&overlay, "", 120.0);
+            require(window.get_recording_detail() == "main-window progress only");
+            session.complete();
+
+            let first = start_preview(&session, &overlay, preview::PreviewMode::LiveTranscript);
+            check_preview(&overlay, "", 120.0);
+            require(overlay_window::prepare(overlay.window()).is_ok());
+            overlay.set_revealed(true);
+            require(overlay_window::present(overlay.window()).is_ok());
+            let partial =
+                preview::callback(window.as_weak(), overlay.as_weak(), session.clone(), first);
+            partial("hello".to_owned());
+            after_partials().await;
+            check_preview(&overlay, "hello", 150.0);
+
+            require(session.request_finish() == Some(first));
+            preview::show_processing(&overlay, "Transcribing".into());
+            partial("late transcript after stop".to_owned());
+            after_partials().await;
+            require(overlay.get_mode() == 1);
+            check_preview(&overlay, "hello", 150.0);
+
+            session.complete();
+            partial("old transcript queued before restarting".to_owned());
+            let second = start_preview(&session, &overlay, preview::PreviewMode::LiveTranscript);
+            after_partials().await;
+            require(overlay.get_mode() == 0);
+            check_preview(&overlay, "", 120.0);
+            require(window.get_recording_detail() == "hello");
+
+            let current =
+                preview::callback(window.as_weak(), overlay.as_weak(), session.clone(), second);
+            current("这是流式识别预览。\n The text updates while you speak.".to_owned());
+            after_partials().await;
+            check_preview(
+                &overlay,
+                concat!("这是流式识别预览。", " The text updates while you speak."),
+                280.0,
+            );
+
+            overlay.set_revealed(true);
+            let displayed = overlay.as_weak();
+            after_snapshot(&overlay, directory, "streaming-preview", move || {
+                if let Some(displayed) = displayed.upgrade() {
+                    let window = displayed.window();
+                    let expected =
+                        slint::LogicalSize::new(280.0, 35.0).to_physical(window.scale_factor());
+                    require(window.size() == expected);
+                } else {
+                    require(false);
+                }
+                let _ = slint::quit_event_loop();
+            });
+        })
+        .is_ok(),
     );
-    overlay.window().request_redraw();
+}
+
+fn start_preview(
+    session: &DictationSession,
+    overlay: &ui::RecordingOverlay,
+    mode: preview::PreviewMode,
+) -> DictationSessionId {
+    let DictationToggleAction::Start(id) = session.request_toggle(false) else {
+        std::process::exit(1);
+    };
+    require(session.recording_started());
+    preview::begin(overlay, mode);
+    id
+}
+
+fn check_preview(overlay: &ui::RecordingOverlay, text: &str, width: f32) {
+    require(overlay.get_preview_text() == text);
+    require((overlay.get_preview_width() - width).abs() < f32::EPSILON);
+}
+
+async fn after_partials() {
+    let (sent, received) = tokio::sync::oneshot::channel();
+    require(
+        slint::invoke_from_event_loop(move || {
+            let _ = sent.send(());
+        })
+        .is_ok(),
+    );
+    require(received.await.is_ok());
 }
 
 fn save_snapshot(window: &slint::Window, directory: &str, name: &str) {

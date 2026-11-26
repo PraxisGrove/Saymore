@@ -63,9 +63,7 @@ pub fn finish_recording(
                 .status
                 .upgrade()
                 .map(|overlay| {
-                    overlay.set_mode(1);
-                    overlay.set_processing_label(processing_label);
-                    overlay.get_session_generation()
+                    crate::recording_runtime::preview::show_processing(&overlay, processing_label)
                 })
                 .unwrap_or_default();
             let failure_session = Arc::clone(&session);

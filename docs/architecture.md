@@ -174,19 +174,27 @@ Protocol references:
 [Groq speech-to-text](https://console.groq.com/docs/speech-to-text), and
 [Mistral transcription API](https://docs.mistral.ai/api/endpoint/audio/transcriptions).
 
-Final LLM refinement is owned by `FinalTextProcessor` in `app`. Its provider
-budget grows with transcript length (8 s plus 40 ms per character, capped at 60
-s) so long dictations are not routinely cut off, and adapters apply that
-per-request budget instead of a fixed client timeout. A completion truncated by
-the token limit is a protocol failure and falls back to the transcript. The
-locally persisted `RefinementStrength` (light, standard, thorough; light by
-default) only appends stronger cleanup rules to the same instructions; every
-strength keeps the preservation contract and the same output validation.
-Repeated transient failures pause automatic refinement for five minutes. A
-user-requested re-polish from history (`retry_history_refinement`) bypasses that
-pause and the short-text gate, polishes the saved recognized text with the
-current provider and strength, and updates the encrypted history record only
-when the output passes validation.
+Final text polishing is owned by `FinalTextProcessor` in `app`. When polishing
+is off, the processor preserves fillers and accidental repetitions and does not
+call an LLM provider. When polishing is on, local speech cleanup runs before the
+provider decision: a skip or provider failure still delivers the locally cleaned
+text. Dictation completion applies whitespace and dictionary spelling
+normalization independently and keeps the recognized text before polishing in
+history. If settings cannot be read, completion still delivers without polishing
+and does not write history.
+
+The provider budget grows with transcript length (8 s plus 40 ms per character,
+capped at 60 s) so long dictations are not routinely cut off, and adapters apply
+that per-request budget instead of a fixed client timeout. A completion
+truncated by the token limit is a protocol failure and falls back to the locally
+cleaned transcript. The locally persisted `RefinementStrength` (light, standard,
+thorough; light by default) only appends stronger cleanup rules to the same
+instructions; every strength keeps the preservation contract and the same output
+validation. Repeated transient failures pause automatic refinement for five
+minutes. A user-requested re-polish from history (`retry_history_refinement`)
+bypasses that pause and the short-text gate, polishes the saved recognized text
+with the current provider and strength, and updates the encrypted history record
+only when the output passes validation.
 
 Magpie is a distinct built-in compatible LLM Provider at
 `http://127.0.0.1:3425/v1`; it never occupies the Custom Provider slot. Saymore
