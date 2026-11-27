@@ -125,6 +125,11 @@ Clippy rules used by CI.
 macOS CI and release packaging both use GitHub's `macos-15` runner. Keep these
 runner labels aligned and move them together when a hosted image is retired.
 
+CI caches Cargo downloads but not `target/`: Rust Cache pruning can remove the
+Sherpa ONNX static libraries while leaving the `lib` directory that its build
+script treats as an unpacked archive. Starting with a fresh `target/` lets
+Sherpa unpack the libraries again.
+
 Whisper is built from the native whisper.cpp sources bundled by pinned
 `whisper-rs 0.16.0` / `whisper-rs-sys 0.15.0` (whisper.cpp 1.8.3). Local builds
 require CMake and a C/C++ toolchain (Xcode Command Line Tools on macOS, Visual
